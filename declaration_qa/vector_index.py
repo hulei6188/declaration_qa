@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from declaration_qa.domain import KnowledgeChunk
+from declaration_qa.source_types import expand_source_type_filter
 
 
 class VectorIndex(Protocol):
@@ -198,6 +199,8 @@ def milvus_filter_expr(filters: dict[str, Any]) -> str:
         value = filters.get(key)
         if not value:
             continue
+        if key == "source_type":
+            value = expand_source_type_filter(value)
         if isinstance(value, list):
             values = ", ".join(f'"{str(item).replace(chr(34), chr(92) + chr(34))}"' for item in value)
             parts.append(f"{key} in [{values}]")

@@ -1,0 +1,18 @@
+{
+  "id": "residence_huoqiu_20260224",
+  "category": "existing_knowledge_source",
+  "topic": "居住登记与居住证申领、签注材料",
+  "title_hint": "安徽居住登记与居住证申领、签注材料标准（霍邱县公开）",
+  "url": "https://www.huoqiu.gov.cn/public/6618331/33930928.html",
+  "region_code": "340000",
+  "biz_type": "residence_permit",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://www.huoqiu.gov.cn/public/6618331/33930928.html",
+  "fetched_at": "2026-06-15T02:45:33.786232+00:00",
+  "html_sha256": "b6b0a106f5169e84f626bcedb4933bacaa49ab840961c92ec489c9cd60220b65",
+  "text_sha256": "91200d61aa227d2915ba2efa997c7949ad66158124b18211ec6e9b6033da7c13",
+  "extracted_title": "安徽省居住证业务办理标准---暂住登记_霍邱县人民政府",
+  "text_length": 2241
+}

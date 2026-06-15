@@ -12,6 +12,7 @@ from typing import Any, Iterable
 from declaration_qa.cache import CacheStore, InMemoryCacheStore
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
+from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE, canonicalize_source_type, expand_source_type_filter
 from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
 
 
@@ -52,6 +53,7 @@ class InMemoryRAGEngine:
         return list(self._documents.values())
 
     def index_document(self, document: KnowledgeDocument) -> int:
+        document = replace(document, source_type=canonicalize_source_type(document.source_type))
         self._documents[document.id] = document
         chunks = split_parent_child(document)
         for chunk in chunks:
@@ -84,6 +86,7 @@ class InMemoryRAGEngine:
         return count
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
+        document = replace(document, source_type=canonicalize_source_type(document.source_type))
         return split_parent_child(document)
 
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
@@ -432,8 +435,8 @@ def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
             return False
     source_type = filters.get("source_type")
     if source_type:
-        allowed = {str(item) for item in source_type} if isinstance(source_type, list) else {str(source_type)}
-        if chunk.source_type not in allowed:
+        allowed = set(expand_source_type_filter(source_type))
+        if canonicalize_source_type(chunk.source_type) not in allowed:
             return False
     for key in ["material_code", "reject_code", "audit_node"]:
         expected = str(filters.get(key) or "").strip()
@@ -565,7 +568,7 @@ def seed_documents() -> list[KnowledgeDocument]:
             biz_type="id_card_replace",
             region_code="340000",
             policy_version="2025",
-            source_type="reject_rule",
+            source_type=MATERIAL_RULE_SOURCE_TYPE,
             source_url="internal://rules/id-card-photo",
             material_code="ID_CARD_FRONT",
             reject_code="PHOTO_BLUR",
@@ -581,7 +584,7 @@ def seed_documents() -> list[KnowledgeDocument]:
             biz_type="residence_permit",
             region_code="340000",
             policy_version="2025",
-            source_type="reject_rule",
+            source_type=MATERIAL_RULE_SOURCE_TYPE,
             source_url="internal://rules/residence-proof",
             material_code="RESIDENCE_PROOF",
             reject_code="MISSING_RESIDENCE_PROOF",

@@ -90,6 +90,7 @@ The workflow keeps declaration business state and RAG knowledge separate:
 
 - status and reject questions require an application context and query business adapters first;
 - policy/material/process questions use RAG filters based on business type, region, policy version, effective time, and status;
+- source type filters are intent-scoped: status uses `process`, reject/correction uses `material_rule`, and knowledge uses `guide`/`process`/`faq`;
 - `appVersion` is only used in answer post-processing for entry/action compatibility.
 - asynchronous indexing moves upload parsing, embedding, Milvus upsert, PostgreSQL persistence, reindex, retry, and delete work out of the request path;
 - knowledge management supports draft versions, publish/unpublish, rollout percentage, effective dates, version comparison, and rollback;

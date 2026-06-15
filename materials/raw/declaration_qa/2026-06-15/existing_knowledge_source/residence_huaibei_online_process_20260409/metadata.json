@@ -1,0 +1,18 @@
+{
+  "id": "residence_huaibei_online_process_20260409",
+  "category": "existing_knowledge_source",
+  "topic": "居住证线上申领流程",
+  "title_hint": "安徽居住证线上申领流程（淮北公安公开）",
+  "url": "https://gaj.huaibei.gov.cn/jwzx/hbjx/58029357.html",
+  "region_code": "340000",
+  "biz_type": "residence_permit",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://gaj.huaibei.gov.cn/jwzx/hbjx/58029357.html",
+  "fetched_at": "2026-06-15T02:45:34.113878+00:00",
+  "html_sha256": "a63546aa3a78632702ddcbbed0ca15e26f1a6ea2f16679be673a785a44f85c48",
+  "text_sha256": "c8e5ea7bb2ad215f4539be24536075b233d419143e51cb8bdb528a802cfd4655",
+  "extracted_title": "动动手指,轻松拿证!速看居住证办理指南!_淮北市公安局",
+  "text_length": 1175
+}

@@ -2,9 +2,11 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 
 from declaration_qa.business import HttpBusinessDataAdapter
-from declaration_qa.rag_engine import build_seed_rag_engine
+from declaration_qa.domain import KnowledgeDocument
+from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
+from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE
 from declaration_qa.workflow import DeclarationQAWorkflow
 
 
@@ -93,10 +95,46 @@ def test_reject_flow_maps_material_item_before_rag():
     assert "身份证正面照片" in response.answer
     assert audit["reject_info"]["reject_code"] == "PHOTO_BLUR"
     assert audit["material_mapping"]["material_code"] == "ID_CARD_FRONT"
+    assert audit["retrieval_filter"]["source_type"] == MATERIAL_RULE_SOURCE_TYPE
     assert audit["retrieval_filter"]["material_code"] == "ID_CARD_FRONT"
     assert audit["retrieval_filter"]["reject_code"] == "PHOTO_BLUR"
+    assert response.sources[0].source_type == MATERIAL_RULE_SOURCE_TYPE
     assert response.sources[0].material_code == "ID_CARD_FRONT"
     assert response.sources[0].reject_code == "PHOTO_BLUR"
+
+
+def test_reject_flow_falls_back_to_material_rule_without_reject_code():
+    engine = InMemoryRAGEngine()
+    engine.index_document(
+        KnowledgeDocument(
+            id="doc-id-card-material-rule",
+            title="身份证正面照片材料规范",
+            content="身份证正面照片不清晰时，需要重新上传边框完整、文字清楚、无遮挡、无反光的图片。",
+            biz_type="id_card_replace",
+            region_code="340000",
+            policy_version="2025",
+            source_type=MATERIAL_RULE_SOURCE_TYPE,
+            material_code="ID_CARD_FRONT",
+        )
+    )
+    workflow = DeclarationQAWorkflow(rag_engine=engine)
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="为什么我的申请被退回了",
+            user_id=1,
+            region_code="340000",
+            apply_id="A3003",
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.intent == "reject"
+    assert response.refused is False
+    assert audit["retrieval_filter"]["source_type"] == MATERIAL_RULE_SOURCE_TYPE
+    assert audit["retrieval_filter"]["material_code"] == "ID_CARD_FRONT"
+    assert "reject_code" not in audit["retrieval_filter"]
+    assert response.sources[0].material_code == "ID_CARD_FRONT"
 
 
 def test_stream_endpoint_returns_sse_events():

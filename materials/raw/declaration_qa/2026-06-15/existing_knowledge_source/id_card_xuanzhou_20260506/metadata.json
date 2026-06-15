@@ -1,0 +1,18 @@
+{
+  "id": "id_card_xuanzhou_20260506",
+  "category": "existing_knowledge_source",
+  "topic": "居民身份证换领补领材料和流程",
+  "title_hint": "安徽居民身份证换领、补领办理材料（宣州区公开）",
+  "url": "https://www.xuanzhou.gov.cn/Jczwgk/show/3103097.html",
+  "region_code": "340000",
+  "biz_type": "id_card_replace",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "final_url": "https://www.xuanzhou.gov.cn/Jczwgk/show/3103097.html",
+  "fetched_at": "2026-06-15T02:45:35.022317+00:00",
+  "html_sha256": "508d9e4fa6e6fb3f3bccbabc9ffc028524da93fdd167ec1e8fe5914674b4566b",
+  "text_sha256": "a23398d2cadfdc31dfc1ea193f26bf4589783752d6d3bd77835acdd292166b5d",
+  "extracted_title": "居民身份证换、补领办理流程--标准化规范化工作专题",
+  "text_length": 1853
+}

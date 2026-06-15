@@ -1,0 +1,20 @@
+{
+  "id": "vaccination_check_certificate_ningguo_2024",
+  "certificate_type": "vaccination_check_certificate",
+  "source_type": "process",
+  "topic": "儿童入托入学预防接种证查验证明皖事通线上开具流程",
+  "title_hint": "预防接种“入学查验证明”线上开具流程",
+  "url": "https://www.ningguo.gov.cn/OpennessContent/show/3340154.html",
+  "region_code": "341881",
+  "source_scope": "anhui_official",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://www.ningguo.gov.cn/OpennessContent/show/3340154.html",
+  "fetched_at": "2026-06-15T03:22:22.002210+00:00",
+  "html_sha256": "fe8d28722765ccd92ef8761c9bd8ad7463e42c930f6fe629128284de3e3a0e26",
+  "text_sha256": "d9b8b2afe34faf857e384f5feb9ce8d88acedd181b0be3950af83c5bbd9b4229",
+  "extracted_title": "ãå«çå¥åº·ãåå¤å",
+  "text_length": 4899,
+  "js_shell_possible": false
+}

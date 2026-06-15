@@ -1,0 +1,20 @@
+{
+  "id": "disabled_person_card_huoshan_guide_20250430",
+  "certificate_type": "disabled_person_card",
+  "topic": "第二代残疾人证办理条件、材料和服务流程",
+  "title_hint": "第二代残疾人证办理指南（霍山县人民政府）",
+  "url": "https://www.ahhuoshan.gov.cn/public/6618231/35144408.html",
+  "region_code": "341525",
+  "source_scope": "anhui_official",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://www.ahhuoshan.gov.cn/public/6618231/35144408.html",
+  "fetched_at": "2026-06-15T02:58:53.868776+00:00",
+  "html_sha256": "7294d4296503ffbfac27a0e387aaa5eff8ac4d3bd999b15b1df59104474685cf",
+  "text_sha256": "b5ed4734383166539cd2249db2f4d032bbc5cf4237c34c77eec9a058cd4ce164",
+  "extracted_title": "【办理指南】第二代残疾人证办理指南_霍山县人民政府",
+  "text_length": 1503,
+  "js_shell_possible": false,
+  "source_type": "guide"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "residence_guangde_20260414",
+  "category": "existing_knowledge_source",
+  "topic": "居住证申领材料",
+  "title_hint": "安徽居住证申领材料清单（广德市杨滩镇公开）",
+  "url": "https://www.guangde.gov.cn/OpennessContent/show/2008814.html",
+  "region_code": "340000",
+  "biz_type": "residence_permit",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://www.guangde.gov.cn/OpennessContent/show/2008814.html",
+  "fetched_at": "2026-06-15T02:45:33.545436+00:00",
+  "html_sha256": "439e8daa8c2ab70f911ac9aa8a5b8fe3d7d409c070b525018cd4d0bc97ce546e",
+  "text_sha256": "7581b766254a3873fe9d0bab8dfa8ad4da565d6038c2638b7d799c08fd366118",
+  "extracted_title": "安徽省居住证办理标准---居住证申领-广德市人民政府",
+  "text_length": 842
+}

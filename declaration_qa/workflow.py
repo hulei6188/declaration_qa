@@ -15,6 +15,7 @@ from declaration_qa.evidence import decide_evidence
 from declaration_qa.prompting import DeterministicAnswerGenerator
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine, normalize_text
 from declaration_qa.schemas import ChatRequest, ChatResponse
+from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE
 from declaration_qa.state import DeclarationQAState
 
 
@@ -101,12 +102,12 @@ class DeclarationQAWorkflow:
                 for name, handler in [
                     ("business_reject_query", self.business_reject_query),
                     ("material_mapping", self.material_mapping),
-                    ("reject_rule_rag", self.reject_rule_rag),
+                    ("material_rule_rag", self.material_rule_rag),
                     ("evidence_check", self.evidence_check),
                 ]:
                     run_node(name, handler)
                     yield from drain()
-                    if name == "reject_rule_rag" and state.get("retrieved_sources"):
+                    if name == "material_rule_rag" and state.get("retrieved_sources"):
                         yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
                 if state.get("evidence_ok"):
                     run_node("llm_generate", self.llm_generate)
@@ -196,7 +197,7 @@ class DeclarationQAWorkflow:
         builder.add_node("status_explain_rag", self.status_explain_rag)
         builder.add_node("business_reject_query", self.business_reject_query)
         builder.add_node("material_mapping", self.material_mapping)
-        builder.add_node("reject_rule_rag", self.reject_rule_rag)
+        builder.add_node("material_rule_rag", self.material_rule_rag)
         builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
         builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
         builder.add_node("evidence_check", self.evidence_check)
@@ -231,8 +232,8 @@ class DeclarationQAWorkflow:
             {"ok": "business_reject_query", "missing": "refuse_or_human"},
         )
         builder.add_edge("business_reject_query", "material_mapping")
-        builder.add_edge("material_mapping", "reject_rule_rag")
-        builder.add_edge("reject_rule_rag", "evidence_check")
+        builder.add_edge("material_mapping", "material_rule_rag")
+        builder.add_edge("material_rule_rag", "evidence_check")
         builder.add_edge("knowledge_filter_build", "hybrid_retrieve")
         builder.add_edge("hybrid_retrieve", "evidence_check")
         builder.add_conditional_edges(
@@ -341,10 +342,10 @@ class DeclarationQAWorkflow:
         add_event(next_state, "material_mapping", mapping)
         return next_state
 
-    def reject_rule_rag(self, state: DeclarationQAState) -> DeclarationQAState:
+    def material_rule_rag(self, state: DeclarationQAState) -> DeclarationQAState:
         next_state = dict(state)
         reject = next_state.get("reject_info") or {}
-        filters = base_policy_filter(next_state, source_type="reject_rule")
+        filters = base_policy_filter(next_state, source_type=MATERIAL_RULE_SOURCE_TYPE)
         filters.update(
             {
                 "material_code": reject.get("material_code") or "",
@@ -353,7 +354,6 @@ class DeclarationQAWorkflow:
         )
         if reject.get("audit_node"):
             filters["audit_node"] = reject.get("audit_node")
-        next_state["retrieval_filter"] = filters
         query = " ".join(
             str(item)
             for item in [
@@ -365,6 +365,20 @@ class DeclarationQAWorkflow:
             if item
         )
         result = self.rag_engine.retrieve(query, filters, top_k=4)
+        if not result.sources and filters.get("material_code") and (filters.get("reject_code") or filters.get("audit_node")):
+            relaxed_filters = dict(filters)
+            relaxed_filters.pop("reject_code", None)
+            relaxed_filters.pop("audit_node", None)
+            relaxed_result = self.rag_engine.retrieve(query, relaxed_filters, top_k=4)
+            if relaxed_result.sources:
+                filters = relaxed_filters
+                result = relaxed_result
+                add_event(
+                    next_state,
+                    "material_rule_filter_relaxed",
+                    {"material_code": filters.get("material_code"), "source_type": filters.get("source_type")},
+                )
+        next_state["retrieval_filter"] = filters
         next_state["retrieved_sources"] = [source.payload() for source in result.sources]
         next_state["rag_status"] = result.status
         add_event(next_state, "rag_status", result.status)

@@ -1,0 +1,18 @@
+{
+  "id": "health_certificate_luoyuan_20230925",
+  "category": "existing_knowledge_source",
+  "topic": "健康证办理材料与流程示例",
+  "title_hint": "健康证办理材料与流程示例（罗源县政府公开，非安徽）",
+  "url": "https://www.luoyuan.gov.cn/xjwz/nrrh/wsjkj/202309/t20230925_4684390.htm",
+  "region_code": "350123",
+  "biz_type": "health_certificate",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "text/html",
+  "final_url": "https://www.luoyuan.gov.cn/xjwz/nrrh/wsjkj/202309/t20230925_4684390.htm",
+  "fetched_at": "2026-06-15T02:45:35.339165+00:00",
+  "html_sha256": "43c00ad2831e6dabad481160de2e55dc0a387315033fc936c62250634a167a1d",
+  "text_sha256": "be736ea3596335117772454b792543b62100cd43947a3715536ce8de0d70b6c5",
+  "extracted_title": "健康证办理_\n卫生健康局_\n罗源县人民政府",
+  "text_length": 1544
+}

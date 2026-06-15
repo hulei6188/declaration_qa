@@ -1,0 +1,112 @@
+{
+  "generated_at": "2026-06-15T02:45:33.244884+00:00",
+  "purpose": "Raw source materials previously used as declaration QA knowledge-base sources. General online application-process documents were removed as out of scope.",
+  "root": "materials/raw/declaration_qa/2026-06-15",
+  "documents": [
+    {
+      "id": "residence_guangde_20260414",
+      "category": "existing_knowledge_source",
+      "topic": "居住证申领材料",
+      "title_hint": "安徽居住证申领材料清单（广德市杨滩镇公开）",
+      "url": "https://www.guangde.gov.cn/OpennessContent/show/2008814.html",
+      "region_code": "340000",
+      "biz_type": "residence_permit",
+      "files": {
+        "html": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_guangde_20260414/source.html",
+        "markdown": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_guangde_20260414/content.md",
+        "metadata": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_guangde_20260414/metadata.json"
+      },
+      "fetch_status": "ok",
+      "http_status": 200,
+      "final_url": "https://www.guangde.gov.cn/OpennessContent/show/2008814.html",
+      "extracted_title": "安徽省居住证办理标准---居住证申领-广德市人民政府",
+      "text_length": 842,
+      "html_sha256": "439e8daa8c2ab70f911ac9aa8a5b8fe3d7d409c070b525018cd4d0bc97ce546e",
+      "text_sha256": "7581b766254a3873fe9d0bab8dfa8ad4da565d6038c2638b7d799c08fd366118"
+    },
+    {
+      "id": "residence_huoqiu_20260224",
+      "category": "existing_knowledge_source",
+      "topic": "居住登记与居住证申领、签注材料",
+      "title_hint": "安徽居住登记与居住证申领、签注材料标准（霍邱县公开）",
+      "url": "https://www.huoqiu.gov.cn/public/6618331/33930928.html",
+      "region_code": "340000",
+      "biz_type": "residence_permit",
+      "files": {
+        "html": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huoqiu_20260224/source.html",
+        "markdown": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huoqiu_20260224/content.md",
+        "metadata": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huoqiu_20260224/metadata.json"
+      },
+      "fetch_status": "ok",
+      "http_status": 200,
+      "final_url": "https://www.huoqiu.gov.cn/public/6618331/33930928.html",
+      "extracted_title": "安徽省居住证业务办理标准---暂住登记_霍邱县人民政府",
+      "text_length": 2241,
+      "html_sha256": "b6b0a106f5169e84f626bcedb4933bacaa49ab840961c92ec489c9cd60220b65",
+      "text_sha256": "91200d61aa227d2915ba2efa997c7949ad66158124b18211ec6e9b6033da7c13"
+    },
+    {
+      "id": "residence_huaibei_online_process_20260409",
+      "category": "existing_knowledge_source",
+      "topic": "居住证线上申领流程",
+      "title_hint": "安徽居住证线上申领流程（淮北公安公开）",
+      "url": "https://gaj.huaibei.gov.cn/jwzx/hbjx/58029357.html",
+      "region_code": "340000",
+      "biz_type": "residence_permit",
+      "files": {
+        "html": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huaibei_online_process_20260409/source.html",
+        "markdown": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huaibei_online_process_20260409/content.md",
+        "metadata": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/residence_huaibei_online_process_20260409/metadata.json"
+      },
+      "fetch_status": "ok",
+      "http_status": 200,
+      "final_url": "https://gaj.huaibei.gov.cn/jwzx/hbjx/58029357.html",
+      "extracted_title": "动动手指,轻松拿证!速看居住证办理指南!_淮北市公安局",
+      "text_length": 1175,
+      "html_sha256": "a63546aa3a78632702ddcbbed0ca15e26f1a6ea2f16679be673a785a44f85c48",
+      "text_sha256": "c8e5ea7bb2ad215f4539be24536075b233d419143e51cb8bdb528a802cfd4655"
+    },
+    {
+      "id": "id_card_xuanzhou_20260506",
+      "category": "existing_knowledge_source",
+      "topic": "居民身份证换领补领材料和流程",
+      "title_hint": "安徽居民身份证换领、补领办理材料（宣州区公开）",
+      "url": "https://www.xuanzhou.gov.cn/Jczwgk/show/3103097.html",
+      "region_code": "340000",
+      "biz_type": "id_card_replace",
+      "files": {
+        "html": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/id_card_xuanzhou_20260506/source.html",
+        "markdown": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/id_card_xuanzhou_20260506/content.md",
+        "metadata": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/id_card_xuanzhou_20260506/metadata.json"
+      },
+      "fetch_status": "ok",
+      "http_status": 200,
+      "final_url": "https://www.xuanzhou.gov.cn/Jczwgk/show/3103097.html",
+      "extracted_title": "居民身份证换、补领办理流程--标准化规范化工作专题",
+      "text_length": 1853,
+      "html_sha256": "508d9e4fa6e6fb3f3bccbabc9ffc028524da93fdd167ec1e8fe5914674b4566b",
+      "text_sha256": "a23398d2cadfdc31dfc1ea193f26bf4589783752d6d3bd77835acdd292166b5d"
+    },
+    {
+      "id": "health_certificate_luoyuan_20230925",
+      "category": "existing_knowledge_source",
+      "topic": "健康证办理材料与流程示例",
+      "title_hint": "健康证办理材料与流程示例（罗源县政府公开，非安徽）",
+      "url": "https://www.luoyuan.gov.cn/xjwz/nrrh/wsjkj/202309/t20230925_4684390.htm",
+      "region_code": "350123",
+      "biz_type": "health_certificate",
+      "files": {
+        "html": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/health_certificate_luoyuan_20230925/source.html",
+        "markdown": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/health_certificate_luoyuan_20230925/content.md",
+        "metadata": "materials/raw/declaration_qa/2026-06-15/existing_knowledge_source/health_certificate_luoyuan_20230925/metadata.json"
+      },
+      "fetch_status": "ok",
+      "http_status": 200,
+      "final_url": "https://www.luoyuan.gov.cn/xjwz/nrrh/wsjkj/202309/t20230925_4684390.htm",
+      "extracted_title": "健康证办理_\n卫生健康局_\n罗源县人民政府",
+      "text_length": 1544,
+      "html_sha256": "43c00ad2831e6dabad481160de2e55dc0a387315033fc936c62250634a167a1d",
+      "text_sha256": "be736ea3596335117772454b792543b62100cd43947a3715536ce8de0d70b6c5"
+    }
+  ]
+}

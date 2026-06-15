@@ -1,0 +1,20 @@
+{
+  "id": "no_criminal_record_wanshitong_huainan_pdf_2026",
+  "certificate_type": "no_criminal_record_certificate",
+  "source_type": "process",
+  "topic": "无犯罪记录证明皖事通线上申办、进度查询和电子版下载流程",
+  "title_hint": "无犯罪记录证明皖事通申办流程（PDF）",
+  "url": "https://sjtj.huainan.gov.cn/group4/M00/11/67/rB40qWnM0UKAejx0AAWPwYn7WFI864.pdf",
+  "region_code": "340400",
+  "source_scope": "anhui_official",
+  "fetch_status": "ok",
+  "http_status": 200,
+  "content_type": "application/pdf",
+  "final_url": "https://sjtj.huainan.gov.cn/group4/M00/11/67/rB40qWnM0UKAejx0AAWPwYn7WFI864.pdf",
+  "fetched_at": "2026-06-15T03:22:22.147771+00:00",
+  "pdf_sha256": "88ef1cf86a442c0110a14890635c4eb702b99e013cbbbbc4832fec274acf13a8",
+  "text_sha256": "bbd8bdb221682356477780a163072e5481c7c4d310ff7a6540301b02b0f8b7cc",
+  "extracted_title": "无犯罪记录证明皖事通申办流程（PDF）",
+  "text_length": 232,
+  "js_shell_possible": false
+}

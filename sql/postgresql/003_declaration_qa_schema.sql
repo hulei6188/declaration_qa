@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS declaration_qa.documents (
     filename VARCHAR(255) NOT NULL DEFAULT '',
     content_type VARCHAR(120) NOT NULL DEFAULT 'text/plain',
     source_type VARCHAR(40) NOT NULL CHECK (
-        source_type IN ('policy', 'guide', 'faq', 'process', 'reject_rule', 'material_rule', 'operation_notice')
+        source_type IN ('policy', 'guide', 'faq', 'process', 'material_rule', 'operation_notice')
     ),
     source_url TEXT NOT NULL DEFAULT '',
     raw_text TEXT NOT NULL,
@@ -125,6 +125,47 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_source_type
     ON declaration_qa.chunks (source_type);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_metadata_gin
     ON declaration_qa.chunks USING GIN (metadata);
+
+UPDATE declaration_qa.documents
+SET source_type = 'material_rule'
+WHERE source_type = 'reject_rule';
+
+UPDATE declaration_qa.chunks
+SET
+    source_type = 'material_rule',
+    metadata = jsonb_set(metadata, '{source_type}', '"material_rule"', true)
+WHERE source_type = 'reject_rule';
+
+DO $$
+DECLARE
+    old_source_type_constraint TEXT;
+BEGIN
+    SELECT conname
+    INTO old_source_type_constraint
+    FROM pg_constraint
+    WHERE conrelid = 'declaration_qa.documents'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) LIKE '%source_type%'
+      AND pg_get_constraintdef(oid) LIKE '%reject_rule%'
+    LIMIT 1;
+
+    IF old_source_type_constraint IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE declaration_qa.documents DROP CONSTRAINT %I', old_source_type_constraint);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'declaration_qa.documents'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) LIKE '%source_type%'
+          AND pg_get_constraintdef(oid) NOT LIKE '%reject_rule%'
+    ) THEN
+        ALTER TABLE declaration_qa.documents
+            ADD CONSTRAINT ck_declaration_qa_documents_source_type
+            CHECK (source_type IN ('policy', 'guide', 'faq', 'process', 'material_rule', 'operation_notice'));
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS declaration_qa.index_jobs (
     id BIGSERIAL PRIMARY KEY,
