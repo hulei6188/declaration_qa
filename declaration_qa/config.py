@@ -38,26 +38,6 @@ class DeclarationQASettings(BaseSettings):
     openai_api_base: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_BASE")
     llm_temperature: float = Field(default=0.1, alias="DECLARATION_QA_LLM_TEMPERATURE")
 
-    business_api_base_url: str = Field(default="", alias="DECLARATION_QA_BUSINESS_API_BASE_URL")
-    business_api_token: str = Field(default="", alias="DECLARATION_QA_BUSINESS_API_TOKEN")
-    business_api_timeout_seconds: int = Field(default=5, alias="DECLARATION_QA_BUSINESS_API_TIMEOUT_SECONDS")
-    business_application_path_template: str = Field(
-        default="/applications/{apply_id}",
-        alias="DECLARATION_QA_BUSINESS_APPLICATION_PATH_TEMPLATE",
-    )
-    business_status_path_template: str = Field(
-        default="/applications/{apply_id}/status",
-        alias="DECLARATION_QA_BUSINESS_STATUS_PATH_TEMPLATE",
-    )
-    business_reject_path_template: str = Field(
-        default="/applications/{apply_id}/reject-info",
-        alias="DECLARATION_QA_BUSINESS_REJECT_PATH_TEMPLATE",
-    )
-    business_access_path_template: str = Field(
-        default="/applications/{apply_id}/access",
-        alias="DECLARATION_QA_BUSINESS_ACCESS_PATH_TEMPLATE",
-    )
-
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")
     jwt_algorithms: str = Field(default="HS256", alias="DECLARATION_QA_JWT_ALGORITHMS")

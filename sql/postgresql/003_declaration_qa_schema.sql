@@ -19,6 +19,65 @@ CREATE TABLE IF NOT EXISTS declaration_qa.knowledge_bases (
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_knowledge_bases_created_by
     ON declaration_qa.knowledge_bases (created_by);
 
+CREATE TABLE IF NOT EXISTS declaration_qa.business_applications (
+    id BIGSERIAL PRIMARY KEY,
+    apply_uid VARCHAR(120) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    biz_type VARCHAR(80) NOT NULL,
+    region_code VARCHAR(20) NOT NULL DEFAULT '340000',
+    status VARCHAR(40) NOT NULL DEFAULT '',
+    current_node VARCHAR(80) NOT NULL DEFAULT '',
+    node_name VARCHAR(120) NOT NULL DEFAULT '',
+    submitted_at TIMESTAMPTZ NULL,
+    completed_at TIMESTAMPTZ NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    deleted_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_user
+    ON declaration_qa.business_applications (user_id, apply_uid)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_filter
+    ON declaration_qa.business_applications (biz_type, region_code, status)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS declaration_qa.business_application_statuses (
+    id BIGSERIAL PRIMARY KEY,
+    apply_id BIGINT NOT NULL REFERENCES declaration_qa.business_applications(id) ON DELETE CASCADE,
+    status VARCHAR(40) NOT NULL,
+    current_node VARCHAR(80) NOT NULL DEFAULT '',
+    node_name VARCHAR(120) NOT NULL DEFAULT '',
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_status_current
+    ON declaration_qa.business_application_statuses (apply_id)
+    WHERE is_current = TRUE;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_status_apply
+    ON declaration_qa.business_application_statuses (apply_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.business_reject_infos (
+    id BIGSERIAL PRIMARY KEY,
+    apply_id BIGINT NOT NULL REFERENCES declaration_qa.business_applications(id) ON DELETE CASCADE,
+    material_code VARCHAR(80) NOT NULL DEFAULT '',
+    material_name VARCHAR(160) NOT NULL DEFAULT '',
+    reject_code VARCHAR(80) NOT NULL DEFAULT '',
+    reject_reason TEXT NOT NULL DEFAULT '',
+    audit_node VARCHAR(80) NOT NULL DEFAULT '',
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_reject_current
+    ON declaration_qa.business_reject_infos (apply_id)
+    WHERE is_current = TRUE;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_reject_lookup
+    ON declaration_qa.business_reject_infos (material_code, reject_code, audit_node);
+
 CREATE TABLE IF NOT EXISTS declaration_qa.documents (
     id BIGSERIAL PRIMARY KEY,
     document_uid VARCHAR(120) NOT NULL DEFAULT '',
@@ -126,16 +185,6 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_source_type
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_metadata_gin
     ON declaration_qa.chunks USING GIN (metadata);
 
-UPDATE declaration_qa.documents
-SET source_type = 'material_rule'
-WHERE source_type = 'reject_rule';
-
-UPDATE declaration_qa.chunks
-SET
-    source_type = 'material_rule',
-    metadata = jsonb_set(metadata, '{source_type}', '"material_rule"', true)
-WHERE source_type = 'reject_rule';
-
 DO $$
 DECLARE
     old_source_type_constraint TEXT;
@@ -152,7 +201,20 @@ BEGIN
     IF old_source_type_constraint IS NOT NULL THEN
         EXECUTE format('ALTER TABLE declaration_qa.documents DROP CONSTRAINT %I', old_source_type_constraint);
     END IF;
+END $$;
 
+UPDATE declaration_qa.documents
+SET source_type = 'material_rule'
+WHERE source_type = 'reject_rule';
+
+UPDATE declaration_qa.chunks
+SET
+    source_type = 'material_rule',
+    metadata = jsonb_set(metadata, '{source_type}', '"material_rule"', true)
+WHERE source_type = 'reject_rule';
+
+DO $$
+BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM pg_constraint

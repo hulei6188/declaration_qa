@@ -9,6 +9,7 @@ from sqlalchemy import JSON, bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.source_types import canonicalize_source_type
 
 
 class PostgresDeclarationQAStore:
@@ -113,6 +114,122 @@ class PostgresDeclarationQAStore:
                 {"audit_uid": audit_id},
             ).mappings().first()
         return dict(row) if row else None
+
+    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.apply_uid AS apply_id,
+                        a.user_id,
+                        a.biz_type,
+                        a.region_code,
+                        COALESCE(s.status, a.status) AS status,
+                        COALESCE(s.current_node, a.current_node) AS current_node,
+                        COALESCE(s.node_name, a.node_name) AS node_name,
+                        r.reject_code,
+                        r.reject_reason,
+                        r.material_code,
+                        r.material_name,
+                        r.audit_node
+                    FROM declaration_qa.business_applications a
+                    LEFT JOIN declaration_qa.business_application_statuses s
+                        ON s.apply_id = a.id AND s.is_current = TRUE
+                    LEFT JOIN declaration_qa.business_reject_infos r
+                        ON r.apply_id = a.id AND r.is_current = TRUE
+                    WHERE a.apply_uid = :apply_uid
+                      AND a.user_id = :user_id
+                      AND a.deleted_at IS NULL
+                    """
+                ),
+                {"apply_uid": str(apply_id or ""), "user_id": int(user_id)},
+            ).mappings().first()
+        return normalize_business_row(row) if row else None
+
+    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM declaration_qa.business_applications
+                    WHERE apply_uid = :apply_uid
+                      AND user_id = :user_id
+                      AND deleted_at IS NULL
+                    """
+                ),
+                {"apply_uid": str(apply_id or ""), "user_id": int(user_id)},
+            ).first()
+        return row is not None
+
+    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        apply_id = str(apply_context.get("apply_id") or "").strip()
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.apply_uid AS apply_id,
+                        a.biz_type,
+                        a.region_code,
+                        COALESCE(s.status, a.status) AS status,
+                        COALESCE(s.current_node, a.current_node) AS current_node,
+                        COALESCE(s.node_name, a.node_name) AS node_name
+                    FROM declaration_qa.business_applications a
+                    LEFT JOIN declaration_qa.business_application_statuses s
+                        ON s.apply_id = a.id AND s.is_current = TRUE
+                    WHERE a.apply_uid = :apply_uid
+                      AND a.deleted_at IS NULL
+                    """
+                ),
+                {"apply_uid": apply_id},
+            ).mappings().first()
+        merged = {**apply_context, **(normalize_business_row(row) if row else {})}
+        return {
+            "apply_id": merged.get("apply_id"),
+            "biz_type": merged.get("biz_type"),
+            "region_code": merged.get("region_code"),
+            "status": merged.get("status"),
+            "current_node": merged.get("current_node"),
+            "node_name": merged.get("node_name"),
+        }
+
+    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        apply_id = str(apply_context.get("apply_id") or "").strip()
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.apply_uid AS apply_id,
+                        a.biz_type,
+                        a.region_code,
+                        r.reject_code,
+                        r.reject_reason,
+                        r.material_code,
+                        r.material_name,
+                        r.audit_node
+                    FROM declaration_qa.business_applications a
+                    LEFT JOIN declaration_qa.business_reject_infos r
+                        ON r.apply_id = a.id AND r.is_current = TRUE
+                    WHERE a.apply_uid = :apply_uid
+                      AND a.deleted_at IS NULL
+                    """
+                ),
+                {"apply_uid": apply_id},
+            ).mappings().first()
+        merged = {**apply_context, **(normalize_business_row(row) if row else {})}
+        return {
+            "apply_id": merged.get("apply_id"),
+            "biz_type": merged.get("biz_type"),
+            "region_code": merged.get("region_code"),
+            "reject_code": merged.get("reject_code"),
+            "reject_reason": merged.get("reject_reason"),
+            "material_code": merged.get("material_code"),
+            "material_name": merged.get("material_name"),
+            "audit_node": merged.get("audit_node"),
+        }
 
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         with self.engine.begin() as connection:
@@ -394,6 +511,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run_item(row)
 
     def persist_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
+        source_type = canonicalize_source_type(document.source_type)
         with self.engine.begin() as connection:
             kb_id = self._ensure_default_kb(connection)
             row = connection.execute(
@@ -448,7 +566,7 @@ class PostgresDeclarationQAStore:
                     "title": document.title,
                     "filename": document.filename,
                     "content_type": document.content_type,
-                    "source_type": document.source_type,
+                    "source_type": source_type,
                     "source_url": document.source_url,
                     "raw_text": document.content,
                     "text_preview": document.content[:240],
@@ -975,7 +1093,7 @@ class PostgresDeclarationQAStore:
                 "biz_type": chunk.biz_type,
                 "region_code": chunk.region_code,
                 "policy_version": chunk.policy_version,
-                "source_type": chunk.source_type,
+                "source_type": canonicalize_source_type(chunk.source_type),
                 "source_url": chunk.source_url,
                 "material_code": chunk.material_code,
                 "reject_code": chunk.reject_code,
@@ -1023,6 +1141,26 @@ def normalize_document_record(row) -> dict[str, Any]:
         "change_note": str(row["change_note"] or ""),
         "created_at": str(row["created_at"] or ""),
         "updated_at": str(row["updated_at"] or ""),
+    }
+
+
+def normalize_business_row(row) -> dict[str, Any]:
+    if not row:
+        return {}
+    values = dict(row)
+    return {
+        "apply_id": str(values.get("apply_id") or ""),
+        "user_id": int(values.get("user_id") or 0) if values.get("user_id") is not None else None,
+        "biz_type": str(values.get("biz_type") or ""),
+        "region_code": str(values.get("region_code") or ""),
+        "status": str(values.get("status") or ""),
+        "current_node": str(values.get("current_node") or ""),
+        "node_name": str(values.get("node_name") or ""),
+        "reject_code": str(values.get("reject_code") or ""),
+        "reject_reason": str(values.get("reject_reason") or ""),
+        "material_code": str(values.get("material_code") or ""),
+        "material_name": str(values.get("material_name") or ""),
+        "audit_node": str(values.get("audit_node") or ""),
     }
 
 

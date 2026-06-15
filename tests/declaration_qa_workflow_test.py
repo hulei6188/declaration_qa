@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
 from pathlib import Path
 
-from declaration_qa.business import HttpBusinessDataAdapter
 from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
+from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
 from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE
@@ -243,47 +243,88 @@ def test_rag_cache_reports_hit_on_repeated_query():
     assert second.status["vector_backend"] == "memory"
 
 
-def test_http_business_adapter_normalizes_real_service_payload(monkeypatch):
-    calls = []
+def test_postgres_business_adapter_reads_application_status_and_reject_tables():
+    rows = [
+        {
+            "apply_id": "A9001",
+            "user_id": 7,
+            "biz_type": "id_card_replace",
+            "region_code": "340000",
+            "status": "rejected",
+            "current_node": "PHOTO_REVIEW",
+            "node_name": "照片审核",
+            "reject_code": "PHOTO_BLUR",
+            "reject_reason": "照片不清晰",
+            "material_code": "ID_CARD_FRONT",
+            "material_name": "身份证正面照片",
+            "audit_node": "人工初审",
+        },
+        {"exists": 1},
+        {
+            "apply_id": "A9001",
+            "biz_type": "id_card_replace",
+            "region_code": "340000",
+            "status": "rejected",
+            "current_node": "PHOTO_REVIEW",
+            "node_name": "照片审核",
+        },
+        {
+            "apply_id": "A9001",
+            "biz_type": "id_card_replace",
+            "region_code": "340000",
+            "reject_code": "PHOTO_BLUR",
+            "reject_reason": "照片不清晰",
+            "material_code": "ID_CARD_FRONT",
+            "material_name": "身份证正面照片",
+            "audit_node": "人工初审",
+        },
+    ]
+    store = PostgresDeclarationQAStore.__new__(PostgresDeclarationQAStore)
+    store.engine = FakeBusinessEngine(rows)
 
-    class FakeResponse:
-        status_code = 200
+    context = store.get_apply_context(user_id=7, apply_id="A9001")
+    has_access = store.verify_apply_access(user_id=7, apply_id="A9001")
+    status = store.get_status(context)
+    reject = store.get_reject_info(context)
 
-        def json(self):
-            return {
-                "data": {
-                    "applyId": "A9001",
-                    "userId": 7,
-                    "bizType": "id_card_replace",
-                    "regionCode": "340000",
-                    "currentNode": "PHOTO_REVIEW",
-                    "nodeName": "照片审核",
-                    "rejectCode": "PHOTO_BLUR",
-                    "rejectReason": "照片不清晰",
-                    "materialCode": "ID_CARD_FRONT",
-                    "materialName": "身份证正面照片",
-                    "auditNode": "人工初审",
-                }
-            }
-
-        def raise_for_status(self):
-            return None
-
-    def fake_get(url, params, headers, timeout):
-        calls.append({"url": url, "params": params, "headers": headers, "timeout": timeout})
-        return FakeResponse()
-
-    monkeypatch.setattr("declaration_qa.business.requests.get", fake_get)
-    adapter = HttpBusinessDataAdapter(base_url="https://example.test/api", token="token", timeout_seconds=3)
-
-    context = adapter.get_apply_context(user_id=7, apply_id="A9001")
-    reject = adapter.get_reject_info(context)
-
+    assert has_access is True
     assert context["apply_id"] == "A9001"
-    assert context["current_node"] == "PHOTO_REVIEW"
+    assert status["current_node"] == "PHOTO_REVIEW"
     assert reject["reject_code"] == "PHOTO_BLUR"
     assert reject["material_code"] == "ID_CARD_FRONT"
-    assert calls[0]["headers"]["Authorization"] == "Bearer token"
+
+
+class FakeBusinessEngine:
+    def __init__(self, rows):
+        self.rows = list(rows)
+
+    def begin(self):
+        return self
+
+    def __enter__(self):
+        return FakeBusinessConnection(self.rows)
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+
+class FakeBusinessConnection:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self, statement, params=None):
+        return FakeBusinessResult(self.rows.pop(0))
+
+
+class FakeBusinessResult:
+    def __init__(self, row):
+        self.row = row
+
+    def mappings(self):
+        return self
+
+    def first(self):
+        return self.row
 
 
 def test_feedback_endpoint_records_user_feedback():

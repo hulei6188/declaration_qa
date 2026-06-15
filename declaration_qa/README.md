@@ -28,8 +28,11 @@ Or initialize through the service when `DECLARATION_QA_DATABASE_URL` is set:
 curl -X POST http://127.0.0.1:8010/api/declaration-qa/admin/init-schema
 ```
 
-Development mode can use in-memory business data when
-`DECLARATION_QA_BUSINESS_API_BASE_URL` is empty.
+Development mode can use in-memory business data when no database is configured.
+When `DECLARATION_QA_DATABASE_URL` is set, application, status, and rejection
+data are read from `declaration_qa.business_applications`,
+`declaration_qa.business_application_statuses`, and
+`declaration_qa.business_reject_infos`.
 
 Production mode:
 
@@ -43,12 +46,10 @@ embeddings, deterministic answers, or heuristic reranking.
 
 Required production environment variables:
 
-- `DECLARATION_QA_DATABASE_URL`: isolated PostgreSQL URL for sessions, messages, audit logs, feedback, documents, and chunks.
+- `DECLARATION_QA_DATABASE_URL`: isolated PostgreSQL URL for sessions, messages, audit logs, feedback, documents, chunks, and local business application/status/reject tables.
 - `DECLARATION_QA_REDIS_URL`: Redis cache for retrieval/answer cache.
 - `DECLARATION_QA_VECTOR_BACKEND=milvus`: enable Milvus dense vector search.
 - `DECLARATION_QA_MILVUS_URI`, `DECLARATION_QA_MILVUS_TOKEN`, `DECLARATION_QA_MILVUS_COLLECTION`: Milvus connection.
-- `DECLARATION_QA_BUSINESS_API_BASE_URL`: application/process service base URL. Empty value uses built-in demo business data.
-- `DECLARATION_QA_BUSINESS_API_TOKEN`: optional bearer token for business APIs.
 - `DECLARATION_QA_AUTH_REQUIRED=true` plus `DECLARATION_QA_JWT_SECRET` or `DECLARATION_QA_INTERNAL_API_KEY`.
 - `DECLARATION_QA_LLM_PROVIDER=openai`, `DECLARATION_QA_OPENAI_API_KEY`, `DECLARATION_QA_OPENAI_API_BASE`, `DECLARATION_QA_LLM_MODEL`.
 - `DECLARATION_QA_EMBEDDING_PROVIDER=openai`, `DECLARATION_QA_EMBEDDING_MODEL`, `DECLARATION_QA_EMBEDDING_DIMENSIONS`.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from declaration_qa.audit import InMemoryAuditStore
-from declaration_qa.business import HttpBusinessDataAdapter, InMemoryBusinessDataAdapter
+from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.cache import InMemoryCacheStore, RedisCacheStore
 from declaration_qa.config import DeclarationQASettings, get_settings
 from declaration_qa.model_providers import build_answer_generator, build_embedding_provider, build_reranker
@@ -37,24 +37,12 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         if settings.vector_backend == "milvus"
         else MemoryVectorIndex()
     )
-    business_adapter = (
-        HttpBusinessDataAdapter(
-            base_url=settings.business_api_base_url,
-            token=settings.business_api_token,
-            timeout_seconds=settings.business_api_timeout_seconds,
-            application_path_template=settings.business_application_path_template,
-            status_path_template=settings.business_status_path_template,
-            reject_path_template=settings.business_reject_path_template,
-            access_path_template=settings.business_access_path_template,
-        )
-        if settings.business_api_base_url
-        else InMemoryBusinessDataAdapter()
-    )
     audit_store = (
         PostgresDeclarationQAStore(settings.effective_database_url)
         if settings.effective_database_url
         else InMemoryAuditStore()
     )
+    business_adapter = audit_store if isinstance(audit_store, PostgresDeclarationQAStore) else InMemoryBusinessDataAdapter()
     rag_engine = build_seed_rag_engine(
         cache_store=cache_store,
         vector_index=vector_index,

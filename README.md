@@ -57,6 +57,10 @@ Or initialize through the service:
 curl -X POST http://127.0.0.1:8010/api/declaration-qa/admin/init-schema
 ```
 
+The schema also includes local business application, status, and rejection
+tables used by status/reject intents; the QA workflow reads those tables
+directly instead of calling declaration/application HTTP APIs.
+
 ## Docker
 
 Compose only starts local infrastructure. Start the API, worker, and frontend
