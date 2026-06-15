@@ -1,0 +1,87 @@
+x-declaration-qa-container-env: &declaration-qa-container-env
+  DECLARATION_QA_DATABASE_URL: postgresql+psycopg://agentbase:agentbase@postgres:5432/agentbase
+  DECLARATION_QA_REDIS_URL: redis://redis:6379/1
+  DECLARATION_QA_MILVUS_URI: http://milvus:19530
+  DECLARATION_QA_UPLOAD_DIR: /app/data/declaration_qa/uploads
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agentbase
+      POSTGRES_USER: agentbase
+      POSTGRES_PASSWORD: agentbase
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  milvus:
+    image: milvusdb/milvus:v2.5.4
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env.example
+        required: true
+      - path: .env
+        required: false
+    environment:
+      <<: *declaration-qa-container-env
+    volumes:
+      - declaration_qa_uploads:/app/data/declaration_qa/uploads
+    ports:
+      - "8010:8010"
+    depends_on:
+      - postgres
+      - redis
+      - milvus
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "declaration_qa.worker"]
+    env_file:
+      - path: .env.example
+        required: true
+      - path: .env
+        required: false
+    environment:
+      <<: *declaration-qa-container-env
+    volumes:
+      - declaration_qa_uploads:/app/data/declaration_qa/uploads
+    depends_on:
+      - postgres
+      - redis
+      - milvus
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8020:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  milvus_data:
+  declaration_qa_uploads:

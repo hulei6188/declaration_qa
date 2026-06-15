@@ -1,0 +1,297 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class ApplyContext(BaseModel):
+    apply_id: str = ""
+    biz_type: str | None = None
+    status: str | None = None
+    current_node: str | None = None
+    node_name: str | None = None
+    reject_code: str | None = None
+    reject_reason: str | None = None
+    material_code: str | None = None
+    material_name: str | None = None
+    audit_node: str | None = None
+
+
+class ChatRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    user_id: int = Field(default=1, ge=1)
+    session_id: str | None = None
+    region_code: str = Field(default="340000", min_length=2, max_length=12)
+    app_version: str = Field(default="", max_length=40)
+    policy_version: str = Field(default="2025", max_length=80)
+    biz_type: str | None = Field(default=None, max_length=80)
+    apply_id: str | None = Field(default=None, max_length=80)
+    apply_context: ApplyContext | None = None
+
+
+class SourcePayload(BaseModel):
+    chunk_id: str
+    doc_id: str
+    title: str
+    snippet: str
+    score: float
+    dense_score: float = 0.0
+    bm25_score: float = 0.0
+    rerank_score: float = 0.0
+    retrieval_channel: str
+    biz_type: str
+    region_code: str
+    policy_version: str
+    source_type: str
+    source_url: str = ""
+    material_code: str | None = None
+    reject_code: str | None = None
+    audit_node: str | None = None
+    effective_start_time: str | None = None
+    effective_end_time: str | None = None
+
+
+class SuggestedAction(BaseModel):
+    type: str
+    label: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatResponse(BaseModel):
+    session_id: str
+    audit_id: str
+    intent: str
+    answer: str
+    refused: bool = False
+    refuse_reason: str | None = None
+    sources: list[SourcePayload] = Field(default_factory=list)
+    suggested_actions: list[SuggestedAction] = Field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class KnowledgeDocumentRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1)
+    biz_type: str = Field(min_length=1, max_length=80)
+    region_code: str = Field(default="340000", min_length=2, max_length=12)
+    policy_version: str = Field(default="2025", max_length=80)
+    source_type: str = Field(default="guide", max_length=80)
+    source_url: str = Field(default="", max_length=500)
+    material_code: str = Field(default="", max_length=80)
+    reject_code: str = Field(default="", max_length=80)
+    audit_node: str = Field(default="", max_length=80)
+    status: str = Field(default="published", max_length=40)
+    effective_start_time: date | None = None
+    effective_end_time: date | None = None
+
+
+class KnowledgeDocumentResponse(BaseModel):
+    document_id: str
+    chunks_indexed: int
+    job_id: str | None = None
+
+
+class KnowledgeUploadResponse(KnowledgeDocumentResponse):
+    filename: str
+    content_type: str
+
+
+class ReindexResponse(BaseModel):
+    job_id: str
+    documents_indexed: int
+    chunks_indexed: int
+
+
+class IndexJobResponse(BaseModel):
+    job_uid: str
+    job_type: str
+    status: str
+    progress: int
+    message: str = ""
+    error_message: str = ""
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class RetryIndexJobResponse(IndexJobResponse):
+    retried: bool = True
+
+
+class DeleteDocumentResponse(BaseModel):
+    document_id: str
+    deleted: bool
+    job_id: str | None = None
+
+
+class KnowledgeDocumentAdminRecord(BaseModel):
+    document_id: str
+    title: str
+    filename: str = ""
+    source_type: str
+    biz_type: str
+    region_code: str
+    policy_version: str
+    material_code: str = ""
+    reject_code: str = ""
+    audit_node: str = ""
+    status: str
+    version_group_uid: str = ""
+    version_no: int = 1
+    rollout_percent: int = 100
+    effective_start_time: str | None = None
+    effective_end_time: str | None = None
+    chunk_count: int = 0
+    change_note: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class DocumentStatusResponse(BaseModel):
+    document_id: str
+    status: str
+    job_id: str | None = None
+
+
+class DocumentRolloutRequest(BaseModel):
+    rollout_percent: int = Field(ge=0, le=100)
+    effective_start_time: date | None = None
+    effective_end_time: date | None = None
+
+
+class DocumentRolloutResponse(BaseModel):
+    document_id: str
+    rollout_percent: int
+    effective_start_time: str | None = None
+    effective_end_time: str | None = None
+
+
+class DocumentVersionRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    content: str | None = None
+    policy_version: str | None = Field(default=None, max_length=80)
+    change_note: str = Field(default="", max_length=1000)
+
+
+class DocumentVersionResponse(BaseModel):
+    document_id: str
+    version_group_uid: str
+    version_no: int
+    status: str
+    job_id: str | None = None
+
+
+class DocumentCompareResponse(BaseModel):
+    left_document_id: str
+    right_document_id: str
+    added: list[str] = Field(default_factory=list)
+    removed: list[str] = Field(default_factory=list)
+    changed: bool = False
+
+
+class DocumentRollbackRequest(BaseModel):
+    target_document_id: str
+    change_note: str = Field(default="rollback", max_length=1000)
+
+
+class SessionSummary(BaseModel):
+    session_id: str
+    user_id: int
+    region_code: str = ""
+    biz_type: str | None = None
+    apply_id: str = ""
+    title: str = ""
+    message_count: int = 0
+    updated_at: str = ""
+
+
+class SessionDetail(SessionSummary):
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class FeedbackRequest(BaseModel):
+    audit_id: str
+    rating: str = Field(pattern="^(up|down)$")
+    comment: str = Field(default="", max_length=1000)
+
+
+class EvaluationCaseRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    user_id: int = Field(default=1, ge=1)
+    region_code: str = Field(default="340000", min_length=2, max_length=12)
+    policy_version: str = Field(default="2025", max_length=80)
+    biz_type: str | None = Field(default=None, max_length=80)
+    apply_id: str | None = Field(default=None, max_length=80)
+    apply_context: ApplyContext | None = None
+    expected_intent: str = Field(default="", max_length=40)
+    expected_refused: bool | None = None
+    expected_doc_ids: list[str] = Field(default_factory=list)
+    expected_answer_keywords: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class EvaluationDatasetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=1000)
+    cases: list[EvaluationCaseRequest] = Field(default_factory=list)
+
+
+class EvaluationCaseResponse(BaseModel):
+    case_id: str
+    dataset_id: str
+    query: str
+    expected_intent: str = ""
+    expected_refused: bool | None = None
+    expected_doc_ids: list[str] = Field(default_factory=list)
+    expected_answer_keywords: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    created_at: str = ""
+
+
+class EvaluationDatasetResponse(BaseModel):
+    dataset_id: str
+    name: str
+    description: str = ""
+    case_count: int = 0
+    created_at: str = ""
+
+
+class EvaluationRunRequest(BaseModel):
+    note: str = Field(default="", max_length=1000)
+    top_k: int = Field(default=4, ge=1, le=20)
+
+
+class EvaluationAnnotationRequest(BaseModel):
+    label: str = Field(pattern="^(pass|fail|needs_review)$")
+    comment: str = Field(default="", max_length=1000)
+
+
+class EvaluationRunItemResponse(BaseModel):
+    item_id: str
+    case_id: str
+    query: str
+    expected_intent: str = ""
+    actual_intent: str = ""
+    expected_refused: bool | None = None
+    actual_refused: bool = False
+    expected_doc_ids: list[str] = Field(default_factory=list)
+    retrieved_doc_ids: list[str] = Field(default_factory=list)
+    expected_answer_keywords: list[str] = Field(default_factory=list)
+    answer: str = ""
+    audit_id: str = ""
+    recall_hit: bool | None = None
+    refusal_match: bool | None = None
+    intent_match: bool | None = None
+    keyword_hit: bool | None = None
+    annotation_label: str = ""
+    annotation_comment: str = ""
+
+
+class EvaluationRunResponse(BaseModel):
+    run_id: str
+    dataset_id: str
+    status: str
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    items: list[EvaluationRunItemResponse] = Field(default_factory=list)
+    created_at: str = ""
+    completed_at: str = ""

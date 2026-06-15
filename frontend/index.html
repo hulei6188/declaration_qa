@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>申报智能问答工作台</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Declaration QA Workflow</p>
+          <h1>申报智能问答工作台</h1>
+        </div>
+        <div class="status-strip" id="serviceStatus">
+          <span class="status-dot pending"></span>
+          <span>检测服务中</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="context-pane" aria-label="上下文配置">
+          <section class="panel">
+            <div class="panel-title">
+              <span>请求上下文</span>
+              <button class="icon-button" id="healthButton" title="重新检测服务">↻</button>
+            </div>
+            <label>
+              后端地址
+              <input id="apiBase" value="http://127.0.0.1:8010" />
+            </label>
+            <div class="field-grid">
+              <label>
+                用户 ID
+                <input id="userId" type="number" value="1" min="1" />
+              </label>
+              <label>
+                地区编码
+                <input id="regionCode" value="340000" />
+              </label>
+            </div>
+            <div class="field-grid">
+              <label>
+                业务类型
+                <select id="bizType">
+                  <option value="">自动识别</option>
+                  <option value="residence_permit">居住证</option>
+                  <option value="health_certificate">健康证</option>
+                  <option value="id_card_replace">身份证换领</option>
+                </select>
+              </label>
+              <label>
+                App 版本
+                <input id="appVersion" value="2.0.0" />
+              </label>
+            </div>
+            <label>
+              政策版本
+              <input id="policyVersion" value="2025" />
+            </label>
+            <label>
+              申请单 ID（可选）
+              <input id="applyId" placeholder="A1001 / A2002 / A3003" />
+            </label>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>典型场景</span>
+            </div>
+            <div class="preset-list">
+              <button data-preset="办理居住证需要哪些材料" data-biz="residence_permit" data-apply="">材料清单</button>
+              <button data-preset="我的健康证办理到哪一步了" data-biz="health_certificate" data-apply="A1001">办件进度</button>
+              <button data-preset="为什么我的申请被退回了" data-biz="id_card_replace" data-apply="A3003">驳回原因</button>
+              <button data-preset="能不能帮我伪造一个材料" data-biz="" data-apply="">风险拒答</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>会话历史</span>
+              <button class="icon-button" id="refreshSessionsButton" title="刷新会话">↻</button>
+            </div>
+            <div class="session-list" id="sessionList"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>知识入库</span>
+            </div>
+            <label>
+              标题
+              <input id="docTitle" placeholder="办理指南 / 驳回规则标题" />
+            </label>
+            <label>
+              文件
+              <input id="docFile" type="file" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" />
+            </label>
+            <label>
+              文档内容
+              <textarea id="docContent" rows="5" placeholder="未选择文件时，可粘贴政策、材料规范或 FAQ 内容"></textarea>
+            </label>
+            <div class="field-grid">
+              <label>
+                来源类型
+                <select id="docSourceType">
+                  <option value="guide">办理指南</option>
+                  <option value="process">流程说明</option>
+                  <option value="faq">FAQ</option>
+                  <option value="reject_rule">驳回规则</option>
+                  <option value="material_rule">材料规范</option>
+                </select>
+              </label>
+              <label>
+                政策版本
+                <input id="docPolicyVersion" value="2025" />
+              </label>
+            </div>
+            <button class="primary full" id="uploadDocButton">上传并索引</button>
+            <p class="hint" id="uploadResult">支持文件解析、索引任务和独立 RAG 引擎入库。</p>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>知识版本管理</span>
+              <button class="icon-button" id="refreshDocumentsButton" title="刷新文档">↻</button>
+            </div>
+            <div class="document-list" id="documentList"></div>
+            <div class="field-grid">
+              <button id="publishDocumentButton">发布</button>
+              <button id="unpublishDocumentButton">下线</button>
+            </div>
+            <div class="field-grid">
+              <label>
+                灰度比例
+                <input id="rolloutPercent" type="number" min="0" max="100" value="100" />
+              </label>
+              <button id="rolloutDocumentButton">更新灰度</button>
+            </div>
+            <label>
+              新版本内容
+              <textarea id="versionContent" rows="4" placeholder="基于选中文档创建 draft 版本"></textarea>
+            </label>
+            <div class="field-grid">
+              <button id="createVersionButton">创建版本</button>
+              <button id="compareVersionButton">对比版本</button>
+            </div>
+            <button class="ghost full" id="rollbackDocumentButton">回滚到选中版本</button>
+            <p class="hint" id="docManageResult">选择文档后可发布、灰度、创建新版本或回滚。</p>
+          </section>
+        </aside>
+
+        <section class="chat-pane" aria-label="申报问答">
+          <div class="chat-header">
+            <div>
+              <p class="eyebrow">Live SSE Chat</p>
+              <h2>问答会话</h2>
+            </div>
+            <button class="ghost" id="clearButton">清空</button>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <form class="composer" id="chatForm">
+            <textarea id="queryInput" rows="3" placeholder="输入问题，例如：办理居住证需要哪些材料？"></textarea>
+            <div class="composer-actions">
+              <span id="sendState">等待输入</span>
+              <button class="primary" type="submit">发送</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="inspect-pane" aria-label="执行详情">
+          <section class="panel">
+            <div class="panel-title">
+              <span>Workflow 事件</span>
+              <button class="icon-button" id="copyAuditButton" title="复制审计 ID">⧉</button>
+            </div>
+            <div class="timeline" id="timeline"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>证据来源</span>
+            </div>
+            <div class="sources" id="sources"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>审计与反馈</span>
+            </div>
+            <dl class="audit-grid">
+              <dt>意图</dt>
+              <dd id="auditIntent">-</dd>
+              <dt>审计 ID</dt>
+              <dd id="auditId">-</dd>
+              <dt>拒答</dt>
+              <dd id="auditRefused">-</dd>
+            </dl>
+            <div class="feedback-row">
+              <button id="thumbUp">有帮助</button>
+              <button id="thumbDown">需改进</button>
+            </div>
+            <p class="hint" id="feedbackResult">反馈会写入独立服务。</p>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>RAG 质量评估</span>
+              <button class="icon-button" id="runEvalButton" title="运行评估">▶</button>
+            </div>
+            <label>
+              评测集名称
+              <input id="evalDatasetName" value="申报问答回归集" />
+            </label>
+            <button class="primary full" id="createEvalButton">创建评测集</button>
+            <dl class="audit-grid">
+              <dt>数据集</dt>
+              <dd id="evalDatasetId">-</dd>
+              <dt>召回率</dt>
+              <dd id="evalRecall">-</dd>
+              <dt>拒答</dt>
+              <dd id="evalRefusal">-</dd>
+            </dl>
+            <div class="eval-items" id="evalItems"></div>
+            <p class="hint" id="evalResult">可基于当前选中文档生成离线评测，并对结果做人工标注。</p>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
