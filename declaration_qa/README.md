@@ -89,9 +89,12 @@ Core endpoints:
 
 The workflow keeps declaration business state and RAG knowledge separate:
 
-- status and reject questions require an application context and query business adapters first;
-- policy/material/process questions use RAG filters based on business type, region, policy version, effective time, and status;
-- source type filters are intent-scoped: status uses `process`, reject/correction uses `material_rule`, and knowledge uses `guide`/`process`/`faq`;
+- status and reject questions run on the `ticket_augmented` chain: an application context is mandatory, real business status/reject records are queried first, and RAG only explains the verified business snapshot;
+- policy/material/process questions run on the `knowledge_retrieval` chain and use RAG filters based on region, policy version, effective time, audit node, rollout, and status;
+- `biz_type`, `source_type`, `material_code`, and `reject_code` are removed from knowledge/RAG metadata, filters, source payloads, and vector-index fields; similarly named business fields remain only in the real ticket snapshot;
+- request `metadata_filter` accepts camelCase aliases such as `regionCode`, `policyVersion`, `auditNode`, `asOf`, and `rolloutKey`; removed metadata fields are ignored;
+- BM25 and Milvus/vector hits are fused with RRF, reranked, and passed through evidence gates before an answer is generated;
+- evidence decisions and retrieval diagnostics are written to responses and audit logs for traceability;
 - `appVersion` is only used in answer post-processing for entry/action compatibility.
 - asynchronous indexing moves upload parsing, embedding, Milvus upsert, PostgreSQL persistence, reindex, retry, and delete work out of the request path;
 - knowledge management supports draft versions, publish/unpublish, rollout percentage, effective dates, version comparison, and rollback;

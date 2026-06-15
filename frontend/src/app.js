@@ -233,7 +233,7 @@ function renderSources(items) {
     card.innerHTML = `
       <strong>${escapeHtml(source.title || "未命名来源")}</strong>
       <code>${escapeHtml(source.snippet || "")}</code>
-      <code>score=${source.score} · ${source.biz_type}/${source.region_code} · ${source.source_type}</code>
+      <code>score=${source.score} · ${source.region_code} · ${source.policy_version || "-"}</code>
     `;
     els.sources.appendChild(card);
   });
@@ -256,8 +256,21 @@ async function uploadDocument() {
     const response = file ? await uploadFileDocument(file, title) : await uploadTextDocument(title, content);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
-    els.uploadResult.textContent = `已索引 ${payload.chunks_indexed} 个分块：${payload.document_id}`;
-    if (payload.job_id) await refreshIndexJob(payload.job_id);
+    if (payload.job_id) {
+      els.uploadResult.textContent = `索引任务已提交：${payload.document_id}`;
+      const job = await waitForIndexJob(payload.job_id);
+      const jobPayload = job.payload || {};
+      if (job.status === "succeeded") {
+        const chunksIndexed = Number(jobPayload.chunks_indexed || payload.chunks_indexed || 0);
+        els.uploadResult.textContent = `已索引 ${chunksIndexed} 个分块：${jobPayload.document_id || payload.document_id}`;
+      } else if (job.status === "failed") {
+        throw new Error(job.error_message || "索引任务失败");
+      } else {
+        els.uploadResult.textContent = `索引仍在处理：${payload.document_id}`;
+      }
+    } else {
+      els.uploadResult.textContent = `已索引 ${payload.chunks_indexed} 个分块：${payload.document_id}`;
+    }
     await refreshDocuments();
   } catch (error) {
     els.uploadResult.textContent = `上传失败：${error.message}`;
@@ -271,10 +284,8 @@ function uploadTextDocument(title, content) {
     body: JSON.stringify({
       title,
       content,
-      biz_type: els.bizType.value || "residence_permit",
       region_code: els.regionCode.value || "340000",
       policy_version: $("docPolicyVersion").value || "2025",
-      source_type: $("docSourceType").value || "guide",
     }),
   });
 }
@@ -283,10 +294,8 @@ function uploadFileDocument(file, title) {
   const form = new FormData();
   form.append("file", file);
   form.append("title", title || file.name);
-  form.append("biz_type", els.bizType.value || "residence_permit");
   form.append("region_code", els.regionCode.value || "340000");
   form.append("policy_version", $("docPolicyVersion").value || "2025");
-  form.append("source_type", $("docSourceType").value || "guide");
   return fetch(`${apiBase()}/api/declaration-qa/knowledge/upload`, {
     method: "POST",
     body: form,
@@ -303,6 +312,23 @@ async function refreshIndexJob(jobId) {
     progress: job.progress,
     message: job.message,
   });
+  return job;
+}
+
+async function waitForIndexJob(jobId) {
+  let latestJob = null;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const job = await refreshIndexJob(jobId);
+    if (job) latestJob = job;
+    if (job && ["succeeded", "failed", "cancelled"].includes(job.status)) return job;
+    els.uploadResult.textContent = `索引中 ${job?.progress ?? 0}%`;
+    await sleep(1000);
+  }
+  return latestJob || { status: "pending", progress: 0, payload: {} };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function refreshDocuments() {
@@ -452,7 +478,6 @@ async function createEvaluationDataset() {
   const cases = [
     {
       query: selected ? `请说明${selected.title}的办理要求` : "办理居住证需要哪些材料",
-      biz_type: selected?.biz_type || els.bizType.value || "residence_permit",
       region_code: selected?.region_code || els.regionCode.value || "340000",
       policy_version: selected?.policy_version || els.policyVersion.value || "2025",
       expected_intent: "knowledge",

@@ -15,18 +15,22 @@ class DeclarationQAState(TypedDict, total=False):
     biz_type: str | None
     apply_id: str | None
     apply_context: dict[str, Any] | None
+    metadata_filter: dict[str, Any]
 
     intent: str
     route: str
+    retrieval_chain: str
 
     business_status: dict[str, Any] | None
     reject_info: dict[str, Any] | None
+    business_snapshot: dict[str, Any] | None
     material_mapping: dict[str, Any] | None
 
     retrieval_filter: dict[str, Any]
     retrieved_sources: list[dict[str, Any]]
     rag_status: dict[str, Any]
     evidence_ok: bool
+    evidence_decision: dict[str, Any]
     refuse_reason: str | None
 
     answer: str

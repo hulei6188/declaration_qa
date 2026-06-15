@@ -8,7 +8,6 @@ from declaration_qa.config import DeclarationQASettings
 from declaration_qa.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.indexing import IndexJobStore
-from declaration_qa.source_types import canonicalize_source_type
 from declaration_qa.workflow import DeclarationQAWorkflow
 
 
@@ -94,13 +93,9 @@ def process_document_index(
         filename=filename,
         content_type=content_type,
         content=content,
-        biz_type=str(payload.get("biz_type") or ""),
         region_code=str(payload.get("region_code") or "340000"),
         policy_version=str(payload.get("policy_version") or "2025"),
-        source_type=canonicalize_source_type(payload.get("source_type") or "guide"),
         source_url=str(payload.get("source_url") or ""),
-        material_code=str(payload.get("material_code") or ""),
-        reject_code=str(payload.get("reject_code") or ""),
         audit_node=str(payload.get("audit_node") or ""),
         status=str(payload.get("status") or "published"),
         version_group_uid=str(payload.get("version_group_uid") or payload["document_id"]),
@@ -116,7 +111,6 @@ def process_document_index(
         "chunks_indexed": chunks_indexed,
         "filename": filename,
         "content_type": content_type,
-        "source_type": document.source_type,
         "message": "Document indexed",
     }
 

@@ -85,18 +85,12 @@ CREATE TABLE IF NOT EXISTS declaration_qa.documents (
     title VARCHAR(255) NOT NULL,
     filename VARCHAR(255) NOT NULL DEFAULT '',
     content_type VARCHAR(120) NOT NULL DEFAULT 'text/plain',
-    source_type VARCHAR(40) NOT NULL CHECK (
-        source_type IN ('policy', 'guide', 'faq', 'process', 'material_rule', 'operation_notice')
-    ),
     source_url TEXT NOT NULL DEFAULT '',
     raw_text TEXT NOT NULL,
     text_preview TEXT NOT NULL DEFAULT '',
     content_hash VARCHAR(80) NOT NULL DEFAULT '',
-    biz_type VARCHAR(80) NOT NULL,
     region_code VARCHAR(20) NOT NULL,
     policy_version VARCHAR(80) NOT NULL,
-    material_code VARCHAR(80) NOT NULL DEFAULT '',
-    reject_code VARCHAR(80) NOT NULL DEFAULT '',
     audit_node VARCHAR(80) NOT NULL DEFAULT '',
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'indexing', 'published', 'failed', 'deprecated')),
     version_group_uid VARCHAR(120) NOT NULL DEFAULT '',
@@ -128,6 +122,13 @@ ALTER TABLE declaration_qa.documents
     ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL;
 ALTER TABLE declaration_qa.documents
     ADD COLUMN IF NOT EXISTS deprecated_at TIMESTAMPTZ NULL;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_policy_filter;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_reject_filter;
+ALTER TABLE declaration_qa.documents
+    DROP COLUMN IF EXISTS biz_type,
+    DROP COLUMN IF EXISTS source_type,
+    DROP COLUMN IF EXISTS material_code,
+    DROP COLUMN IF EXISTS reject_code;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_documents_uid
     ON declaration_qa.documents (document_uid)
     WHERE document_uid <> '';
@@ -136,11 +137,11 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_kb
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_version_group
     ON declaration_qa.documents (version_group_uid, version_no DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_policy_filter
-    ON declaration_qa.documents (biz_type, region_code, policy_version, status);
+    ON declaration_qa.documents (region_code, policy_version, status);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_effective_time
     ON declaration_qa.documents (effective_start_time, effective_end_time);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_reject_filter
-    ON declaration_qa.documents (biz_type, region_code, material_code, reject_code, audit_node);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_audit_node
+    ON declaration_qa.documents (region_code, policy_version, audit_node, status);
 
 CREATE TABLE IF NOT EXISTS declaration_qa.chunks (
     id BIGSERIAL PRIMARY KEY,
@@ -154,13 +155,9 @@ CREATE TABLE IF NOT EXISTS declaration_qa.chunks (
     token_count INTEGER NOT NULL DEFAULT 0 CHECK (token_count >= 0),
     embedding_id VARCHAR(180) NOT NULL DEFAULT '',
     vector_collection VARCHAR(160) NOT NULL DEFAULT '',
-    biz_type VARCHAR(80) NOT NULL,
     region_code VARCHAR(20) NOT NULL,
     policy_version VARCHAR(80) NOT NULL,
-    source_type VARCHAR(40) NOT NULL,
     source_url TEXT NOT NULL DEFAULT '',
-    material_code VARCHAR(80) NOT NULL DEFAULT '',
-    reject_code VARCHAR(80) NOT NULL DEFAULT '',
     audit_node VARCHAR(80) NOT NULL DEFAULT '',
     status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'deprecated')),
     effective_start_time DATE NULL,
@@ -174,60 +171,25 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_document
     ON declaration_qa.chunks (document_id, chunk_index);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_parent
     ON declaration_qa.chunks (parent_chunk_id);
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_policy_filter;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_reject_filter;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_source_type;
+ALTER TABLE declaration_qa.chunks
+    DROP COLUMN IF EXISTS biz_type,
+    DROP COLUMN IF EXISTS source_type,
+    DROP COLUMN IF EXISTS material_code,
+    DROP COLUMN IF EXISTS reject_code;
+UPDATE declaration_qa.chunks
+SET metadata = metadata - 'biz_type' - 'source_type' - 'material_code' - 'reject_code'
+WHERE metadata ?| ARRAY['biz_type', 'source_type', 'material_code', 'reject_code'];
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_policy_filter
-    ON declaration_qa.chunks (biz_type, region_code, policy_version, status);
+    ON declaration_qa.chunks (region_code, policy_version, status);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_effective_time
     ON declaration_qa.chunks (effective_start_time, effective_end_time);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_reject_filter
-    ON declaration_qa.chunks (biz_type, region_code, material_code, reject_code, audit_node);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_source_type
-    ON declaration_qa.chunks (source_type);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_audit_node
+    ON declaration_qa.chunks (region_code, policy_version, audit_node, status);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_metadata_gin
     ON declaration_qa.chunks USING GIN (metadata);
-
-DO $$
-DECLARE
-    old_source_type_constraint TEXT;
-BEGIN
-    SELECT conname
-    INTO old_source_type_constraint
-    FROM pg_constraint
-    WHERE conrelid = 'declaration_qa.documents'::regclass
-      AND contype = 'c'
-      AND pg_get_constraintdef(oid) LIKE '%source_type%'
-      AND pg_get_constraintdef(oid) LIKE '%reject_rule%'
-    LIMIT 1;
-
-    IF old_source_type_constraint IS NOT NULL THEN
-        EXECUTE format('ALTER TABLE declaration_qa.documents DROP CONSTRAINT %I', old_source_type_constraint);
-    END IF;
-END $$;
-
-UPDATE declaration_qa.documents
-SET source_type = 'material_rule'
-WHERE source_type = 'reject_rule';
-
-UPDATE declaration_qa.chunks
-SET
-    source_type = 'material_rule',
-    metadata = jsonb_set(metadata, '{source_type}', '"material_rule"', true)
-WHERE source_type = 'reject_rule';
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conrelid = 'declaration_qa.documents'::regclass
-          AND contype = 'c'
-          AND pg_get_constraintdef(oid) LIKE '%source_type%'
-          AND pg_get_constraintdef(oid) NOT LIKE '%reject_rule%'
-    ) THEN
-        ALTER TABLE declaration_qa.documents
-            ADD CONSTRAINT ck_declaration_qa_documents_source_type
-            CHECK (source_type IN ('policy', 'guide', 'faq', 'process', 'material_rule', 'operation_notice'));
-    END IF;
-END $$;
 
 CREATE TABLE IF NOT EXISTS declaration_qa.index_jobs (
     id BIGSERIAL PRIMARY KEY,
@@ -292,9 +254,11 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     query TEXT NOT NULL,
     normalized_query TEXT NOT NULL DEFAULT '',
     intent VARCHAR(40) NOT NULL,
+    retrieval_chain VARCHAR(40) NOT NULL DEFAULT '',
     region_code VARCHAR(20) NOT NULL,
     biz_type VARCHAR(80) NULL,
     apply_id VARCHAR(80) NOT NULL DEFAULT '',
+    business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
     business_status JSONB NOT NULL DEFAULT '{}'::jsonb,
     reject_info JSONB NOT NULL DEFAULT '{}'::jsonb,
     material_mapping JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -302,6 +266,7 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     retrieved_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     rag_status JSONB NOT NULL DEFAULT '{}'::jsonb,
     evidence_ok BOOLEAN NOT NULL DEFAULT FALSE,
+    evidence_decision JSONB NOT NULL DEFAULT '{}'::jsonb,
     refused BOOLEAN NOT NULL DEFAULT FALSE,
     refuse_reason VARCHAR(120) NOT NULL DEFAULT '',
     final_prompt TEXT NOT NULL DEFAULT '',
@@ -309,14 +274,24 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     events JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS retrieval_chain VARCHAR(40) NOT NULL DEFAULT '';
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS evidence_decision JSONB NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_user
     ON declaration_qa.audit_logs (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_intent
     ON declaration_qa.audit_logs (intent, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_chain
+    ON declaration_qa.audit_logs (retrieval_chain, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_sources_gin
     ON declaration_qa.audit_logs USING GIN (retrieved_sources);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_filter_gin
     ON declaration_qa.audit_logs USING GIN (retrieval_filter);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_business_snapshot_gin
+    ON declaration_qa.audit_logs USING GIN (business_snapshot);
 
 CREATE TABLE IF NOT EXISTS declaration_qa.feedback (
     id BIGSERIAL PRIMARY KEY,

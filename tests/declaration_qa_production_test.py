@@ -44,10 +44,8 @@ def test_upload_endpoint_parses_text_file_and_tracks_index_job(tmp_path, monkeyp
         "/api/declaration-qa/knowledge/upload",
         data={
             "title": "居住证上传测试指南",
-            "biz_type": "residence_permit",
             "region_code": "340000",
             "policy_version": "2025",
-            "source_type": "guide",
         },
         files={"file": ("guide.txt", "居住证上传测试材料包括身份证件和居住地址证明。".encode("utf-8"), "text/plain")},
     )
@@ -70,10 +68,8 @@ def test_reindex_and_delete_document_endpoints_are_available(tmp_path, monkeypat
         "/api/declaration-qa/knowledge/upload",
         data={
             "title": "删除测试指南",
-            "biz_type": "residence_permit",
             "region_code": "340000",
             "policy_version": "2025",
-            "source_type": "guide",
         },
         files={"file": ("delete-guide.txt", "删除测试材料。".encode("utf-8"), "text/plain")},
     ).json()
@@ -98,10 +94,8 @@ def test_knowledge_management_version_rollout_compare_and_rollback():
         json={
             "title": "版本管理测试指南",
             "content": "版本管理测试旧版要求提交身份证件。",
-            "biz_type": "residence_permit",
             "region_code": "340000",
             "policy_version": "2025",
-            "source_type": "guide",
         },
     ).json()
     document_id = created["document_id"]
@@ -149,10 +143,8 @@ def test_rag_evaluation_dataset_run_and_annotation_workflow():
         json={
             "title": "评估专用指南",
             "content": "评估专用材料ABC需要提交原件扫描件，并确保页面清晰完整。",
-            "biz_type": "residence_permit",
             "region_code": "340000",
             "policy_version": "2025",
-            "source_type": "guide",
         },
     ).json()
     dataset = client.post(
@@ -242,10 +234,20 @@ def test_policy_version_is_request_scoped_not_hard_coded():
 def test_evidence_check_rejects_conflicting_policy_sources():
     decision = decide_evidence(
         [
-            {"score": 0.8, "rerank_score": 0.8, "biz_type": "residence_permit", "region_code": "340000", "policy_version": "2025"},
-            {"score": 0.7, "rerank_score": 0.7, "biz_type": "residence_permit", "region_code": "340000", "policy_version": "2024"},
+            {
+                "score": 0.8,
+                "rerank_score": 0.8,
+                "region_code": "340000",
+                "policy_version": "2025",
+            },
+            {
+                "score": 0.7,
+                "rerank_score": 0.7,
+                "region_code": "340000",
+                "policy_version": "2024",
+            },
         ],
-        {"biz_type": "residence_permit", "region_code": "340000", "policy_version": "2025"},
+        {"region_code": "340000", "policy_version": "2025"},
         intent="knowledge",
     )
 
@@ -260,21 +262,17 @@ def test_child_retrieval_expands_parent_context_for_answer_evidence():
         id="doc-parent-expand",
         title="父子块展开测试",
         content=f"{long_prefix} 特殊材料XYZ需要上传原件扫描件并保持清晰。",
-        biz_type="residence_permit",
         region_code="340000",
         policy_version="2025",
-        source_type="guide",
     )
 
     engine.index_document(document)
     result = engine.retrieve(
         "特殊材料XYZ需要什么",
         {
-            "biz_type": "residence_permit",
             "region_code": "340000",
             "policy_version": "2025",
             "status": "published",
-            "source_type": ["guide"],
         },
     )
 

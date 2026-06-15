@@ -101,21 +101,10 @@
               文档内容
               <textarea id="docContent" rows="5" placeholder="未选择文件时，可粘贴政策、材料规范或 FAQ 内容"></textarea>
             </label>
-            <div class="field-grid">
-              <label>
-                来源类型
-                <select id="docSourceType">
-                  <option value="guide">办理指南</option>
-                  <option value="process">流程说明</option>
-                  <option value="faq">FAQ</option>
-                  <option value="material_rule">材料/补正规范</option>
-                </select>
-              </label>
-              <label>
-                政策版本
-                <input id="docPolicyVersion" value="2025" />
-              </label>
-            </div>
+            <label>
+              政策版本
+              <input id="docPolicyVersion" value="2025" />
+            </label>
             <button class="primary full" id="uploadDocButton">上传并索引</button>
             <p class="hint" id="uploadResult">支持文件解析、索引任务和独立 RAG 引擎入库。</p>
           </section>

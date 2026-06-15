@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+import os
+from typing import Type
+
 from declaration_qa.config import get_settings
+
+
+def select_rq_worker_class(worker_class: Type, simple_worker_class: Type, timer_death_penalty_class: Type) -> Type:
+    if hasattr(os, "fork"):
+        return worker_class
+    simple_worker_class.death_penalty_class = timer_death_penalty_class
+    return simple_worker_class
 
 
 def main() -> None:
@@ -11,11 +21,13 @@ def main() -> None:
         raise SystemExit("DECLARATION_QA_REDIS_URL is required to run the worker")
 
     from redis import Redis
-    from rq import Queue, Worker
+    from rq import Queue, SimpleWorker, Worker
+    from rq.timeouts import TimerDeathPenalty
 
     redis = Redis.from_url(settings.effective_redis_url)
     queue = Queue(settings.index_queue_name, connection=redis)
-    worker = Worker([queue], connection=redis)
+    worker_class = select_rq_worker_class(Worker, SimpleWorker, TimerDeathPenalty)
+    worker = worker_class([queue], connection=redis)
     worker.work(with_scheduler=True)
 
 

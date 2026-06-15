@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class ApplyContext(BaseModel):
     apply_id: str = ""
     biz_type: str | None = None
+    region_code: str | None = None
     status: str | None = None
     current_node: str | None = None
     node_name: str | None = None
@@ -29,6 +30,7 @@ class ChatRequest(BaseModel):
     biz_type: str | None = Field(default=None, max_length=80)
     apply_id: str | None = Field(default=None, max_length=80)
     apply_context: ApplyContext | None = None
+    metadata_filter: dict[str, Any] = Field(default_factory=dict)
 
 
 class SourcePayload(BaseModel):
@@ -41,16 +43,13 @@ class SourcePayload(BaseModel):
     bm25_score: float = 0.0
     rerank_score: float = 0.0
     retrieval_channel: str
-    biz_type: str
     region_code: str
     policy_version: str
-    source_type: str
     source_url: str = ""
-    material_code: str | None = None
-    reject_code: str | None = None
     audit_node: str | None = None
     effective_start_time: str | None = None
     effective_end_time: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class SuggestedAction(BaseModel):
@@ -63,10 +62,14 @@ class ChatResponse(BaseModel):
     session_id: str
     audit_id: str
     intent: str
+    retrieval_chain: str = ""
     answer: str
     refused: bool = False
     refuse_reason: str | None = None
     sources: list[SourcePayload] = Field(default_factory=list)
+    business_snapshot: dict[str, Any] = Field(default_factory=dict)
+    rag_status: dict[str, Any] = Field(default_factory=dict)
+    evidence_decision: dict[str, Any] = Field(default_factory=dict)
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -74,13 +77,9 @@ class ChatResponse(BaseModel):
 class KnowledgeDocumentRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1)
-    biz_type: str = Field(min_length=1, max_length=80)
     region_code: str = Field(default="340000", min_length=2, max_length=12)
     policy_version: str = Field(default="2025", max_length=80)
-    source_type: str = Field(default="guide", max_length=80)
     source_url: str = Field(default="", max_length=500)
-    material_code: str = Field(default="", max_length=80)
-    reject_code: str = Field(default="", max_length=80)
     audit_node: str = Field(default="", max_length=80)
     status: str = Field(default="published", max_length=40)
     effective_start_time: date | None = None
@@ -128,12 +127,8 @@ class KnowledgeDocumentAdminRecord(BaseModel):
     document_id: str
     title: str
     filename: str = ""
-    source_type: str
-    biz_type: str
     region_code: str
     policy_version: str
-    material_code: str = ""
-    reject_code: str = ""
     audit_node: str = ""
     status: str
     version_group_uid: str = ""

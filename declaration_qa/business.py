@@ -35,6 +35,9 @@ class InMemoryBusinessDataAdapter:
                 "status": "in_review",
                 "current_node": "DEPT_REVIEW",
                 "node_name": "部门审核中",
+                "submitted_at": "2026-06-15T09:00:00+08:00",
+                "updated_at": "2026-06-15T10:20:00+08:00",
+                "payload": {"channel": "wanshitong", "sla_hours": 72},
             },
             "A2002": {
                 "apply_id": "A2002",
@@ -49,6 +52,9 @@ class InMemoryBusinessDataAdapter:
                 "material_code": "RESIDENCE_PROOF",
                 "material_name": "居住证明",
                 "audit_node": "材料初审",
+                "submitted_at": "2026-06-14T14:00:00+08:00",
+                "updated_at": "2026-06-15T09:30:00+08:00",
+                "payload": {"channel": "wanshitong", "review_batch": "MATERIAL-20260615"},
             },
             "A3003": {
                 "apply_id": "A3003",
@@ -63,6 +69,9 @@ class InMemoryBusinessDataAdapter:
                 "material_code": "ID_CARD_FRONT",
                 "material_name": "身份证正面照片",
                 "audit_node": "人工初审",
+                "submitted_at": "2026-06-14T16:10:00+08:00",
+                "updated_at": "2026-06-15T08:40:00+08:00",
+                "payload": {"channel": "wanshitong", "review_batch": "PHOTO-20260615"},
             },
         }
 
@@ -83,6 +92,10 @@ class InMemoryBusinessDataAdapter:
             "status": apply_context.get("status"),
             "current_node": apply_context.get("current_node"),
             "node_name": apply_context.get("node_name"),
+            "submitted_at": apply_context.get("submitted_at"),
+            "completed_at": apply_context.get("completed_at"),
+            "updated_at": apply_context.get("updated_at"),
+            "payload": apply_context.get("payload") or {},
         }
 
     def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
@@ -95,5 +108,11 @@ class InMemoryBusinessDataAdapter:
             "material_code": apply_context.get("material_code"),
             "material_name": apply_context.get("material_name"),
             "audit_node": apply_context.get("audit_node"),
+            "status": apply_context.get("status"),
+            "current_node": apply_context.get("current_node"),
+            "node_name": apply_context.get("node_name"),
+            "submitted_at": apply_context.get("submitted_at"),
+            "updated_at": apply_context.get("updated_at"),
+            "payload": apply_context.get("payload") or {},
         }
 

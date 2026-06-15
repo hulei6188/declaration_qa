@@ -6,7 +6,6 @@ from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
-from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE
 from declaration_qa.workflow import DeclarationQAWorkflow
 
 
@@ -41,8 +40,37 @@ def test_policy_filter_does_not_use_app_version():
     assert "居住证" in response.answer
     assert "app_version" not in audit["retrieval_filter"]
     assert "appVersion" not in audit["retrieval_filter"]
-    assert audit["retrieval_filter"]["biz_type"] == "residence_permit"
+    assert "biz_type" not in audit["retrieval_filter"]
     assert response.suggested_actions[0].payload["appVersion"] == "1.2.3"
+    assert response.retrieval_chain == "knowledge_retrieval"
+    assert response.evidence_decision["ok"] is True
+
+
+def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
+    workflow = DeclarationQAWorkflow()
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="身份证照片上传规范是什么",
+            user_id=1,
+            region_code="340000",
+            biz_type="id_card_replace",
+            metadata_filter={
+                "sourceType": "material_rule",
+                "materialCode": "ID_CARD_FRONT",
+                "rejectCode": "PHOTO_BLUR",
+            },
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.intent == "knowledge"
+    assert response.refused is False
+    assert response.retrieval_chain == "knowledge_retrieval"
+    assert "biz_type" not in audit["retrieval_filter"]
+    assert "source_type" not in audit["retrieval_filter"]
+    assert "material_code" not in audit["retrieval_filter"]
+    assert "reject_code" not in audit["retrieval_filter"]
 
 
 def test_status_question_requires_optional_apply_context_only_for_status_path():
@@ -71,9 +99,13 @@ def test_status_question_uses_business_status_then_rag_explanation():
 
     assert response.intent == "status"
     assert response.refused is False
+    assert response.retrieval_chain == "ticket_augmented"
+    assert response.business_snapshot["source"] == "business_adapter"
+    assert response.business_snapshot["current_node"] == "DEPT_REVIEW"
+    assert response.evidence_decision["reason"] == "business_status_verified"
     assert "部门审核中" in response.answer
     assert audit["business_status"]["current_node"] == "DEPT_REVIEW"
-    assert audit["retrieval_filter"]["source_type"] == "process"
+    assert "source_type" not in audit["retrieval_filter"]
     assert audit["answer"] == response.answer
 
 
@@ -95,12 +127,55 @@ def test_reject_flow_maps_material_item_before_rag():
     assert "身份证正面照片" in response.answer
     assert audit["reject_info"]["reject_code"] == "PHOTO_BLUR"
     assert audit["material_mapping"]["material_code"] == "ID_CARD_FRONT"
-    assert audit["retrieval_filter"]["source_type"] == MATERIAL_RULE_SOURCE_TYPE
-    assert audit["retrieval_filter"]["material_code"] == "ID_CARD_FRONT"
-    assert audit["retrieval_filter"]["reject_code"] == "PHOTO_BLUR"
-    assert response.sources[0].source_type == MATERIAL_RULE_SOURCE_TYPE
-    assert response.sources[0].material_code == "ID_CARD_FRONT"
-    assert response.sources[0].reject_code == "PHOTO_BLUR"
+    assert "source_type" not in audit["retrieval_filter"]
+    assert "material_code" not in audit["retrieval_filter"]
+    assert "reject_code" not in audit["retrieval_filter"]
+    assert response.business_snapshot["reject_code"] == "PHOTO_BLUR"
+    assert response.retrieval_chain == "ticket_augmented"
+    assert response.evidence_decision["ok"] is True
+
+
+def test_reject_chain_ignores_conflicting_request_metadata_filter():
+    workflow = DeclarationQAWorkflow()
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="为什么我的申请被退回了",
+            user_id=1,
+            region_code="340000",
+            apply_id="A3003",
+            metadata_filter={
+                "bizType": "residence_permit",
+                "materialCode": "RESIDENCE_PROOF",
+                "rejectCode": "MISSING_RESIDENCE_PROOF",
+            },
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.refused is False
+    assert "biz_type" not in audit["retrieval_filter"]
+    assert "material_code" not in audit["retrieval_filter"]
+    assert "reject_code" not in audit["retrieval_filter"]
+    assert "身份证正面照片" in response.answer
+
+
+def test_reject_chain_refuses_when_business_reject_record_missing():
+    workflow = DeclarationQAWorkflow()
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="为什么我的申请被退回了",
+            user_id=1,
+            region_code="340000",
+            apply_id="A1001",
+        )
+    )
+
+    assert response.intent == "reject"
+    assert response.refused is True
+    assert response.refuse_reason == "business_reject_not_found"
+    assert "不能根据模型推测驳回原因" in response.answer
 
 
 def test_reject_flow_falls_back_to_material_rule_without_reject_code():
@@ -110,11 +185,8 @@ def test_reject_flow_falls_back_to_material_rule_without_reject_code():
             id="doc-id-card-material-rule",
             title="身份证正面照片材料规范",
             content="身份证正面照片不清晰时，需要重新上传边框完整、文字清楚、无遮挡、无反光的图片。",
-            biz_type="id_card_replace",
             region_code="340000",
             policy_version="2025",
-            source_type=MATERIAL_RULE_SOURCE_TYPE,
-            material_code="ID_CARD_FRONT",
         )
     )
     workflow = DeclarationQAWorkflow(rag_engine=engine)
@@ -131,10 +203,9 @@ def test_reject_flow_falls_back_to_material_rule_without_reject_code():
 
     assert response.intent == "reject"
     assert response.refused is False
-    assert audit["retrieval_filter"]["source_type"] == MATERIAL_RULE_SOURCE_TYPE
-    assert audit["retrieval_filter"]["material_code"] == "ID_CARD_FRONT"
+    assert "source_type" not in audit["retrieval_filter"]
+    assert "material_code" not in audit["retrieval_filter"]
     assert "reject_code" not in audit["retrieval_filter"]
-    assert response.sources[0].material_code == "ID_CARD_FRONT"
 
 
 def test_stream_endpoint_returns_sse_events():
@@ -199,8 +270,6 @@ def test_declaration_qa_schema_file_defines_isolated_tables():
         "declaration_qa.eval_run_items",
     ]:
         assert table in sql
-    assert "material_code" in sql
-    assert "reject_code" in sql
     assert "audit_node" in sql
     assert "app_version" not in sql.lower()
 
@@ -227,11 +296,9 @@ def test_evidence_check_refuses_when_no_matching_policy_source():
 def test_rag_cache_reports_hit_on_repeated_query():
     engine = build_seed_rag_engine()
     filters = {
-        "biz_type": "residence_permit",
         "region_code": "340000",
         "policy_version": "2025",
         "status": "published",
-        "source_type": ["guide"],
     }
 
     first = engine.retrieve("办理居住证需要哪些材料", filters)

@@ -9,7 +9,6 @@ from sqlalchemy import JSON, bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
-from declaration_qa.source_types import canonicalize_source_type
 
 
 class PostgresDeclarationQAStore:
@@ -51,32 +50,42 @@ class PostgresDeclarationQAStore:
                 refuse_reason=str(payload.get("refuse_reason") or ""),
                 sources=payload.get("retrieved_sources") or [],
                 suggested_actions=payload.get("suggested_actions") or [],
-                meta={"evidence_ok": payload.get("evidence_ok"), "rag_status": payload.get("rag_status") or {}},
+                meta={
+                    "retrieval_chain": payload.get("retrieval_chain") or "",
+                    "business_snapshot": payload.get("business_snapshot") or {},
+                    "evidence_ok": payload.get("evidence_ok"),
+                    "evidence_decision": payload.get("evidence_decision") or {},
+                    "rag_status": payload.get("rag_status") or {},
+                },
             )
             stmt = text(
                 """
                 INSERT INTO declaration_qa.audit_logs (
                     audit_uid, session_id, user_id, query, normalized_query, intent,
-                    region_code, biz_type, apply_id, business_status, reject_info,
+                    retrieval_chain, region_code, biz_type, apply_id, business_snapshot,
+                    business_status, reject_info,
                     material_mapping, retrieval_filter, retrieved_sources, rag_status,
-                    evidence_ok, refused, refuse_reason, final_prompt, answer, events
+                    evidence_ok, evidence_decision, refused, refuse_reason, final_prompt, answer, events
                 )
                 VALUES (
                     :audit_uid, :session_id, :user_id, :query, :normalized_query, :intent,
-                    :region_code, :biz_type, :apply_id, :business_status, :reject_info,
+                    :retrieval_chain, :region_code, :biz_type, :apply_id, :business_snapshot,
+                    :business_status, :reject_info,
                     :material_mapping, :retrieval_filter, :retrieved_sources, :rag_status,
-                    :evidence_ok, :refused, :refuse_reason, :final_prompt, :answer, :events
+                    :evidence_ok, :evidence_decision, :refused, :refuse_reason, :final_prompt, :answer, :events
                 )
                 ON CONFLICT (audit_uid) DO UPDATE SET answer = EXCLUDED.answer
                 RETURNING audit_uid
                 """
             ).bindparams(
+                bindparam("business_snapshot", type_=JSON),
                 bindparam("business_status", type_=JSON),
                 bindparam("reject_info", type_=JSON),
                 bindparam("material_mapping", type_=JSON),
                 bindparam("retrieval_filter", type_=JSON),
                 bindparam("retrieved_sources", type_=JSON),
                 bindparam("rag_status", type_=JSON),
+                bindparam("evidence_decision", type_=JSON),
                 bindparam("events", type_=JSON),
             )
             connection.execute(
@@ -88,9 +97,11 @@ class PostgresDeclarationQAStore:
                     "query": str(payload.get("query") or ""),
                     "normalized_query": str(payload.get("normalized_query") or ""),
                     "intent": str(payload.get("intent") or ""),
+                    "retrieval_chain": str(payload.get("retrieval_chain") or ""),
                     "region_code": str(payload.get("region_code") or ""),
                     "biz_type": payload.get("biz_type"),
                     "apply_id": str(payload.get("apply_id") or ""),
+                    "business_snapshot": payload.get("business_snapshot") or {},
                     "business_status": payload.get("business_status") or {},
                     "reject_info": payload.get("reject_info") or {},
                     "material_mapping": payload.get("material_mapping") or {},
@@ -98,6 +109,7 @@ class PostgresDeclarationQAStore:
                     "retrieved_sources": payload.get("retrieved_sources") or [],
                     "rag_status": payload.get("rag_status") or {},
                     "evidence_ok": bool(payload.get("evidence_ok")),
+                    "evidence_decision": payload.get("evidence_decision") or {},
                     "refused": bool(payload.get("refused")),
                     "refuse_reason": str(payload.get("refuse_reason") or ""),
                     "final_prompt": str(payload.get("final_prompt") or ""),
@@ -132,7 +144,12 @@ class PostgresDeclarationQAStore:
                         r.reject_reason,
                         r.material_code,
                         r.material_name,
-                        r.audit_node
+                        r.audit_node,
+                        a.submitted_at,
+                        a.completed_at,
+                        GREATEST(a.updated_at, COALESCE(s.updated_at, a.updated_at), COALESCE(r.updated_at, a.updated_at)) AS updated_at,
+                        COALESCE(s.payload, a.payload, '{}'::jsonb) AS status_payload,
+                        COALESCE(r.payload, '{}'::jsonb) AS reject_payload
                     FROM declaration_qa.business_applications a
                     LEFT JOIN declaration_qa.business_application_statuses s
                         ON s.apply_id = a.id AND s.is_current = TRUE
@@ -175,7 +192,11 @@ class PostgresDeclarationQAStore:
                         a.region_code,
                         COALESCE(s.status, a.status) AS status,
                         COALESCE(s.current_node, a.current_node) AS current_node,
-                        COALESCE(s.node_name, a.node_name) AS node_name
+                        COALESCE(s.node_name, a.node_name) AS node_name,
+                        a.submitted_at,
+                        a.completed_at,
+                        COALESCE(s.updated_at, a.updated_at) AS updated_at,
+                        COALESCE(s.payload, a.payload, '{}'::jsonb) AS status_payload
                     FROM declaration_qa.business_applications a
                     LEFT JOIN declaration_qa.business_application_statuses s
                         ON s.apply_id = a.id AND s.is_current = TRUE
@@ -193,6 +214,10 @@ class PostgresDeclarationQAStore:
             "status": merged.get("status"),
             "current_node": merged.get("current_node"),
             "node_name": merged.get("node_name"),
+            "submitted_at": merged.get("submitted_at"),
+            "completed_at": merged.get("completed_at"),
+            "updated_at": merged.get("updated_at"),
+            "payload": merged.get("payload") or {},
         }
 
     def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
@@ -209,8 +234,16 @@ class PostgresDeclarationQAStore:
                         r.reject_reason,
                         r.material_code,
                         r.material_name,
-                        r.audit_node
+                        r.audit_node,
+                        COALESCE(s.status, a.status) AS status,
+                        COALESCE(s.current_node, a.current_node) AS current_node,
+                        COALESCE(s.node_name, a.node_name) AS node_name,
+                        a.submitted_at,
+                        GREATEST(a.updated_at, COALESCE(r.updated_at, a.updated_at)) AS updated_at,
+                        COALESCE(r.payload, '{}'::jsonb) AS reject_payload
                     FROM declaration_qa.business_applications a
+                    LEFT JOIN declaration_qa.business_application_statuses s
+                        ON s.apply_id = a.id AND s.is_current = TRUE
                     LEFT JOIN declaration_qa.business_reject_infos r
                         ON r.apply_id = a.id AND r.is_current = TRUE
                     WHERE a.apply_uid = :apply_uid
@@ -229,6 +262,12 @@ class PostgresDeclarationQAStore:
             "material_code": merged.get("material_code"),
             "material_name": merged.get("material_name"),
             "audit_node": merged.get("audit_node"),
+            "status": merged.get("status"),
+            "current_node": merged.get("current_node"),
+            "node_name": merged.get("node_name"),
+            "submitted_at": merged.get("submitted_at"),
+            "updated_at": merged.get("updated_at"),
+            "payload": merged.get("payload") or {},
         }
 
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
@@ -511,7 +550,6 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run_item(row)
 
     def persist_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
-        source_type = canonicalize_source_type(document.source_type)
         with self.engine.begin() as connection:
             kb_id = self._ensure_default_kb(connection)
             row = connection.execute(
@@ -519,17 +557,15 @@ class PostgresDeclarationQAStore:
                     """
                     INSERT INTO declaration_qa.documents (
                         document_uid, knowledge_base_id, title, filename, content_type,
-                        source_type, source_url, raw_text, text_preview, content_hash,
-                        biz_type, region_code, policy_version, material_code,
-                        reject_code, audit_node, status, version_group_uid, version_no,
+                        source_url, raw_text, text_preview, content_hash,
+                        region_code, policy_version, audit_node, status, version_group_uid, version_no,
                         rollout_percent, change_note, effective_start_time, effective_end_time,
                         chunk_count
                     )
                     VALUES (
                         :document_uid, :knowledge_base_id, :title, :filename, :content_type,
-                        :source_type, :source_url, :raw_text, :text_preview, :content_hash,
-                        :biz_type, :region_code, :policy_version, :material_code,
-                        :reject_code, :audit_node, :status, :version_group_uid, :version_no,
+                        :source_url, :raw_text, :text_preview, :content_hash,
+                        :region_code, :policy_version, :audit_node, :status, :version_group_uid, :version_no,
                         :rollout_percent, :change_note, :effective_start_time, :effective_end_time,
                         :chunk_count
                     )
@@ -537,16 +573,12 @@ class PostgresDeclarationQAStore:
                         title = EXCLUDED.title,
                         filename = EXCLUDED.filename,
                         content_type = EXCLUDED.content_type,
-                        source_type = EXCLUDED.source_type,
                         source_url = EXCLUDED.source_url,
                         raw_text = EXCLUDED.raw_text,
                         text_preview = EXCLUDED.text_preview,
                         content_hash = EXCLUDED.content_hash,
-                        biz_type = EXCLUDED.biz_type,
                         region_code = EXCLUDED.region_code,
                         policy_version = EXCLUDED.policy_version,
-                        material_code = EXCLUDED.material_code,
-                        reject_code = EXCLUDED.reject_code,
                         audit_node = EXCLUDED.audit_node,
                         status = EXCLUDED.status,
                         version_group_uid = EXCLUDED.version_group_uid,
@@ -566,16 +598,12 @@ class PostgresDeclarationQAStore:
                     "title": document.title,
                     "filename": document.filename,
                     "content_type": document.content_type,
-                    "source_type": source_type,
                     "source_url": document.source_url,
                     "raw_text": document.content,
                     "text_preview": document.content[:240],
                     "content_hash": hashlib.sha256(document.content.encode("utf-8")).hexdigest(),
-                    "biz_type": document.biz_type,
                     "region_code": document.region_code,
                     "policy_version": document.policy_version,
-                    "material_code": document.material_code,
-                    "reject_code": document.reject_code,
                     "audit_node": document.audit_node,
                     "status": document.status,
                     "version_group_uid": document.version_group_uid or document.id,
@@ -604,9 +632,8 @@ class PostgresDeclarationQAStore:
             rows = connection.execute(
                 text(
                     """
-                    SELECT id, document_uid, title, filename, content_type, raw_text, biz_type,
-                           region_code, policy_version, source_type, source_url, material_code,
-                           reject_code, audit_node, status, version_group_uid, version_no,
+                    SELECT id, document_uid, title, filename, content_type, raw_text,
+                           region_code, policy_version, source_url, audit_node, status, version_group_uid, version_no,
                            rollout_percent, change_note, effective_start_time, effective_end_time
                     FROM declaration_qa.documents
                     WHERE status = 'published'
@@ -621,13 +648,9 @@ class PostgresDeclarationQAStore:
                 filename=str(row["filename"] or ""),
                 content_type=str(row["content_type"] or "text/plain"),
                 content=str(row["raw_text"] or ""),
-                biz_type=str(row["biz_type"] or ""),
                 region_code=str(row["region_code"] or ""),
                 policy_version=str(row["policy_version"] or ""),
-                source_type=str(row["source_type"] or "guide"),
                 source_url=str(row["source_url"] or ""),
-                material_code=str(row["material_code"] or ""),
-                reject_code=str(row["reject_code"] or ""),
                 audit_node=str(row["audit_node"] or ""),
                 status=str(row["status"] or "published"),
                 version_group_uid=str(row["version_group_uid"] or row["document_uid"] or row["id"]),
@@ -662,8 +685,8 @@ class PostgresDeclarationQAStore:
             rows = connection.execute(
                 text(
                     f"""
-                    SELECT document_uid AS document_id, title, filename, source_type, biz_type,
-                           region_code, policy_version, material_code, reject_code, audit_node,
+                    SELECT document_uid AS document_id, title, filename,
+                           region_code, policy_version, audit_node,
                            status, version_group_uid, version_no, rollout_percent,
                            effective_start_time, effective_end_time, chunk_count, change_note,
                            created_at, updated_at
@@ -681,8 +704,8 @@ class PostgresDeclarationQAStore:
             row = connection.execute(
                 text(
                     """
-                    SELECT document_uid AS document_id, title, filename, source_type, biz_type,
-                           region_code, policy_version, material_code, reject_code, audit_node,
+                    SELECT document_uid AS document_id, title, filename,
+                           region_code, policy_version, audit_node,
                            status, version_group_uid, version_no, rollout_percent,
                            effective_start_time, effective_end_time, chunk_count, change_note,
                            raw_text, content_type, source_url, created_at, updated_at
@@ -786,13 +809,9 @@ class PostgresDeclarationQAStore:
             filename=str(source.get("filename") or ""),
             content_type=str(source.get("content_type") or "text/plain"),
             content=content if content is not None else str(source.get("raw_text") or ""),
-            biz_type=str(source["biz_type"]),
             region_code=str(source["region_code"]),
             policy_version=policy_version or str(source["policy_version"]),
-            source_type=str(source["source_type"]),
             source_url=str(source.get("source_url") or ""),
-            material_code=str(source.get("material_code") or ""),
-            reject_code=str(source.get("reject_code") or ""),
             audit_node=str(source.get("audit_node") or ""),
             status="draft",
             version_group_uid=group_uid,
@@ -1050,27 +1069,23 @@ class PostgresDeclarationQAStore:
             """
             INSERT INTO declaration_qa.chunks (
                 document_id, parent_chunk_id, chunk_uid, chunk_type, content, content_hash,
-                embedding_id, biz_type, region_code, policy_version, source_type, source_url,
-                material_code, reject_code, audit_node, status, effective_start_time,
+                embedding_id, region_code, policy_version, source_url,
+                audit_node, status, effective_start_time,
                 effective_end_time, metadata
             )
             VALUES (
                 :document_id, :parent_chunk_id, :chunk_uid, :chunk_type, :content, :content_hash,
-                :embedding_id, :biz_type, :region_code, :policy_version, :source_type, :source_url,
-                :material_code, :reject_code, :audit_node, :status, :effective_start_time,
+                :embedding_id, :region_code, :policy_version, :source_url,
+                :audit_node, :status, :effective_start_time,
                 :effective_end_time, :metadata
             )
             ON CONFLICT (chunk_uid) DO UPDATE SET
                 content = EXCLUDED.content,
                 content_hash = EXCLUDED.content_hash,
                 embedding_id = EXCLUDED.embedding_id,
-                biz_type = EXCLUDED.biz_type,
                 region_code = EXCLUDED.region_code,
                 policy_version = EXCLUDED.policy_version,
-                source_type = EXCLUDED.source_type,
                 source_url = EXCLUDED.source_url,
-                material_code = EXCLUDED.material_code,
-                reject_code = EXCLUDED.reject_code,
                 audit_node = EXCLUDED.audit_node,
                 status = EXCLUDED.status,
                 effective_start_time = EXCLUDED.effective_start_time,
@@ -1090,13 +1105,9 @@ class PostgresDeclarationQAStore:
                 "content": chunk.content,
                 "content_hash": hashlib.sha256(chunk.content.encode("utf-8")).hexdigest(),
                 "embedding_id": chunk.embedding_id,
-                "biz_type": chunk.biz_type,
                 "region_code": chunk.region_code,
                 "policy_version": chunk.policy_version,
-                "source_type": canonicalize_source_type(chunk.source_type),
                 "source_url": chunk.source_url,
-                "material_code": chunk.material_code,
-                "reject_code": chunk.reject_code,
                 "audit_node": chunk.audit_node,
                 "status": chunk.status,
                 "effective_start_time": chunk.effective_start_time,
@@ -1124,12 +1135,8 @@ def normalize_document_record(row) -> dict[str, Any]:
         "document_id": str(row["document_id"] or ""),
         "title": str(row["title"] or ""),
         "filename": str(row["filename"] or ""),
-        "source_type": str(row["source_type"] or ""),
-        "biz_type": str(row["biz_type"] or ""),
         "region_code": str(row["region_code"] or ""),
         "policy_version": str(row["policy_version"] or ""),
-        "material_code": str(row["material_code"] or ""),
-        "reject_code": str(row["reject_code"] or ""),
         "audit_node": str(row["audit_node"] or ""),
         "status": str(row["status"] or ""),
         "version_group_uid": str(row["version_group_uid"] or row["document_id"] or ""),
@@ -1148,6 +1155,9 @@ def normalize_business_row(row) -> dict[str, Any]:
     if not row:
         return {}
     values = dict(row)
+    status_payload = values.get("status_payload") if isinstance(values.get("status_payload"), dict) else {}
+    reject_payload = values.get("reject_payload") if isinstance(values.get("reject_payload"), dict) else {}
+    payload = {**status_payload, **reject_payload}
     return {
         "apply_id": str(values.get("apply_id") or ""),
         "user_id": int(values.get("user_id") or 0) if values.get("user_id") is not None else None,
@@ -1161,7 +1171,19 @@ def normalize_business_row(row) -> dict[str, Any]:
         "material_code": str(values.get("material_code") or ""),
         "material_name": str(values.get("material_name") or ""),
         "audit_node": str(values.get("audit_node") or ""),
+        "submitted_at": isoformat_or_empty(values.get("submitted_at")),
+        "completed_at": isoformat_or_empty(values.get("completed_at")),
+        "updated_at": isoformat_or_empty(values.get("updated_at")),
+        "payload": payload,
     }
+
+
+def isoformat_or_empty(value: Any) -> str:
+    if not value:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 def normalize_eval_dataset(row) -> dict[str, Any]:

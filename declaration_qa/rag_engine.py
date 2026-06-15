@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from declaration_qa.cache import CacheStore, InMemoryCacheStore
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
-from declaration_qa.source_types import MATERIAL_RULE_SOURCE_TYPE, canonicalize_source_type, expand_source_type_filter
+from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter
 from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
 
 
@@ -53,7 +53,6 @@ class InMemoryRAGEngine:
         return list(self._documents.values())
 
     def index_document(self, document: KnowledgeDocument) -> int:
-        document = replace(document, source_type=canonicalize_source_type(document.source_type))
         self._documents[document.id] = document
         chunks = split_parent_child(document)
         for chunk in chunks:
@@ -86,12 +85,11 @@ class InMemoryRAGEngine:
         return count
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
-        document = replace(document, source_type=canonicalize_source_type(document.source_type))
         return split_parent_child(document)
 
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
         normalized_query = normalize_text(query)
-        effective_filter = dict(filters or {})
+        effective_filter = normalize_retrieval_filter(filters)
         cache_key = json.dumps(
             {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
             ensure_ascii=False,
@@ -120,17 +118,22 @@ class InMemoryRAGEngine:
             )
 
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         if not candidates:
             result = RetrievalResult(
                 sources=[],
                 filter=effective_filter,
                 status={
                     "query": normalized_query,
+                    "prefilter_child_count": prefilter_child_count,
                     "candidate_count": 0,
+                    "metadata_coverage": coverage,
                     "cache": {"hit": False, "backend": self.cache_store.backend},
                     "embedding_provider": self.embedding_provider.name,
                     "rerank_provider": self.reranker.name,
                     "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
+                    "filter": effective_filter,
                 },
             )
             self._cache_result(cache_key, result)
@@ -146,7 +149,9 @@ class InMemoryRAGEngine:
             filter=effective_filter,
             status={
                 "query": normalized_query,
+                "prefilter_child_count": prefilter_child_count,
                 "candidate_count": len(candidates),
+                "metadata_coverage": coverage,
                 "cache": {"hit": False, "backend": self.cache_store.backend},
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
@@ -157,6 +162,7 @@ class InMemoryRAGEngine:
                     "rrf": len(fused_hits),
                     "rerank": len(reranked),
                 },
+                "filter": effective_filter,
             },
         )
         self._cache_result(cache_key, result)
@@ -258,25 +264,17 @@ def knowledge_chunk_from_document(
         chunk_type=chunk_type,
         title=document.title,
         content=content,
-        biz_type=document.biz_type,
         region_code=document.region_code,
         policy_version=document.policy_version,
-        source_type=document.source_type,
         source_url=document.source_url,
-        material_code=document.material_code,
-        reject_code=document.reject_code,
         audit_node=document.audit_node,
         status=document.status,
         effective_start_time=document.effective_start_time,
         effective_end_time=document.effective_end_time,
         embedding_id=f"vec:{chunk_id}",
         metadata={
-            "biz_type": document.biz_type,
             "region_code": document.region_code,
             "policy_version": document.policy_version,
-            "source_type": document.source_type,
-            "material_code": document.material_code,
-            "reject_code": document.reject_code,
             "audit_node": document.audit_node,
             "version_group_uid": document.version_group_uid or document.id,
             "version_no": document.version_no,
@@ -418,7 +416,7 @@ def rerank(query: str, hits: list[RetrievedSource], filters: dict[str, Any], *, 
 
 def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> float:
     boost = 0.0
-    for key in ["biz_type", "region_code", "material_code", "reject_code", "audit_node"]:
+    for key in ["region_code", "audit_node"]:
         expected = str(filters.get(key) or "").strip()
         actual = str(getattr(chunk, key) or "").strip()
         if expected and actual and expected == actual:
@@ -429,16 +427,11 @@ def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> floa
 def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
     if chunk.status != str(filters.get("status") or "published"):
         return False
-    for key in ["biz_type", "region_code", "policy_version"]:
+    for key in ["region_code", "policy_version"]:
         expected = str(filters.get(key) or "").strip()
         if expected and str(getattr(chunk, key) or "").strip() != expected:
             return False
-    source_type = filters.get("source_type")
-    if source_type:
-        allowed = set(expand_source_type_filter(source_type))
-        if canonicalize_source_type(chunk.source_type) not in allowed:
-            return False
-    for key in ["material_code", "reject_code", "audit_node"]:
+    for key in ["audit_node"]:
         expected = str(filters.get(key) or "").strip()
         if expected and str(getattr(chunk, key) or "").strip() != expected:
             return False
@@ -537,10 +530,8 @@ def seed_documents() -> list[KnowledgeDocument]:
                 "居住地址证明可以包括房屋租赁合同、用人单位住宿证明、学校住宿证明或社区出具的居住证明。"
                 "申请人应确保材料真实、完整，材料不齐全时需要补正后重新提交。"
             ),
-            biz_type="residence_permit",
             region_code="340000",
             policy_version="2025",
-            source_type="guide",
             source_url="internal://guides/residence-permit",
         ),
         KnowledgeDocument(
@@ -551,10 +542,8 @@ def seed_documents() -> list[KnowledgeDocument]:
                 "部门审核中表示申请材料已进入业务部门审核环节，用户通常无需重复提交。"
                 "如审核发现材料问题，系统会退回并提示补正原因。"
             ),
-            biz_type="health_certificate",
             region_code="340000",
             policy_version="2025",
-            source_type="process",
             source_url="internal://process/health-certificate",
         ),
         KnowledgeDocument(
@@ -565,13 +554,9 @@ def seed_documents() -> list[KnowledgeDocument]:
                 "如果照片模糊、证件号码无法识别、边缘缺失或存在明显反光，审核人员可退回申请。"
                 "用户需要重新上传清晰的身份证正面照片后再次提交。"
             ),
-            biz_type="id_card_replace",
             region_code="340000",
             policy_version="2025",
-            source_type=MATERIAL_RULE_SOURCE_TYPE,
             source_url="internal://rules/id-card-photo",
-            material_code="ID_CARD_FRONT",
-            reject_code="PHOTO_BLUR",
             audit_node="人工初审",
         ),
         KnowledgeDocument(
@@ -581,13 +566,9 @@ def seed_documents() -> list[KnowledgeDocument]:
                 "居住证明材料缺失时，申请人应补充租赁合同、单位住宿证明、学校住宿证明或社区居住证明。"
                 "补交材料需要与当前申请地区一致，并能证明申请人在当地实际居住。"
             ),
-            biz_type="residence_permit",
             region_code="340000",
             policy_version="2025",
-            source_type=MATERIAL_RULE_SOURCE_TYPE,
             source_url="internal://rules/residence-proof",
-            material_code="RESIDENCE_PROOF",
-            reject_code="MISSING_RESIDENCE_PROOF",
             audit_node="材料初审",
         ),
     ]

@@ -4,45 +4,149 @@ from typing import Any
 from datetime import date
 
 from declaration_qa.domain import EvidenceDecision
+from declaration_qa.retrieval import (
+    KNOWLEDGE_RETRIEVAL_CHAIN,
+    TICKET_AUGMENTED_CHAIN,
+    metadata_coverage,
+)
 
 
 DEFAULT_TOP_SCORE_THRESHOLD = 0.18
 DEFAULT_RERANK_THRESHOLD = 0.12
+MIN_EVIDENCE_SOURCES = 1
 
 
-def decide_evidence(sources: list[dict[str, Any]], filters: dict[str, Any], *, intent: str) -> EvidenceDecision:
+def decide_evidence(
+    sources: list[dict[str, Any]],
+    filters: dict[str, Any],
+    *,
+    intent: str,
+    chain: str = KNOWLEDGE_RETRIEVAL_CHAIN,
+    business_payload: dict[str, Any] | None = None,
+) -> EvidenceDecision:
+    coverage = metadata_coverage(filters, chain=chain)
+    checks: dict[str, Any] = {
+        "chain": chain,
+        "metadata_coverage": coverage,
+        "business_payload_present": bool(business_payload),
+    }
+    if coverage["missing"]:
+        return EvidenceDecision(
+            ok=False,
+            reason="missing_required_metadata",
+            source_count=len(sources),
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
+
     if not sources:
-        return EvidenceDecision(ok=False, reason="no_matched_source", top_score=0.0)
+        return EvidenceDecision(
+            ok=False,
+            reason="no_matched_source",
+            top_score=0.0,
+            source_count=0,
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
 
     top = sources[0]
     top_score = float(top.get("score") or 0.0)
     rerank_score = float(top.get("rerank_score") or 0.0)
+    checks.update({"top_score": top_score, "rerank_score": rerank_score})
     if top_score < DEFAULT_TOP_SCORE_THRESHOLD and rerank_score < DEFAULT_RERANK_THRESHOLD:
-        return EvidenceDecision(ok=False, reason="low_relevance", top_score=top_score)
+        return EvidenceDecision(
+            ok=False,
+            reason="low_relevance",
+            top_score=top_score,
+            source_count=len(sources),
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
 
-    for key in ["biz_type", "region_code", "policy_version"]:
+    if len(sources) < MIN_EVIDENCE_SOURCES:
+        return EvidenceDecision(
+            ok=False,
+            reason="insufficient_evidence",
+            top_score=top_score,
+            source_count=len(sources),
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
+
+    for key in ["region_code", "policy_version"]:
         expected = str(filters.get(key) or "").strip()
         if expected and str(top.get(key) or "").strip() != expected:
-            return EvidenceDecision(ok=False, reason=f"{key}_mismatch", top_score=top_score)
+            return EvidenceDecision(
+                ok=False,
+                reason=f"{key}_mismatch",
+                top_score=top_score,
+                source_count=len(sources),
+                required_metadata=coverage["required"],
+                missing_metadata=coverage["missing"],
+                checks=checks,
+            )
 
     as_of = parse_date(filters.get("as_of")) or date.today()
     if not source_effective(top, as_of):
-        return EvidenceDecision(ok=False, reason="policy_not_effective", top_score=top_score)
+        return EvidenceDecision(
+            ok=False,
+            reason="policy_not_effective",
+            top_score=top_score,
+            source_count=len(sources),
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
+
+    if chain == TICKET_AUGMENTED_CHAIN and not business_payload:
+        return EvidenceDecision(
+            ok=False,
+            reason="missing_business_snapshot",
+            top_score=top_score,
+            source_count=len(sources),
+            required_metadata=coverage["required"],
+            missing_metadata=coverage["missing"],
+            checks=checks,
+        )
 
     if intent == "reject":
-        for key in ["material_code", "reject_code"]:
-            expected = str(filters.get(key) or "").strip()
-            if expected and str(top.get(key) or "").strip() != expected:
-                return EvidenceDecision(ok=False, reason=f"{key}_mismatch", top_score=top_score)
-        conflict = conflict_reason(sources, keys=["material_code", "reject_code", "audit_node"])
+        conflict = conflict_reason(sources, keys=["audit_node"])
         if conflict:
-            return EvidenceDecision(ok=False, reason=conflict, top_score=top_score)
+            return EvidenceDecision(
+                ok=False,
+                reason=conflict,
+                top_score=top_score,
+                source_count=len(sources),
+                required_metadata=coverage["required"],
+                missing_metadata=coverage["missing"],
+                checks=checks,
+            )
     else:
         conflict = conflict_reason(sources, keys=["policy_version"])
         if conflict:
-            return EvidenceDecision(ok=False, reason=conflict, top_score=top_score)
+            return EvidenceDecision(
+                ok=False,
+                reason=conflict,
+                top_score=top_score,
+                source_count=len(sources),
+                required_metadata=coverage["required"],
+                missing_metadata=coverage["missing"],
+                checks=checks,
+            )
 
-    return EvidenceDecision(ok=True, reason="", top_score=top_score)
+    return EvidenceDecision(
+        ok=True,
+        reason="",
+        top_score=top_score,
+        source_count=len(sources),
+        required_metadata=coverage["required"],
+        missing_metadata=coverage["missing"],
+        checks=checks,
+    )
 
 
 def conflict_reason(sources: list[dict[str, Any]], *, keys: list[str]) -> str:

@@ -169,6 +169,8 @@ class OpenAIAnswerGenerator:
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
             intent=state.get("intent") or "",
+            retrieval_chain=state.get("retrieval_chain") or "",
+            business_snapshot=state.get("business_snapshot") or {},
             business_payload=business_payload,
             source_payload=source_text,
         )

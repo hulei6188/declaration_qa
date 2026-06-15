@@ -61,6 +61,27 @@ The schema also includes local business application, status, and rejection
 tables used by status/reject intents; the QA workflow reads those tables
 directly instead of calling declaration/application HTTP APIs.
 
+## Production QA Design
+
+The service is split into two explicit answer chains:
+
+- `knowledge_retrieval`: policy, material, process, and FAQ questions go
+  directly through RAG. Filters are built from `regionCode`, `policyVersion`,
+  effective time, rollout, status, and optional audit-node metadata; BM25 and
+  Milvus/vector retrieval are fused with RRF and reranked.
+- `ticket_augmented`: application progress, rejection, and correction
+  questions must first resolve the user's real application record through the
+  business adapter. The model receives a business snapshot from the application
+  status/reject tables, then RAG retrieves process or material-rule evidence to
+  explain the status. If the business snapshot is missing, the workflow refuses
+  instead of inventing progress or rejection reasons.
+
+Evidence checks require matching region, policy version, effective dates, and
+available audit-node constraints. The response and audit log include `retrieval_chain`,
+`business_snapshot`, `rag_status`, and `evidence_decision` so production issues
+can be traced to either business data, metadata filtering, retrieval, rerank, or
+evidence gates.
+
 ## Docker
 
 Compose only starts local infrastructure. Start the API, worker, and frontend

@@ -11,6 +11,8 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 
 问题：{query}
 意图：{intent}
+链路：{retrieval_chain}
+业务快照：{business_snapshot}
 业务数据：{business_payload}
 检索证据：{source_payload}
 
@@ -32,6 +34,8 @@ class DeterministicAnswerGenerator:
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
             intent=state.get("intent") or "",
+            retrieval_chain=state.get("retrieval_chain") or "",
+            business_snapshot=state.get("business_snapshot") or {},
             business_payload=business_payload,
             source_payload=source_text,
         )

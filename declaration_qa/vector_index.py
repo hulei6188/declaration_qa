@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from declaration_qa.domain import KnowledgeChunk
-from declaration_qa.source_types import expand_source_type_filter
 
 
 class VectorIndex(Protocol):
@@ -89,12 +88,8 @@ class MilvusVectorIndex:
             "id": chunk.id,
             "doc_id": chunk.doc_id,
             "vector": list(vector),
-            "biz_type": chunk.biz_type,
             "region_code": chunk.region_code,
             "policy_version": chunk.policy_version,
-            "source_type": chunk.source_type,
-            "material_code": chunk.material_code,
-            "reject_code": chunk.reject_code,
             "audit_node": chunk.audit_node,
             "status": chunk.status,
         }
@@ -160,7 +155,7 @@ class MilvusVectorIndex:
         from pymilvus import DataType
 
         if self._client.has_collection(self.collection_name):
-            if not self._collection_uses_string_primary_key():
+            if not self._collection_schema_is_current():
                 self._client.drop_collection(self.collection_name)
             else:
                 return
@@ -168,12 +163,8 @@ class MilvusVectorIndex:
         schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=180)
         schema.add_field("doc_id", DataType.VARCHAR, max_length=120)
         schema.add_field("vector", DataType.FLOAT_VECTOR, dim=self.dimension)
-        schema.add_field("biz_type", DataType.VARCHAR, max_length=80)
         schema.add_field("region_code", DataType.VARCHAR, max_length=20)
         schema.add_field("policy_version", DataType.VARCHAR, max_length=80)
-        schema.add_field("source_type", DataType.VARCHAR, max_length=40)
-        schema.add_field("material_code", DataType.VARCHAR, max_length=80)
-        schema.add_field("reject_code", DataType.VARCHAR, max_length=80)
         schema.add_field("audit_node", DataType.VARCHAR, max_length=80)
         schema.add_field("status", DataType.VARCHAR, max_length=20)
         index_params = self._client.prepare_index_params()
@@ -184,8 +175,13 @@ class MilvusVectorIndex:
             index_params=index_params,
         )
 
-    def _collection_uses_string_primary_key(self) -> bool:
+    def _collection_schema_is_current(self) -> bool:
         description = self._client.describe_collection(self.collection_name)
+        fields = {str(field.get("name") or ""): field for field in description.get("fields", [])}
+        removed_fields = {"biz_type", "source_type", "material_code", "reject_code"}
+        required_fields = {"id", "doc_id", "vector", "region_code", "policy_version", "audit_node", "status"}
+        if removed_fields.intersection(fields) or not required_fields.issubset(fields):
+            return False
         for field in description.get("fields", []):
             if field.get("name") == "id" and field.get("is_primary"):
                 field_type = str(field.get("type") or "").upper()
@@ -195,12 +191,10 @@ class MilvusVectorIndex:
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:
     parts = []
-    for key in ["biz_type", "region_code", "policy_version", "source_type", "material_code", "reject_code", "audit_node", "status"]:
+    for key in ["region_code", "policy_version", "audit_node", "status"]:
         value = filters.get(key)
         if not value:
             continue
-        if key == "source_type":
-            value = expand_source_type_filter(value)
         if isinstance(value, list):
             values = ", ".join(f'"{str(item).replace(chr(34), chr(92) + chr(34))}"' for item in value)
             parts.append(f"{key} in [{values}]")
