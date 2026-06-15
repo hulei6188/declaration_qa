@@ -8,9 +8,13 @@ const state = {
   latestVersionId: null,
   evalDatasetId: null,
   uploadItems: [],
+  lastUserQuery: "",
+  pendingTicketQuery: "",
+  currentTicket: null,
 };
 
 const $ = (id) => document.getElementById(id);
+const INDEX_JOB_MAX_ATTEMPTS = 180;
 
 const els = {
   apiBase: $("apiBase"),
@@ -31,6 +35,9 @@ const els = {
   auditRefused: $("auditRefused"),
   uploadResult: $("uploadResult"),
   uploadQueue: $("uploadQueue"),
+  currentTicketLabel: $("currentTicketLabel"),
+  changeTicketButton: $("changeTicketButton"),
+  clearTicketButton: $("clearTicketButton"),
   feedbackResult: $("feedbackResult"),
   sessionList: $("sessionList"),
   documentList: $("documentList"),
@@ -48,10 +55,14 @@ const els = {
 document.addEventListener("DOMContentLoaded", () => {
   $("chatForm").addEventListener("submit", onSubmit);
   $("clearButton").addEventListener("click", clearSession);
+  $("changeTicketButton").addEventListener("click", changeCurrentTicket);
+  $("clearTicketButton").addEventListener("click", clearCurrentTicket);
+  $("applyId").addEventListener("input", syncCurrentTicketFromApplyId);
   $("healthButton").addEventListener("click", checkHealth);
   $("refreshSessionsButton").addEventListener("click", refreshSessions);
   $("uploadDocButton").addEventListener("click", uploadDocument);
   $("docFile").addEventListener("change", updateUploadQueueFromInput);
+  $("chunkingStrategy").addEventListener("change", updateUploadQueueFromInput);
   $("refreshDocumentsButton").addEventListener("click", refreshDocuments);
   $("publishDocumentButton").addEventListener("click", () => setDocumentStatus("publish"));
   $("unpublishDocumentButton").addEventListener("click", () => setDocumentStatus("unpublish"));
@@ -69,9 +80,11 @@ document.addEventListener("DOMContentLoaded", () => {
       els.queryInput.value = button.dataset.preset;
       els.bizType.value = button.dataset.biz || "";
       els.applyId.value = button.dataset.apply || "";
+      syncCurrentTicketFromApplyId();
       els.queryInput.focus();
     });
   });
+  renderCurrentTicket();
   checkHealth();
   refreshSessions();
   refreshDocuments();
@@ -95,7 +108,12 @@ async function onSubmit(event) {
   const query = els.queryInput.value.trim();
   if (!query) return;
 
-  appendMessage("user", query, "用户问题");
+  await sendChat(query);
+}
+
+async function sendChat(query, options = {}) {
+  appendMessage("user", options.displayText || query, options.meta || "用户问题");
+  state.lastUserQuery = query;
   state.assistantEl = appendMessage("assistant", "", "申报辅助");
   els.queryInput.value = "";
   els.sendState.textContent = "流式生成中";
@@ -180,9 +198,15 @@ function handleSSE({ event, data }) {
     state.sessionId = data.session_id || state.sessionId;
     state.auditId = data.audit_id || state.auditId;
     state.latestDone = data;
-    els.auditIntent.textContent = data.intent || "-";
+    els.auditIntent.textContent = [data.route, data.intent].filter(Boolean).join(" / ") || "-";
     els.auditId.textContent = data.audit_id || "-";
     els.auditRefused.textContent = data.refused ? data.refuse_reason || "是" : "否";
+    if (data.need_ticket_selection && (data.tickets || []).length) {
+      state.pendingTicketQuery = state.lastUserQuery;
+      renderTicketSelection(data.tickets, data.ticket_selection_reason);
+    } else {
+      state.pendingTicketQuery = "";
+    }
     addTimeline(event, data);
     refreshSessions();
     return;
@@ -211,6 +235,102 @@ function appendToAssistant(text) {
   }
   state.assistantEl.textContent += text;
   els.messages.scrollTop = els.messages.scrollHeight;
+}
+
+function renderTicketSelection(tickets, reason) {
+  const host = state.assistantEl || appendMessage("assistant", "", "申报辅助");
+  const block = document.createElement("div");
+  block.className = "ticket-selection";
+  const title = document.createElement("strong");
+  title.textContent = reason === "multiple_candidates" ? "请选择对应工单" : "候选工单";
+  block.appendChild(title);
+  tickets.forEach((ticket) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ticket-option";
+    button.innerHTML = `
+      <span>${escapeHtml(ticket.title || ticket.biz_type || "申报工单")}</span>
+      <code>${escapeHtml(ticket.ticket_id || "-")} · ${escapeHtml(ticket.node_name || ticket.current_node || ticket.status || "-")} · ${escapeHtml(ticket.updated_at || "-")}</code>
+    `;
+    button.addEventListener("click", () => selectTicket(ticket));
+    block.appendChild(button);
+  });
+  host.appendChild(block);
+  els.messages.scrollTop = els.messages.scrollHeight;
+}
+
+async function selectTicket(ticket) {
+  const ticketId = String(ticket?.ticket_id || "").trim();
+  const query = state.pendingTicketQuery || state.lastUserQuery;
+  if (!ticketId || !query) return;
+  document.querySelectorAll(".ticket-option").forEach((button) => {
+    button.disabled = true;
+  });
+  els.applyId.value = ticketId;
+  if (ticket.biz_type) els.bizType.value = ticket.biz_type;
+  if (ticket.region_code) els.regionCode.value = ticket.region_code;
+  setCurrentTicket(ticket);
+  state.pendingTicketQuery = "";
+  els.sendState.textContent = "已选择工单";
+  await sendChat(query, {
+    meta: "用户选择",
+    displayText: `${query}\n已选择工单：${ticketLabel(ticket)}`,
+  });
+}
+
+function ticketLabel(ticket) {
+  return [ticket.title || ticket.biz_type || "申报工单", ticket.ticket_id, ticket.node_name || ticket.current_node || ticket.status]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function setCurrentTicket(ticket) {
+  state.currentTicket = {
+    ticket_id: String(ticket?.ticket_id || els.applyId.value || "").trim(),
+    title: ticket?.title || ticket?.biz_type || "",
+    biz_type: ticket?.biz_type || els.bizType.value || "",
+    region_code: ticket?.region_code || els.regionCode.value || "",
+    node_name: ticket?.node_name || ticket?.current_node || ticket?.status || "",
+  };
+  renderCurrentTicket();
+}
+
+function clearCurrentTicket() {
+  state.currentTicket = null;
+  state.pendingTicketQuery = "";
+  els.applyId.value = "";
+  renderCurrentTicket();
+  els.sendState.textContent = "当前工单已清除";
+}
+
+function changeCurrentTicket() {
+  clearCurrentTicket();
+  els.queryInput.focus();
+  els.sendState.textContent = "已清除当前工单，请重新提问选择";
+}
+
+function syncCurrentTicketFromApplyId() {
+  const ticketId = els.applyId.value.trim();
+  if (!ticketId) {
+    state.currentTicket = null;
+    renderCurrentTicket();
+    return;
+  }
+  setCurrentTicket({ ticket_id: ticketId, biz_type: els.bizType.value, region_code: els.regionCode.value });
+}
+
+function renderCurrentTicket() {
+  const ticketId = state.currentTicket?.ticket_id || els.applyId.value.trim();
+  if (!ticketId) {
+    els.currentTicketLabel.textContent = "当前工单：未选择";
+    els.changeTicketButton.disabled = true;
+    els.clearTicketButton.disabled = true;
+    return;
+  }
+  const label = state.currentTicket ? ticketLabel(state.currentTicket) : ticketId;
+  els.currentTicketLabel.textContent = `当前工单：${label}`;
+  els.changeTicketButton.disabled = false;
+  els.clearTicketButton.disabled = false;
 }
 
 function addTimeline(event, data) {
@@ -281,6 +401,7 @@ async function uploadDocument() {
 }
 
 async function uploadFileBatch(files, title) {
+  const strategyLabel = selectedChunkingStrategyLabel();
   state.uploadItems = files.map((file, index) => ({
     id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
     file,
@@ -290,50 +411,72 @@ async function uploadFileBatch(files, title) {
     message: "等待上传",
     chunksIndexed: null,
     documentId: "",
+    strategyLabel,
   }));
   renderUploadQueue();
   els.uploadResult.textContent = `准备上传 ${state.uploadItems.length} 个文件`;
   $("uploadDocButton").disabled = true;
   try {
-    for (let index = 0; index < state.uploadItems.length; index += 1) {
+    state.uploadItems.forEach((item) => updateUploadItem(item.id, { status: "running", message: "上传中" }));
+    const response = await uploadFileDocuments(files, title);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const batchPayload = await response.json();
+    const documents = batchPayload.documents || [];
+    documents.forEach((payload, index) => {
       const item = state.uploadItems[index];
-      updateUploadItem(item.id, { status: "running", message: "上传中" });
-      const response = await uploadFileDocument(item.file, batchDocumentTitle(item.file, title, files.length));
-      if (!response.ok) throw new Error(`${item.name}: HTTP ${response.status}`);
-      const payload = await response.json();
+      if (!item) return;
       updateUploadItem(item.id, {
         status: "indexing",
         message: payload.job_id ? "索引任务已提交" : "索引完成",
         documentId: payload.document_id || "",
-        chunksIndexed: payload.chunks_indexed ?? null,
+        chunksIndexed: payload.job_id ? null : payload.chunks_indexed ?? null,
       });
-      if (payload.job_id) {
+    });
+    els.uploadResult.textContent = `已提交 ${documents.length}/${state.uploadItems.length} 个索引任务`;
+    const results = await Promise.all(
+      documents.map(async (payload, index) => {
+        const item = state.uploadItems[index];
+        if (!item || !payload.job_id) return { item, payload, job: null };
         const job = await waitForIndexJob(payload.job_id, item.id);
-        const jobPayload = job.payload || {};
-        if (["failed", "cancelled"].includes(job.status)) {
-          throw new Error(`${item.name}: ${job.error_message || "索引任务失败"}`);
-        }
-        if (job.status === "succeeded") {
-          updateUploadItem(item.id, {
-            status: "succeeded",
-            message: "已入库",
-            documentId: jobPayload.document_id || payload.document_id || "",
-            chunksIndexed: Number(jobPayload.chunks_indexed || payload.chunks_indexed || 0),
-          });
-        } else {
-          updateUploadItem(item.id, {
-            status: "pending",
-            message: `索引仍在处理 ${job.progress || 0}%`,
-            documentId: payload.document_id || "",
-          });
-        }
-      } else {
-        updateUploadItem(item.id, { status: "succeeded", message: "已入库" });
+        return { item, payload, job };
+      })
+    );
+    results.forEach(({ item, payload, job }) => {
+      if (!item) return;
+      const jobPayload = job?.payload || {};
+      if (job && ["failed", "cancelled"].includes(job.status)) {
+        updateUploadItem(item.id, { status: "failed", message: job.error_message || "索引任务失败" });
+        return;
       }
-      els.uploadResult.textContent = `批量入库进度 ${index + 1}/${state.uploadItems.length}`;
+      if (job?.status === "succeeded" || !payload.job_id) {
+        updateUploadItem(item.id, {
+          status: "succeeded",
+          message: "已入库",
+          documentId: jobPayload.document_id || payload.document_id || "",
+          chunksIndexed: Number(jobPayload.chunks_indexed || payload.chunks_indexed || 0),
+        });
+        return;
+      }
+      updateUploadItem(item.id, {
+        status: "pending",
+        message: `索引仍在处理 ${job?.progress || 0}%`,
+        documentId: payload.document_id || "",
+      });
+    });
+    state.uploadItems.slice(documents.length).forEach((item) => {
+      updateUploadItem(item.id, { status: "failed", message: "后端未返回该文件的索引任务" });
+    });
+    const failed = state.uploadItems.filter((item) => item.status === "failed").length;
+    if (failed) {
+      throw new Error(`失败 ${failed}/${state.uploadItems.length}`);
     }
-    const succeeded = state.uploadItems.filter((item) => item.status === "succeeded").length;
-    els.uploadResult.textContent = `批量入库完成：成功 ${succeeded}/${state.uploadItems.length}`;
+    const pending = state.uploadItems.filter((item) => item.status === "pending").length;
+    if (pending) {
+      els.uploadResult.textContent = `批量入库仍在处理：${pending}/${state.uploadItems.length}`;
+    } else {
+      const succeeded = state.uploadItems.filter((item) => item.status === "succeeded").length;
+      els.uploadResult.textContent = `批量入库完成：成功 ${succeeded}/${state.uploadItems.length}`;
+    }
     await refreshDocuments();
   } catch (error) {
     const runningItem = state.uploadItems.find((item) => ["running", "indexing"].includes(item.status));
@@ -353,6 +496,7 @@ function uploadTextDocument(title, content) {
       content,
       region_code: els.regionCode.value || "340000",
       policy_version: $("docPolicyVersion").value || "2025",
+      chunking_strategy: selectedChunkingStrategy(),
     }),
   });
 }
@@ -369,10 +513,11 @@ function updateUploadQueueFromInput() {
     size: file.size,
     status: "waiting",
     message: "等待上传",
+    strategyLabel: selectedChunkingStrategyLabel(),
   }));
   renderUploadQueue();
   if (state.uploadItems.length > 1) {
-    els.uploadResult.textContent = `已选择 ${state.uploadItems.length} 个文件，点击后将按顺序入库。`;
+    els.uploadResult.textContent = `已选择 ${state.uploadItems.length} 个文件，点击后将一次提交入库。`;
   } else if (state.uploadItems.length === 1) {
     els.uploadResult.textContent = `已选择文件：${state.uploadItems[0].name}`;
   }
@@ -392,7 +537,7 @@ function renderUploadQueue() {
       <span class="upload-state-dot"></span>
       <div>
         <strong>${escapeHtml(item.name)}</strong>
-        <code>${formatBytes(item.size)} · ${escapeHtml(item.message || "")}${item.chunksIndexed !== null && item.chunksIndexed !== undefined ? ` · ${item.chunksIndexed} 分块` : ""}</code>
+        <code>${formatBytes(item.size)} · ${escapeHtml(item.strategyLabel || "")} · ${escapeHtml(item.message || "")}${item.chunksIndexed !== null && item.chunksIndexed !== undefined ? ` · ${item.chunksIndexed} 分块` : ""}</code>
       </div>
     `;
     els.uploadQueue.appendChild(row);
@@ -404,26 +549,30 @@ function updateUploadItem(id, patch) {
   renderUploadQueue();
 }
 
-function batchDocumentTitle(file, title, fileCount) {
-  if (!title) return file.name;
-  return fileCount > 1 ? `${title} - ${file.name}` : title;
-}
-
 function generatedTextTitle(content) {
   const firstLine = String(content || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean);
   return firstLine ? firstLine.slice(0, 80) : `手动录入文档-${new Date().toISOString().slice(0, 10)}`;
 }
 
-function uploadFileDocument(file, title) {
+function uploadFileDocuments(files, title) {
   const form = new FormData();
-  form.append("file", file);
-  form.append("title", title || file.name);
+  files.forEach((file) => form.append("files", file));
+  form.append("title", title || "");
   form.append("region_code", els.regionCode.value || "340000");
   form.append("policy_version", $("docPolicyVersion").value || "2025");
-  return fetch(`${apiBase()}/api/declaration-qa/knowledge/upload`, {
+  form.append("chunking_strategy", selectedChunkingStrategy());
+  return fetch(`${apiBase()}/api/declaration-qa/knowledge/uploads`, {
     method: "POST",
     body: form,
   });
+}
+
+function selectedChunkingStrategy() {
+  return $("chunkingStrategy").value || "parent_child";
+}
+
+function selectedChunkingStrategyLabel() {
+  return $("chunkingStrategy").selectedOptions[0]?.textContent || "父子分块";
 }
 
 async function refreshIndexJob(jobId) {
@@ -441,7 +590,7 @@ async function refreshIndexJob(jobId) {
 
 async function waitForIndexJob(jobId, uploadItemId = "") {
   let latestJob = null;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < INDEX_JOB_MAX_ATTEMPTS; attempt += 1) {
     const job = await refreshIndexJob(jobId);
     if (job) latestJob = job;
     if (job && ["succeeded", "failed", "cancelled"].includes(job.status)) return job;
@@ -606,7 +755,7 @@ async function createEvaluationDataset() {
       query: selected ? `请说明${selected.title}的办理要求` : "办理居住证需要哪些材料",
       region_code: selected?.region_code || els.regionCode.value || "340000",
       policy_version: selected?.policy_version || els.policyVersion.value || "2025",
-      expected_intent: "knowledge",
+      expected_intent: "material_requirements",
       expected_refused: false,
       expected_doc_ids: selected ? [selected.document_id] : [],
       tags: ["recall"],
@@ -724,8 +873,12 @@ function clearSession() {
   state.auditId = null;
   state.assistantEl = null;
   state.latestDone = null;
+  state.lastUserQuery = "";
+  state.pendingTicketQuery = "";
+  clearCurrentTicket();
   els.messages.innerHTML = "";
   clearInspection();
+  els.sendState.textContent = "等待输入";
 }
 
 async function refreshSessions() {

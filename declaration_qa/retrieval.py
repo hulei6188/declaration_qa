@@ -111,4 +111,4 @@ def metadata_coverage(filters: dict[str, Any], *, chain: str) -> dict[str, Any]:
 
 
 def is_ticket_chain(intent: str) -> bool:
-    return intent in {"status", "reject"}
+    return intent in {"status", "reject", "ticket_status", "rejection_reason"}

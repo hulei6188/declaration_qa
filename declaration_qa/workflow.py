@@ -13,10 +13,15 @@ from declaration_qa.business import BusinessDataAdapter, InMemoryBusinessDataAda
 from declaration_qa.evidence import decide_evidence
 from declaration_qa.prompting import DeterministicAnswerGenerator
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine, normalize_text
-from declaration_qa.retrieval import (
-    KNOWLEDGE_RETRIEVAL_CHAIN,
-    TICKET_AUGMENTED_CHAIN,
-    is_ticket_chain,
+from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
+from declaration_qa.router import (
+    INTENT_REJECTION_REASON,
+    INTENT_TICKET_STATUS,
+    ROUTE_CLARIFICATION,
+    ROUTE_KNOWLEDGE,
+    ROUTE_REFUSE,
+    ROUTE_TICKET,
+    IntentRouter,
 )
 from declaration_qa.schemas import ChatRequest, ChatResponse
 from declaration_qa.state import DeclarationQAState
@@ -30,11 +35,13 @@ class DeclarationQAWorkflow:
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
+        intent_router: IntentRouter | None = None,
     ) -> None:
         self.rag_engine = rag_engine or build_seed_rag_engine()
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
+        self.intent_router = intent_router or IntentRouter()
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -44,6 +51,13 @@ class DeclarationQAWorkflow:
             session_id=str(final_state["session_id"]),
             audit_id=str(final_state["audit_id"]),
             intent=str(final_state.get("intent") or "unknown"),
+            route=str(final_state.get("route") or ""),
+            sub_intent=str(final_state.get("sub_intent") or ""),
+            route_decision=final_state.get("route_decision") or {},
+            need_ticket_selection=bool(final_state.get("need_ticket_selection")),
+            ticket_selection_reason=str(final_state.get("ticket_selection_reason") or ""),
+            tickets=final_state.get("tickets") or [],
+            ticket_context=final_state.get("ticket_context") or {},
             retrieval_chain=str(final_state.get("retrieval_chain") or ""),
             answer=str(final_state.get("answer") or ""),
             refused=bool(final_state.get("refused")),
@@ -82,63 +96,31 @@ class DeclarationQAWorkflow:
             run_node(name, handler)
             yield from drain()
 
-        route = state.get("route") or "refuse"
-        if route == "status":
-            run_node("status_apply_context_check", self.status_apply_context_check)
-            yield from drain()
+        route = state.get("route") or ROUTE_REFUSE
+        if route == ROUTE_TICKET:
+            for name, handler in [
+                ("ticket_list_query", self.ticket_list_query),
+                ("ticket_selection", self.ticket_selection),
+                ("ticket_detail_query", self.ticket_detail_query),
+                ("ticket_context_build", self.ticket_context_build),
+                ("ticket_knowledge_rag", self.ticket_knowledge_rag),
+                ("evidence_check", self.evidence_check),
+            ]:
+                run_node(name, handler)
+                yield from drain()
+                if state.get("refuse_reason") and name in {"ticket_list_query", "ticket_selection", "ticket_detail_query"}:
+                    break
+                if name == "ticket_knowledge_rag" and state.get("retrieved_sources"):
+                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
             if state.get("refuse_reason"):
                 run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
+            elif state.get("evidence_ok"):
+                run_node("llm_generate", self.llm_generate)
             else:
-                run_node("business_status_query", self.business_status_query)
-                yield from drain()
-                if state.get("refuse_reason"):
-                    run_node("refuse_or_human", self.refuse_or_human)
-                    yield from drain()
-                    yield from token_events(str(state.get("answer") or ""))
-                else:
-                    for name, handler in [
-                        ("status_explain_rag", self.status_explain_rag),
-                        ("llm_generate", self.llm_generate),
-                    ]:
-                        run_node(name, handler)
-                        yield from drain()
-                        if name == "status_explain_rag" and state.get("retrieved_sources"):
-                            yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-                        if name == "llm_generate":
-                            yield from token_events(str(state.get("answer") or ""))
-        elif route == "reject":
-            run_node("reject_apply_context_check", self.reject_apply_context_check)
-            yield from drain()
-            if state.get("refuse_reason"):
                 run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
-            else:
-                run_node("business_reject_query", self.business_reject_query)
-                yield from drain()
-                if state.get("refuse_reason"):
-                    run_node("refuse_or_human", self.refuse_or_human)
-                    yield from drain()
-                    yield from token_events(str(state.get("answer") or ""))
-                else:
-                    for name, handler in [
-                        ("material_mapping", self.material_mapping),
-                        ("material_rule_rag", self.material_rule_rag),
-                        ("evidence_check", self.evidence_check),
-                    ]:
-                        run_node(name, handler)
-                        yield from drain()
-                        if name == "material_rule_rag" and state.get("retrieved_sources"):
-                            yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-                    if state.get("evidence_ok"):
-                        run_node("llm_generate", self.llm_generate)
-                    else:
-                        run_node("refuse_or_human", self.refuse_or_human)
-                    yield from drain()
-                    yield from token_events(str(state.get("answer") or ""))
-        elif route == "knowledge":
+            yield from drain()
+            yield from token_events(str(state.get("answer") or ""))
+        elif route == ROUTE_KNOWLEDGE:
             for name, handler in [
                 ("knowledge_filter_build", self.knowledge_filter_build),
                 ("hybrid_retrieve", self.hybrid_retrieve),
@@ -172,6 +154,12 @@ class DeclarationQAWorkflow:
                 "session_id": state.get("session_id"),
                 "audit_id": state.get("audit_id"),
                 "intent": state.get("intent"),
+                "route": state.get("route"),
+                "sub_intent": state.get("sub_intent"),
+                "need_ticket_selection": bool(state.get("need_ticket_selection")),
+                "ticket_selection_reason": state.get("ticket_selection_reason"),
+                "tickets": state.get("tickets") or [],
+                "ticket_context": state.get("ticket_context") or {},
                 "retrieval_chain": state.get("retrieval_chain"),
                 "refused": bool(state.get("refused")),
                 "refuse_reason": state.get("refuse_reason"),
@@ -194,8 +182,15 @@ class DeclarationQAWorkflow:
             "apply_context": apply_context,
             "metadata_filter": request.metadata_filter,
             "intent": "unknown",
+            "sub_intent": "",
             "route": "",
+            "route_decision": {},
             "retrieval_chain": "",
+            "need_ticket_selection": False,
+            "ticket_selection_reason": "",
+            "tickets": [],
+            "ticket_context": None,
+            "rag_query": "",
             "business_snapshot": None,
             "retrieval_filter": {},
             "retrieved_sources": [],
@@ -215,13 +210,11 @@ class DeclarationQAWorkflow:
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("intent_route", self.intent_route)
-        builder.add_node("status_apply_context_check", self.status_apply_context_check)
-        builder.add_node("reject_apply_context_check", self.reject_apply_context_check)
-        builder.add_node("business_status_query", self.business_status_query)
-        builder.add_node("status_explain_rag", self.status_explain_rag)
-        builder.add_node("business_reject_query", self.business_reject_query)
-        builder.add_node("material_mapping", self.material_mapping)
-        builder.add_node("material_rule_rag", self.material_rule_rag)
+        builder.add_node("ticket_list_query", self.ticket_list_query)
+        builder.add_node("ticket_selection", self.ticket_selection)
+        builder.add_node("ticket_detail_query", self.ticket_detail_query)
+        builder.add_node("ticket_context_build", self.ticket_context_build)
+        builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
         builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
         builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
         builder.add_node("evidence_check", self.evidence_check)
@@ -237,35 +230,29 @@ class DeclarationQAWorkflow:
             "intent_route",
             lambda state: state.get("route") or "refuse",
             {
-                "status": "status_apply_context_check",
-                "reject": "reject_apply_context_check",
-                "knowledge": "knowledge_filter_build",
-                "refuse": "refuse_or_human",
+                ROUTE_TICKET: "ticket_list_query",
+                ROUTE_KNOWLEDGE: "knowledge_filter_build",
+                ROUTE_CLARIFICATION: "refuse_or_human",
+                ROUTE_REFUSE: "refuse_or_human",
             },
         )
         builder.add_conditional_edges(
-            "status_apply_context_check",
+            "ticket_list_query",
             lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "business_status_query", "missing": "refuse_or_human"},
+            {"ok": "ticket_selection", "missing": "refuse_or_human"},
         )
         builder.add_conditional_edges(
-            "business_status_query",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "status_explain_rag", "missing": "refuse_or_human"},
-        )
-        builder.add_edge("status_explain_rag", "llm_generate")
-        builder.add_conditional_edges(
-            "reject_apply_context_check",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "business_reject_query", "missing": "refuse_or_human"},
+            "ticket_selection",
+            lambda state: "selected" if state.get("apply_context") and not state.get("need_ticket_selection") else "needs_selection",
+            {"selected": "ticket_detail_query", "needs_selection": "refuse_or_human"},
         )
         builder.add_conditional_edges(
-            "business_reject_query",
+            "ticket_detail_query",
             lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "material_mapping", "missing": "refuse_or_human"},
+            {"ok": "ticket_context_build", "missing": "refuse_or_human"},
         )
-        builder.add_edge("material_mapping", "material_rule_rag")
-        builder.add_edge("material_rule_rag", "evidence_check")
+        builder.add_edge("ticket_context_build", "ticket_knowledge_rag")
+        builder.add_edge("ticket_knowledge_rag", "evidence_check")
         builder.add_edge("knowledge_filter_build", "hybrid_retrieve")
         builder.add_edge("hybrid_retrieve", "evidence_check")
         builder.add_conditional_edges(
@@ -311,13 +298,148 @@ class DeclarationQAWorkflow:
 
     def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
         next_state = dict(state)
-        intent = classify_intent(next_state.get("normalized_query") or next_state.get("query") or "")
-        next_state["intent"] = intent
-        next_state["route"] = intent if intent in {"status", "reject", "knowledge"} else "refuse"
-        if intent == "unsafe":
-            next_state["refuse_reason"] = "unsafe_or_out_of_scope"
-        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if is_ticket_chain(intent) else KNOWLEDGE_RETRIEVAL_CHAIN
-        add_event(next_state, "intent", {"intent": intent, "retrieval_chain": next_state["retrieval_chain"]})
+        if next_state.get("refuse_reason"):
+            next_state["route"] = ROUTE_REFUSE
+            next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
+            add_event(next_state, "intent", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
+            return next_state
+        decision = self.intent_router.route(next_state)
+        next_state["route_decision"] = decision.payload()
+        next_state["route"] = decision.route
+        next_state["intent"] = decision.intent
+        next_state["sub_intent"] = decision.sub_intent
+        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if decision.route == ROUTE_TICKET else KNOWLEDGE_RETRIEVAL_CHAIN
+        if decision.route == ROUTE_REFUSE:
+            next_state["refuse_reason"] = decision.reason or "unsafe_or_out_of_scope"
+        elif decision.route == ROUTE_CLARIFICATION:
+            next_state["refuse_reason"] = "clarification_required"
+        add_event(next_state, "intent", decision.payload())
+        return next_state
+
+    def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        next_state = dict(state)
+        if next_state.get("apply_context"):
+            next_state["tickets"] = [ticket_summary_from_context(next_state["apply_context"] or {})]
+            add_event(next_state, "ticket_list", {"count": 1, "source": "apply_context"})
+            return next_state
+        if not hasattr(self.business_adapter, "list_applications"):
+            next_state["tickets"] = []
+            next_state["refuse_reason"] = "ticket_not_found"
+            add_event(next_state, "ticket_list", {"count": 0, "source": "adapter_missing"})
+            return next_state
+        tickets = self.business_adapter.list_applications(
+            user_id=int(next_state["user_id"]),
+            biz_type=next_state.get("biz_type"),
+            region_code=next_state.get("region_code"),
+        )
+        if not tickets and next_state.get("biz_type"):
+            tickets = self.business_adapter.list_applications(
+                user_id=int(next_state["user_id"]),
+                biz_type=None,
+                region_code=next_state.get("region_code"),
+            )
+        next_state["tickets"] = tickets
+        if not tickets:
+            next_state["refuse_reason"] = "ticket_not_found"
+        add_event(next_state, "ticket_list", {"count": len(tickets), "biz_type": next_state.get("biz_type")})
+        return next_state
+
+    def ticket_selection(self, state: DeclarationQAState) -> DeclarationQAState:
+        next_state = dict(state)
+        if next_state.get("apply_context"):
+            next_state["need_ticket_selection"] = False
+            next_state["ticket_selection_reason"] = "provided_apply_context"
+            add_event(next_state, "ticket_selected", {"reason": "provided_apply_context"})
+            return next_state
+        tickets = next_state.get("tickets") or []
+        if len(tickets) == 1:
+            ticket_id = str(tickets[0].get("ticket_id") or "")
+            apply_context = self.business_adapter.get_apply_context(user_id=int(next_state["user_id"]), apply_id=ticket_id)
+            if apply_context:
+                next_state["apply_id"] = ticket_id
+                next_state["apply_context"] = apply_context
+                next_state["need_ticket_selection"] = False
+                next_state["ticket_selection_reason"] = "single_candidate"
+                add_event(next_state, "ticket_selected", {"ticket_id": ticket_id, "reason": "single_candidate"})
+                return next_state
+        if len(tickets) > 1:
+            next_state["need_ticket_selection"] = True
+            next_state["ticket_selection_reason"] = "multiple_candidates"
+            next_state["refuse_reason"] = "ticket_selection_required"
+            add_event(next_state, "ticket_selection_required", {"count": len(tickets)})
+            return next_state
+        next_state["need_ticket_selection"] = False
+        next_state["ticket_selection_reason"] = "no_candidate"
+        next_state["refuse_reason"] = "ticket_not_found"
+        add_event(next_state, "ticket_selection_missing", {"reason": "no_candidate"})
+        return next_state
+
+    def ticket_detail_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        next_state = dict(state)
+        apply_context = next_state.get("apply_context") or {}
+        if not apply_context:
+            next_state["refuse_reason"] = "ticket_not_found"
+            return next_state
+        if next_state.get("intent") == INTENT_TICKET_STATUS:
+            status = self.business_adapter.get_status(apply_context)
+            if not (status.get("status") or status.get("current_node") or status.get("node_name")):
+                next_state["business_status"] = {}
+                next_state["business_snapshot"] = {}
+                next_state["refuse_reason"] = "business_status_not_found"
+                add_event(next_state, "business_status_missing", {"apply_id": apply_context.get("apply_id")})
+                return next_state
+            next_state["business_status"] = status
+            next_state["business_snapshot"] = build_business_snapshot("status", status)
+            add_event(next_state, "business_status", status)
+            return next_state
+        reject_info = self.business_adapter.get_reject_info(apply_context)
+        if not (reject_info.get("reject_code") or reject_info.get("reject_reason") or reject_info.get("material_code")):
+            next_state["reject_info"] = {}
+            next_state["business_snapshot"] = {}
+            next_state["refuse_reason"] = "business_reject_not_found"
+            add_event(next_state, "business_reject_missing", {"apply_id": apply_context.get("apply_id")})
+            return next_state
+        next_state["reject_info"] = reject_info
+        next_state["business_snapshot"] = build_business_snapshot("reject", reject_info)
+        next_state["material_mapping"] = {
+            "material_code": reject_info.get("material_code") or "",
+            "material_name": reject_info.get("material_name") or "",
+            "reject_code": reject_info.get("reject_code") or "",
+            "audit_node": reject_info.get("audit_node") or "",
+            "knowledge_tags": material_tags(reject_info),
+        }
+        add_event(next_state, "business_reject", reject_info)
+        return next_state
+
+    def ticket_context_build(self, state: DeclarationQAState) -> DeclarationQAState:
+        next_state = dict(state)
+        ticket_context = {
+            "ticket": ticket_summary_from_context(next_state.get("apply_context") or {}),
+            "business_snapshot": next_state.get("business_snapshot") or {},
+            "material_mapping": next_state.get("material_mapping") or {},
+        }
+        next_state["ticket_context"] = ticket_context
+        add_event(next_state, "ticket_context", ticket_context)
+        return next_state
+
+    def ticket_knowledge_rag(self, state: DeclarationQAState) -> DeclarationQAState:
+        next_state = dict(state)
+        filters = base_policy_filter(next_state, allow_request_filter=False)
+        query = ticket_rag_query(next_state)
+        result = self.rag_engine.retrieve(query, filters, top_k=4)
+        next_state["rag_query"] = query
+        next_state["retrieval_filter"] = filters
+        next_state["retrieved_sources"] = [source.payload() for source in result.sources]
+        next_state["rag_status"] = result.status
+        if next_state.get("intent") == INTENT_TICKET_STATUS:
+            next_state["evidence_ok"] = True
+            next_state["evidence_decision"] = {
+                "ok": True,
+                "reason": "business_status_verified",
+                "business_snapshot_present": bool(next_state.get("business_snapshot")),
+                "source_count": len(result.sources),
+            }
+        add_event(next_state, "rag_status", {**result.status, "rag_query": query})
         return next_state
 
     def status_apply_context_check(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -459,6 +581,9 @@ class DeclarationQAWorkflow:
 
     def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
         next_state = dict(state)
+        if next_state.get("route") == ROUTE_TICKET and next_state.get("evidence_ok"):
+            add_event(next_state, "evidence", next_state.get("evidence_decision") or {})
+            return next_state
         decision = decide_evidence(
             next_state.get("retrieved_sources") or [],
             next_state.get("retrieval_filter") or {},
@@ -486,6 +611,12 @@ class DeclarationQAWorkflow:
             answer = "暂未从办件系统查询到该申请单的实时进度，请确认申请单是否有效，或联系人工客服核验。"
         elif reason == "business_reject_not_found":
             answer = "暂未从办件系统查询到该申请单的有效驳回或补正记录，不能根据模型推测驳回原因。建议查看申请单详情或联系人工客服。"
+        elif reason == "ticket_selection_required":
+            answer = "我查到多个可能相关的申请单，请先选择要咨询的工单后再继续查询。"
+        elif reason == "ticket_not_found":
+            answer = "暂未查询到当前用户下可匹配的申请单。你可以切换到通用知识咨询，或联系人工客服核验。"
+        elif reason == "clarification_required":
+            answer = "请补充你想咨询的事项名称、地区或具体问题，例如材料清单、办理流程、办理进度或驳回原因。"
         elif reason == "unsafe_or_out_of_scope":
             answer = "该问题不属于申报辅助范围，或涉及不合规操作，暂不能提供处理建议。"
         elif reason == "apply_access_denied":
@@ -520,15 +651,23 @@ class DeclarationQAWorkflow:
             "query": next_state.get("query"),
             "normalized_query": next_state.get("normalized_query"),
             "intent": next_state.get("intent"),
+            "sub_intent": next_state.get("sub_intent"),
+            "route": next_state.get("route"),
+            "route_decision": next_state.get("route_decision") or {},
             "retrieval_chain": next_state.get("retrieval_chain"),
             "region_code": next_state.get("region_code"),
             "biz_type": next_state.get("biz_type"),
             "apply_id": (next_state.get("apply_context") or {}).get("apply_id") if next_state.get("apply_context") else None,
+            "need_ticket_selection": next_state.get("need_ticket_selection"),
+            "ticket_selection_reason": next_state.get("ticket_selection_reason"),
+            "tickets": next_state.get("tickets") or [],
+            "ticket_context": next_state.get("ticket_context") or {},
             "business_snapshot": next_state.get("business_snapshot"),
             "business_status": next_state.get("business_status"),
             "reject_info": next_state.get("reject_info"),
             "material_mapping": next_state.get("material_mapping"),
             "retrieval_filter": next_state.get("retrieval_filter"),
+            "rag_query": next_state.get("rag_query") or "",
             "retrieved_sources": next_state.get("retrieved_sources") or [],
             "rag_status": next_state.get("rag_status"),
             "evidence_ok": next_state.get("evidence_ok"),
@@ -544,6 +683,44 @@ class DeclarationQAWorkflow:
         next_state["audit_id"] = audit_id
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
+
+
+def ticket_summary_from_context(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ticket_id": str(context.get("apply_id") or ""),
+        "biz_type": str(context.get("biz_type") or ""),
+        "region_code": str(context.get("region_code") or ""),
+        "status": str(context.get("status") or ""),
+        "current_node": str(context.get("current_node") or ""),
+        "node_name": str(context.get("node_name") or ""),
+        "title": ticket_title_from_biz_type(str(context.get("biz_type") or "")),
+        "updated_at": str(context.get("updated_at") or ""),
+    }
+
+
+def ticket_title_from_biz_type(biz_type: str) -> str:
+    names = {
+        "health_certificate": "健康证办理",
+        "residence_permit": "居住证办理",
+        "id_card_replace": "身份证换领",
+    }
+    return names.get(str(biz_type or ""), str(biz_type or "政务服务事项"))
+
+
+def ticket_rag_query(state: DeclarationQAState) -> str:
+    business = state.get("business_status") or state.get("reject_info") or {}
+    mapping = state.get("material_mapping") or {}
+    parts = [
+        ticket_title_from_biz_type(str(business.get("biz_type") or state.get("biz_type") or "")),
+        business.get("node_name"),
+        business.get("current_node"),
+        business.get("reject_reason"),
+        business.get("material_name"),
+        business.get("reject_code"),
+        mapping.get("material_code"),
+        state.get("normalized_query"),
+    ]
+    return normalize_text(" ".join(str(item) for item in parts if item))
 
 
 def base_policy_filter(state: DeclarationQAState, *, allow_request_filter: bool = True) -> dict[str, Any]:
@@ -645,7 +822,7 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
     apply_context = state.get("apply_context") or {}
     if state.get("refused"):
         return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version}}]
-    if state.get("intent") == "status":
+    if state.get("intent") in {"status", INTENT_TICKET_STATUS}:
         return [
             {
                 "type": "open_apply_detail",
@@ -653,7 +830,7 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
                 "payload": {"applyId": apply_context.get("apply_id"), "appVersion": app_version},
             }
         ]
-    if state.get("intent") == "reject":
+    if state.get("intent") in {"reject", INTENT_REJECTION_REASON}:
         reject_info = state.get("reject_info") or {}
         return [
             {

@@ -4,6 +4,9 @@ from typing import Any, Protocol
 
 
 class BusinessDataAdapter(Protocol):
+    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        ...
+
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
         ...
 
@@ -75,6 +78,18 @@ class InMemoryBusinessDataAdapter:
             },
         }
 
+    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        rows = []
+        for item in self._applications.values():
+            if int(item.get("user_id") or 0) != int(user_id):
+                continue
+            if biz_type and item.get("biz_type") != biz_type:
+                continue
+            if region_code and item.get("region_code") != region_code:
+                continue
+            rows.append(ticket_summary(item))
+        return sorted(rows, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
+
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
         item = self._applications.get(str(apply_id or "").strip())
         if not item or int(item.get("user_id") or 0) != int(user_id):
@@ -115,4 +130,26 @@ class InMemoryBusinessDataAdapter:
             "updated_at": apply_context.get("updated_at"),
             "payload": apply_context.get("payload") or {},
         }
+
+
+def ticket_summary(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ticket_id": str(item.get("apply_id") or ""),
+        "biz_type": str(item.get("biz_type") or ""),
+        "region_code": str(item.get("region_code") or ""),
+        "status": str(item.get("status") or ""),
+        "current_node": str(item.get("current_node") or ""),
+        "node_name": str(item.get("node_name") or ""),
+        "title": ticket_title(item),
+        "updated_at": str(item.get("updated_at") or ""),
+    }
+
+
+def ticket_title(item: dict[str, Any]) -> str:
+    names = {
+        "health_certificate": "健康证办理",
+        "residence_permit": "居住证办理",
+        "id_card_replace": "身份证换领",
+    }
+    return names.get(str(item.get("biz_type") or ""), str(item.get("biz_type") or "政务服务事项"))
 

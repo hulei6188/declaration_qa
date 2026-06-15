@@ -20,6 +20,17 @@ class ApplyContext(BaseModel):
     audit_node: str | None = None
 
 
+class TicketSummary(BaseModel):
+    ticket_id: str
+    biz_type: str = ""
+    region_code: str = ""
+    status: str = ""
+    current_node: str = ""
+    node_name: str = ""
+    title: str = ""
+    updated_at: str = ""
+
+
 class ChatRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     user_id: int = Field(default=1, ge=1)
@@ -72,6 +83,13 @@ class ChatResponse(BaseModel):
     session_id: str
     audit_id: str
     intent: str
+    route: str = ""
+    sub_intent: str = ""
+    route_decision: dict[str, Any] = Field(default_factory=dict)
+    need_ticket_selection: bool = False
+    ticket_selection_reason: str = ""
+    tickets: list[TicketSummary] = Field(default_factory=list)
+    ticket_context: dict[str, Any] = Field(default_factory=dict)
     retrieval_chain: str = ""
     answer: str
     refused: bool = False
@@ -89,6 +107,7 @@ class KnowledgeDocumentRequest(BaseModel):
     content: str = Field(min_length=1)
     region_code: str = Field(default="340000", min_length=2, max_length=12)
     policy_version: str = Field(default="2025", max_length=80)
+    chunking_strategy: str = Field(default="parent_child", max_length=40)
     source_url: str = Field(default="", max_length=500)
     audit_node: str = Field(default="", max_length=80)
     status: str = Field(default="published", max_length=40)
@@ -106,6 +125,12 @@ class KnowledgeDocumentResponse(BaseModel):
 class KnowledgeUploadResponse(KnowledgeDocumentResponse):
     filename: str
     content_type: str
+    chunking_strategy: str = "parent_child"
+
+
+class KnowledgeBatchUploadResponse(BaseModel):
+    total_files: int
+    documents: list[KnowledgeUploadResponse]
 
 
 class ReindexResponse(BaseModel):

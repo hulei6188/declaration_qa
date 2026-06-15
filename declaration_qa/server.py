@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from collections.abc import Iterable
 from dataclasses import replace
 from datetime import date
@@ -21,6 +22,7 @@ from declaration_qa.evaluation import run_evaluation
 from declaration_qa.factory import create_index_job_store, create_workflow
 from declaration_qa.index_service import process_index_job
 from declaration_qa.queue import build_index_queue
+from declaration_qa.rag_engine import normalize_chunking_strategy
 from declaration_qa.retrieval import sanitize_metadata
 from declaration_qa.runtime import assert_production_ready, production_readiness_errors
 from declaration_qa.schemas import (
@@ -46,6 +48,7 @@ from declaration_qa.schemas import (
     IndexJobResponse,
     KnowledgeDocumentAdminRecord,
     KnowledgeDocumentRequest,
+    KnowledgeBatchUploadResponse,
     KnowledgeDocumentResponse,
     KnowledgeUploadResponse,
     ReindexResponse,
@@ -112,6 +115,7 @@ def create_app() -> FastAPI:
             "audit_store": workflow.audit_store.__class__.__name__,
             "embedding_provider": workflow.rag_engine.embedding_provider.name,
             "rerank_provider": workflow.rag_engine.reranker.name,
+            "intent_router": getattr(workflow.intent_router, "name", workflow.intent_router.__class__.__name__),
             "answer_generator": workflow.answer_generator.__class__.__name__,
             "auth_required": settings.effective_auth_required,
             "production_ready": not production_readiness_errors(settings),
@@ -153,6 +157,7 @@ def create_app() -> FastAPI:
                 "content": request.content,
                 "filename": "",
                 "content_type": "text/plain",
+                "chunking_strategy": normalize_chunking_strategy(request.chunking_strategy),
                 "region_code": request.region_code,
                 "policy_version": request.policy_version,
                 "source_url": request.source_url,
@@ -185,39 +190,66 @@ def create_app() -> FastAPI:
         effective_start_time: str = Form(""),
         effective_end_time: str = Form(""),
         metadata: str = Form(""),
+        chunking_strategy: str = Form("parent_child"),
     ):
         require_service_or_user(context, settings)
-        document_id = f"doc-{uuid4().hex}"
-        staged_path = await stage_upload_file(file, document_id=document_id)
-        job = index_job_store.create_index_job(
-            job_type="document_index",
-            payload={
-                "input_type": "file",
-                "document_id": document_id,
-                "title": title or file.filename or document_id,
-                "filename": file.filename or staged_path.name,
-                "content_type": file.content_type or "application/octet-stream",
-                "file_path": str(staged_path),
-                "region_code": region_code,
-                "policy_version": policy_version,
-                "source_url": source_url,
-                "audit_node": audit_node,
-                "status": status,
-                "effective_start_time": effective_start_time or None,
-                "effective_end_time": effective_end_time or None,
-                "metadata": parse_metadata_form(metadata),
-            },
+        upload_data = await file.read()
+        return enqueue_upload_document(
+            data=upload_data,
+            filename=file.filename or "upload.bin",
+            content_type=file.content_type or "application/octet-stream",
+            title=title,
+            region_code=region_code,
+            policy_version=policy_version,
+            source_url=source_url,
+            audit_node=audit_node,
+            status=status,
+            effective_start_time=effective_start_time,
+            effective_end_time=effective_end_time,
+            metadata=parse_metadata_form(metadata),
+            chunking_strategy=chunking_strategy,
         )
-        index_queue.enqueue(job["job_uid"])
-        final_job = index_job_store.get_index_job(job["job_uid"]) or job
-        final_payload = final_job.get("payload") or {}
-        return KnowledgeUploadResponse(
-            document_id=document_id,
-            chunks_indexed=int(final_payload.get("chunks_indexed") or 0),
-            job_id=job["job_uid"],
-            filename=str(final_payload.get("filename") or file.filename or staged_path.name),
-            content_type=str(final_payload.get("content_type") or file.content_type or "application/octet-stream"),
-        )
+
+    @app.post("/api/declaration-qa/knowledge/uploads", response_model=KnowledgeBatchUploadResponse)
+    async def upload_documents(
+        context: RequestContext = Depends(auth_context),
+        files: list[UploadFile] = File(...),
+        title: str = Form(""),
+        region_code: str = Form("340000"),
+        policy_version: str = Form("2025"),
+        source_url: str = Form(""),
+        audit_node: str = Form(""),
+        status: str = Form("published"),
+        effective_start_time: str = Form(""),
+        effective_end_time: str = Form(""),
+        metadata: str = Form(""),
+        chunking_strategy: str = Form("parent_child"),
+    ):
+        require_service_or_user(context, settings)
+        parsed_metadata = parse_metadata_form(metadata)
+        responses = []
+        for file_index, upload in enumerate(files):
+            upload_data = await upload.read()
+            filename = upload.filename or f"upload-{file_index + 1}.bin"
+            item_title = batch_upload_title(title, filename, len(files))
+            responses.append(
+                enqueue_upload_document(
+                    data=upload_data,
+                    filename=filename,
+                    content_type=upload.content_type or "application/octet-stream",
+                    title=item_title,
+                    region_code=region_code,
+                    policy_version=policy_version,
+                    source_url=source_url,
+                    audit_node=audit_node,
+                    status=status,
+                    effective_start_time=effective_start_time,
+                    effective_end_time=effective_end_time,
+                    metadata=parsed_metadata,
+                    chunking_strategy=chunking_strategy,
+                )
+            )
+        return KnowledgeBatchUploadResponse(total_files=len(responses), documents=responses)
 
     @app.post("/api/declaration-qa/knowledge/reindex", response_model=ReindexResponse)
     def reindex_documents(context: RequestContext = Depends(auth_context)):
@@ -527,6 +559,64 @@ def parse_metadata_form(value: str) -> dict:
     return sanitize_metadata(parsed)
 
 
+def enqueue_upload_document(
+    *,
+    data: bytes,
+    filename: str,
+    content_type: str,
+    title: str,
+    region_code: str,
+    policy_version: str,
+    source_url: str,
+    audit_node: str,
+    status: str,
+    effective_start_time: str,
+    effective_end_time: str,
+    metadata: dict,
+    chunking_strategy: str,
+) -> KnowledgeUploadResponse:
+    document_id = stable_upload_document_id(data)
+    staged_path = stage_upload_bytes(data, filename=filename, document_id=document_id)
+    strategy = normalize_chunking_strategy(chunking_strategy)
+    job = index_job_store.create_index_job(
+        job_type="document_index",
+        payload={
+            "input_type": "file",
+            "document_id": document_id,
+            "title": title or filename or document_id,
+            "filename": filename or staged_path.name,
+            "content_type": content_type or "application/octet-stream",
+            "file_path": str(staged_path),
+            "chunking_strategy": strategy,
+            "region_code": region_code,
+            "policy_version": policy_version,
+            "source_url": source_url,
+            "audit_node": audit_node,
+            "status": status,
+            "effective_start_time": effective_start_time or None,
+            "effective_end_time": effective_end_time or None,
+            "metadata": sanitize_metadata(metadata),
+        },
+    )
+    index_queue.enqueue(job["job_uid"])
+    final_job = index_job_store.get_index_job(job["job_uid"]) or job
+    final_payload = final_job.get("payload") or {}
+    return KnowledgeUploadResponse(
+        document_id=document_id,
+        chunks_indexed=int(final_payload.get("chunks_indexed") or 0),
+        job_id=job["job_uid"],
+        filename=str(final_payload.get("filename") or filename or staged_path.name),
+        content_type=str(final_payload.get("content_type") or content_type or "application/octet-stream"),
+        chunking_strategy=str(final_payload.get("chunking_strategy") or strategy),
+    )
+
+
+def batch_upload_title(title: str, filename: str, file_count: int) -> str:
+    if not title:
+        return filename
+    return f"{title} - {filename}" if file_count > 1 else title
+
+
 def date_or_text(value) -> str | None:
     if not value:
         return None
@@ -636,11 +726,19 @@ def compare_text(left: str, right: str) -> tuple[list[str], list[str]]:
 
 
 async def stage_upload_file(file: UploadFile, *, document_id: str) -> Path:
+    return stage_upload_bytes(await file.read(), filename=file.filename or "upload.bin", document_id=document_id)
+
+
+def stage_upload_bytes(data: bytes, *, filename: str, document_id: str) -> Path:
     settings.effective_upload_dir.mkdir(parents=True, exist_ok=True)
-    filename = safe_filename(file.filename or "upload.bin")
+    filename = safe_filename(filename)
     path = settings.effective_upload_dir / f"{document_id}-{filename}"
-    path.write_bytes(await file.read())
+    path.write_bytes(data)
     return path
+
+
+def stable_upload_document_id(data: bytes) -> str:
+    return f"doc-{hashlib.sha256(data).hexdigest()[:32]}"
 
 
 def safe_filename(value: str) -> str:
@@ -666,6 +764,13 @@ def sse_response(response: ChatResponse) -> Iterable[str]:
             "session_id": response.session_id,
             "audit_id": response.audit_id,
             "intent": response.intent,
+            "route": response.route,
+            "sub_intent": response.sub_intent,
+            "need_ticket_selection": response.need_ticket_selection,
+            "ticket_selection_reason": response.ticket_selection_reason,
+            "tickets": [ticket.model_dump() for ticket in response.tickets],
+            "ticket_context": response.ticket_context,
+            "retrieval_chain": response.retrieval_chain,
             "refused": response.refused,
             "refuse_reason": response.refuse_reason,
             "suggested_actions": [action.model_dump() for action in response.suggested_actions],

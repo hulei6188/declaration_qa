@@ -40,9 +40,9 @@ class DeterministicAnswerGenerator:
             source_payload=source_text,
         )
         intent = state.get("intent")
-        if intent == "status":
+        if intent in {"status", "ticket_status"}:
             answer = status_answer(state, sources)
-        elif intent == "reject":
+        elif intent in {"reject", "rejection_reason"}:
             answer = reject_answer(state, sources)
         else:
             answer = knowledge_answer(state, sources)

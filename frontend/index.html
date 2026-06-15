@@ -97,6 +97,13 @@
               文件（可批量）
               <input id="docFile" type="file" multiple accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" />
             </label>
+            <label>
+              切分方法
+              <select id="chunkingStrategy">
+                <option value="parent_child">父子分块</option>
+                <option value="hierarchical">层级分块</option>
+              </select>
+            </label>
             <div class="upload-queue" id="uploadQueue">
               <p class="hint">可一次选择多个文件批量入库。</p>
             </div>
@@ -147,6 +154,11 @@
             <div>
               <p class="eyebrow">Live SSE Chat</p>
               <h2>问答会话</h2>
+              <div class="current-ticket" id="currentTicketBar">
+                <span id="currentTicketLabel">当前工单：未选择</span>
+                <button class="ghost compact" id="changeTicketButton" type="button">更换</button>
+                <button class="ghost compact" id="clearTicketButton" type="button">清除</button>
+              </div>
             </div>
             <button class="ghost" id="clearButton">清空</button>
           </div>

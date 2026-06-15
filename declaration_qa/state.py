@@ -18,8 +18,15 @@ class DeclarationQAState(TypedDict, total=False):
     metadata_filter: dict[str, Any]
 
     intent: str
+    sub_intent: str
     route: str
+    route_decision: dict[str, Any]
     retrieval_chain: str
+    need_ticket_selection: bool
+    ticket_selection_reason: str
+    tickets: list[dict[str, Any]]
+    ticket_context: dict[str, Any] | None
+    rag_query: str
 
     business_status: dict[str, Any] | None
     reject_info: dict[str, Any] | None

@@ -17,6 +17,9 @@ from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
 
 
 EMBEDDING_DIMS = 96
+CHUNKING_PARENT_CHILD = "parent_child"
+CHUNKING_HIERARCHICAL = "hierarchical"
+SUPPORTED_CHUNKING_STRATEGIES = {CHUNKING_PARENT_CHILD, CHUNKING_HIERARCHICAL}
 
 
 class InMemoryRAGEngine:
@@ -54,8 +57,9 @@ class InMemoryRAGEngine:
         return list(self._documents.values())
 
     def index_document(self, document: KnowledgeDocument) -> int:
+        self.delete_document(document.id)
         self._documents[document.id] = document
-        chunks = split_parent_child(document)
+        chunks = split_document(document)
         for chunk in chunks:
             self._chunks[chunk.id] = chunk
             vector = self.embedding_provider.embed_query(chunk.content)
@@ -86,7 +90,7 @@ class InMemoryRAGEngine:
         return count
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
-        return split_parent_child(document)
+        return split_document(document)
 
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
         normalized_query = normalize_text(query)
@@ -208,6 +212,18 @@ class InMemoryRAGEngine:
         )
 
 
+def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
+    strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
+    if strategy == CHUNKING_HIERARCHICAL:
+        return split_hierarchical(document)
+    return split_parent_child(document)
+
+
+def normalize_chunking_strategy(value: Any) -> str:
+    strategy = str(value or CHUNKING_PARENT_CHILD).strip().lower().replace("-", "_")
+    return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_PARENT_CHILD
+
+
 def split_parent_child(document: KnowledgeDocument, *, parent_size: int = 1200, child_size: int = 420, overlap: int = 80) -> list[KnowledgeChunk]:
     content = document.content.strip()
     if not content:
@@ -239,6 +255,84 @@ def split_parent_child(document: KnowledgeDocument, *, parent_size: int = 1200, 
     return chunks
 
 
+def split_hierarchical(document: KnowledgeDocument, *, parent_size: int = 1200, child_size: int = 420, overlap: int = 80) -> list[KnowledgeChunk]:
+    content = document.content.strip()
+    if not content:
+        return []
+    chunks: list[KnowledgeChunk] = []
+    for section_index, section in enumerate(markdown_sections(content)):
+        parent_texts = split_windows(section["content"], parent_size, max(0, min(overlap, parent_size // 2)))
+        for parent_index, parent_text in enumerate(parent_texts):
+            parent_id = f"{document.id}:h:{section_index}:p:{parent_index}"
+            extra_metadata = {
+                "chunking_strategy": CHUNKING_HIERARCHICAL,
+                "heading_path": section["path"],
+                "heading_level": section["level"],
+                "section_index": section_index,
+                "parent_window_index": parent_index,
+            }
+            parent_chunk = knowledge_chunk_from_document(
+                document,
+                chunk_id=parent_id,
+                parent_id=parent_id,
+                chunk_type="parent",
+                content=parent_text,
+                extra_metadata=extra_metadata,
+            )
+            chunks.append(parent_chunk)
+            child_texts = split_windows(parent_text, child_size, max(0, min(overlap, child_size // 2)))
+            for child_index, child_text in enumerate(child_texts):
+                child_id = f"{parent_id}:c:{child_index}"
+                chunks.append(
+                    knowledge_chunk_from_document(
+                        document,
+                        chunk_id=child_id,
+                        parent_id=parent_id,
+                        chunk_type="child",
+                        content=child_text,
+                        extra_metadata={**extra_metadata, "child_window_index": child_index},
+                    )
+                )
+    return chunks
+
+
+def markdown_sections(text: str) -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+    stack: list[tuple[int, str]] = []
+    current_lines: list[str] = []
+    current_path: list[str] = []
+    current_level = 0
+    heading_pattern = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+
+    def flush_current() -> None:
+        body = "\n".join(current_lines).strip()
+        if not body and not current_path:
+            return
+        path = " > ".join(current_path) if current_path else "Document"
+        section_text = f"{path}\n{body}".strip() if body else path
+        sections.append({"path": path, "level": current_level, "content": section_text})
+
+    for line in text.splitlines():
+        heading = heading_pattern.match(line.strip())
+        if heading:
+            flush_current()
+            level = len(heading.group(1))
+            title = heading.group(2).strip()
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, title))
+            current_path = [item[1] for item in stack]
+            current_level = level
+            current_lines = []
+            continue
+        current_lines.append(line)
+    flush_current()
+
+    if sections:
+        return [section for section in sections if section["content"].strip()]
+    return [{"path": "Document", "level": 0, "content": text.strip()}]
+
+
 def split_windows(text: str, size: int, overlap: int) -> list[str]:
     compact = re.sub(r"\s+", " ", text).strip()
     if len(compact) <= size:
@@ -259,6 +353,7 @@ def knowledge_chunk_from_document(
     parent_id: str,
     chunk_type: str,
     content: str,
+    extra_metadata: dict[str, Any] | None = None,
 ) -> KnowledgeChunk:
     document_metadata = sanitize_metadata(document.metadata)
     metadata = {
@@ -273,6 +368,7 @@ def knowledge_chunk_from_document(
         "rollout_percent": document.rollout_percent,
         "doc_status": document_metadata.get("doc_status") or document.status,
     }
+    metadata.update(sanitize_metadata(extra_metadata or {}))
     return KnowledgeChunk(
         id=chunk_id,
         doc_id=document.id,

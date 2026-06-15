@@ -18,5 +18,4 @@ requests==2.34.2
 langchain-core==1.4.6
 langchain-openai==1.2.1
 langgraph==1.2.4
-
 pypdf==5.1.0

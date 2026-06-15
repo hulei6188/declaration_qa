@@ -6,10 +6,10 @@ from declaration_qa.config import DeclarationQASettings
 from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.evidence import decide_evidence
 from declaration_qa.index_service import extract_document_metadata
-from declaration_qa.rag_engine import InMemoryRAGEngine
+from declaration_qa.rag_engine import InMemoryRAGEngine, split_document
 from declaration_qa.runtime import production_readiness_errors
 from declaration_qa.schemas import ChatRequest
-from declaration_qa.server import create_app, settings as server_settings
+from declaration_qa.server import create_app, settings as server_settings, stable_upload_document_id
 from declaration_qa.workflow import DeclarationQAWorkflow
 
 
@@ -25,6 +25,14 @@ def test_production_mode_reports_missing_real_dependencies():
     assert "DECLARATION_QA_EMBEDDING_PROVIDER must use a real embedding model in production" in errors
     assert "DECLARATION_QA_INDEX_QUEUE_BACKEND=rq is required in production" in errors
     assert "DECLARATION_QA_SEED_KNOWLEDGE=false is required in production" in errors
+
+
+def test_production_mode_rejects_rule_only_intent_router():
+    settings = DeclarationQASettings(_env_file=None, DECLARATION_QA_ENV="production", DECLARATION_QA_INTENT_ROUTER_PROVIDER="rule")
+
+    errors = production_readiness_errors(settings)
+
+    assert "DECLARATION_QA_INTENT_ROUTER_PROVIDER must use llm or auto in production" in errors
 
 
 def test_jwt_context_overrides_request_body_user_id():
@@ -60,6 +68,15 @@ def test_upload_endpoint_parses_text_file_and_tracks_index_job(tmp_path, monkeyp
     job_response = client.get(f"/api/declaration-qa/index-jobs/{payload['job_id']}")
     assert job_response.status_code == 200
     assert job_response.json()["status"] == "succeeded"
+
+
+def test_upload_document_id_is_stable_for_same_file_content():
+    first = stable_upload_document_id("重复上传测试内容".encode("utf-8"))
+    second = stable_upload_document_id("重复上传测试内容".encode("utf-8"))
+
+    assert first == second
+    assert first.startswith("doc-")
+    assert len(first) == 36
 
 
 def test_upload_metadata_extractor_reads_real_government_document_fields():
@@ -204,7 +221,7 @@ def test_rag_evaluation_dataset_run_and_annotation_workflow():
                     "biz_type": "residence_permit",
                     "region_code": "340000",
                     "policy_version": "2025",
-                    "expected_intent": "knowledge",
+                    "expected_intent": "material_requirements",
                     "expected_refused": False,
                     "expected_doc_ids": [document["document_id"]],
                     "expected_answer_keywords": ["原件扫描件"],
@@ -299,7 +316,7 @@ def test_evidence_check_does_not_reject_conflicting_metadata_versions():
             },
         ],
         {"region_code": "340000", "policy_version": "2025"},
-        intent="knowledge",
+        intent="material_requirements",
     )
 
     assert decision.ok is True
@@ -330,3 +347,19 @@ def test_child_retrieval_expands_parent_context_for_answer_evidence():
     assert result.sources
     assert "开头段落" in result.sources[0].chunk.content
     assert "特殊材料XYZ" in result.sources[0].chunk.content
+
+
+def test_hierarchical_chunking_preserves_markdown_heading_path():
+    document = KnowledgeDocument(
+        id="doc-hierarchical",
+        title="层级分块测试",
+        content="# 办事指南\n\n## 申请材料\n\n身份证件和申请表。\n\n## 办理流程\n\n提交、审核、办结。",
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    chunks = split_document(document)
+
+    assert chunks
+    assert {chunk.chunk_type for chunk in chunks} == {"parent", "child"}
+    assert any(chunk.metadata.get("heading_path") == "办事指南 > 申请材料" for chunk in chunks)
+    assert all(chunk.metadata.get("chunking_strategy") == "hierarchical" for chunk in chunks)

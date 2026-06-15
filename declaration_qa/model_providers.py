@@ -8,6 +8,7 @@ import requests
 
 from declaration_qa.config import DeclarationQASettings
 from declaration_qa.prompting import ANSWER_PROMPT, DeterministicAnswerGenerator
+from declaration_qa.router import IntentRouter, LLMIntentRouter
 
 
 class EmbeddingProvider(Protocol):
@@ -218,6 +219,34 @@ def build_answer_generator(settings: DeclarationQASettings):
     if provider == "deterministic":
         return DeterministicAnswerGenerator()
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
+
+
+def build_intent_router(settings: DeclarationQASettings):
+    provider = settings.intent_router_provider.strip().lower()
+    if provider in {"rule", "rules", "deterministic"}:
+        return IntentRouter()
+    if provider == "auto":
+        if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
+            return build_llm_intent_router(settings)
+        return IntentRouter()
+    if provider in {"llm", "openai", "compatible-openai", "dashscope"}:
+        return build_llm_intent_router(settings)
+    raise ValueError(f"Unsupported intent router provider: {settings.intent_router_provider}")
+
+
+def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
+    if not settings.openai_api_key:
+        raise ValueError("LLM intent router requires DECLARATION_QA_OPENAI_API_KEY")
+    from langchain_openai import ChatOpenAI
+
+    kwargs: dict[str, Any] = {
+        "api_key": settings.openai_api_key,
+        "model": settings.intent_router_model or settings.llm_model,
+        "temperature": settings.intent_router_temperature,
+    }
+    if settings.openai_api_base:
+        kwargs["base_url"] = settings.openai_api_base
+    return LLMIntentRouter(ChatOpenAI(**kwargs), fallback_router=IntentRouter())
 
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:

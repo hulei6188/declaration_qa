@@ -21,12 +21,13 @@ def test_declaration_qa_frontend_has_required_workflows():
     html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
     js = (FRONTEND_ROOT / "src" / "app.js").read_text(encoding="utf-8")
 
-    for text in ["办件进度", "驳回原因", "材料清单", "知识入库", "知识版本管理", "RAG 质量评估", "审计与反馈"]:
+    for text in ["办件进度", "驳回原因", "材料清单", "当前工单", "更换", "清除", "知识入库", "切分方法", "知识版本管理", "RAG 质量评估", "审计与反馈"]:
         assert text in html
     for endpoint in [
         "/chat/stream",
         "/knowledge/documents",
         "/knowledge/upload",
+        "/knowledge/uploads",
         "/rollout",
         "/versions",
         "/compare/",
@@ -41,3 +42,17 @@ def test_declaration_qa_frontend_has_required_workflows():
         assert endpoint in js
     assert "readSSE" in js
     assert "FormData" in js
+    assert "chunking_strategy" in js
+    assert "renderTicketSelection" in js
+    assert "renderCurrentTicket" in js
+    assert "changeCurrentTicket" in js
+    assert "clearCurrentTicket" in js
+    assert "need_ticket_selection" in js
+    assert "ticket-option" in js
+
+
+def test_frontend_waits_long_enough_for_rq_index_jobs():
+    js = (FRONTEND_ROOT / "src" / "app.js").read_text(encoding="utf-8")
+
+    assert "const INDEX_JOB_MAX_ATTEMPTS = 180" in js
+    assert "chunksIndexed: payload.job_id ? null : payload.chunks_indexed ?? null" in js

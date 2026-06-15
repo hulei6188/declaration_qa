@@ -52,6 +52,7 @@ Required production environment variables:
 - `DECLARATION_QA_MILVUS_URI`, `DECLARATION_QA_MILVUS_TOKEN`, `DECLARATION_QA_MILVUS_COLLECTION`: Milvus connection.
 - `DECLARATION_QA_AUTH_REQUIRED=true` plus `DECLARATION_QA_JWT_SECRET` or `DECLARATION_QA_INTERNAL_API_KEY`.
 - `DECLARATION_QA_LLM_PROVIDER=openai`, `DECLARATION_QA_OPENAI_API_KEY`, `DECLARATION_QA_OPENAI_API_BASE`, `DECLARATION_QA_LLM_MODEL`.
+- `DECLARATION_QA_INTENT_ROUTER_PROVIDER=auto`: uses the configured real chat model for structured intent routing; set `DECLARATION_QA_INTENT_ROUTER_MODEL` only when routing should use a different model.
 - `DECLARATION_QA_EMBEDDING_PROVIDER=openai`, `DECLARATION_QA_EMBEDDING_MODEL`, `DECLARATION_QA_EMBEDDING_DIMENSIONS`.
 - `DECLARATION_QA_RERANK_PROVIDER=http`, `DECLARATION_QA_RERANK_API_URL`, `DECLARATION_QA_RERANK_API_KEY`.
 - `DECLARATION_QA_OCR_API_URL`: required for image uploads that need OCR.
@@ -67,6 +68,7 @@ Core endpoints:
 - `POST /api/declaration-qa/chat/stream`
 - `POST /api/declaration-qa/knowledge/documents`
 - `POST /api/declaration-qa/knowledge/upload`
+- `POST /api/declaration-qa/knowledge/uploads`
 - `POST /api/declaration-qa/knowledge/reindex`
 - `GET /api/declaration-qa/knowledge/documents`
 - `POST /api/declaration-qa/knowledge/documents/{document_id}/publish`
@@ -89,6 +91,7 @@ Core endpoints:
 
 The workflow keeps declaration business state and RAG knowledge separate:
 
+- intent routing uses an LLM JSON classifier when `DECLARATION_QA_INTENT_ROUTER_PROVIDER=auto` and a real chat model is configured; invalid model output falls back to the rule router after enum validation;
 - status and reject questions run on the `ticket_augmented` chain: an application context is mandatory, real business status/reject records are queried first, and RAG only explains the verified business snapshot;
 - policy/material/process questions run on the `knowledge_retrieval` chain and retrieve from the full knowledge corpus; metadata is retained only for display, auditing, and source traceability;
 - `biz_type`, `source_type`, `material_code`, `reject_code`, and `theme_name` are removed from knowledge/RAG metadata, filters, source payloads, and vector-index fields; similarly named business fields remain only in the real ticket snapshot;
@@ -106,6 +109,13 @@ Supported upload formats:
 - PDF through `pypdf`
 - DOCX and XLSX through package XML parsing
 - images through a configured OCR HTTP service
+
+Supported chunking strategies:
+
+- `parent_child`: default sliding-window parent/child chunking; parent windows are retained for context expansion and child chunks are indexed for retrieval.
+- `hierarchical`: Markdown heading-aware chunking; sections are grouped by heading path before parent/child windows are generated.
+
+Upload APIs accept `chunking_strategy` as JSON or form data. Batch uploads use `files` as the repeated multipart field name.
 
 Upload metadata extraction:
 

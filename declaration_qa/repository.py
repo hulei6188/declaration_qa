@@ -166,6 +166,38 @@ class PostgresDeclarationQAStore:
             ).mappings().first()
         return normalize_business_row(row) if row else None
 
+    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.apply_uid AS apply_id,
+                        a.biz_type,
+                        a.region_code,
+                        COALESCE(s.status, a.status) AS status,
+                        COALESCE(s.current_node, a.current_node) AS current_node,
+                        COALESCE(s.node_name, a.node_name) AS node_name,
+                        COALESCE(s.updated_at, a.updated_at) AS updated_at
+                    FROM declaration_qa.business_applications a
+                    LEFT JOIN declaration_qa.business_application_statuses s
+                        ON s.apply_id = a.id AND s.is_current = TRUE
+                    WHERE a.user_id = :user_id
+                      AND a.deleted_at IS NULL
+                      AND (:biz_type = '' OR a.biz_type = :biz_type)
+                      AND (:region_code = '' OR a.region_code = :region_code)
+                    ORDER BY COALESCE(s.updated_at, a.updated_at) DESC
+                    LIMIT 20
+                    """
+                ),
+                {
+                    "user_id": int(user_id),
+                    "biz_type": str(biz_type or ""),
+                    "region_code": str(region_code or ""),
+                },
+            ).mappings().all()
+        return [business_ticket_summary(row) for row in rows]
+
     def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -1175,6 +1207,29 @@ def normalize_business_row(row) -> dict[str, Any]:
         "updated_at": isoformat_or_empty(values.get("updated_at")),
         "payload": payload,
     }
+
+
+def business_ticket_summary(row) -> dict[str, Any]:
+    values = dict(row or {})
+    return {
+        "ticket_id": str(values.get("apply_id") or ""),
+        "biz_type": str(values.get("biz_type") or ""),
+        "region_code": str(values.get("region_code") or ""),
+        "status": str(values.get("status") or ""),
+        "current_node": str(values.get("current_node") or ""),
+        "node_name": str(values.get("node_name") or ""),
+        "title": business_ticket_title(values),
+        "updated_at": isoformat_or_empty(values.get("updated_at")),
+    }
+
+
+def business_ticket_title(values: dict[str, Any]) -> str:
+    names = {
+        "health_certificate": "健康证办理",
+        "residence_permit": "居住证办理",
+        "id_card_replace": "身份证换领",
+    }
+    return names.get(str(values.get("biz_type") or ""), str(values.get("biz_type") or "政务服务事项"))
 
 
 def isoformat_or_empty(value: Any) -> str:

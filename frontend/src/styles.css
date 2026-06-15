@@ -235,6 +235,11 @@ h2 {
   background: transparent;
 }
 
+.compact {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
 .hint {
   margin: 0;
   color: var(--muted);
@@ -310,6 +315,22 @@ h2 {
   background: var(--panel-strong);
 }
 
+.current-ticket {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.current-ticket span {
+  max-width: min(520px, 100%);
+  overflow-wrap: anywhere;
+}
+
 .messages {
   overflow: auto;
   padding: 18px;
@@ -344,6 +365,39 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.ticket-selection {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  white-space: normal;
+}
+
+.ticket-selection > strong {
+  font-size: 13px;
+}
+
+.ticket-option {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  background: #f7fbf7;
+}
+
+.ticket-option span {
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.ticket-option code {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .composer {

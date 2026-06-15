@@ -11,6 +11,7 @@ from declaration_qa.config import DeclarationQASettings
 from declaration_qa.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.indexing import IndexJobStore
+from declaration_qa.rag_engine import normalize_chunking_strategy
 from declaration_qa.retrieval import sanitize_metadata
 from declaration_qa.workflow import DeclarationQAWorkflow
 
@@ -95,6 +96,7 @@ def process_document_index(
     source_url = str(payload.get("source_url") or "")
     parsed_metadata = extract_document_metadata(content, title=title, source_url=source_url)
     metadata = {**parsed_metadata, **sanitize_metadata(dict(payload.get("metadata") or {}))}
+    metadata["chunking_strategy"] = normalize_chunking_strategy(payload.get("chunking_strategy") or metadata.get("chunking_strategy"))
     for key in ["region_code", "policy_version", "effective_start_time", "effective_end_time"]:
         if payload.get(key) not in ("", None) and key not in metadata:
             metadata[key] = payload.get(key)
@@ -127,6 +129,7 @@ def process_document_index(
         "chunks_indexed": chunks_indexed,
         "filename": filename,
         "content_type": content_type,
+        "chunking_strategy": metadata["chunking_strategy"],
         "message": "Document indexed",
     }
 
