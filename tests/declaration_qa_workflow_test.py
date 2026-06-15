@@ -274,7 +274,7 @@ def test_declaration_qa_schema_file_defines_isolated_tables():
     assert "app_version" not in sql.lower()
 
 
-def test_evidence_check_refuses_when_no_matching_policy_source():
+def test_knowledge_chain_uses_full_corpus_without_metadata_filtering():
     workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(
@@ -287,10 +287,11 @@ def test_evidence_check_refuses_when_no_matching_policy_source():
     audit = workflow.audit_store.get(response.audit_id)
 
     assert response.intent == "knowledge"
-    assert response.refused is True
-    assert response.refuse_reason == "no_matched_source"
-    assert audit["retrieved_sources"] == []
-    assert "人工客服" in response.answer
+    assert response.refused is False
+    assert audit["retrieval_filter"] == {}
+    assert audit["rag_status"]["metadata_filtering"] is False
+    assert audit["retrieved_sources"]
+    assert "居住证" in response.answer
 
 
 def test_rag_cache_reports_hit_on_repeated_query():

@@ -36,11 +36,11 @@ class MemoryVectorIndex:
                 self._items.pop(chunk_id, None)
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
-        from declaration_qa.rag_engine import cosine, matches_filter
+        from declaration_qa.rag_engine import cosine
 
         hits = []
         for chunk_id, (item_vector, chunk) in self._items.items():
-            if chunk.chunk_type != "child" or not matches_filter(chunk, filters):
+            if chunk.chunk_type != "child":
                 continue
             score = cosine(vector, item_vector)
             if score > 0:
@@ -88,10 +88,6 @@ class MilvusVectorIndex:
             "id": chunk.id,
             "doc_id": chunk.doc_id,
             "vector": list(vector),
-            "region_code": chunk.region_code,
-            "policy_version": chunk.policy_version,
-            "audit_node": chunk.audit_node,
-            "status": chunk.status,
         }
         try:
             self._client.upsert(collection_name=self.collection_name, data=[row])
@@ -163,10 +159,6 @@ class MilvusVectorIndex:
         schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=180)
         schema.add_field("doc_id", DataType.VARCHAR, max_length=120)
         schema.add_field("vector", DataType.FLOAT_VECTOR, dim=self.dimension)
-        schema.add_field("region_code", DataType.VARCHAR, max_length=20)
-        schema.add_field("policy_version", DataType.VARCHAR, max_length=80)
-        schema.add_field("audit_node", DataType.VARCHAR, max_length=80)
-        schema.add_field("status", DataType.VARCHAR, max_length=20)
         index_params = self._client.prepare_index_params()
         index_params.add_index(field_name="vector", index_type="AUTOINDEX", metric_type="COSINE")
         self._client.create_collection(
@@ -178,8 +170,17 @@ class MilvusVectorIndex:
     def _collection_schema_is_current(self) -> bool:
         description = self._client.describe_collection(self.collection_name)
         fields = {str(field.get("name") or ""): field for field in description.get("fields", [])}
-        removed_fields = {"biz_type", "source_type", "material_code", "reject_code"}
-        required_fields = {"id", "doc_id", "vector", "region_code", "policy_version", "audit_node", "status"}
+        removed_fields = {
+            "biz_type",
+            "source_type",
+            "material_code",
+            "reject_code",
+            "region_code",
+            "policy_version",
+            "audit_node",
+            "status",
+        }
+        required_fields = {"id", "doc_id", "vector"}
         if removed_fields.intersection(fields) or not required_fields.issubset(fields):
             return False
         for field in description.get("fields", []):
@@ -190,15 +191,4 @@ class MilvusVectorIndex:
 
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:
-    parts = []
-    for key in ["region_code", "policy_version", "audit_node", "status"]:
-        value = filters.get(key)
-        if not value:
-            continue
-        if isinstance(value, list):
-            values = ", ".join(f'"{str(item).replace(chr(34), chr(92) + chr(34))}"' for item in value)
-            parts.append(f"{key} in [{values}]")
-        else:
-            safe = str(value).replace('"', '\\"')
-            parts.append(f'{key} == "{safe}"')
-    return " and ".join(parts)
+    return ""

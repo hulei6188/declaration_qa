@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from datetime import date
 from typing import Any
 from uuid import uuid4
 
@@ -18,7 +17,6 @@ from declaration_qa.retrieval import (
     KNOWLEDGE_RETRIEVAL_CHAIN,
     TICKET_AUGMENTED_CHAIN,
     is_ticket_chain,
-    normalize_retrieval_filter,
 )
 from declaration_qa.schemas import ChatRequest, ChatResponse
 from declaration_qa.state import DeclarationQAState
@@ -421,8 +419,6 @@ class DeclarationQAWorkflow:
             add_event(next_state, "rag_status", next_state["rag_status"])
             return next_state
         filters = base_policy_filter(next_state, allow_request_filter=False)
-        if reject.get("audit_node"):
-            filters["audit_node"] = reject.get("audit_node")
         query = " ".join(
             str(item)
             for item in [
@@ -434,18 +430,6 @@ class DeclarationQAWorkflow:
             if item
         )
         result = self.rag_engine.retrieve(query, filters, top_k=4)
-        if not result.sources and filters.get("audit_node"):
-            relaxed_filters = dict(filters)
-            relaxed_filters.pop("audit_node", None)
-            relaxed_result = self.rag_engine.retrieve(query, relaxed_filters, top_k=4)
-            if relaxed_result.sources:
-                filters = relaxed_filters
-                result = relaxed_result
-                add_event(
-                    next_state,
-                    "material_rule_filter_relaxed",
-                    {"audit_node": reject.get("audit_node")},
-                )
         next_state["retrieval_filter"] = filters
         next_state["retrieved_sources"] = [source.payload() for source in result.sources]
         next_state["rag_status"] = result.status
@@ -563,19 +547,7 @@ class DeclarationQAWorkflow:
 
 
 def base_policy_filter(state: DeclarationQAState, *, allow_request_filter: bool = True) -> dict[str, Any]:
-    request_filter = normalize_retrieval_filter(state.get("metadata_filter") or {})
-    filters = {
-        "region_code": state.get("region_code") or "340000",
-        "policy_version": state.get("policy_version") or "2025",
-        "as_of": date.today().isoformat(),
-        "rollout_key": str(state.get("user_id") or state.get("session_id") or ""),
-        "status": "published",
-    }
-    if allow_request_filter:
-        for key in ["region_code", "policy_version", "audit_node", "as_of", "rollout_key"]:
-            if request_filter.get(key):
-                filters[key] = request_filter[key]
-    return normalize_retrieval_filter(filters)
+    return {}
 
 
 def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any]:

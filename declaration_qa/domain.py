@@ -10,8 +10,8 @@ class KnowledgeDocument:
     id: str
     title: str
     content: str
-    region_code: str
-    policy_version: str
+    region_code: str = ""
+    policy_version: str = ""
     filename: str = ""
     content_type: str = "text/plain"
     source_url: str = ""
@@ -23,6 +23,7 @@ class KnowledgeDocument:
     version_no: int = 1
     rollout_percent: int = 100
     change_note: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -33,8 +34,8 @@ class KnowledgeChunk:
     chunk_type: str
     title: str
     content: str
-    region_code: str
-    policy_version: str
+    region_code: str = ""
+    policy_version: str = ""
     source_url: str = ""
     audit_node: str = ""
     status: str = "published"
@@ -66,6 +67,16 @@ class RetrievedSource:
             "retrieval_channel": self.retrieval_channel,
             "region_code": self.chunk.region_code,
             "policy_version": self.chunk.policy_version,
+            "region_key": self.chunk.metadata.get("region_key") or self.chunk.region_code,
+            "region_name": self.chunk.metadata.get("region_name") or "",
+            "catalog_name": self.chunk.metadata.get("catalog_name") or "",
+            "catalog_subitem_name": self.chunk.metadata.get("catalog_subitem_name") or "",
+            "item_code": self.chunk.metadata.get("item_code") or "",
+            "item_name": self.chunk.metadata.get("item_name") or "",
+            "item_type": self.chunk.metadata.get("item_type") or "",
+            "theme_code": self.chunk.metadata.get("theme_code") or "",
+            "service_object": self.chunk.metadata.get("service_object") or "",
+            "source_version": self.chunk.metadata.get("source_version") or "",
             "source_url": self.chunk.source_url,
             "audit_node": self.chunk.audit_node or None,
             "effective_start_time": self.chunk.effective_start_time.isoformat() if self.chunk.effective_start_time else None,

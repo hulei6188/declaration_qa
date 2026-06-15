@@ -66,9 +66,10 @@ directly instead of calling declaration/application HTTP APIs.
 The service is split into two explicit answer chains:
 
 - `knowledge_retrieval`: policy, material, process, and FAQ questions go
-  directly through RAG. Filters are built from `regionCode`, `policyVersion`,
-  effective time, rollout, status, and optional audit-node metadata; BM25 and
-  Milvus/vector retrieval are fused with RRF and reranked.
+  directly through RAG over the full knowledge corpus. Knowledge metadata is
+  retained for display, auditing, and source traceability, but is not used as a
+  retrieval filter; BM25 and Milvus/vector retrieval are fused with RRF and
+  reranked.
 - `ticket_augmented`: application progress, rejection, and correction
   questions must first resolve the user's real application record through the
   business adapter. The model receives a business snapshot from the application
@@ -76,11 +77,12 @@ The service is split into two explicit answer chains:
   explain the status. If the business snapshot is missing, the workflow refuses
   instead of inventing progress or rejection reasons.
 
-Evidence checks require matching region, policy version, effective dates, and
-available audit-node constraints. The response and audit log include `retrieval_chain`,
+Evidence checks require traceable sources for knowledge answers and a verified
+business snapshot for ticket-augmented answers. Knowledge metadata is retained
+for display, auditing, and source traceability, but it is not used as a RAG
+retrieval filter. The response and audit log include `retrieval_chain`,
 `business_snapshot`, `rag_status`, and `evidence_decision` so production issues
-can be traced to either business data, metadata filtering, retrieval, rerank, or
-evidence gates.
+can be traced to business data, retrieval, rerank, or evidence gates.
 
 ## Docker
 

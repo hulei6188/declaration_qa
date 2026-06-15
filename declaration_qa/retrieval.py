@@ -9,7 +9,18 @@ TICKET_AUGMENTED_CHAIN = "ticket_augmented"
 
 FILTER_ALIASES = {
     "regionCode": "region_code",
+    "regionKey": "region_key",
     "policyVersion": "policy_version",
+    "sourceVersion": "source_version",
+    "catalogName": "catalog_name",
+    "catalogSubitemName": "catalog_subitem_name",
+    "catalogSubItemName": "catalog_subitem_name",
+    "itemCode": "item_code",
+    "itemName": "item_name",
+    "itemType": "item_type",
+    "themeCode": "theme_code",
+    "serviceObject": "service_object",
+    "docStatus": "doc_status",
     "auditNode": "audit_node",
     "asOf": "as_of",
     "rolloutKey": "rollout_key",
@@ -17,16 +28,41 @@ FILTER_ALIASES = {
 
 SUPPORTED_FILTER_KEYS = {
     "region_code",
+    "region_key",
     "policy_version",
+    "source_version",
+    "catalog_name",
+    "catalog_subitem_name",
+    "item_code",
+    "item_name",
+    "item_type",
+    "theme_code",
+    "service_object",
+    "doc_status",
     "audit_node",
     "as_of",
     "rollout_key",
     "status",
 }
 
+REMOVED_METADATA_KEYS = {
+    "biz_type",
+    "bizType",
+    "source_type",
+    "sourceType",
+    "material_code",
+    "materialCode",
+    "reject_code",
+    "rejectCode",
+    "theme_name",
+    "themeName",
+    "主题分类",
+    "主题名称",
+}
+
 REQUIRED_METADATA_BY_CHAIN = {
-    KNOWLEDGE_RETRIEVAL_CHAIN: ["region_code", "policy_version"],
-    TICKET_AUGMENTED_CHAIN: ["region_code", "policy_version"],
+    KNOWLEDGE_RETRIEVAL_CHAIN: [],
+    TICKET_AUGMENTED_CHAIN: [],
 }
 
 
@@ -53,15 +89,24 @@ def normalize_filter_value(value: Any) -> Any:
     return value
 
 
+def sanitize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    return {
+        str(key): value
+        for key, value in (metadata or {}).items()
+        if str(key) not in REMOVED_METADATA_KEYS
+    }
+
+
 def metadata_coverage(filters: dict[str, Any], *, chain: str) -> dict[str, Any]:
     required = REQUIRED_METADATA_BY_CHAIN.get(chain, REQUIRED_METADATA_BY_CHAIN[KNOWLEDGE_RETRIEVAL_CHAIN])
     present = [key for key in required if bool(filters.get(key))]
     missing = [key for key in required if not filters.get(key)]
+    coverage = 1.0 if not required else round(len(present) / len(required), 4)
     return {
         "required": required,
         "present": present,
         "missing": missing,
-        "coverage": round(len(present) / max(1, len(required)), 4),
+        "coverage": coverage,
     }
 
 

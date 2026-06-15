@@ -242,6 +242,62 @@ h2 {
   line-height: 1.5;
 }
 
+.upload-queue {
+  display: grid;
+  gap: 7px;
+  max-height: 190px;
+  overflow: auto;
+}
+
+.upload-queue-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffaf0;
+  padding: 9px;
+}
+
+.upload-queue-item strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.upload-queue-item code {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.upload-state-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.upload-queue-item.running .upload-state-dot,
+.upload-queue-item.indexing .upload-state-dot,
+.upload-queue-item.pending .upload-state-dot {
+  background: var(--gold);
+}
+
+.upload-queue-item.succeeded .upload-state-dot {
+  background: var(--green);
+}
+
+.upload-queue-item.failed .upload-state-dot {
+  background: var(--red);
+}
+
 .chat-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

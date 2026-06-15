@@ -89,8 +89,6 @@ CREATE TABLE IF NOT EXISTS declaration_qa.documents (
     raw_text TEXT NOT NULL,
     text_preview TEXT NOT NULL DEFAULT '',
     content_hash VARCHAR(80) NOT NULL DEFAULT '',
-    region_code VARCHAR(20) NOT NULL,
-    policy_version VARCHAR(80) NOT NULL,
     audit_node VARCHAR(80) NOT NULL DEFAULT '',
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'indexing', 'published', 'failed', 'deprecated')),
     version_group_uid VARCHAR(120) NOT NULL DEFAULT '',
@@ -99,14 +97,12 @@ CREATE TABLE IF NOT EXISTS declaration_qa.documents (
     change_note TEXT NOT NULL DEFAULT '',
     published_at TIMESTAMPTZ NULL,
     deprecated_at TIMESTAMPTZ NULL,
-    effective_start_time DATE NULL,
-    effective_end_time DATE NULL,
     chunk_count INTEGER NOT NULL DEFAULT 0 CHECK (chunk_count >= 0),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     error_message TEXT NOT NULL DEFAULT '',
     created_by BIGINT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (effective_end_time IS NULL OR effective_start_time IS NULL OR effective_end_time > effective_start_time)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE declaration_qa.documents
     ADD COLUMN IF NOT EXISTS document_uid VARCHAR(120) NOT NULL DEFAULT '';
@@ -122,13 +118,53 @@ ALTER TABLE declaration_qa.documents
     ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL;
 ALTER TABLE declaration_qa.documents
     ADD COLUMN IF NOT EXISTS deprecated_at TIMESTAMPTZ NULL;
+ALTER TABLE declaration_qa.documents
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_policy_filter;
 DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_reject_filter;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_effective_time;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_documents_audit_node;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'documents' AND column_name = 'region_code'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.documents SET metadata = CASE WHEN metadata ? ''region_code'' THEN metadata ELSE jsonb_set(metadata, ''{region_code}'', to_jsonb(region_code::text), true) END WHERE region_code IS NOT NULL AND region_code <> ''''';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'documents' AND column_name = 'policy_version'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.documents SET metadata = CASE WHEN metadata ? ''policy_version'' THEN metadata ELSE jsonb_set(metadata, ''{policy_version}'', to_jsonb(policy_version::text), true) END WHERE policy_version IS NOT NULL AND policy_version <> ''''';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'documents' AND column_name = 'effective_start_time'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.documents SET metadata = CASE WHEN metadata ? ''effective_start_time'' THEN metadata ELSE jsonb_set(metadata, ''{effective_start_time}'', to_jsonb(effective_start_time::text), true) END WHERE effective_start_time IS NOT NULL';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'documents' AND column_name = 'effective_end_time'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.documents SET metadata = CASE WHEN metadata ? ''effective_end_time'' THEN metadata ELSE jsonb_set(metadata, ''{effective_end_time}'', to_jsonb(effective_end_time::text), true) END WHERE effective_end_time IS NOT NULL';
+    END IF;
+END $$;
 ALTER TABLE declaration_qa.documents
+    DROP COLUMN IF EXISTS region_code,
+    DROP COLUMN IF EXISTS policy_version,
+    DROP COLUMN IF EXISTS effective_start_time,
+    DROP COLUMN IF EXISTS effective_end_time,
     DROP COLUMN IF EXISTS biz_type,
     DROP COLUMN IF EXISTS source_type,
     DROP COLUMN IF EXISTS material_code,
     DROP COLUMN IF EXISTS reject_code;
+UPDATE declaration_qa.documents
+SET metadata = metadata - 'biz_type' - 'source_type' - 'material_code' - 'reject_code'
+    - 'bizType' - 'sourceType' - 'materialCode' - 'rejectCode'
+    - 'theme_name' - 'themeName' - '主题分类' - '主题名称'
+WHERE metadata ?| ARRAY['biz_type', 'source_type', 'material_code', 'reject_code', 'bizType', 'sourceType', 'materialCode', 'rejectCode', 'theme_name', 'themeName', '主题分类', '主题名称'];
 CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_documents_uid
     ON declaration_qa.documents (document_uid)
     WHERE document_uid <> '';
@@ -136,12 +172,8 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_kb
     ON declaration_qa.documents (knowledge_base_id);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_version_group
     ON declaration_qa.documents (version_group_uid, version_no DESC);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_policy_filter
-    ON declaration_qa.documents (region_code, policy_version, status);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_effective_time
-    ON declaration_qa.documents (effective_start_time, effective_end_time);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_audit_node
-    ON declaration_qa.documents (region_code, policy_version, audit_node, status);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_documents_metadata_gin
+    ON declaration_qa.documents USING GIN (metadata);
 
 CREATE TABLE IF NOT EXISTS declaration_qa.chunks (
     id BIGSERIAL PRIMARY KEY,
@@ -155,17 +187,12 @@ CREATE TABLE IF NOT EXISTS declaration_qa.chunks (
     token_count INTEGER NOT NULL DEFAULT 0 CHECK (token_count >= 0),
     embedding_id VARCHAR(180) NOT NULL DEFAULT '',
     vector_collection VARCHAR(160) NOT NULL DEFAULT '',
-    region_code VARCHAR(20) NOT NULL,
-    policy_version VARCHAR(80) NOT NULL,
     source_url TEXT NOT NULL DEFAULT '',
     audit_node VARCHAR(80) NOT NULL DEFAULT '',
     status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'deprecated')),
-    effective_start_time DATE NULL,
-    effective_end_time DATE NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (effective_end_time IS NULL OR effective_start_time IS NULL OR effective_end_time > effective_start_time)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_document
     ON declaration_qa.chunks (document_id, chunk_index);
@@ -174,20 +201,49 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_parent
 DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_policy_filter;
 DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_reject_filter;
 DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_source_type;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_effective_time;
+DROP INDEX IF EXISTS declaration_qa.ix_declaration_qa_chunks_audit_node;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'chunks' AND column_name = 'region_code'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.chunks SET metadata = CASE WHEN metadata ? ''region_code'' THEN metadata ELSE jsonb_set(metadata, ''{region_code}'', to_jsonb(region_code::text), true) END WHERE region_code IS NOT NULL AND region_code <> ''''';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'chunks' AND column_name = 'policy_version'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.chunks SET metadata = CASE WHEN metadata ? ''policy_version'' THEN metadata ELSE jsonb_set(metadata, ''{policy_version}'', to_jsonb(policy_version::text), true) END WHERE policy_version IS NOT NULL AND policy_version <> ''''';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'chunks' AND column_name = 'effective_start_time'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.chunks SET metadata = CASE WHEN metadata ? ''effective_start_time'' THEN metadata ELSE jsonb_set(metadata, ''{effective_start_time}'', to_jsonb(effective_start_time::text), true) END WHERE effective_start_time IS NOT NULL';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'declaration_qa' AND table_name = 'chunks' AND column_name = 'effective_end_time'
+    ) THEN
+        EXECUTE 'UPDATE declaration_qa.chunks SET metadata = CASE WHEN metadata ? ''effective_end_time'' THEN metadata ELSE jsonb_set(metadata, ''{effective_end_time}'', to_jsonb(effective_end_time::text), true) END WHERE effective_end_time IS NOT NULL';
+    END IF;
+END $$;
 ALTER TABLE declaration_qa.chunks
+    DROP COLUMN IF EXISTS region_code,
+    DROP COLUMN IF EXISTS policy_version,
+    DROP COLUMN IF EXISTS effective_start_time,
+    DROP COLUMN IF EXISTS effective_end_time,
     DROP COLUMN IF EXISTS biz_type,
     DROP COLUMN IF EXISTS source_type,
     DROP COLUMN IF EXISTS material_code,
     DROP COLUMN IF EXISTS reject_code;
 UPDATE declaration_qa.chunks
 SET metadata = metadata - 'biz_type' - 'source_type' - 'material_code' - 'reject_code'
-WHERE metadata ?| ARRAY['biz_type', 'source_type', 'material_code', 'reject_code'];
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_policy_filter
-    ON declaration_qa.chunks (region_code, policy_version, status);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_effective_time
-    ON declaration_qa.chunks (effective_start_time, effective_end_time);
-CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_audit_node
-    ON declaration_qa.chunks (region_code, policy_version, audit_node, status);
+    - 'bizType' - 'sourceType' - 'materialCode' - 'rejectCode'
+    - 'theme_name' - 'themeName' - '主题分类' - '主题名称'
+WHERE metadata ?| ARRAY['biz_type', 'source_type', 'material_code', 'reject_code', 'bizType', 'sourceType', 'materialCode', 'rejectCode', 'theme_name', 'themeName', '主题分类', '主题名称'];
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_metadata_gin
     ON declaration_qa.chunks USING GIN (metadata);
 
@@ -450,9 +506,7 @@ COMMENT ON COLUMN declaration_qa.documents.source_url IS '来源链接或内部�
 COMMENT ON COLUMN declaration_qa.documents.raw_text IS '解析后的完整文本';
 COMMENT ON COLUMN declaration_qa.documents.text_preview IS '文本摘要预览';
 COMMENT ON COLUMN declaration_qa.documents.content_hash IS '文档内容哈希';
-COMMENT ON COLUMN declaration_qa.documents.region_code IS '行政区划编码，用于 RAG 元数据过滤';
-COMMENT ON COLUMN declaration_qa.documents.policy_version IS '政策版本，用于 RAG 元数据过滤';
-COMMENT ON COLUMN declaration_qa.documents.audit_node IS '可选审核节点，用于工单增强问答证据约束';
+COMMENT ON COLUMN declaration_qa.documents.audit_node IS '可选审核节点，仅用于展示、审计和溯源';
 COMMENT ON COLUMN declaration_qa.documents.status IS '文档状态：draft/indexing/published/failed/deprecated';
 COMMENT ON COLUMN declaration_qa.documents.version_group_uid IS '版本组唯一标识';
 COMMENT ON COLUMN declaration_qa.documents.version_no IS '版本号';
@@ -460,9 +514,8 @@ COMMENT ON COLUMN declaration_qa.documents.rollout_percent IS '灰度发布比�
 COMMENT ON COLUMN declaration_qa.documents.change_note IS '版本变更说明';
 COMMENT ON COLUMN declaration_qa.documents.published_at IS '发布时间';
 COMMENT ON COLUMN declaration_qa.documents.deprecated_at IS '下线时间';
-COMMENT ON COLUMN declaration_qa.documents.effective_start_time IS '政策生效开始日期';
-COMMENT ON COLUMN declaration_qa.documents.effective_end_time IS '政策生效结束日期';
 COMMENT ON COLUMN declaration_qa.documents.chunk_count IS '已生成分块数量';
+COMMENT ON COLUMN declaration_qa.documents.metadata IS '文档扩展元数据，仅用于展示、审计和溯源，不参与 RAG 检索过滤';
 COMMENT ON COLUMN declaration_qa.documents.error_message IS '索引或解析失败原因';
 COMMENT ON COLUMN declaration_qa.documents.created_by IS '创建人用户 ID';
 COMMENT ON COLUMN declaration_qa.documents.created_at IS '创建时间';
@@ -480,14 +533,10 @@ COMMENT ON COLUMN declaration_qa.chunks.content_hash IS '分块内容哈希';
 COMMENT ON COLUMN declaration_qa.chunks.token_count IS '估算 token 数';
 COMMENT ON COLUMN declaration_qa.chunks.embedding_id IS '向量索引中的 embedding 标识';
 COMMENT ON COLUMN declaration_qa.chunks.vector_collection IS '向量集合名称';
-COMMENT ON COLUMN declaration_qa.chunks.region_code IS '行政区划编码，用于 RAG 元数据过滤';
-COMMENT ON COLUMN declaration_qa.chunks.policy_version IS '政策版本，用于 RAG 元数据过滤';
 COMMENT ON COLUMN declaration_qa.chunks.source_url IS '来源链接或内部来源标识';
-COMMENT ON COLUMN declaration_qa.chunks.audit_node IS '可选审核节点，用于工单增强问答证据约束';
+COMMENT ON COLUMN declaration_qa.chunks.audit_node IS '可选审核节点，仅用于展示、审计和溯源';
 COMMENT ON COLUMN declaration_qa.chunks.status IS '分块状态：draft/published/deprecated';
-COMMENT ON COLUMN declaration_qa.chunks.effective_start_time IS '政策生效开始日期';
-COMMENT ON COLUMN declaration_qa.chunks.effective_end_time IS '政策生效结束日期';
-COMMENT ON COLUMN declaration_qa.chunks.metadata IS '分块扩展元数据，不包含已移除的 biz_type/source_type/material_code/reject_code';
+COMMENT ON COLUMN declaration_qa.chunks.metadata IS '分块扩展元数据，不包含已移除的 biz_type/source_type/material_code/reject_code/theme_name，且不参与 RAG 检索过滤';
 COMMENT ON COLUMN declaration_qa.chunks.created_at IS '创建时间';
 COMMENT ON COLUMN declaration_qa.chunks.updated_at IS '更新时间';
 

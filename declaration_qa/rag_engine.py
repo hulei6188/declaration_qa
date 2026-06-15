@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from declaration_qa.cache import CacheStore, InMemoryCacheStore
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
-from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter
+from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, sanitize_metadata
 from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
 
 
@@ -23,8 +23,9 @@ class InMemoryRAGEngine:
     """Isolated RAG engine for the declaration QA workflow.
 
     The class keeps the same retrieval shape expected in production
-    (metadata filter -> dense retrieval -> BM25 -> RRF -> rerank), while using
-    an in-memory vector index so it can run without Milvus/Redis locally.
+    (dense retrieval -> BM25 -> RRF -> rerank), while retaining metadata only
+    for source display and auditing. It uses an in-memory vector index so it can
+    run without Milvus/Redis locally.
     """
 
     def __init__(
@@ -89,7 +90,7 @@ class InMemoryRAGEngine:
 
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
         normalized_query = normalize_text(query)
-        effective_filter = normalize_retrieval_filter(filters)
+        effective_filter: dict[str, Any] = {}
         cache_key = json.dumps(
             {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
             ensure_ascii=False,
@@ -117,7 +118,7 @@ class InMemoryRAGEngine:
                 status={**(cached_payload.get("status") or {}), "cache": {"hit": True, "backend": self.cache_store.backend}},
             )
 
-        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child"]
         prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         if not candidates:
@@ -132,6 +133,7 @@ class InMemoryRAGEngine:
                     "cache": {"hit": False, "backend": self.cache_store.backend},
                     "embedding_provider": self.embedding_provider.name,
                     "rerank_provider": self.reranker.name,
+                    "metadata_filtering": False,
                     "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                     "filter": effective_filter,
                 },
@@ -156,6 +158,7 @@ class InMemoryRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "metadata_filtering": False,
                 "channels": {
                     "dense": len(dense_hits),
                     "bm25": len(bm25_hits),
@@ -257,6 +260,19 @@ def knowledge_chunk_from_document(
     chunk_type: str,
     content: str,
 ) -> KnowledgeChunk:
+    document_metadata = sanitize_metadata(document.metadata)
+    metadata = {
+        **document_metadata,
+        "region_code": document.region_code,
+        "region_key": document_metadata.get("region_key") or document.region_code,
+        "policy_version": document.policy_version,
+        "source_version": document_metadata.get("source_version") or document.policy_version,
+        "audit_node": document.audit_node,
+        "version_group_uid": document.version_group_uid or document.id,
+        "version_no": document.version_no,
+        "rollout_percent": document.rollout_percent,
+        "doc_status": document_metadata.get("doc_status") or document.status,
+    }
     return KnowledgeChunk(
         id=chunk_id,
         doc_id=document.id,
@@ -272,14 +288,7 @@ def knowledge_chunk_from_document(
         effective_start_time=document.effective_start_time,
         effective_end_time=document.effective_end_time,
         embedding_id=f"vec:{chunk_id}",
-        metadata={
-            "region_code": document.region_code,
-            "policy_version": document.policy_version,
-            "audit_node": document.audit_node,
-            "version_group_uid": document.version_group_uid or document.id,
-            "version_no": document.version_no,
-            "rollout_percent": document.rollout_percent,
-        },
+        metadata=metadata,
     )
 
 
@@ -415,40 +424,10 @@ def rerank(query: str, hits: list[RetrievedSource], filters: dict[str, Any], *, 
 
 
 def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> float:
-    boost = 0.0
-    for key in ["region_code", "audit_node"]:
-        expected = str(filters.get(key) or "").strip()
-        actual = str(getattr(chunk, key) or "").strip()
-        if expected and actual and expected == actual:
-            boost += 0.04
-    return min(boost, 0.18)
+    return 0.0
 
 
 def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
-    if chunk.status != str(filters.get("status") or "published"):
-        return False
-    for key in ["region_code", "policy_version"]:
-        expected = str(filters.get(key) or "").strip()
-        if expected and str(getattr(chunk, key) or "").strip() != expected:
-            return False
-    for key in ["audit_node"]:
-        expected = str(filters.get(key) or "").strip()
-        if expected and str(getattr(chunk, key) or "").strip() != expected:
-            return False
-    now = parse_filter_date(filters.get("as_of")) or date.today()
-    if chunk.effective_start_time and chunk.effective_start_time > now:
-        return False
-    if chunk.effective_end_time and chunk.effective_end_time <= now:
-        return False
-    rollout_percent = int((chunk.metadata or {}).get("rollout_percent") or 100)
-    if rollout_percent <= 0:
-        return False
-    if rollout_percent < 100:
-        rollout_key = str(filters.get("rollout_key") or "")
-        bucket_source = f"{rollout_key}:{chunk.doc_id}"
-        bucket = int(hashlib.sha256(bucket_source.encode("utf-8")).hexdigest()[:8], 16) % 100
-        if bucket >= rollout_percent:
-            return False
     return True
 
 

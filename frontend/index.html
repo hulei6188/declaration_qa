@@ -90,23 +90,26 @@
               <span>知识入库</span>
             </div>
             <label>
-              标题
-              <input id="docTitle" placeholder="办理指南 / 材料补正规范标题" />
+              标题（可选）
+              <input id="docTitle" placeholder="文件入库默认使用文件名；文本入库可自定义标题" />
             </label>
             <label>
-              文件
-              <input id="docFile" type="file" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" />
+              文件（可批量）
+              <input id="docFile" type="file" multiple accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" />
             </label>
+            <div class="upload-queue" id="uploadQueue">
+              <p class="hint">可一次选择多个文件批量入库。</p>
+            </div>
             <label>
-              文档内容
-              <textarea id="docContent" rows="5" placeholder="未选择文件时，可粘贴政策、材料规范或 FAQ 内容"></textarea>
+              文档内容（不选文件时使用）
+              <textarea id="docContent" rows="5" placeholder="选择文件入库时不用填写；只做文本入库时粘贴内容"></textarea>
             </label>
             <label>
               政策版本
               <input id="docPolicyVersion" value="2025" />
             </label>
             <button class="primary full" id="uploadDocButton">上传并索引</button>
-            <p class="hint" id="uploadResult">支持文件解析、索引任务和独立 RAG 引擎入库。</p>
+            <p class="hint" id="uploadResult">支持单文件、批量文件和文本内容入库。</p>
           </section>
 
           <section class="panel">

@@ -21,6 +21,7 @@ from declaration_qa.evaluation import run_evaluation
 from declaration_qa.factory import create_index_job_store, create_workflow
 from declaration_qa.index_service import process_index_job
 from declaration_qa.queue import build_index_queue
+from declaration_qa.retrieval import sanitize_metadata
 from declaration_qa.runtime import assert_production_ready, production_readiness_errors
 from declaration_qa.schemas import (
     ChatRequest,
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
                 "status": request.status,
                 "effective_start_time": request.effective_start_time.isoformat() if request.effective_start_time else None,
                 "effective_end_time": request.effective_end_time.isoformat() if request.effective_end_time else None,
+                "metadata": request.metadata,
             },
         )
         index_queue.enqueue(job["job_uid"])
@@ -182,6 +184,7 @@ def create_app() -> FastAPI:
         status: str = Form("published"),
         effective_start_time: str = Form(""),
         effective_end_time: str = Form(""),
+        metadata: str = Form(""),
     ):
         require_service_or_user(context, settings)
         document_id = f"doc-{uuid4().hex}"
@@ -202,6 +205,7 @@ def create_app() -> FastAPI:
                 "status": status,
                 "effective_start_time": effective_start_time or None,
                 "effective_end_time": effective_end_time or None,
+                "metadata": parse_metadata_form(metadata),
             },
         )
         index_queue.enqueue(job["job_uid"])
@@ -310,6 +314,7 @@ def create_app() -> FastAPI:
                 "change_note": request.change_note,
                 "effective_start_time": payload.get("effective_start_time"),
                 "effective_end_time": payload.get("effective_end_time"),
+                "metadata": payload.get("metadata") or {},
             },
         )
         index_queue.enqueue(job["job_uid"])
@@ -504,9 +509,30 @@ def document_record_from_domain(document) -> dict:
         "effective_end_time": document.effective_end_time.isoformat() if document.effective_end_time else None,
         "chunk_count": len(workflow.rag_engine.document_chunks(document)),
         "change_note": document.change_note,
+        "metadata": sanitize_metadata(document.metadata),
         "created_at": "",
         "updated_at": "",
     }
+
+
+def parse_metadata_form(value: str) -> dict:
+    if not str(value or "").strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="metadata must be a JSON object") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="metadata must be a JSON object")
+    return sanitize_metadata(parsed)
+
+
+def date_or_text(value) -> str | None:
+    if not value:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 def set_document_status(document_id: str, status: str) -> dict:
@@ -531,8 +557,8 @@ def update_rollout(document_id: str, request: DocumentRolloutRequest) -> dict:
         return {
             "document_id": str(item["document_id"]),
             "rollout_percent": int(item["rollout_percent"]),
-            "effective_start_time": item["effective_start_time"].isoformat() if item["effective_start_time"] else None,
-            "effective_end_time": item["effective_end_time"].isoformat() if item["effective_end_time"] else None,
+            "effective_start_time": date_or_text(item.get("effective_start_time")),
+            "effective_end_time": date_or_text(item.get("effective_end_time")),
         }
     document = find_rag_document(document_id)
     if not document:
@@ -548,8 +574,8 @@ def update_rollout(document_id: str, request: DocumentRolloutRequest) -> dict:
     return {
         "document_id": document_id,
         "rollout_percent": request.rollout_percent,
-        "effective_start_time": request.effective_start_time.isoformat() if request.effective_start_time else None,
-        "effective_end_time": request.effective_end_time.isoformat() if request.effective_end_time else None,
+        "effective_start_time": date_or_text(request.effective_start_time),
+        "effective_end_time": date_or_text(request.effective_end_time),
     }
 
 
@@ -560,6 +586,9 @@ def create_version(source_document_id: str, new_document_id: str, request: Docum
     version_group_uid = str(source.get("version_group_uid") or source_document_id)
     existing_versions = [item["version_no"] for item in list_document_records() if item.get("version_group_uid") == version_group_uid]
     version_no = max(existing_versions or [int(source.get("version_no") or 1)]) + 1
+    metadata = sanitize_metadata(dict(source.get("metadata") or {}))
+    if request.policy_version:
+        metadata["policy_version"] = request.policy_version
     return {
         "document_id": new_document_id,
         "version_group_uid": version_group_uid,
@@ -568,12 +597,13 @@ def create_version(source_document_id: str, new_document_id: str, request: Docum
         "content": request.content if request.content is not None else str(source.get("raw_text") or ""),
         "filename": str(source.get("filename") or ""),
         "content_type": str(source.get("content_type") or "text/plain"),
-        "region_code": str(source.get("region_code") or ""),
-        "policy_version": request.policy_version or str(source.get("policy_version") or "2025"),
+        "region_code": str(metadata.get("region_code") or metadata.get("region_key") or source.get("region_code") or ""),
+        "policy_version": str(metadata.get("policy_version") or metadata.get("source_version") or source.get("policy_version") or ""),
         "source_url": str(source.get("source_url") or ""),
         "audit_node": str(source.get("audit_node") or ""),
-        "effective_start_time": source.get("effective_start_time"),
-        "effective_end_time": source.get("effective_end_time"),
+        "effective_start_time": metadata.get("effective_start_time") or source.get("effective_start_time"),
+        "effective_end_time": metadata.get("effective_end_time") or source.get("effective_end_time"),
+        "metadata": metadata,
     }
 
 

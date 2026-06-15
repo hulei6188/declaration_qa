@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 from datetime import date
+from typing import Any
 
 from declaration_qa.domain import EvidenceDecision
 from declaration_qa.retrieval import (
@@ -30,16 +30,6 @@ def decide_evidence(
         "metadata_coverage": coverage,
         "business_payload_present": bool(business_payload),
     }
-    if coverage["missing"]:
-        return EvidenceDecision(
-            ok=False,
-            reason="missing_required_metadata",
-            source_count=len(sources),
-            required_metadata=coverage["required"],
-            missing_metadata=coverage["missing"],
-            checks=checks,
-        )
-
     if not sources:
         return EvidenceDecision(
             ok=False,
@@ -77,24 +67,10 @@ def decide_evidence(
             checks=checks,
         )
 
-    for key in ["region_code", "policy_version"]:
-        expected = str(filters.get(key) or "").strip()
-        if expected and str(top.get(key) or "").strip() != expected:
-            return EvidenceDecision(
-                ok=False,
-                reason=f"{key}_mismatch",
-                top_score=top_score,
-                source_count=len(sources),
-                required_metadata=coverage["required"],
-                missing_metadata=coverage["missing"],
-                checks=checks,
-            )
-
-    as_of = parse_date(filters.get("as_of")) or date.today()
-    if not source_effective(top, as_of):
+    if not source_traceable(top):
         return EvidenceDecision(
             ok=False,
-            reason="policy_not_effective",
+            reason="source_not_traceable",
             top_score=top_score,
             source_count=len(sources),
             required_metadata=coverage["required"],
@@ -112,31 +88,6 @@ def decide_evidence(
             missing_metadata=coverage["missing"],
             checks=checks,
         )
-
-    if intent == "reject":
-        conflict = conflict_reason(sources, keys=["audit_node"])
-        if conflict:
-            return EvidenceDecision(
-                ok=False,
-                reason=conflict,
-                top_score=top_score,
-                source_count=len(sources),
-                required_metadata=coverage["required"],
-                missing_metadata=coverage["missing"],
-                checks=checks,
-            )
-    else:
-        conflict = conflict_reason(sources, keys=["policy_version"])
-        if conflict:
-            return EvidenceDecision(
-                ok=False,
-                reason=conflict,
-                top_score=top_score,
-                source_count=len(sources),
-                required_metadata=coverage["required"],
-                missing_metadata=coverage["missing"],
-                checks=checks,
-            )
 
     return EvidenceDecision(
         ok=True,
@@ -156,6 +107,19 @@ def conflict_reason(sources: list[dict[str, Any]], *, keys: list[str]) -> str:
         if len(values) > 1:
             return f"conflicting_{key}"
     return ""
+
+
+def source_traceable(source: dict[str, Any]) -> bool:
+    if str(source.get("doc_id") or "").strip() and str(source.get("title") or "").strip():
+        return True
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    return bool(
+        str(source.get("source_url") or "").strip()
+        or str(metadata.get("item_code") or "").strip()
+        or str(metadata.get("item_name") or "").strip()
+        or str(metadata.get("catalog_name") or "").strip()
+        or str(metadata.get("catalog_subitem_name") or "").strip()
+    )
 
 
 def source_effective(source: dict[str, Any], as_of: date) -> bool:

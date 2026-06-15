@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import date
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -9,6 +10,7 @@ from sqlalchemy import JSON, bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.retrieval import sanitize_metadata
 
 
 class PostgresDeclarationQAStore:
@@ -558,16 +560,16 @@ class PostgresDeclarationQAStore:
                     INSERT INTO declaration_qa.documents (
                         document_uid, knowledge_base_id, title, filename, content_type,
                         source_url, raw_text, text_preview, content_hash,
-                        region_code, policy_version, audit_node, status, version_group_uid, version_no,
-                        rollout_percent, change_note, effective_start_time, effective_end_time,
-                        chunk_count
+                        audit_node, status, version_group_uid, version_no,
+                        rollout_percent, change_note,
+                        chunk_count, metadata
                     )
                     VALUES (
                         :document_uid, :knowledge_base_id, :title, :filename, :content_type,
                         :source_url, :raw_text, :text_preview, :content_hash,
-                        :region_code, :policy_version, :audit_node, :status, :version_group_uid, :version_no,
-                        :rollout_percent, :change_note, :effective_start_time, :effective_end_time,
-                        :chunk_count
+                        :audit_node, :status, :version_group_uid, :version_no,
+                        :rollout_percent, :change_note,
+                        :chunk_count, :metadata
                     )
                     ON CONFLICT (document_uid) WHERE document_uid <> '' DO UPDATE SET
                         title = EXCLUDED.title,
@@ -577,21 +579,18 @@ class PostgresDeclarationQAStore:
                         raw_text = EXCLUDED.raw_text,
                         text_preview = EXCLUDED.text_preview,
                         content_hash = EXCLUDED.content_hash,
-                        region_code = EXCLUDED.region_code,
-                        policy_version = EXCLUDED.policy_version,
                         audit_node = EXCLUDED.audit_node,
                         status = EXCLUDED.status,
                         version_group_uid = EXCLUDED.version_group_uid,
                         version_no = EXCLUDED.version_no,
                         rollout_percent = EXCLUDED.rollout_percent,
                         change_note = EXCLUDED.change_note,
-                        effective_start_time = EXCLUDED.effective_start_time,
-                        effective_end_time = EXCLUDED.effective_end_time,
                         chunk_count = EXCLUDED.chunk_count,
+                        metadata = EXCLUDED.metadata,
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING id
                     """
-                ),
+                ).bindparams(bindparam("metadata", type_=JSON)),
                 {
                     "document_uid": document.id,
                     "knowledge_base_id": kb_id,
@@ -602,17 +601,14 @@ class PostgresDeclarationQAStore:
                     "raw_text": document.content,
                     "text_preview": document.content[:240],
                     "content_hash": hashlib.sha256(document.content.encode("utf-8")).hexdigest(),
-                    "region_code": document.region_code,
-                    "policy_version": document.policy_version,
                     "audit_node": document.audit_node,
                     "status": document.status,
                     "version_group_uid": document.version_group_uid or document.id,
                     "version_no": document.version_no,
                     "rollout_percent": document.rollout_percent,
                     "change_note": document.change_note,
-                    "effective_start_time": document.effective_start_time,
-                    "effective_end_time": document.effective_end_time,
                     "chunk_count": len(chunks),
+                    "metadata": sanitize_metadata(document.metadata),
                 },
             ).mappings().first()
             document_pk = int(row["id"])
@@ -633,23 +629,25 @@ class PostgresDeclarationQAStore:
                 text(
                     """
                     SELECT id, document_uid, title, filename, content_type, raw_text,
-                           region_code, policy_version, source_url, audit_node, status, version_group_uid, version_no,
-                           rollout_percent, change_note, effective_start_time, effective_end_time
+                           source_url, audit_node, status, version_group_uid, version_no,
+                           rollout_percent, change_note, metadata
                     FROM declaration_qa.documents
                     WHERE status = 'published'
                     ORDER BY id ASC
                     """
                 )
             ).mappings().all()
-        return [
-            KnowledgeDocument(
+        documents = []
+        for row in rows:
+            metadata = sanitize_metadata(dict(row["metadata"] or {}))
+            documents.append(KnowledgeDocument(
                 id=str(row["document_uid"] or row["id"]),
                 title=str(row["title"] or ""),
                 filename=str(row["filename"] or ""),
                 content_type=str(row["content_type"] or "text/plain"),
                 content=str(row["raw_text"] or ""),
-                region_code=str(row["region_code"] or ""),
-                policy_version=str(row["policy_version"] or ""),
+                region_code=str(metadata.get("region_code") or metadata.get("region_key") or ""),
+                policy_version=str(metadata.get("policy_version") or metadata.get("source_version") or ""),
                 source_url=str(row["source_url"] or ""),
                 audit_node=str(row["audit_node"] or ""),
                 status=str(row["status"] or "published"),
@@ -657,11 +655,11 @@ class PostgresDeclarationQAStore:
                 version_no=int(row["version_no"] or 1),
                 rollout_percent=int(row["rollout_percent"] or 100),
                 change_note=str(row["change_note"] or ""),
-                effective_start_time=row["effective_start_time"],
-                effective_end_time=row["effective_end_time"],
-            )
-            for row in rows
-        ]
+                effective_start_time=parse_metadata_date(metadata.get("effective_start_time")),
+                effective_end_time=parse_metadata_date(metadata.get("effective_end_time")),
+                metadata=metadata,
+            ))
+        return documents
 
     def knowledge_base_revision(self) -> str:
         with self.engine.begin() as connection:
@@ -686,9 +684,8 @@ class PostgresDeclarationQAStore:
                 text(
                     f"""
                     SELECT document_uid AS document_id, title, filename,
-                           region_code, policy_version, audit_node,
-                           status, version_group_uid, version_no, rollout_percent,
-                           effective_start_time, effective_end_time, chunk_count, change_note,
+                           audit_node, status, version_group_uid, version_no, rollout_percent,
+                           chunk_count, change_note, metadata,
                            created_at, updated_at
                     FROM declaration_qa.documents
                     {where}
@@ -705,10 +702,9 @@ class PostgresDeclarationQAStore:
                 text(
                     """
                     SELECT document_uid AS document_id, title, filename,
-                           region_code, policy_version, audit_node,
-                           status, version_group_uid, version_no, rollout_percent,
-                           effective_start_time, effective_end_time, chunk_count, change_note,
-                           raw_text, content_type, source_url, created_at, updated_at
+                           audit_node, status, version_group_uid, version_no, rollout_percent,
+                           chunk_count, change_note,
+                           raw_text, content_type, source_url, metadata, created_at, updated_at
                     FROM declaration_qa.documents
                     WHERE document_uid = :document_uid
                     """
@@ -764,11 +760,16 @@ class PostgresDeclarationQAStore:
                     """
                     UPDATE declaration_qa.documents SET
                         rollout_percent = :rollout_percent,
-                        effective_start_time = :effective_start_time,
-                        effective_end_time = :effective_end_time,
+                        metadata = jsonb_strip_nulls(
+                            metadata
+                            || jsonb_build_object(
+                                'effective_start_time', to_jsonb(CAST(:effective_start_time AS TEXT)),
+                                'effective_end_time', to_jsonb(CAST(:effective_end_time AS TEXT))
+                            )
+                        ),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE document_uid = :document_uid
-                    RETURNING document_uid AS document_id, rollout_percent, effective_start_time, effective_end_time
+                    RETURNING document_uid AS document_id, rollout_percent, metadata
                     """
                 ),
                 {
@@ -780,7 +781,11 @@ class PostgresDeclarationQAStore:
             ).mappings().first()
         if not row:
             raise ValueError("Document not found")
-        return dict(row)
+        payload = dict(row)
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        payload["effective_start_time"] = metadata.get("effective_start_time")
+        payload["effective_end_time"] = metadata.get("effective_end_time")
+        return payload
 
     def create_document_version(
         self,
@@ -803,14 +808,17 @@ class PostgresDeclarationQAStore:
                     {"group_uid": group_uid},
                 ).scalar_one()
             )
+        metadata = sanitize_metadata(dict(source.get("metadata") or {}))
+        if policy_version:
+            metadata["policy_version"] = policy_version
         document = KnowledgeDocument(
             id=document_uid,
             title=title or str(source["title"]),
             filename=str(source.get("filename") or ""),
             content_type=str(source.get("content_type") or "text/plain"),
             content=content if content is not None else str(source.get("raw_text") or ""),
-            region_code=str(source["region_code"]),
-            policy_version=policy_version or str(source["policy_version"]),
+            region_code=str(metadata.get("region_code") or metadata.get("region_key") or ""),
+            policy_version=str(metadata.get("policy_version") or metadata.get("source_version") or ""),
             source_url=str(source.get("source_url") or ""),
             audit_node=str(source.get("audit_node") or ""),
             status="draft",
@@ -818,8 +826,9 @@ class PostgresDeclarationQAStore:
             version_no=version_no,
             rollout_percent=0,
             change_note=change_note,
-            effective_start_time=source.get("effective_start_time"),
-            effective_end_time=source.get("effective_end_time"),
+            effective_start_time=parse_metadata_date(metadata.get("effective_start_time")),
+            effective_end_time=parse_metadata_date(metadata.get("effective_end_time")),
+            metadata=metadata,
         )
         self.persist_document(document, [])
         return {
@@ -1069,27 +1078,19 @@ class PostgresDeclarationQAStore:
             """
             INSERT INTO declaration_qa.chunks (
                 document_id, parent_chunk_id, chunk_uid, chunk_type, content, content_hash,
-                embedding_id, region_code, policy_version, source_url,
-                audit_node, status, effective_start_time,
-                effective_end_time, metadata
+                embedding_id, source_url, audit_node, status, metadata
             )
             VALUES (
                 :document_id, :parent_chunk_id, :chunk_uid, :chunk_type, :content, :content_hash,
-                :embedding_id, :region_code, :policy_version, :source_url,
-                :audit_node, :status, :effective_start_time,
-                :effective_end_time, :metadata
+                :embedding_id, :source_url, :audit_node, :status, :metadata
             )
             ON CONFLICT (chunk_uid) DO UPDATE SET
                 content = EXCLUDED.content,
                 content_hash = EXCLUDED.content_hash,
                 embedding_id = EXCLUDED.embedding_id,
-                region_code = EXCLUDED.region_code,
-                policy_version = EXCLUDED.policy_version,
                 source_url = EXCLUDED.source_url,
                 audit_node = EXCLUDED.audit_node,
                 status = EXCLUDED.status,
-                effective_start_time = EXCLUDED.effective_start_time,
-                effective_end_time = EXCLUDED.effective_end_time,
                 metadata = EXCLUDED.metadata,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING id
@@ -1105,13 +1106,9 @@ class PostgresDeclarationQAStore:
                 "content": chunk.content,
                 "content_hash": hashlib.sha256(chunk.content.encode("utf-8")).hexdigest(),
                 "embedding_id": chunk.embedding_id,
-                "region_code": chunk.region_code,
-                "policy_version": chunk.policy_version,
                 "source_url": chunk.source_url,
                 "audit_node": chunk.audit_node,
                 "status": chunk.status,
-                "effective_start_time": chunk.effective_start_time,
-                "effective_end_time": chunk.effective_end_time,
                 "metadata": chunk.metadata,
             },
         ).mappings().first()
@@ -1131,21 +1128,23 @@ def normalize_session_row(row) -> dict[str, Any]:
 
 
 def normalize_document_record(row) -> dict[str, Any]:
+    metadata = sanitize_metadata(dict(row.get("metadata") or {}) if hasattr(row, "get") else dict(row["metadata"] or {}))
     return {
         "document_id": str(row["document_id"] or ""),
         "title": str(row["title"] or ""),
         "filename": str(row["filename"] or ""),
-        "region_code": str(row["region_code"] or ""),
-        "policy_version": str(row["policy_version"] or ""),
+        "region_code": str(metadata.get("region_code") or metadata.get("region_key") or ""),
+        "policy_version": str(metadata.get("policy_version") or metadata.get("source_version") or ""),
         "audit_node": str(row["audit_node"] or ""),
         "status": str(row["status"] or ""),
         "version_group_uid": str(row["version_group_uid"] or row["document_id"] or ""),
         "version_no": int(row["version_no"] or 1),
         "rollout_percent": int(row["rollout_percent"] or 0),
-        "effective_start_time": row["effective_start_time"].isoformat() if row["effective_start_time"] else None,
-        "effective_end_time": row["effective_end_time"].isoformat() if row["effective_end_time"] else None,
+        "effective_start_time": metadata.get("effective_start_time"),
+        "effective_end_time": metadata.get("effective_end_time"),
         "chunk_count": int(row["chunk_count"] or 0),
         "change_note": str(row["change_note"] or ""),
+        "metadata": metadata,
         "created_at": str(row["created_at"] or ""),
         "updated_at": str(row["updated_at"] or ""),
     }
@@ -1184,6 +1183,17 @@ def isoformat_or_empty(value: Any) -> str:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return str(value)
+
+
+def parse_metadata_date(value: Any) -> date | None:
+    if isinstance(value, date):
+        return value
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def normalize_eval_dataset(row) -> dict[str, Any]:

@@ -90,14 +90,14 @@ Core endpoints:
 The workflow keeps declaration business state and RAG knowledge separate:
 
 - status and reject questions run on the `ticket_augmented` chain: an application context is mandatory, real business status/reject records are queried first, and RAG only explains the verified business snapshot;
-- policy/material/process questions run on the `knowledge_retrieval` chain and use RAG filters based on region, policy version, effective time, audit node, rollout, and status;
-- `biz_type`, `source_type`, `material_code`, and `reject_code` are removed from knowledge/RAG metadata, filters, source payloads, and vector-index fields; similarly named business fields remain only in the real ticket snapshot;
-- request `metadata_filter` accepts camelCase aliases such as `regionCode`, `policyVersion`, `auditNode`, `asOf`, and `rolloutKey`; removed metadata fields are ignored;
+- policy/material/process questions run on the `knowledge_retrieval` chain and retrieve from the full knowledge corpus; metadata is retained only for display, auditing, and source traceability;
+- `biz_type`, `source_type`, `material_code`, `reject_code`, and `theme_name` are removed from knowledge/RAG metadata, filters, source payloads, and vector-index fields; similarly named business fields remain only in the real ticket snapshot;
+- request `metadata_filter` is accepted for API compatibility but is not used to filter RAG retrieval; removed metadata fields are ignored;
 - BM25 and Milvus/vector hits are fused with RRF, reranked, and passed through evidence gates before an answer is generated;
 - evidence decisions and retrieval diagnostics are written to responses and audit logs for traceability;
 - `appVersion` is only used in answer post-processing for entry/action compatibility.
 - asynchronous indexing moves upload parsing, embedding, Milvus upsert, PostgreSQL persistence, reindex, retry, and delete work out of the request path;
-- knowledge management supports draft versions, publish/unpublish, rollout percentage, effective dates, version comparison, and rollback;
+- knowledge management supports draft versions, publish/unpublish, rollout percentage, metadata retention, version comparison, and rollback;
 - evaluation datasets run through the real workflow and record recall@k, refusal accuracy, intent accuracy, answer keyword hit rate, run items, audit IDs, and human annotations.
 
 Supported upload formats:
@@ -106,3 +106,11 @@ Supported upload formats:
 - PDF through `pypdf`
 - DOCX and XLSX through package XML parsing
 - images through a configured OCR HTTP service
+
+Upload metadata extraction:
+
+- uploaded Markdown can carry header bullets or plain key-value lines such as `Region Code`, `Region Name`, `Policy Version`, and `Official Source URL`;
+- two-column Markdown tables are parsed for government-service fields such as `目录清单名称`, `目录子项名称`, `事项编码`, `事项名称`, `事项类型`, `主题编码`, `服务对象`, and `实施主体`;
+- JSON uploads can provide top-level fields, or a `data` object, using camelCase or snake_case aliases such as `regionCode`, `catalogName`, `catalogSubitemName`, `itemCode`, `itemType`, and `sourceVersion`;
+- `ssqdId` and `ssqdCode` from the official source URL are retained as `ssqd_id` and `ssqd_code`; `ssqdCode` only fills `item_code` when the document itself has no `事项编码`;
+- explicit API `metadata` values override metadata parsed from the document body.

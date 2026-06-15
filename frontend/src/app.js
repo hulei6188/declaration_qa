@@ -7,6 +7,7 @@ const state = {
   selectedDocumentId: null,
   latestVersionId: null,
   evalDatasetId: null,
+  uploadItems: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +30,7 @@ const els = {
   auditId: $("auditId"),
   auditRefused: $("auditRefused"),
   uploadResult: $("uploadResult"),
+  uploadQueue: $("uploadQueue"),
   feedbackResult: $("feedbackResult"),
   sessionList: $("sessionList"),
   documentList: $("documentList"),
@@ -49,6 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("healthButton").addEventListener("click", checkHealth);
   $("refreshSessionsButton").addEventListener("click", refreshSessions);
   $("uploadDocButton").addEventListener("click", uploadDocument);
+  $("docFile").addEventListener("change", updateUploadQueueFromInput);
   $("refreshDocumentsButton").addEventListener("click", refreshDocuments);
   $("publishDocumentButton").addEventListener("click", () => setDocumentStatus("publish"));
   $("unpublishDocumentButton").addEventListener("click", () => setDocumentStatus("unpublish"));
@@ -242,18 +245,18 @@ function renderSources(items) {
 async function uploadDocument() {
   const title = $("docTitle").value.trim();
   const content = $("docContent").value.trim();
-  const file = $("docFile").files[0];
-  if (!title && !file) {
-    els.uploadResult.textContent = "请填写标题或选择文件。";
+  const files = selectedUploadFiles();
+  if (!files.length && !content) {
+    els.uploadResult.textContent = "请选择文件，或粘贴文档内容。";
     return;
   }
-  if (!file && !content) {
-    els.uploadResult.textContent = "请选择文件，或填写文档内容。";
+  if (files.length) {
+    await uploadFileBatch(files, title);
     return;
   }
-  els.uploadResult.textContent = "上传中";
+  els.uploadResult.textContent = "文本入库中";
   try {
-    const response = file ? await uploadFileDocument(file, title) : await uploadTextDocument(title, content);
+    const response = await uploadTextDocument(title || generatedTextTitle(content), content);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     if (payload.job_id) {
@@ -277,6 +280,70 @@ async function uploadDocument() {
   }
 }
 
+async function uploadFileBatch(files, title) {
+  state.uploadItems = files.map((file, index) => ({
+    id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+    file,
+    name: file.name,
+    size: file.size,
+    status: "waiting",
+    message: "等待上传",
+    chunksIndexed: null,
+    documentId: "",
+  }));
+  renderUploadQueue();
+  els.uploadResult.textContent = `准备上传 ${state.uploadItems.length} 个文件`;
+  $("uploadDocButton").disabled = true;
+  try {
+    for (let index = 0; index < state.uploadItems.length; index += 1) {
+      const item = state.uploadItems[index];
+      updateUploadItem(item.id, { status: "running", message: "上传中" });
+      const response = await uploadFileDocument(item.file, batchDocumentTitle(item.file, title, files.length));
+      if (!response.ok) throw new Error(`${item.name}: HTTP ${response.status}`);
+      const payload = await response.json();
+      updateUploadItem(item.id, {
+        status: "indexing",
+        message: payload.job_id ? "索引任务已提交" : "索引完成",
+        documentId: payload.document_id || "",
+        chunksIndexed: payload.chunks_indexed ?? null,
+      });
+      if (payload.job_id) {
+        const job = await waitForIndexJob(payload.job_id, item.id);
+        const jobPayload = job.payload || {};
+        if (["failed", "cancelled"].includes(job.status)) {
+          throw new Error(`${item.name}: ${job.error_message || "索引任务失败"}`);
+        }
+        if (job.status === "succeeded") {
+          updateUploadItem(item.id, {
+            status: "succeeded",
+            message: "已入库",
+            documentId: jobPayload.document_id || payload.document_id || "",
+            chunksIndexed: Number(jobPayload.chunks_indexed || payload.chunks_indexed || 0),
+          });
+        } else {
+          updateUploadItem(item.id, {
+            status: "pending",
+            message: `索引仍在处理 ${job.progress || 0}%`,
+            documentId: payload.document_id || "",
+          });
+        }
+      } else {
+        updateUploadItem(item.id, { status: "succeeded", message: "已入库" });
+      }
+      els.uploadResult.textContent = `批量入库进度 ${index + 1}/${state.uploadItems.length}`;
+    }
+    const succeeded = state.uploadItems.filter((item) => item.status === "succeeded").length;
+    els.uploadResult.textContent = `批量入库完成：成功 ${succeeded}/${state.uploadItems.length}`;
+    await refreshDocuments();
+  } catch (error) {
+    const runningItem = state.uploadItems.find((item) => ["running", "indexing"].includes(item.status));
+    if (runningItem) updateUploadItem(runningItem.id, { status: "failed", message: error.message });
+    els.uploadResult.textContent = `批量入库失败：${error.message}`;
+  } finally {
+    $("uploadDocButton").disabled = false;
+  }
+}
+
 function uploadTextDocument(title, content) {
   return fetch(`${apiBase()}/api/declaration-qa/knowledge/documents`, {
     method: "POST",
@@ -288,6 +355,63 @@ function uploadTextDocument(title, content) {
       policy_version: $("docPolicyVersion").value || "2025",
     }),
   });
+}
+
+function selectedUploadFiles() {
+  return Array.from($("docFile").files || []);
+}
+
+function updateUploadQueueFromInput() {
+  state.uploadItems = selectedUploadFiles().map((file, index) => ({
+    id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+    file,
+    name: file.name,
+    size: file.size,
+    status: "waiting",
+    message: "等待上传",
+  }));
+  renderUploadQueue();
+  if (state.uploadItems.length > 1) {
+    els.uploadResult.textContent = `已选择 ${state.uploadItems.length} 个文件，点击后将按顺序入库。`;
+  } else if (state.uploadItems.length === 1) {
+    els.uploadResult.textContent = `已选择文件：${state.uploadItems[0].name}`;
+  }
+}
+
+function renderUploadQueue() {
+  if (!els.uploadQueue) return;
+  if (!state.uploadItems.length) {
+    els.uploadQueue.innerHTML = '<p class="hint">可一次选择多个文件批量入库。</p>';
+    return;
+  }
+  els.uploadQueue.innerHTML = "";
+  state.uploadItems.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = `upload-queue-item ${item.status}`;
+    row.innerHTML = `
+      <span class="upload-state-dot"></span>
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <code>${formatBytes(item.size)} · ${escapeHtml(item.message || "")}${item.chunksIndexed !== null && item.chunksIndexed !== undefined ? ` · ${item.chunksIndexed} 分块` : ""}</code>
+      </div>
+    `;
+    els.uploadQueue.appendChild(row);
+  });
+}
+
+function updateUploadItem(id, patch) {
+  state.uploadItems = state.uploadItems.map((item) => (item.id === id ? { ...item, ...patch } : item));
+  renderUploadQueue();
+}
+
+function batchDocumentTitle(file, title, fileCount) {
+  if (!title) return file.name;
+  return fileCount > 1 ? `${title} - ${file.name}` : title;
+}
+
+function generatedTextTitle(content) {
+  const firstLine = String(content || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return firstLine ? firstLine.slice(0, 80) : `手动录入文档-${new Date().toISOString().slice(0, 10)}`;
 }
 
 function uploadFileDocument(file, title) {
@@ -315,13 +439,15 @@ async function refreshIndexJob(jobId) {
   return job;
 }
 
-async function waitForIndexJob(jobId) {
+async function waitForIndexJob(jobId, uploadItemId = "") {
   let latestJob = null;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const job = await refreshIndexJob(jobId);
     if (job) latestJob = job;
     if (job && ["succeeded", "failed", "cancelled"].includes(job.status)) return job;
-    els.uploadResult.textContent = `索引中 ${job?.progress ?? 0}%`;
+    const progress = job?.progress ?? 0;
+    els.uploadResult.textContent = `索引中 ${progress}%`;
+    if (uploadItemId) updateUploadItem(uploadItemId, { status: "indexing", message: `索引中 ${progress}%` });
     await sleep(1000);
   }
   return latestJob || { status: "pending", progress: 0, payload: {} };
@@ -678,6 +804,13 @@ function compactJson(value) {
 function formatMetric(value) {
   if (value === null || value === undefined) return "-";
   return `${Math.round(Number(value) * 100)}%`;
+}
+
+function formatBytes(value) {
+  const size = Number(value || 0);
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function escapeHtml(value) {

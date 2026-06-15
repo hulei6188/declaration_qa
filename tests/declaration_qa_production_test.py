@@ -5,6 +5,7 @@ from declaration_qa.auth import apply_chat_auth, decode_jwt_context
 from declaration_qa.config import DeclarationQASettings
 from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.evidence import decide_evidence
+from declaration_qa.index_service import extract_document_metadata
 from declaration_qa.rag_engine import InMemoryRAGEngine
 from declaration_qa.runtime import production_readiness_errors
 from declaration_qa.schemas import ChatRequest
@@ -59,6 +60,51 @@ def test_upload_endpoint_parses_text_file_and_tracks_index_job(tmp_path, monkeyp
     job_response = client.get(f"/api/declaration-qa/index-jobs/{payload['job_id']}")
     assert job_response.status_code == 200
     assert job_response.json()["status"] == "succeeded"
+
+
+def test_upload_metadata_extractor_reads_real_government_document_fields():
+    content = """
+# 涉外收养登记流程文档
+
+- Region Code: 340000000000
+- Region Name: 安徽省
+- Policy Version: ahzwfw-2026-06-15
+- Official Source URL: https://www.ahzwfw.gov.cn/bog-bsdt/static/workProcess.html?ssqdId=abc123&ssqdCode=113400000000001234&typeSipe=nameSkip
+
+## 基本信息
+
+| 字段 | 内容 |
+| --- | --- |
+| 主题分类 | 生育收养 |
+| 主题编码 | A12 |
+| 目录清单名称 | 涉外收养登记 |
+| 目录子项名称 | 无 |
+| 事项名称 | 涉外收养登记 |
+| 事项编码 | 113400000000009999 |
+| 事项类型 | 行政确认 |
+| 服务对象 | 自然人 |
+| 实施主体 | 安徽省民政厅 |
+
+## 申请材料
+居民户口簿、身份证件、收养登记申请书。
+"""
+
+    metadata = extract_document_metadata(content, title="涉外收养登记流程文档")
+
+    assert metadata["region_key"] == "340000000000"
+    assert metadata["region_name"] == "安徽省"
+    assert metadata["catalog_name"] == "涉外收养登记"
+    assert metadata["catalog_subitem_name"] == "无"
+    assert metadata["item_code"] == "113400000000009999"
+    assert metadata["item_name"] == "涉外收养登记"
+    assert metadata["item_type"] == "行政确认"
+    assert metadata["theme_code"] == "A12"
+    assert "theme_name" not in metadata
+    assert metadata["service_object"] == "自然人"
+    assert metadata["source_version"] == "ahzwfw-2026-06-15"
+    assert metadata["official_source_url"].startswith("https://www.ahzwfw.gov.cn/")
+    assert metadata["ssqd_code"] == "113400000000001234"
+    assert metadata["ssqd_id"] == "abc123"
 
 
 def test_reindex_and_delete_document_endpoints_are_available(tmp_path, monkeypatch):
@@ -214,7 +260,7 @@ def test_session_list_and_detail_endpoints_return_chat_history():
     assert detail.json()["messages"][0]["role"] == "user"
 
 
-def test_policy_version_is_request_scoped_not_hard_coded():
+def test_policy_version_is_retained_but_not_used_as_retrieval_filter():
     workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(
@@ -227,20 +273,25 @@ def test_policy_version_is_request_scoped_not_hard_coded():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert audit["retrieval_filter"]["policy_version"] == "2026"
-    assert response.refused is True
+    assert audit["retrieval_filter"] == {}
+    assert audit["rag_status"]["metadata_filtering"] is False
+    assert response.refused is False
 
 
-def test_evidence_check_rejects_conflicting_policy_sources():
+def test_evidence_check_does_not_reject_conflicting_metadata_versions():
     decision = decide_evidence(
         [
             {
+                "doc_id": "doc-2025",
+                "title": "2025 事项流程文档",
                 "score": 0.8,
                 "rerank_score": 0.8,
                 "region_code": "340000",
                 "policy_version": "2025",
             },
             {
+                "doc_id": "doc-2024",
+                "title": "2024 事项流程文档",
                 "score": 0.7,
                 "rerank_score": 0.7,
                 "region_code": "340000",
@@ -251,8 +302,8 @@ def test_evidence_check_rejects_conflicting_policy_sources():
         intent="knowledge",
     )
 
-    assert decision.ok is False
-    assert decision.reason == "conflicting_policy_version"
+    assert decision.ok is True
+    assert decision.reason == ""
 
 
 def test_child_retrieval_expands_parent_context_for_answer_evidence():

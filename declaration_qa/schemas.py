@@ -45,6 +45,16 @@ class SourcePayload(BaseModel):
     retrieval_channel: str
     region_code: str
     policy_version: str
+    region_key: str = ""
+    region_name: str = ""
+    catalog_name: str = ""
+    catalog_subitem_name: str = ""
+    item_code: str = ""
+    item_name: str = ""
+    item_type: str = ""
+    theme_code: str = ""
+    service_object: str = ""
+    source_version: str = ""
     source_url: str = ""
     audit_node: str | None = None
     effective_start_time: str | None = None
@@ -84,6 +94,7 @@ class KnowledgeDocumentRequest(BaseModel):
     status: str = Field(default="published", max_length=40)
     effective_start_time: date | None = None
     effective_end_time: date | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class KnowledgeDocumentResponse(BaseModel):
@@ -138,6 +149,7 @@ class KnowledgeDocumentAdminRecord(BaseModel):
     effective_end_time: str | None = None
     chunk_count: int = 0
     change_note: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
 
