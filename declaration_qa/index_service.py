@@ -69,7 +69,11 @@ def process_document_index(
         if not file_path.exists():
             raise FileNotFoundError(f"Uploaded file is missing: {file_path}")
         data = file_path.read_bytes()
-        ocr_client = HttpOcrClient(url=settings.ocr_api_url, api_key=settings.ocr_api_key) if settings.ocr_api_url else None
+        ocr_client = (
+            HttpOcrClient(url=settings.ocr_api_url, api_key=settings.ocr_api_key, model=settings.ocr_model)
+            if settings.ocr_api_url
+            else None
+        )
         parsed = parse_document_bytes(
             filename=str(payload.get("filename") or file_path.name),
             content_type=str(payload.get("content_type") or "application/octet-stream"),

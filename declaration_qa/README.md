@@ -28,6 +28,9 @@ Or initialize through the service when `DECLARATION_QA_DATABASE_URL` is set:
 curl -X POST http://127.0.0.1:8010/api/declaration-qa/admin/init-schema
 ```
 
+Development mode can use in-memory business data when
+`DECLARATION_QA_BUSINESS_API_BASE_URL` is empty.
+
 Production mode:
 
 ```bash
@@ -44,13 +47,14 @@ Required production environment variables:
 - `DECLARATION_QA_REDIS_URL`: Redis cache for retrieval/answer cache.
 - `DECLARATION_QA_VECTOR_BACKEND=milvus`: enable Milvus dense vector search.
 - `DECLARATION_QA_MILVUS_URI`, `DECLARATION_QA_MILVUS_TOKEN`, `DECLARATION_QA_MILVUS_COLLECTION`: Milvus connection.
-- `DECLARATION_QA_BUSINESS_API_BASE_URL`: application/process service base URL.
+- `DECLARATION_QA_BUSINESS_API_BASE_URL`: application/process service base URL. Empty value uses built-in demo business data.
 - `DECLARATION_QA_BUSINESS_API_TOKEN`: optional bearer token for business APIs.
 - `DECLARATION_QA_AUTH_REQUIRED=true` plus `DECLARATION_QA_JWT_SECRET` or `DECLARATION_QA_INTERNAL_API_KEY`.
 - `DECLARATION_QA_LLM_PROVIDER=openai`, `DECLARATION_QA_OPENAI_API_KEY`, `DECLARATION_QA_OPENAI_API_BASE`, `DECLARATION_QA_LLM_MODEL`.
 - `DECLARATION_QA_EMBEDDING_PROVIDER=openai`, `DECLARATION_QA_EMBEDDING_MODEL`, `DECLARATION_QA_EMBEDDING_DIMENSIONS`.
 - `DECLARATION_QA_RERANK_PROVIDER=http`, `DECLARATION_QA_RERANK_API_URL`, `DECLARATION_QA_RERANK_API_KEY`.
 - `DECLARATION_QA_OCR_API_URL`: required for image uploads that need OCR.
+- `DECLARATION_QA_OCR_MODEL`: optional model name sent to the OCR HTTP service.
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND=rq`, `DECLARATION_QA_INDEX_QUEUE_NAME`: Redis RQ queue for document indexing jobs.
 - `DECLARATION_QA_UPLOAD_DIR`: shared upload staging directory. In container deployments the API and worker must mount the same directory.
 - `DECLARATION_QA_SEED_KNOWLEDGE=false`: production must not answer from sample seed documents.

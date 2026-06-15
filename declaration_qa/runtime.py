@@ -21,8 +21,6 @@ def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
         errors.append("DECLARATION_QA_REDIS_URL is required in production")
     if settings.vector_backend.lower() != "milvus":
         errors.append("DECLARATION_QA_VECTOR_BACKEND=milvus is required in production")
-    if not settings.business_api_base_url:
-        errors.append("DECLARATION_QA_BUSINESS_API_BASE_URL is required in production")
     if not settings.jwt_secret and not settings.internal_api_key:
         errors.append("DECLARATION_QA_JWT_SECRET or DECLARATION_QA_INTERNAL_API_KEY is required in production")
     if settings.llm_provider.lower() == "deterministic":

@@ -156,13 +156,40 @@ class MilvusVectorIndex:
             self._available = False
 
     def _ensure_collection(self) -> None:
-        if not self._client.has_collection(self.collection_name):
-            self._client.create_collection(
-                collection_name=self.collection_name,
-                dimension=self.dimension,
-                metric_type="COSINE",
-                auto_id=False,
-            )
+        from pymilvus import DataType
+
+        if self._client.has_collection(self.collection_name):
+            if not self._collection_uses_string_primary_key():
+                self._client.drop_collection(self.collection_name)
+            else:
+                return
+        schema = self._client.create_schema(auto_id=False, enable_dynamic_field=False)
+        schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=180)
+        schema.add_field("doc_id", DataType.VARCHAR, max_length=120)
+        schema.add_field("vector", DataType.FLOAT_VECTOR, dim=self.dimension)
+        schema.add_field("biz_type", DataType.VARCHAR, max_length=80)
+        schema.add_field("region_code", DataType.VARCHAR, max_length=20)
+        schema.add_field("policy_version", DataType.VARCHAR, max_length=80)
+        schema.add_field("source_type", DataType.VARCHAR, max_length=40)
+        schema.add_field("material_code", DataType.VARCHAR, max_length=80)
+        schema.add_field("reject_code", DataType.VARCHAR, max_length=80)
+        schema.add_field("audit_node", DataType.VARCHAR, max_length=80)
+        schema.add_field("status", DataType.VARCHAR, max_length=20)
+        index_params = self._client.prepare_index_params()
+        index_params.add_index(field_name="vector", index_type="AUTOINDEX", metric_type="COSINE")
+        self._client.create_collection(
+            collection_name=self.collection_name,
+            schema=schema,
+            index_params=index_params,
+        )
+
+    def _collection_uses_string_primary_key(self) -> bool:
+        description = self._client.describe_collection(self.collection_name)
+        for field in description.get("fields", []):
+            if field.get("name") == "id" and field.get("is_primary"):
+                field_type = str(field.get("type") or "").upper()
+                return field_type in {"VARCHAR", "STRING"} or field_type.endswith(".VARCHAR")
+        return False
 
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:

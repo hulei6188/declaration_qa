@@ -23,9 +23,10 @@ class ParsedDocument:
 
 
 class HttpOcrClient:
-    def __init__(self, *, url: str, api_key: str = "", timeout_seconds: int = 30) -> None:
+    def __init__(self, *, url: str, api_key: str = "", model: str = "", timeout_seconds: int = 30) -> None:
         self.url = url
         self.api_key = api_key
+        self.model = model
         self.timeout_seconds = timeout_seconds
 
     def extract_text(self, *, filename: str, content_type: str, data: bytes) -> str:
@@ -34,9 +35,11 @@ class HttpOcrClient:
         headers = {"Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        form_data = {"model": self.model} if self.model else None
         response = requests.post(
             self.url,
             headers=headers,
+            data=form_data,
             files={"file": (filename, data, content_type or "application/octet-stream")},
             timeout=self.timeout_seconds,
         )

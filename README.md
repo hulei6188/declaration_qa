@@ -59,18 +59,15 @@ curl -X POST http://127.0.0.1:8010/api/declaration-qa/admin/init-schema
 
 ## Docker
 
-Compose reads runtime configuration from `.env.example` and optionally overlays
-`.env` when it exists. The compose file only overrides container-internal
-endpoints such as PostgreSQL, Redis, Milvus, and the shared upload directory.
+Compose only starts local infrastructure. Start the API, worker, and frontend
+manually from your Python environment.
 
 ```bash
-docker compose up --build
+docker compose up -d
 ```
 
 The compose stack exposes:
 
-- API: `http://127.0.0.1:8010`
-- Frontend: `http://127.0.0.1:8020`
 - PostgreSQL: `localhost:5433`
 - Redis: `localhost:6380`
 - Milvus: `localhost:19530`

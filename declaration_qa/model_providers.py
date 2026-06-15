@@ -47,6 +47,8 @@ class OpenAIEmbeddingProvider:
             kwargs["base_url"] = base_url
         if dimension:
             kwargs["dimensions"] = dimension
+        if "dashscope.aliyuncs.com" in base_url:
+            kwargs["check_embedding_ctx_length"] = False
         self._embeddings = OpenAIEmbeddings(**kwargs)
         self.dimension = int(dimension or 1536)
 
@@ -125,10 +127,12 @@ class HttpReranker:
         response.raise_for_status()
         data = response.json()
         results = data.get("results") if isinstance(data, dict) else []
+        if isinstance(data, dict) and not results and isinstance(data.get("output"), dict):
+            results = data["output"].get("results") or []
         reranked = []
         for item in results or []:
             index = int(item.get("index"))
-            score = float(item.get("score") or 0.0)
+            score = float(item.get("score") or item.get("relevance_score") or 0.0)
             if index < 0 or index >= len(sources):
                 continue
             source = sources[index]

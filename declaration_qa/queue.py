@@ -38,12 +38,13 @@ class RQIndexQueue:
             connection=Redis.from_url(settings.effective_redis_url),
             default_timeout=settings.index_job_timeout_seconds,
         )
+        self._job_timeout = settings.index_job_timeout_seconds
 
     def enqueue(self, job_uid: str) -> dict:
         rq_job = self._queue.enqueue(
             "declaration_qa.worker_tasks.process_index_job_task",
             job_uid,
-            job_timeout=self._queue.default_timeout,
+            job_timeout=self._job_timeout,
             result_ttl=86400,
             failure_ttl=604800,
         )

@@ -20,7 +20,6 @@ def test_production_mode_reports_missing_real_dependencies():
     assert "DECLARATION_QA_DATABASE_URL is required in production" in errors
     assert "DECLARATION_QA_REDIS_URL is required in production" in errors
     assert "DECLARATION_QA_VECTOR_BACKEND=milvus is required in production" in errors
-    assert "DECLARATION_QA_BUSINESS_API_BASE_URL is required in production" in errors
     assert "DECLARATION_QA_LLM_PROVIDER must use a real chat model in production" in errors
     assert "DECLARATION_QA_EMBEDDING_PROVIDER must use a real embedding model in production" in errors
     assert "DECLARATION_QA_INDEX_QUEUE_BACKEND=rq is required in production" in errors

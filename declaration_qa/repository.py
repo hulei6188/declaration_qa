@@ -751,13 +751,13 @@ class PostgresDeclarationQAStore:
         stmt = text(
             f"""
             UPDATE declaration_qa.index_jobs SET
-                status = :status,
+                status = CAST(:status AS VARCHAR),
                 progress = :progress,
                 message = :message,
                 error_message = :error_message,
                 {payload_assignment}
-                started_at = CASE WHEN :status = 'running' AND started_at IS NULL THEN CURRENT_TIMESTAMP ELSE started_at END,
-                completed_at = CASE WHEN :status IN ('succeeded', 'failed', 'cancelled') THEN CURRENT_TIMESTAMP ELSE completed_at END,
+                started_at = CASE WHEN CAST(:status AS VARCHAR) = 'running' AND started_at IS NULL THEN CURRENT_TIMESTAMP ELSE started_at END,
+                completed_at = CASE WHEN CAST(:status AS VARCHAR) IN ('succeeded', 'failed', 'cancelled') THEN CURRENT_TIMESTAMP ELSE completed_at END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE job_uid = :job_uid
             RETURNING *

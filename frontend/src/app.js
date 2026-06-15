@@ -322,25 +322,25 @@ function renderDocuments() {
     els.documentList.innerHTML = '<p class="hint">暂无知识文档</p>';
     return;
   }
-  state.documents.slice(0, 10).forEach((document) => {
+  state.documents.slice(0, 10).forEach((doc) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `document-item ${document.document_id === state.selectedDocumentId ? "active" : ""}`;
+    button.className = `document-item ${doc.document_id === state.selectedDocumentId ? "active" : ""}`;
     button.innerHTML = `
-      <strong>${escapeHtml(document.title || "未命名文档")}</strong>
-      <code>${escapeHtml(document.status)} · v${document.version_no} · ${document.rollout_percent}% · ${escapeHtml(document.policy_version)}</code>
+      <strong>${escapeHtml(doc.title || "未命名文档")}</strong>
+      <code>${escapeHtml(doc.status)} · v${doc.version_no} · ${doc.rollout_percent}% · ${escapeHtml(doc.policy_version)}</code>
     `;
-    button.addEventListener("click", () => selectDocument(document.document_id));
+    button.addEventListener("click", () => selectDocument(doc.document_id));
     els.documentList.appendChild(button);
   });
 }
 
 function selectDocument(documentId) {
   state.selectedDocumentId = documentId;
-  const document = state.documents.find((item) => item.document_id === documentId);
-  if (document) {
-    els.rolloutPercent.value = document.rollout_percent ?? 100;
-    els.docManageResult.textContent = `已选择：${document.title} / ${document.status} / v${document.version_no}`;
+  const selectedDocument = state.documents.find((item) => item.document_id === documentId);
+  if (selectedDocument) {
+    els.rolloutPercent.value = selectedDocument.rollout_percent ?? 100;
+    els.docManageResult.textContent = `已选择：${selectedDocument.title} / ${selectedDocument.status} / v${selectedDocument.version_no}`;
   }
   renderDocuments();
 }

@@ -65,6 +65,7 @@ class DeclarationQASettings(BaseSettings):
 
     ocr_api_url: str = Field(default="", alias="DECLARATION_QA_OCR_API_URL")
     ocr_api_key: str = Field(default="", alias="DECLARATION_QA_OCR_API_KEY")
+    ocr_model: str = Field(default="", alias="DECLARATION_QA_OCR_MODEL")
 
     index_queue_backend: str = Field(default="inline", alias="DECLARATION_QA_INDEX_QUEUE_BACKEND")
     index_queue_name: str = Field(default="declaration-qa-index", alias="DECLARATION_QA_INDEX_QUEUE_NAME")
