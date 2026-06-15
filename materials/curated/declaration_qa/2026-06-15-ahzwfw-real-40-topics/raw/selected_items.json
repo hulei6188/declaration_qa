@@ -1,0 +1,282 @@
+[
+  {
+    "theme_code": "25",
+    "theme_name": "生育收养",
+    "ssqdCode": "9d20e5fc68054b75b5b320644d7193b1",
+    "ssqdId": "4028e6a19c51d715019ce5ce179b5440",
+    "ssqdName": "涉外收养登记"
+  },
+  {
+    "theme_code": "33",
+    "theme_name": "户籍办理",
+    "ssqdCode": "a5f6a5a9ce9e402ea19a38b3978ff4db",
+    "ssqdId": "4028e69d977d88db0197826a5fb30427",
+    "ssqdName": "华侨回国定居审批"
+  },
+  {
+    "theme_code": "22",
+    "theme_name": "民族宗教",
+    "ssqdCode": "fad5483958864fbd94eee27a81a6682e",
+    "ssqdId": "4028e69f9d0bb59c019d1973a803145d",
+    "ssqdName": "境内外国人集体进行宗教活动临时地点审批"
+  },
+  {
+    "theme_code": "26",
+    "theme_name": "教育科研",
+    "ssqdCode": "694f8071b35b4abdb1dac6d47d19df9a",
+    "ssqdId": "4028e6a69dc4e88e019dcced0b6e03b7",
+    "ssqdName": "科技档案查询"
+  },
+  {
+    "theme_code": "28",
+    "theme_name": "就业创业",
+    "ssqdCode": "7fab60afbdee47dca0bfa1a1d3c81b40",
+    "ssqdId": "4028e69c9afd65b7019cd5ca21c00e99",
+    "ssqdName": "（流动人员）档案材料的收集、鉴别和归档"
+  },
+  {
+    "theme_code": "29",
+    "theme_name": "设立变更",
+    "ssqdCode": "971edbabbc914cc0b806f0e5a924364a",
+    "ssqdId": "4028e69c9dbf51ce019dfe13a3be689f",
+    "ssqdName": "松材线虫病疫木加工板材定点加工企业变更审批"
+  },
+  {
+    "theme_code": "30",
+    "theme_name": "准营准办",
+    "ssqdCode": "6d192535724e4729841009b05597c746",
+    "ssqdId": "4028e69c9e05630e019ec8d7d9350be8",
+    "ssqdName": "举办高危险性体育赛事活动许可"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "544a6195791948e2bc012c3f7eaddf18",
+    "ssqdId": "4028e6a6981cfcbb01985a34dfd24e6f",
+    "ssqdName": "二级建造师初始注册"
+  },
+  {
+    "theme_code": "47",
+    "theme_name": "婚姻登记",
+    "ssqdCode": "8fab8cff73a14cd3aa6dd3cd2e11d3d3",
+    "ssqdId": "4028e6a19b464714019bf8180c921989",
+    "ssqdName": "涉外、涉港澳台、涉华侨结婚登记"
+  },
+  {
+    "theme_code": "44",
+    "theme_name": "优待抚恤",
+    "ssqdCode": "73a064a99214488da11a68b92d1b5b26",
+    "ssqdId": "4028e69d923460770192752a79ce7eb0",
+    "ssqdName": "对退出现役残疾军人集中供养的确定"
+  },
+  {
+    "theme_code": "45",
+    "theme_name": "规划建设",
+    "ssqdCode": "800e2876123a4f31a3ccb1c5188ecfd2",
+    "ssqdId": "4028e69e9c51d492019ce0ad36714007",
+    "ssqdName": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）"
+  },
+  {
+    "theme_code": "14",
+    "theme_name": "住房保障",
+    "ssqdCode": "a119c82831df4635b7624ab02161abad",
+    "ssqdId": "4028e6a69e82b4a2019e968cf9b173ae",
+    "ssqdName": "拆迁安置住房增购住房面积提取公积金"
+  },
+  {
+    "theme_code": "34",
+    "theme_name": "证件办理",
+    "ssqdCode": "3172a81d8bc644599da0bc1d36c3a2e7",
+    "ssqdId": "4028e69d9dd399a2019e2a69a6b12898",
+    "ssqdName": "二级造价工程师（水利工程）变更注册"
+  },
+  {
+    "theme_code": "35",
+    "theme_name": "交通出行",
+    "ssqdCode": "8f682c0df25a469c849885999d41bc2c",
+    "ssqdId": "4028e69e9c51d492019ce0f9c36143c5",
+    "ssqdName": "船舶、海上设施、集装箱及船用产品检验"
+  },
+  {
+    "theme_code": "36",
+    "theme_name": "旅游观光",
+    "ssqdCode": "d0404051fae243f1b5477b421be20ac5",
+    "ssqdId": "4028e69e9dd3b129019ddc4b80a1323b",
+    "ssqdName": "在省级自然保护区修筑设施审批"
+  },
+  {
+    "theme_code": "12",
+    "theme_name": "出境入境",
+    "ssqdCode": "2d56c40c1ec5491db0461a7f5f1b29ce",
+    "ssqdId": "4028e69c9986060d0199e58f558427ef",
+    "ssqdName": "出入境证件办理进度查询"
+  },
+  {
+    "theme_code": "17",
+    "theme_name": "消费维权",
+    "ssqdCode": "e6a30d7d2f8944258f7ed399338e937e",
+    "ssqdId": "4028e69c9afd65b7019d1eef593c0a09",
+    "ssqdName": "对计量纠纷的调解和仲裁检定"
+  },
+  {
+    "theme_code": "21",
+    "theme_name": "司法公证",
+    "ssqdCode": "f2de47e8f7114779a9de153f242596bd",
+    "ssqdId": "4028e6a09c51d628019cd1bb46ad1208",
+    "ssqdName": "法律援助律师工作证颁发（省级审批）"
+  },
+  {
+    "theme_code": "38",
+    "theme_name": "知识产权",
+    "ssqdCode": "570aceccab634efabc77c782cfa1a75b",
+    "ssqdId": "4028e6a69d24f144019d670a68da672e",
+    "ssqdName": "专利费用代收服务"
+  },
+  {
+    "theme_code": "39",
+    "theme_name": "环保绿化",
+    "ssqdCode": "aa56f61357e84626a5fac905cba17436",
+    "ssqdId": "4028e6a6957dad4f0195a6f258ee4f62",
+    "ssqdName": "采集国家二级保护野生植物以及甘草和麻黄草审批"
+  },
+  {
+    "theme_code": "40",
+    "theme_name": "文化体育",
+    "ssqdCode": "ba6fac7910bd4ca0bb5ed0c3e6d9b0d1",
+    "ssqdId": "4028e6a09e97d082019eaa7e2f783078",
+    "ssqdName": "国民体质测试服务"
+  },
+  {
+    "theme_code": "6",
+    "theme_name": "公用事业",
+    "ssqdCode": "06052ffe7c0a4cd583d38dc7a9edf965",
+    "ssqdId": "4028e6a59386d42801941aa30bc00652",
+    "ssqdName": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）"
+  },
+  {
+    "theme_code": "5",
+    "theme_name": "医疗卫生",
+    "ssqdCode": "d8bbb3c415964cbc9cee08fac6cd9f27",
+    "ssqdId": "4028e6a69b4648d8019bfeb2de8c4999",
+    "ssqdName": "携带少量麻醉药品和精神药品出入境证明"
+  },
+  {
+    "theme_code": "46",
+    "theme_name": "社会保障（社会保险、社会救助）",
+    "ssqdCode": "631b18b62b074ef4b2def04b3f3473eb",
+    "ssqdId": "4028e69d8b856dc0018b8e1e7c807f50",
+    "ssqdName": "城市生活无着的流浪乞讨人员救助管理"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "0a1e107a35474315b3fdfe27cd343f5a",
+    "ssqdId": "4028e69c9dbf51ce019ddf3055146312",
+    "ssqdName": "安徽省工程勘察设计大师评选"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "298e8a7d845c413cadbb894b94822ca9",
+    "ssqdId": "4028e69d9daa7ff8019dbd7b749d1e76",
+    "ssqdName": "利用堤顶、戗台兼做公路审批"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "639fe4e84e5244d88a961c6038713b44",
+    "ssqdId": "4028e69c9dbf51ce019dd4e2a39642a3",
+    "ssqdName": "取水许可"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "c12fd31f87c6409595dd28969fd8e987",
+    "ssqdId": "4028e69e9ce6e57e019d09396b38599d",
+    "ssqdName": "水利建设市场主体信用信息查询服务"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "cdf8d2f7cde245d281eb85a3a77d4e66",
+    "ssqdId": "4028e6a69b4648d8019be9e48bf50b64",
+    "ssqdName": "草原防火期内在草原上进行爆破、勘察和施工等活动审批"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "10fa6c2dcc4449b79984d6571aadad54",
+    "ssqdId": "4028e6a09d24f0d6019d7035d9047f15",
+    "ssqdName": "出售、购买、利用国家重点保护陆生野生动物及其制品审批"
+  },
+  {
+    "theme_code": "42",
+    "theme_name": "其他",
+    "ssqdCode": "df79146726394de59a5d9365a5bdb78d",
+    "ssqdId": "4028e6a59d24f111019d7037196320b1",
+    "ssqdName": "出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "b603b26e89a145a0b37c68be59332aee",
+    "ssqdId": "4028e69f9d0bb59c019d1ea08d91430f",
+    "ssqdName": "二级建造师延续注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "d0ed2819903f40f6874d6cdb25ff2988",
+    "ssqdId": "4028e69d9d0bb505019d1d88823f3ff8",
+    "ssqdName": "二级建造师增项注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "2b1764851775437a936bac5f64814d3b",
+    "ssqdId": "4028e6a59d0bb633019d1eb18f364b4a",
+    "ssqdName": "二级建造师重新注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "6a494922fcb742b58b7b9fe69880acbe",
+    "ssqdId": "4028e6a59985f8830199d0eba7971612",
+    "ssqdName": "二级结构工程师初始注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "8dfd8fec3705464aa3ba3469cdc32875",
+    "ssqdId": "4028e6a59d0bb633019d1e9cced449c2",
+    "ssqdName": "二级造价工程师变更注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "2c227bd7b7914a5983750fe066f0a49f",
+    "ssqdId": "4028e6a6986546ad019872ffb2a204a6",
+    "ssqdName": "二级造价工程师初始注册"
+  },
+  {
+    "theme_code": "32",
+    "theme_name": "职业资格",
+    "ssqdCode": "b2b3fb2002fc4db2a89e7361e72551bb",
+    "ssqdId": "4028e69f9d0bb59c019d1de2efa23c7a",
+    "ssqdName": "二级造价工程师延续注册"
+  },
+  {
+    "theme_code": "5",
+    "theme_name": "医疗卫生",
+    "ssqdCode": "359a19712ea5476c9cb9eb1cd1b30c4d",
+    "ssqdId": "4028e69d9b464365019bde68f9fa5963",
+    "ssqdName": "药品违法行为举报奖励"
+  },
+  {
+    "theme_code": "37",
+    "theme_name": "公共安全",
+    "ssqdCode": "ec0a9019a7de492bb51e3b3558262e13",
+    "ssqdId": "2c90d094752c1ab0017543af40d5121f",
+    "ssqdName": "火灾事故认定复核"
+  }
+]

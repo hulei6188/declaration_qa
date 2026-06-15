@@ -1,0 +1,20 @@
+{
+  "errCode": "-1",
+  "errMsg": "success",
+  "data": {
+    "accumulativeEvaluation": "348",
+    "verySatisfied": "346",
+    "verySatisfiedPercentage": "99.43%",
+    "satisfied": "2",
+    "satisfiedPercentage": "0.57%",
+    "basicSatisfaction": "0",
+    "basicSatisfactionPercentage": "0.00%",
+    "dissatisfied": "0",
+    "dissatisfiedPercentage": "0.00%",
+    "veryDissatisfied": "0",
+    "veryDissatisfiedPercentage": "0.00%",
+    "satisfaction": "100.00%",
+    "score": "4.99"
+  },
+  "flag": true
+}
