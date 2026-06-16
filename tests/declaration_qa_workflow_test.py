@@ -8,7 +8,7 @@ from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import LLMIntentRouter
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
-from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, token_events
+from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, ticket_rag_query, token_events
 
 
 def test_declaration_qa_entrypoint_isolated_from_existing_main():
@@ -93,7 +93,7 @@ def test_policy_filter_does_not_use_app_version():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.route == "knowledge_only"
+    assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
     assert response.refused is False
     assert "居住证" in response.answer
@@ -131,6 +131,26 @@ def test_llm_stream_generator_emits_model_tokens_and_records_answer():
     assert state["audit_payload"]["final_prompt"] == "prompt-text"
 
 
+def test_ticket_rag_query_prefers_ticket_chinese_title():
+    query = ticket_rag_query(
+        {
+            "apply_context": {
+                "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+                "payload": {"item_name": "境内外国人集体进行宗教活动临时地点审批"},
+            },
+            "business_snapshot": {},
+            "business_status": {},
+            "reject_info": {},
+            "material_mapping": {},
+            "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+            "normalized_query": "办这个需要哪些材料？",
+        }
+    )
+
+    assert query.startswith("境内外国人集体进行宗教活动临时地点审批")
+    assert "办这个需要哪些材料" in query
+
+
 def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
     workflow = DeclarationQAWorkflow()
 
@@ -149,7 +169,7 @@ def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.route == "knowledge_only"
+    assert response.route == "ticket_context_unrelated"
     assert response.intent == "knowledge_qa"
     assert response.refused is False
     assert response.retrieval_chain == "knowledge_retrieval"
@@ -164,7 +184,7 @@ def test_status_question_auto_selects_single_related_ticket():
 
     response = workflow.invoke(ChatRequest(query="我的健康证办理到哪一步了", user_id=1, region_code="340000"))
 
-    assert response.route == "ticket_aware"
+    assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
     assert response.refused is False
     assert response.need_ticket_selection is False
@@ -178,7 +198,7 @@ def test_ticket_question_requires_selection_when_multiple_candidates():
 
     response = workflow.invoke(ChatRequest(query="我的申请办到哪了", user_id=1, region_code="340000"))
 
-    assert response.route == "ticket_aware"
+    assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
     assert response.refused is True
     assert response.need_ticket_selection is True
@@ -200,7 +220,7 @@ def test_llm_router_handles_ticket_question_without_keyword():
     llm = FakeRouterLLM(
         """
         {
-          "route": "ticket_aware",
+          "route": "ticket_context_related",
           "intent": "ticket_status",
           "sub_intent": "ticket_status",
           "confidence": 0.91,
@@ -217,7 +237,7 @@ def test_llm_router_handles_ticket_question_without_keyword():
         ChatRequest(query="麻烦看一下这单现在什么情况", user_id=1, region_code="340000", apply_id="A1001")
     )
 
-    assert response.route == "ticket_aware"
+    assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
     assert response.route_decision["entities"]["router_provider"] == "llm"
     assert "部门审核中" in response.answer
@@ -228,7 +248,7 @@ def test_llm_router_falls_back_to_rules_when_model_output_is_invalid():
 
     response = workflow.invoke(ChatRequest(query="办理居住证需要哪些材料", user_id=1, region_code="340000"))
 
-    assert response.route == "knowledge_only"
+    assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
     assert response.route_decision["entities"]["router_provider"] == "rule_fallback"
 
@@ -246,7 +266,7 @@ def test_status_question_uses_business_status_then_rag_explanation():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.route == "ticket_aware"
+    assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
     assert response.refused is False
     assert response.retrieval_chain == "ticket_augmented"
@@ -272,7 +292,7 @@ def test_reject_flow_maps_material_item_before_rag():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.route == "ticket_aware"
+    assert response.route == "ticket_context_related"
     assert response.intent == "rejection_reason"
     assert response.refused is False
     assert "身份证正面照片" in response.answer
@@ -437,7 +457,7 @@ def test_knowledge_chain_uses_full_corpus_without_metadata_filtering():
     )
     audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.route == "knowledge_only"
+    assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
     assert response.refused is False
     assert audit["retrieval_filter"] == {}

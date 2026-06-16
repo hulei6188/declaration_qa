@@ -18,9 +18,9 @@ from declaration_qa.router import (
     INTENT_REJECTION_REASON,
     INTENT_TICKET_STATUS,
     ROUTE_CLARIFICATION,
-    ROUTE_KNOWLEDGE,
     ROUTE_REFUSE,
-    ROUTE_TICKET,
+    ROUTE_TICKET_CONTEXT_RELATED,
+    ROUTE_TICKET_CONTEXT_UNRELATED,
     IntentRouter,
 )
 from declaration_qa.schemas import ChatRequest, ChatResponse
@@ -97,7 +97,7 @@ class DeclarationQAWorkflow:
             yield from drain()
 
         route = state.get("route") or ROUTE_REFUSE
-        if route == ROUTE_TICKET:
+        if route == ROUTE_TICKET_CONTEXT_RELATED:
             for name, handler in [
                 ("ticket_list_query", self.ticket_list_query),
                 ("ticket_selection", self.ticket_selection),
@@ -122,7 +122,7 @@ class DeclarationQAWorkflow:
                 run_node("refuse_or_human", self.refuse_or_human)
                 yield from drain()
                 yield from token_events(str(state.get("answer") or ""))
-        elif route == ROUTE_KNOWLEDGE:
+        elif route == ROUTE_TICKET_CONTEXT_UNRELATED:
             for name, handler in [
                 ("knowledge_filter_build", self.knowledge_filter_build),
                 ("hybrid_retrieve", self.hybrid_retrieve),
@@ -259,8 +259,8 @@ class DeclarationQAWorkflow:
             "intent_route",
             lambda state: state.get("route") or "refuse",
             {
-                ROUTE_TICKET: "ticket_list_query",
-                ROUTE_KNOWLEDGE: "knowledge_filter_build",
+                ROUTE_TICKET_CONTEXT_RELATED: "ticket_list_query",
+                ROUTE_TICKET_CONTEXT_UNRELATED: "knowledge_filter_build",
                 ROUTE_CLARIFICATION: "refuse_or_human",
                 ROUTE_REFUSE: "refuse_or_human",
             },
@@ -337,7 +337,7 @@ class DeclarationQAWorkflow:
         next_state["route"] = decision.route
         next_state["intent"] = decision.intent
         next_state["sub_intent"] = decision.sub_intent
-        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if decision.route == ROUTE_TICKET else KNOWLEDGE_RETRIEVAL_CHAIN
+        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if decision.route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN
         if decision.route == ROUTE_REFUSE:
             next_state["refuse_reason"] = decision.reason or "unsafe_or_out_of_scope"
         elif decision.route == ROUTE_CLARIFICATION:
@@ -420,6 +420,10 @@ class DeclarationQAWorkflow:
             next_state["business_status"] = status
             next_state["business_snapshot"] = build_business_snapshot("status", status)
             add_event(next_state, "business_status", status)
+            return next_state
+        if next_state.get("intent") != INTENT_REJECTION_REASON:
+            next_state["business_snapshot"] = build_business_snapshot("ticket_context", apply_context)
+            add_event(next_state, "ticket_context_business", next_state["business_snapshot"])
             return next_state
         reject_info = self.business_adapter.get_reject_info(apply_context)
         if not (reject_info.get("reject_code") or reject_info.get("reject_reason") or reject_info.get("material_code")):
@@ -610,7 +614,7 @@ class DeclarationQAWorkflow:
 
     def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
         next_state = dict(state)
-        if next_state.get("route") == ROUTE_TICKET and next_state.get("evidence_ok"):
+        if next_state.get("route") == ROUTE_TICKET_CONTEXT_RELATED and next_state.get("evidence_ok"):
             add_event(next_state, "evidence", next_state.get("evidence_decision") or {})
             return next_state
         decision = decide_evidence(
@@ -722,7 +726,7 @@ def ticket_summary_from_context(context: dict[str, Any]) -> dict[str, Any]:
         "status": str(context.get("status") or ""),
         "current_node": str(context.get("current_node") or ""),
         "node_name": str(context.get("node_name") or ""),
-        "title": ticket_title_from_biz_type(str(context.get("biz_type") or "")),
+        "title": business_title(context),
         "updated_at": str(context.get("updated_at") or ""),
     }
 
@@ -738,9 +742,10 @@ def ticket_title_from_biz_type(biz_type: str) -> str:
 
 def ticket_rag_query(state: DeclarationQAState) -> str:
     business = state.get("business_status") or state.get("reject_info") or {}
+    apply_context = state.get("apply_context") or {}
     mapping = state.get("material_mapping") or {}
     parts = [
-        ticket_title_from_biz_type(str(business.get("biz_type") or state.get("biz_type") or "")),
+        business_title(business, apply_context, state),
         business.get("node_name"),
         business.get("current_node"),
         business.get("reject_reason"),
@@ -750,6 +755,27 @@ def ticket_rag_query(state: DeclarationQAState) -> str:
         state.get("normalized_query"),
     ]
     return normalize_text(" ".join(str(item) for item in parts if item))
+
+
+def business_title(*sources: dict[str, Any]) -> str:
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in ("title", "item_name", "itemName", "catalog_name", "catalogName"):
+            title = str(source.get(key) or "").strip()
+            if title:
+                return title
+        payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
+        for key in ("item_name", "title", "itemName", "catalog_name", "catalogName"):
+            title = str(payload.get(key) or "").strip()
+            if title:
+                return title
+    for source in sources:
+        if isinstance(source, dict):
+            title = ticket_title_from_biz_type(str(source.get("biz_type") or ""))
+            if title:
+                return title
+    return "政务服务事项"
 
 
 def base_policy_filter(state: DeclarationQAState, *, allow_request_filter: bool = True) -> dict[str, Any]:
@@ -765,6 +791,7 @@ def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any
         "source": "business_adapter",
         "apply_id": cleaned.get("apply_id"),
         "biz_type": cleaned.get("biz_type"),
+        "title": business_title(cleaned),
         "region_code": cleaned.get("region_code"),
         "status": cleaned.get("status"),
         "current_node": cleaned.get("current_node"),

@@ -16,6 +16,7 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 const INDEX_JOB_MAX_ATTEMPTS = 180;
+const CURRENT_TICKET_STORAGE_KEY = "declarationQaCurrentTicket";
 const REQUEST_CONTEXT = {
   apiBase: "http://127.0.0.1:8010",
   userId: 1,
@@ -88,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
       els.queryInput.focus();
     });
   });
-  renderCurrentTicket();
+  restoreCurrentTicket();
   checkHealth();
   refreshSessions();
   refreshDocuments();
@@ -315,16 +316,27 @@ function setCurrentTicket(ticket) {
     region_code: ticket?.region_code || REQUEST_CONTEXT.regionCode || "",
     node_name: ticket?.node_name || ticket?.current_node || ticket?.status || "",
   };
+  persistCurrentTicket();
   renderCurrentTicket();
 }
 
 function clearCurrentTicket() {
   state.currentTicket = null;
   state.pendingTicketQuery = "";
+  clearPersistedCurrentTicket();
   setRequestContext({ applyId: "", bizType: "" });
   hideTicketPicker();
   renderCurrentTicket();
   els.sendState.textContent = "当前工单已清除";
+}
+
+function resetCurrentTicketSilently() {
+  state.currentTicket = null;
+  state.pendingTicketQuery = "";
+  clearPersistedCurrentTicket();
+  setRequestContext({ applyId: "", bizType: "" });
+  hideTicketPicker();
+  renderCurrentTicket();
 }
 
 async function changeCurrentTicket() {
@@ -346,6 +358,44 @@ function renderCurrentTicket() {
   els.changeTicketButton.textContent = "更换";
   els.changeTicketButton.disabled = false;
   els.clearTicketButton.disabled = false;
+}
+
+function persistCurrentTicket() {
+  if (!state.currentTicket?.ticket_id) return;
+  localStorage.setItem(
+    CURRENT_TICKET_STORAGE_KEY,
+    JSON.stringify({
+      ticket: state.currentTicket,
+      requestContext: {
+        applyId: REQUEST_CONTEXT.applyId || state.currentTicket.ticket_id,
+        bizType: REQUEST_CONTEXT.bizType || state.currentTicket.biz_type || "",
+        regionCode: REQUEST_CONTEXT.regionCode || state.currentTicket.region_code || "340000",
+      },
+    })
+  );
+}
+
+function restoreCurrentTicket() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CURRENT_TICKET_STORAGE_KEY) || "null");
+    if (!saved?.ticket?.ticket_id) {
+      renderCurrentTicket();
+      return;
+    }
+    state.currentTicket = saved.ticket;
+    Object.assign(REQUEST_CONTEXT, {
+      applyId: saved.requestContext?.applyId || saved.ticket.ticket_id,
+      bizType: saved.requestContext?.bizType || saved.ticket.biz_type || "",
+      regionCode: saved.requestContext?.regionCode || saved.ticket.region_code || REQUEST_CONTEXT.regionCode,
+    });
+  } catch {
+    clearPersistedCurrentTicket();
+  }
+  renderCurrentTicket();
+}
+
+function clearPersistedCurrentTicket() {
+  localStorage.removeItem(CURRENT_TICKET_STORAGE_KEY);
 }
 
 async function openTicketPicker() {
@@ -987,12 +1037,32 @@ async function loadSession(sessionId) {
   const session = await response.json();
   state.sessionId = session.session_id;
   state.auditId = null;
+  restoreTicketFromSession(session);
   els.messages.innerHTML = "";
   clearInspection();
   (session.messages || []).forEach((message) => {
     appendMessage(message.role === "user" ? "user" : "assistant", message.content || "", message.role === "user" ? "用户问题" : "申报辅助");
   });
   addTimeline("session_loaded", { session_id: session.session_id, message_count: session.message_count });
+}
+
+function restoreTicketFromSession(session) {
+  const applyId = String(session?.apply_id || "").trim();
+  if (!applyId) {
+    resetCurrentTicketSilently();
+    return;
+  }
+  setRequestContext({
+    applyId,
+    bizType: session.biz_type || "",
+    regionCode: session.region_code || REQUEST_CONTEXT.regionCode,
+  });
+  setCurrentTicket({
+    ticket_id: applyId,
+    title: session.title || session.biz_type || "申报工单",
+    biz_type: session.biz_type || "",
+    region_code: session.region_code || "",
+  });
 }
 
 function clearInspection() {

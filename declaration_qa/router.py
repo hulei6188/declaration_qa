@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-ROUTE_KNOWLEDGE = "knowledge_only"
-ROUTE_TICKET = "ticket_aware"
+ROUTE_TICKET_CONTEXT_UNRELATED = "ticket_context_unrelated"
+ROUTE_TICKET_CONTEXT_RELATED = "ticket_context_related"
 ROUTE_CLARIFICATION = "clarification"
 ROUTE_REFUSE = "refuse"
 
@@ -27,26 +27,32 @@ INTENT_FORM_TEMPLATE = "form_template"
 INTENT_KNOWLEDGE_QA = "knowledge_qa"
 INTENT_CLARIFICATION = "clarification"
 
-ALLOWED_ROUTES = {ROUTE_KNOWLEDGE, ROUTE_TICKET, ROUTE_CLARIFICATION, ROUTE_REFUSE}
-TICKET_INTENTS = {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON}
+ALLOWED_ROUTES = {
+    ROUTE_TICKET_CONTEXT_UNRELATED,
+    ROUTE_TICKET_CONTEXT_RELATED,
+    ROUTE_CLARIFICATION,
+    ROUTE_REFUSE,
+}
 
 ROUTER_SYSTEM_PROMPT = """你是政务服务智能问答系统的请求路由器，只能返回一个 JSON 对象。
-你的任务是判断用户问题应该走知识检索线还是工单增强线，不生成业务答案。
+你的任务是判断用户问题是否和当前/个人工单上下文有关，不生成业务答案。
 
 可选 route:
-- knowledge_only: 通用政策、材料、流程、FAQ、入口、费用、地点、模板等知识问题。
-- ticket_aware: 需要查询用户真实工单状态、驳回原因、补正要求的问题。
-- clarification: 问题过短、上下文不足、无法判断，或工单问题与当前工单无关。
+- ticket_context_related: 问题需要结合当前/个人工单上下文理解或回答，包括进度、状态、驳回、补正，也包括“这个、该事项、当前申请、办这个”等指向当前工单事项的材料、流程、条件、费用等问题。
+- ticket_context_unrelated: 问题不依赖当前/个人工单上下文，可作为通用办事咨询处理。
+- clarification: 问题过短、上下文不足，无法判断是否和当前/个人工单上下文有关。
 - refuse: 违法违规、伪造材料、绕过审核、冒用他人信息等风险问题。
 
 决策要求:
-1. 当前有工单不代表一定使用工单。只有问题依赖真实工单事实时才 route=ticket_aware。
-2. ticket_aware 仅用于用户真实工单状态、驳回原因或补正要求问题。
-3. 只输出下方 JSON 字段，不要添加其他分类字段；系统会在路由后内部推导处理类型。
+1. 只判断问题是否和当前/个人工单上下文有关，不判断材料、流程、状态、驳回等业务意图。
+2. 当前有工单不代表一定相关；用户明确咨询其他事项且不依赖当前工单事实时，route=ticket_context_unrelated。
+3. 请求上下文中的 current_ticket 是当前已绑定工单的非敏感摘要；用户使用“这个、该事项、当前申请、这单、办这个”等指代时，优先结合 current_ticket 判断是否相关。
+4. 用户没有绑定工单但询问“我的申请、这单、进度、驳回、补正”等个人办件问题时，route=ticket_context_related。
+5. 只输出下方 JSON 字段，不要添加其他分类字段；系统会在路由后内部推导处理类型。
 
 JSON 字段:
 {
-  "route": "knowledge_only|ticket_aware|clarification|refuse",
+  "route": "ticket_context_related|ticket_context_unrelated|clarification|refuse",
   "confidence": 0.0,
   "requires_ticket_context": false,
   "can_answer_from_knowledge": true,
@@ -101,32 +107,18 @@ class IntentRouter:
                 entities=entities,
             )
 
-        ticket_signal = ticket_context_signal(query, state)
         ticket_intent = classify_ticket_intent(query)
-        if ticket_intent and ticket_signal:
+        knowledge_intent = classify_knowledge_intent(query)
+        if ticket_context_related(query, state):
+            intent = ticket_intent or knowledge_intent
             return RouteDecision(
-                route=ROUTE_TICKET,
-                intent=ticket_intent,
-                sub_intent=ticket_intent,
+                route=ROUTE_TICKET_CONTEXT_RELATED,
+                intent=intent,
+                sub_intent=intent,
                 confidence=0.9 if state.get("apply_id") or state.get("apply_context") else 0.78,
                 requires_ticket_context=True,
-                can_answer_from_knowledge=False,
-                reason="personal_ticket_question",
-                risk_level=risk["level"],
-                entities=entities,
-            )
-
-        knowledge_intent = classify_knowledge_intent(query)
-        if ticket_intent and not ticket_signal:
-            knowledge_intent = INTENT_CORRECTION_GUIDANCE if ticket_intent == INTENT_REJECTION_REASON else knowledge_intent
-            return RouteDecision(
-                route=ROUTE_KNOWLEDGE,
-                intent=knowledge_intent,
-                sub_intent=knowledge_intent,
-                confidence=0.68,
-                requires_ticket_context=False,
-                can_answer_from_knowledge=True,
-                reason="generic_ticket_keyword_without_personal_context",
+                can_answer_from_knowledge=not bool(ticket_intent),
+                reason="ticket_context_related",
                 risk_level=risk["level"],
                 entities=entities,
             )
@@ -145,7 +137,7 @@ class IntentRouter:
             )
 
         return RouteDecision(
-            route=ROUTE_KNOWLEDGE,
+            route=ROUTE_TICKET_CONTEXT_UNRELATED,
             intent=knowledge_intent,
             sub_intent=knowledge_intent,
             confidence=0.72 if knowledge_intent != INTENT_KNOWLEDGE_QA else 0.58,
@@ -217,7 +209,7 @@ class LLMIntentRouter:
         sub_intent = intent
         confidence = clamp_float(payload.get("confidence"), default=0.0)
         requires_ticket_context = bool(payload.get("requires_ticket_context"))
-        can_answer_from_knowledge = bool(payload.get("can_answer_from_knowledge", route == ROUTE_KNOWLEDGE))
+        can_answer_from_knowledge = bool(payload.get("can_answer_from_knowledge", route == ROUTE_TICKET_CONTEXT_UNRELATED))
         reason = str(payload.get("reason") or "llm_router").strip()[:120]
         entities = normalize_entities(fallback_entities, state)
         route, intent, sub_intent, requires_ticket_context, can_answer_from_knowledge, reason = enforce_route_contract(
@@ -249,16 +241,30 @@ def risk_check(query: str) -> dict[str, str]:
     return {"level": "pass", "reason": ""}
 
 
-def ticket_context_signal(query: str, state: dict[str, Any]) -> bool:
-    if state.get("apply_id") or state.get("apply_context"):
+def ticket_context_related(query: str, state: dict[str, Any]) -> bool:
+    if personal_ticket_signal(query):
         return True
-    return contains_any(query, ["我的", "我这个", "申请单", "办件", "订单", "提交的", "被退回了", "被驳回了"])
+    if not (state.get("apply_id") or state.get("apply_context")):
+        return False
+    if explicit_other_business_query(query, state):
+        return False
+    return contains_any(query, ["这个", "该事项", "当前", "这项", "办这个", "申请", "工单", "办件", "材料", "流程", "条件", "费用", "入口", "模板", "进度", "状态", "退回", "驳回", "补正"])
+
+
+def personal_ticket_signal(query: str) -> bool:
+    return contains_any(query, ["我的", "我这个", "这单", "申请单", "办件", "订单", "提交的", "被退回了", "被驳回了"])
+
+
+def explicit_other_business_query(query: str, state: dict[str, Any]) -> bool:
+    current_biz_type = str((state.get("apply_context") or {}).get("biz_type") or state.get("biz_type") or "")
+    requested_biz_type = infer_biz_type(query)
+    return bool(current_biz_type and requested_biz_type and requested_biz_type != current_biz_type)
 
 
 def classify_ticket_intent(query: str) -> str:
     if contains_any(query, ["退回", "驳回", "补正", "不通过", "被拒", "被退"]):
         return INTENT_REJECTION_REASON
-    if contains_any(query, ["进度", "到哪", "状态", "审核到", "办到哪", "多久能办完"]):
+    if contains_any(query, ["进度", "到哪", "状态", "审核到", "办到哪", "多久能办完", "什么情况", "怎么样"]):
         return INTENT_TICKET_STATUS
     return ""
 
@@ -309,19 +315,21 @@ def infer_biz_type(query: str) -> str | None:
     return None
 
 
+def ticket_title_from_biz_type(biz_type: str) -> str:
+    names = {
+        "health_certificate": "健康证办理",
+        "residence_permit": "居住证办理",
+        "id_card_replace": "身份证换领",
+    }
+    return names.get(str(biz_type or ""), str(biz_type or "政务服务事项"))
+
+
 def contains_any(text: str, keywords: list[str]) -> bool:
     return any(keyword in str(text or "") for keyword in keywords)
 
 
 def build_router_prompt(state: dict[str, Any], entities: dict[str, Any]) -> str:
-    apply_context = state.get("apply_context") or {}
-    current_ticket = {
-        "has_apply_id": bool(state.get("apply_id") or apply_context.get("apply_id")),
-        "apply_id": state.get("apply_id") or apply_context.get("apply_id") or "",
-        "biz_type": apply_context.get("biz_type") or state.get("biz_type") or "",
-        "current_node": apply_context.get("current_node") or "",
-        "status": apply_context.get("status") or "",
-    }
+    current_ticket = build_current_ticket_context(state)
     request_context = {
         "query": state.get("query") or "",
         "normalized_query": state.get("normalized_query") or "",
@@ -331,6 +339,30 @@ def build_router_prompt(state: dict[str, Any], entities: dict[str, Any]) -> str:
         "current_ticket": current_ticket,
     }
     return f"{ROUTER_SYSTEM_PROMPT}\n\n请求上下文 JSON:\n{json.dumps(request_context, ensure_ascii=False)}"
+
+
+def build_current_ticket_context(state: dict[str, Any]) -> dict[str, Any]:
+    apply_context = state.get("apply_context") or {}
+    biz_type = apply_context.get("biz_type") or state.get("biz_type") or ""
+    return compact_dict(
+        {
+            "has_bound_ticket": bool(state.get("apply_id") or apply_context.get("apply_id")),
+            "apply_id": state.get("apply_id") or apply_context.get("apply_id") or "",
+            "biz_type": biz_type,
+            "title": apply_context.get("title") or ticket_title_from_biz_type(str(biz_type or "")),
+            "region_code": apply_context.get("region_code") or state.get("region_code") or "",
+            "status": apply_context.get("status") or "",
+            "current_node": apply_context.get("current_node") or "",
+            "node_name": apply_context.get("node_name") or "",
+            "reject_reason": apply_context.get("reject_reason") or "",
+            "material_name": apply_context.get("material_name") or "",
+            "audit_node": apply_context.get("audit_node") or "",
+        }
+    )
+
+
+def compact_dict(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if value not in ("", None, [], {})}
 
 
 def parse_json_object(value: str) -> dict[str, Any]:
@@ -364,8 +396,8 @@ def derive_internal_intent(route: str, state: dict[str, Any]) -> str:
     if route == ROUTE_CLARIFICATION:
         return INTENT_CLARIFICATION
     ticket_intent = classify_ticket_intent(query)
-    if route == ROUTE_TICKET:
-        return ticket_intent or INTENT_TICKET_STATUS
+    if route == ROUTE_TICKET_CONTEXT_RELATED:
+        return ticket_intent or classify_knowledge_intent(query)
     if ticket_intent == INTENT_REJECTION_REASON:
         return INTENT_CORRECTION_GUIDANCE
     return classify_knowledge_intent(query)
@@ -390,14 +422,10 @@ def enforce_route_contract(
     can_answer_from_knowledge: bool,
     reason: str,
 ) -> tuple[str, str, str, bool, bool, str]:
-    if route == ROUTE_TICKET and intent not in TICKET_INTENTS:
-        intent = INTENT_REJECTION_REASON if intent == INTENT_CORRECTION_GUIDANCE else INTENT_TICKET_STATUS
-        sub_intent = intent
-        reason = append_reason(reason, "normalized_ticket_intent")
-    if route == ROUTE_TICKET:
+    if route == ROUTE_TICKET_CONTEXT_RELATED:
         requires_ticket_context = True
-        can_answer_from_knowledge = False
-    elif route == ROUTE_KNOWLEDGE:
+        can_answer_from_knowledge = intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON, INTENT_UNSAFE, INTENT_CLARIFICATION}
+    elif route == ROUTE_TICKET_CONTEXT_UNRELATED:
         requires_ticket_context = False
         can_answer_from_knowledge = True
         if intent in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON, INTENT_UNSAFE, INTENT_CLARIFICATION}:

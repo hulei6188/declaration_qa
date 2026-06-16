@@ -151,6 +151,7 @@ class PostgresDeclarationQAStore:
                         a.submitted_at,
                         a.completed_at,
                         GREATEST(a.updated_at, COALESCE(s.updated_at, a.updated_at), COALESCE(r.updated_at, a.updated_at)) AS updated_at,
+                        COALESCE(a.payload, '{}'::jsonb) AS application_payload,
                         COALESCE(s.payload, a.payload, '{}'::jsonb) AS status_payload,
                         COALESCE(r.payload, '{}'::jsonb) AS reject_payload
                     FROM declaration_qa.business_applications a
@@ -180,6 +181,7 @@ class PostgresDeclarationQAStore:
                         COALESCE(s.status, a.status) AS status,
                         COALESCE(s.current_node, a.current_node) AS current_node,
                         COALESCE(s.node_name, a.node_name) AS node_name,
+                        COALESCE(a.payload, '{}'::jsonb) AS application_payload,
                         COALESCE(s.updated_at, a.updated_at) AS updated_at
                     FROM declaration_qa.business_applications a
                     LEFT JOIN declaration_qa.business_application_statuses s
@@ -233,6 +235,7 @@ class PostgresDeclarationQAStore:
                         a.submitted_at,
                         a.completed_at,
                         COALESCE(s.updated_at, a.updated_at) AS updated_at,
+                        COALESCE(a.payload, '{}'::jsonb) AS application_payload,
                         COALESCE(s.payload, a.payload, '{}'::jsonb) AS status_payload
                     FROM declaration_qa.business_applications a
                     LEFT JOIN declaration_qa.business_application_statuses s
@@ -247,6 +250,7 @@ class PostgresDeclarationQAStore:
         return {
             "apply_id": merged.get("apply_id"),
             "biz_type": merged.get("biz_type"),
+            "title": merged.get("title"),
             "region_code": merged.get("region_code"),
             "status": merged.get("status"),
             "current_node": merged.get("current_node"),
@@ -277,6 +281,7 @@ class PostgresDeclarationQAStore:
                         COALESCE(s.node_name, a.node_name) AS node_name,
                         a.submitted_at,
                         GREATEST(a.updated_at, COALESCE(r.updated_at, a.updated_at)) AS updated_at,
+                        COALESCE(a.payload, '{}'::jsonb) AS application_payload,
                         COALESCE(r.payload, '{}'::jsonb) AS reject_payload
                     FROM declaration_qa.business_applications a
                     LEFT JOIN declaration_qa.business_application_statuses s
@@ -293,6 +298,7 @@ class PostgresDeclarationQAStore:
         return {
             "apply_id": merged.get("apply_id"),
             "biz_type": merged.get("biz_type"),
+            "title": merged.get("title"),
             "region_code": merged.get("region_code"),
             "reject_code": merged.get("reject_code"),
             "reject_reason": merged.get("reject_reason"),
@@ -1244,13 +1250,15 @@ def normalize_business_row(row) -> dict[str, Any]:
     if not row:
         return {}
     values = dict(row)
+    application_payload = values.get("application_payload") if isinstance(values.get("application_payload"), dict) else {}
     status_payload = values.get("status_payload") if isinstance(values.get("status_payload"), dict) else {}
     reject_payload = values.get("reject_payload") if isinstance(values.get("reject_payload"), dict) else {}
-    payload = {**status_payload, **reject_payload}
+    payload = {**application_payload, **status_payload, **reject_payload}
     return {
         "apply_id": str(values.get("apply_id") or ""),
         "user_id": int(values.get("user_id") or 0) if values.get("user_id") is not None else None,
         "biz_type": str(values.get("biz_type") or ""),
+        "title": business_ticket_title({**values, "payload": payload}),
         "region_code": str(values.get("region_code") or ""),
         "status": str(values.get("status") or ""),
         "current_node": str(values.get("current_node") or ""),
@@ -1282,6 +1290,13 @@ def business_ticket_summary(row) -> dict[str, Any]:
 
 
 def business_ticket_title(values: dict[str, Any]) -> str:
+    payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
+    if not payload and isinstance(values.get("application_payload"), dict):
+        payload = values["application_payload"]
+    for key in ("item_name", "title", "itemName", "catalog_name", "catalogName"):
+        title = str(payload.get(key) or "").strip()
+        if title:
+            return title
     names = {
         "health_certificate": "健康证办理",
         "residence_permit": "居住证办理",
