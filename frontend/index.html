@@ -20,51 +20,7 @@
       </header>
 
       <main class="workspace">
-        <aside class="context-pane" aria-label="上下文配置">
-          <section class="panel">
-            <div class="panel-title">
-              <span>请求上下文</span>
-              <button class="icon-button" id="healthButton" title="重新检测服务">↻</button>
-            </div>
-            <label>
-              后端地址
-              <input id="apiBase" value="http://127.0.0.1:8010" />
-            </label>
-            <div class="field-grid">
-              <label>
-                用户 ID
-                <input id="userId" type="number" value="1" min="1" />
-              </label>
-              <label>
-                地区编码
-                <input id="regionCode" value="340000" />
-              </label>
-            </div>
-            <div class="field-grid">
-              <label>
-                业务类型
-                <select id="bizType">
-                  <option value="">自动识别</option>
-                  <option value="residence_permit">居住证</option>
-                  <option value="health_certificate">健康证</option>
-                  <option value="id_card_replace">身份证换领</option>
-                </select>
-              </label>
-              <label>
-                App 版本
-                <input id="appVersion" value="2.0.0" />
-              </label>
-            </div>
-            <label>
-              政策版本
-              <input id="policyVersion" value="2025" />
-            </label>
-            <label>
-              申请单 ID（可选）
-              <input id="applyId" placeholder="A1001 / A2002 / A3003" />
-            </label>
-          </section>
-
+        <aside class="context-pane" aria-label="侧边工具">
           <section class="panel">
             <div class="panel-title">
               <span>典型场景</span>

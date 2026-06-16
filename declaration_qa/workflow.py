@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from declaration_qa.audit import InMemoryAuditStore
 from declaration_qa.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
@@ -114,12 +114,14 @@ class DeclarationQAWorkflow:
                     yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
             if state.get("refuse_reason"):
                 run_node("refuse_or_human", self.refuse_or_human)
+                yield from drain()
+                yield from token_events(str(state.get("answer") or ""))
             elif state.get("evidence_ok"):
-                run_node("llm_generate", self.llm_generate)
+                yield from self.llm_generate_stream_events(state)
             else:
                 run_node("refuse_or_human", self.refuse_or_human)
-            yield from drain()
-            yield from token_events(str(state.get("answer") or ""))
+                yield from drain()
+                yield from token_events(str(state.get("answer") or ""))
         elif route == ROUTE_KNOWLEDGE:
             for name, handler in [
                 ("knowledge_filter_build", self.knowledge_filter_build),
@@ -131,11 +133,11 @@ class DeclarationQAWorkflow:
                 if name == "hybrid_retrieve" and state.get("retrieved_sources"):
                     yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
             if state.get("evidence_ok"):
-                run_node("llm_generate", self.llm_generate)
+                yield from self.llm_generate_stream_events(state)
             else:
                 run_node("refuse_or_human", self.refuse_or_human)
-            yield from drain()
-            yield from token_events(str(state.get("answer") or ""))
+                yield from drain()
+                yield from token_events(str(state.get("answer") or ""))
         else:
             run_node("refuse_or_human", self.refuse_or_human)
             yield from drain()
@@ -166,6 +168,33 @@ class DeclarationQAWorkflow:
                 "suggested_actions": state.get("suggested_actions") or [],
             },
         }
+
+    def llm_generate_stream_events(self, state: DeclarationQAState) -> Iterable[dict[str, Any]]:
+        stream_generate = getattr(self.answer_generator, "stream_generate", None)
+        if not callable(stream_generate):
+            before = len(state.get("events") or [])
+            next_state = self.llm_generate(state)
+            state.clear()
+            state.update(next_state)
+            for event in (state.get("events") or [])[before:]:
+                yield {"event": event.get("event") or "answer_generated", "data": event.get("data") or {}}
+            yield from token_events(str(state.get("answer") or ""))
+            return
+
+        token_stream, prompt = stream_generate(dict(state))
+        answer_parts = []
+        for token in token_stream:
+            text = str(token or "")
+            if not text:
+                continue
+            answer_parts.append(text)
+            yield {"event": "token", "data": {"content": text}}
+        state["answer"] = "".join(answer_parts)
+        audit_payload = dict(state.get("audit_payload") or {})
+        audit_payload["final_prompt"] = prompt
+        state["audit_payload"] = audit_payload
+        add_event(state, "answer_generated", {"intent": state.get("intent"), "streamed": True})
+        yield {"event": "answer_generated", "data": {"intent": state.get("intent"), "streamed": True}}
 
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
@@ -769,9 +798,25 @@ def add_event(state: dict[str, Any], event: str, data: dict[str, Any]) -> None:
     state["events"] = events
 
 
-def token_events(text: str, *, size: int = 24) -> Iterable[dict[str, Any]]:
+STREAM_TOKEN_SIZE = 3
+STREAM_TOKEN_DELAY_SECONDS = 0.02
+
+
+def token_events(
+    text: str,
+    *,
+    size: int = STREAM_TOKEN_SIZE,
+    delay_seconds: float = STREAM_TOKEN_DELAY_SECONDS,
+    sleep: Callable[[float], None] | None = None,
+) -> Iterable[dict[str, Any]]:
+    if sleep is None:
+        from time import sleep as sleep_func
+
+        sleep = sleep_func
     value = str(text or "")
     for index in range(0, len(value), size):
+        if index > 0 and delay_seconds > 0:
+            sleep(delay_seconds)
         yield {"event": "token", "data": {"content": value[index : index + size]}}
 
 

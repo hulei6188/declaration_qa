@@ -85,7 +85,7 @@ class InMemoryBusinessDataAdapter:
                 continue
             if biz_type and item.get("biz_type") != biz_type:
                 continue
-            if region_code and item.get("region_code") != region_code:
+            if region_code and not region_code_matches(item.get("region_code"), region_code):
                 continue
             rows.append(ticket_summary(item))
         return sorted(rows, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
@@ -152,4 +152,24 @@ def ticket_title(item: dict[str, Any]) -> str:
         "id_card_replace": "身份证换领",
     }
     return names.get(str(item.get("biz_type") or ""), str(item.get("biz_type") or "政务服务事项"))
+
+
+def region_code_variants(value: Any) -> list[str]:
+    code = str(value or "").strip()
+    if not code:
+        return []
+    variants = {code}
+    if code.isdigit():
+        if len(code) == 6:
+            variants.add(f"{code}000000")
+        elif len(code) == 12 and code.endswith("000000"):
+            variants.add(code[:6])
+    return sorted(variants)
+
+
+def region_code_matches(candidate: Any, requested: Any) -> bool:
+    requested_variants = set(region_code_variants(requested))
+    if not requested_variants:
+        return True
+    return str(candidate or "").strip() in requested_variants
 

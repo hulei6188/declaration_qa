@@ -94,7 +94,7 @@ The workflow keeps declaration business state and RAG knowledge separate:
 - intent routing uses an LLM JSON classifier when `DECLARATION_QA_INTENT_ROUTER_PROVIDER=auto` and a real chat model is configured; invalid model output falls back to the rule router after enum validation;
 - status and reject questions run on the `ticket_augmented` chain: an application context is mandatory, real business status/reject records are queried first, and RAG only explains the verified business snapshot;
 - policy/material/process questions run on the `knowledge_retrieval` chain and retrieve from the full knowledge corpus; metadata is retained only for display, auditing, and source traceability;
-- `biz_type`, `source_type`, `material_code`, `reject_code`, and `theme_name` are removed from knowledge/RAG metadata, filters, source payloads, and vector-index fields; similarly named business fields remain only in the real ticket snapshot;
+- Milvus stores common metadata fields and the full metadata JSON for observability, but metadata fields are not used as vector retrieval filters; similarly named business fields remain only in the real ticket snapshot;
 - request `metadata_filter` is accepted for API compatibility but is not used to filter RAG retrieval; removed metadata fields are ignored;
 - BM25 and Milvus/vector hits are fused with RRF, reranked, and passed through evidence gates before an answer is generated;
 - evidence decisions and retrieval diagnostics are written to responses and audit logs for traceability;

@@ -28,70 +28,29 @@ INTENT_KNOWLEDGE_QA = "knowledge_qa"
 INTENT_CLARIFICATION = "clarification"
 
 ALLOWED_ROUTES = {ROUTE_KNOWLEDGE, ROUTE_TICKET, ROUTE_CLARIFICATION, ROUTE_REFUSE}
-ALLOWED_INTENTS = {
-    INTENT_UNSAFE,
-    INTENT_TICKET_STATUS,
-    INTENT_REJECTION_REASON,
-    INTENT_CORRECTION_GUIDANCE,
-    INTENT_MATERIAL_REQUIREMENTS,
-    INTENT_PROCESS_STEPS,
-    INTENT_ELIGIBILITY,
-    INTENT_FEE_TIME_LIMIT,
-    INTENT_OFFICE_LOCATION,
-    INTENT_CONTACT,
-    INTENT_ONLINE_APPLY,
-    INTENT_POLICY_BASIS,
-    INTENT_FORM_TEMPLATE,
-    INTENT_KNOWLEDGE_QA,
-    INTENT_CLARIFICATION,
-}
 TICKET_INTENTS = {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON}
 
-ROUTER_SYSTEM_PROMPT = """你是政务服务智能问答系统的意图路由器，只能返回一个 JSON 对象。
+ROUTER_SYSTEM_PROMPT = """你是政务服务智能问答系统的请求路由器，只能返回一个 JSON 对象。
 你的任务是判断用户问题应该走知识检索线还是工单增强线，不生成业务答案。
 
 可选 route:
 - knowledge_only: 通用政策、材料、流程、FAQ、入口、费用、地点、模板等知识问题。
 - ticket_aware: 需要查询用户真实工单状态、驳回原因、补正要求的问题。
-- clarification: 问题过短或上下文不足，无法判断。
+- clarification: 问题过短、上下文不足、无法判断，或工单问题与当前工单无关。
 - refuse: 违法违规、伪造材料、绕过审核、冒用他人信息等风险问题。
-
-可选 intent:
-- unsafe
-- ticket_status
-- rejection_reason
-- correction_guidance
-- material_requirements
-- process_steps
-- eligibility
-- fee_time_limit
-- office_location
-- contact
-- online_apply
-- policy_basis
-- form_template
-- knowledge_qa
-- clarification
 
 决策要求:
 1. 当前有工单不代表一定使用工单。只有问题依赖真实工单事实时才 route=ticket_aware。
-2. ticket_aware 目前只输出 intent=ticket_status 或 rejection_reason。
-3. 如果用户咨询的业务类型和当前工单业务类型明显不同，不要使用当前工单；通用咨询走 knowledge_only，个人进度/驳回问题走 clarification。
-4. 只返回 JSON，不能包含 Markdown、解释文字或代码块。
+2. ticket_aware 仅用于用户真实工单状态、驳回原因或补正要求问题。
+3. 只输出下方 JSON 字段，不要添加其他分类字段；系统会在路由后内部推导处理类型。
 
 JSON 字段:
 {
   "route": "knowledge_only|ticket_aware|clarification|refuse",
-  "intent": "上面列出的 intent 之一",
-  "sub_intent": "可为空",
   "confidence": 0.0,
   "requires_ticket_context": false,
   "can_answer_from_knowledge": true,
-  "reason": "简短英文原因",
-  "entities": {
-    "biz_type": "residence_permit|health_certificate|id_card_replace|business_license 或空",
-    "apply_id": "识别到的申请单号或空"
-  }
+  "reason": "简短英文原因"
 }"""
 
 
@@ -254,14 +213,13 @@ class LLMIntentRouter:
         risk: dict[str, str],
     ) -> RouteDecision:
         route = normalize_route(payload.get("route"))
-        intent = normalize_intent(payload.get("intent"))
-        sub_intent = normalize_intent(payload.get("sub_intent")) if payload.get("sub_intent") else intent
+        intent = derive_internal_intent(route, state)
+        sub_intent = intent
         confidence = clamp_float(payload.get("confidence"), default=0.0)
         requires_ticket_context = bool(payload.get("requires_ticket_context"))
         can_answer_from_knowledge = bool(payload.get("can_answer_from_knowledge", route == ROUTE_KNOWLEDGE))
         reason = str(payload.get("reason") or "llm_router").strip()[:120]
-        llm_entities = payload.get("entities") if isinstance(payload.get("entities"), dict) else {}
-        entities = normalize_entities({**fallback_entities, **llm_entities}, state)
+        entities = normalize_entities(fallback_entities, state)
         route, intent, sub_intent, requires_ticket_context, can_answer_from_knowledge, reason = enforce_route_contract(
             route=route,
             intent=intent,
@@ -399,11 +357,18 @@ def normalize_route(value: Any) -> str:
     return route
 
 
-def normalize_intent(value: Any) -> str:
-    intent = str(value or "").strip()
-    if intent not in ALLOWED_INTENTS:
-        raise ValueError(f"Unsupported intent: {intent}")
-    return intent
+def derive_internal_intent(route: str, state: dict[str, Any]) -> str:
+    query = str(state.get("normalized_query") or state.get("query") or "")
+    if route == ROUTE_REFUSE:
+        return INTENT_UNSAFE
+    if route == ROUTE_CLARIFICATION:
+        return INTENT_CLARIFICATION
+    ticket_intent = classify_ticket_intent(query)
+    if route == ROUTE_TICKET:
+        return ticket_intent or INTENT_TICKET_STATUS
+    if ticket_intent == INTENT_REJECTION_REASON:
+        return INTENT_CORRECTION_GUIDANCE
+    return classify_knowledge_intent(query)
 
 
 def normalize_entities(values: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:

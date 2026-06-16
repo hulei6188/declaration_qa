@@ -192,11 +192,11 @@ class OpenAIAnswerGenerator:
             kwargs["base_url"] = base_url
         self._llm = ChatOpenAI(**kwargs)
 
-    def generate(self, state: dict[str, Any]) -> tuple[str, str]:
+    def build_prompt(self, state: dict[str, Any]) -> str:
         sources = state.get("retrieved_sources") or []
         source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:6])
         business_payload = state.get("business_status") or state.get("reject_info") or {}
-        prompt = ANSWER_PROMPT.format(
+        return ANSWER_PROMPT.format(
             query=state.get("query") or "",
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
@@ -204,9 +204,38 @@ class OpenAIAnswerGenerator:
             business_payload=business_payload,
             source_payload=source_text,
         )
+
+    def generate(self, state: dict[str, Any]) -> tuple[str, str]:
+        prompt = self.build_prompt(state)
         response = self._llm.invoke(prompt)
         content = getattr(response, "content", response)
         return str(content), prompt
+
+    def stream_generate(self, state: dict[str, Any]) -> tuple[Iterable[str], str]:
+        prompt = self.build_prompt(state)
+        return stream_chat_model_content(self._llm.stream(prompt)), prompt
+
+
+def stream_chat_model_content(chunks: Iterable[Any]) -> Iterable[str]:
+    for chunk in chunks:
+        content = getattr(chunk, "content", chunk)
+        if isinstance(content, list):
+            for item in content:
+                text = chat_content_part_text(item)
+                if text:
+                    yield text
+            continue
+        text = str(content or "")
+        if text:
+            yield text
+
+
+def chat_content_part_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return str(value.get("text") or value.get("content") or "")
+    return str(value or "")
 
 
 def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvider:

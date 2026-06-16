@@ -9,6 +9,7 @@ from uuid import uuid4
 from sqlalchemy import JSON, bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 
+from declaration_qa.business import region_code_variants
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.retrieval import sanitize_metadata
 
@@ -167,6 +168,7 @@ class PostgresDeclarationQAStore:
         return normalize_business_row(row) if row else None
 
     def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        region_codes = region_code_variants(region_code)
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -185,7 +187,7 @@ class PostgresDeclarationQAStore:
                     WHERE a.user_id = :user_id
                       AND a.deleted_at IS NULL
                       AND (:biz_type = '' OR a.biz_type = :biz_type)
-                      AND (:region_code = '' OR a.region_code = :region_code)
+                      AND (:use_region_filter = FALSE OR a.region_code = ANY(:region_codes))
                     ORDER BY COALESCE(s.updated_at, a.updated_at) DESC
                     LIMIT 20
                     """
@@ -193,7 +195,8 @@ class PostgresDeclarationQAStore:
                 {
                     "user_id": int(user_id),
                     "biz_type": str(biz_type or ""),
-                    "region_code": str(region_code or ""),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
                 },
             ).mappings().all()
         return [business_ticket_summary(row) for row in rows]

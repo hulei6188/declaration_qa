@@ -16,15 +16,17 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 const INDEX_JOB_MAX_ATTEMPTS = 180;
+const REQUEST_CONTEXT = {
+  apiBase: "http://127.0.0.1:8010",
+  userId: 1,
+  regionCode: "340000",
+  bizType: "",
+  appVersion: "2.0.0",
+  policyVersion: "2025",
+  applyId: "",
+};
 
 const els = {
-  apiBase: $("apiBase"),
-  userId: $("userId"),
-  regionCode: $("regionCode"),
-  appVersion: $("appVersion"),
-  policyVersion: $("policyVersion"),
-  bizType: $("bizType"),
-  applyId: $("applyId"),
   queryInput: $("queryInput"),
   messages: $("messages"),
   timeline: $("timeline"),
@@ -56,11 +58,10 @@ const els = {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("chatForm").addEventListener("submit", onSubmit);
+  els.queryInput.addEventListener("keydown", onQueryKeyDown);
   $("clearButton").addEventListener("click", clearSession);
   $("changeTicketButton").addEventListener("click", changeCurrentTicket);
   $("clearTicketButton").addEventListener("click", clearCurrentTicket);
-  $("applyId").addEventListener("input", syncCurrentTicketFromApplyId);
-  $("healthButton").addEventListener("click", checkHealth);
   $("refreshSessionsButton").addEventListener("click", refreshSessions);
   $("uploadDocButton").addEventListener("click", uploadDocument);
   $("docFile").addEventListener("change", updateUploadQueueFromInput);
@@ -80,9 +81,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-preset]").forEach((button) => {
     button.addEventListener("click", () => {
       els.queryInput.value = button.dataset.preset;
-      els.bizType.value = button.dataset.biz || "";
-      els.applyId.value = button.dataset.apply || "";
-      syncCurrentTicketFromApplyId();
+      setRequestContext({
+        bizType: button.dataset.biz || "",
+        applyId: button.dataset.apply || "",
+      });
       els.queryInput.focus();
     });
   });
@@ -111,6 +113,12 @@ async function onSubmit(event) {
   if (!query) return;
 
   await sendChat(query);
+}
+
+function onQueryKeyDown(event) {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  $("chatForm").requestSubmit();
 }
 
 async function sendChat(query, options = {}) {
@@ -144,15 +152,24 @@ async function sendChat(query, options = {}) {
 function buildRequest(query) {
   const payload = {
     query,
-    user_id: Number(els.userId.value || 1),
-    region_code: els.regionCode.value.trim() || "340000",
-    app_version: els.appVersion.value.trim(),
-    policy_version: els.policyVersion.value.trim() || "2025",
+    user_id: Number(REQUEST_CONTEXT.userId || 1),
+    region_code: REQUEST_CONTEXT.regionCode || "340000",
+    app_version: REQUEST_CONTEXT.appVersion,
+    policy_version: REQUEST_CONTEXT.policyVersion || "2025",
     session_id: state.sessionId,
   };
-  if (els.bizType.value) payload.biz_type = els.bizType.value;
-  if (els.applyId.value.trim()) payload.apply_id = els.applyId.value.trim();
+  if (REQUEST_CONTEXT.bizType) payload.biz_type = REQUEST_CONTEXT.bizType;
+  if (REQUEST_CONTEXT.applyId) payload.apply_id = REQUEST_CONTEXT.applyId;
   return payload;
+}
+
+function setRequestContext(patch) {
+  if (!patch || typeof patch !== "object") return;
+  Object.assign(REQUEST_CONTEXT, patch);
+  if (!REQUEST_CONTEXT.applyId) {
+    state.currentTicket = null;
+  }
+  renderCurrentTicket();
 }
 
 async function readSSE(stream) {
@@ -268,9 +285,11 @@ async function selectTicket(ticket) {
   document.querySelectorAll(".ticket-option").forEach((button) => {
     button.disabled = true;
   });
-  els.applyId.value = ticketId;
-  if (ticket.biz_type) els.bizType.value = ticket.biz_type;
-  if (ticket.region_code) els.regionCode.value = ticket.region_code;
+  setRequestContext({
+    applyId: ticketId,
+    bizType: ticket.biz_type || REQUEST_CONTEXT.bizType,
+    regionCode: ticket.region_code || REQUEST_CONTEXT.regionCode,
+  });
   setCurrentTicket(ticket);
   state.pendingTicketQuery = "";
   els.sendState.textContent = "已选择工单";
@@ -290,10 +309,10 @@ function ticketLabel(ticket) {
 
 function setCurrentTicket(ticket) {
   state.currentTicket = {
-    ticket_id: String(ticket?.ticket_id || els.applyId.value || "").trim(),
+    ticket_id: String(ticket?.ticket_id || REQUEST_CONTEXT.applyId || "").trim(),
     title: ticket?.title || ticket?.biz_type || "",
-    biz_type: ticket?.biz_type || els.bizType.value || "",
-    region_code: ticket?.region_code || els.regionCode.value || "",
+    biz_type: ticket?.biz_type || REQUEST_CONTEXT.bizType || "",
+    region_code: ticket?.region_code || REQUEST_CONTEXT.regionCode || "",
     node_name: ticket?.node_name || ticket?.current_node || ticket?.status || "",
   };
   renderCurrentTicket();
@@ -302,7 +321,7 @@ function setCurrentTicket(ticket) {
 function clearCurrentTicket() {
   state.currentTicket = null;
   state.pendingTicketQuery = "";
-  els.applyId.value = "";
+  setRequestContext({ applyId: "", bizType: "" });
   hideTicketPicker();
   renderCurrentTicket();
   els.sendState.textContent = "当前工单已清除";
@@ -313,18 +332,8 @@ async function changeCurrentTicket() {
   await openTicketPicker();
 }
 
-function syncCurrentTicketFromApplyId() {
-  const ticketId = els.applyId.value.trim();
-  if (!ticketId) {
-    state.currentTicket = null;
-    renderCurrentTicket();
-    return;
-  }
-  setCurrentTicket({ ticket_id: ticketId, biz_type: els.bizType.value, region_code: els.regionCode.value });
-}
-
 function renderCurrentTicket() {
-  const ticketId = state.currentTicket?.ticket_id || els.applyId.value.trim();
+  const ticketId = state.currentTicket?.ticket_id || REQUEST_CONTEXT.applyId;
   if (!ticketId) {
     els.currentTicketLabel.textContent = "当前工单：未选择";
     els.changeTicketButton.textContent = "选择";
@@ -345,7 +354,7 @@ async function openTicketPicker() {
   els.ticketPicker.innerHTML = '<p class="hint">正在加载工单...</p>';
   try {
     const response = await fetch(
-      `${apiBase()}/api/declaration-qa/tickets?user_id=${encodeURIComponent(els.userId.value || "1")}&region_code=${encodeURIComponent(els.regionCode.value || "340000")}&biz_type=${encodeURIComponent(els.bizType.value || "")}`
+      `${apiBase()}/api/declaration-qa/tickets?user_id=${encodeURIComponent(REQUEST_CONTEXT.userId || "1")}&region_code=${encodeURIComponent(REQUEST_CONTEXT.regionCode || "340000")}&biz_type=${encodeURIComponent(REQUEST_CONTEXT.bizType || "")}`
     );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const tickets = await response.json();
@@ -552,7 +561,7 @@ function uploadTextDocument(title, content) {
     body: JSON.stringify({
       title,
       content,
-      region_code: els.regionCode.value || "340000",
+      region_code: REQUEST_CONTEXT.regionCode || "340000",
       policy_version: $("docPolicyVersion").value || "2025",
       chunking_strategy: selectedChunkingStrategy(),
     }),
@@ -616,7 +625,7 @@ function uploadFileDocuments(files, title) {
   const form = new FormData();
   files.forEach((file) => form.append("files", file));
   form.append("title", title || "");
-  form.append("region_code", els.regionCode.value || "340000");
+  form.append("region_code", REQUEST_CONTEXT.regionCode || "340000");
   form.append("policy_version", $("docPolicyVersion").value || "2025");
   form.append("chunking_strategy", selectedChunkingStrategy());
   return fetch(`${apiBase()}/api/declaration-qa/knowledge/uploads`, {
@@ -811,8 +820,8 @@ async function createEvaluationDataset() {
   const cases = [
     {
       query: selected ? `请说明${selected.title}的办理要求` : "办理居住证需要哪些材料",
-      region_code: selected?.region_code || els.regionCode.value || "340000",
-      policy_version: selected?.policy_version || els.policyVersion.value || "2025",
+      region_code: selected?.region_code || REQUEST_CONTEXT.regionCode || "340000",
+      policy_version: selected?.policy_version || REQUEST_CONTEXT.policyVersion || "2025",
       expected_intent: "material_requirements",
       expected_refused: false,
       expected_doc_ids: selected ? [selected.document_id] : [],
@@ -941,7 +950,7 @@ function clearSession() {
 
 async function refreshSessions() {
   try {
-    const response = await fetch(`${apiBase()}/api/declaration-qa/sessions?user_id=${encodeURIComponent(els.userId.value || "1")}`);
+    const response = await fetch(`${apiBase()}/api/declaration-qa/sessions?user_id=${encodeURIComponent(REQUEST_CONTEXT.userId || "1")}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const sessions = await response.json();
     renderSessions(sessions);
@@ -970,7 +979,7 @@ function renderSessions(sessions) {
 }
 
 async function loadSession(sessionId) {
-  const response = await fetch(`${apiBase()}/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(els.userId.value || "1")}`);
+  const response = await fetch(`${apiBase()}/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(REQUEST_CONTEXT.userId || "1")}`);
   if (!response.ok) {
     addTimeline("session_error", { message: `HTTP ${response.status}` });
     return;
@@ -1005,7 +1014,7 @@ function setStatus(kind, label) {
 }
 
 function apiBase() {
-  return els.apiBase.value.trim().replace(/\/$/, "");
+  return REQUEST_CONTEXT.apiBase.replace(/\/$/, "");
 }
 
 function compactJson(value) {

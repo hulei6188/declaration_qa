@@ -1,8 +1,34 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any, Protocol
 
 from declaration_qa.domain import KnowledgeChunk
+
+
+MILVUS_TEXT_METADATA_FIELDS: dict[str, int] = {
+    "region_code": 32,
+    "region_key": 32,
+    "region_name": 120,
+    "policy_version": 80,
+    "source_version": 120,
+    "official_source_url": 1024,
+    "catalog_name": 240,
+    "catalog_subitem_name": 240,
+    "item_code": 120,
+    "item_name": 240,
+    "item_type": 80,
+    "theme_code": 80,
+    "service_object": 120,
+    "basic_code": 120,
+    "agency_name": 240,
+    "ssqd_code": 120,
+    "ssqd_id": 120,
+    "chunking_strategy": 40,
+    "effective_start_time": 32,
+    "effective_end_time": 32,
+}
+MILVUS_JSON_METADATA_FIELD = "metadata"
 
 
 class VectorIndex(Protocol):
@@ -88,6 +114,7 @@ class MilvusVectorIndex:
             "id": chunk.id,
             "doc_id": chunk.doc_id,
             "vector": list(vector),
+            **milvus_metadata_row(chunk),
         }
         try:
             self._client.upsert(collection_name=self.collection_name, data=[row])
@@ -159,6 +186,9 @@ class MilvusVectorIndex:
         schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=180)
         schema.add_field("doc_id", DataType.VARCHAR, max_length=120)
         schema.add_field("vector", DataType.FLOAT_VECTOR, dim=self.dimension)
+        for field_name, max_length in MILVUS_TEXT_METADATA_FIELDS.items():
+            schema.add_field(field_name, DataType.VARCHAR, max_length=max_length, nullable=True)
+        schema.add_field(MILVUS_JSON_METADATA_FIELD, DataType.JSON, nullable=True)
         index_params = self._client.prepare_index_params()
         index_params.add_index(field_name="vector", index_type="AUTOINDEX", metric_type="COSINE")
         self._client.create_collection(
@@ -170,24 +200,66 @@ class MilvusVectorIndex:
     def _collection_schema_is_current(self) -> bool:
         description = self._client.describe_collection(self.collection_name)
         fields = {str(field.get("name") or ""): field for field in description.get("fields", [])}
-        removed_fields = {
-            "biz_type",
-            "source_type",
-            "material_code",
-            "reject_code",
-            "region_code",
-            "policy_version",
-            "audit_node",
-            "status",
-        }
-        required_fields = {"id", "doc_id", "vector"}
-        if removed_fields.intersection(fields) or not required_fields.issubset(fields):
+        expected_fields = {"id", "doc_id", "vector", MILVUS_JSON_METADATA_FIELD, *MILVUS_TEXT_METADATA_FIELDS}
+        if set(fields) != expected_fields:
             return False
         for field in description.get("fields", []):
             if field.get("name") == "id" and field.get("is_primary"):
                 field_type = str(field.get("type") or "").upper()
                 return field_type in {"VARCHAR", "STRING"} or field_type.endswith(".VARCHAR")
         return False
+
+
+def milvus_metadata_row(chunk: KnowledgeChunk) -> dict[str, Any]:
+    metadata = dict(chunk.metadata or {})
+    values = {
+        "region_code": chunk.region_code or metadata.get("region_code") or "",
+        "region_key": metadata.get("region_key") or chunk.region_code or "",
+        "region_name": metadata.get("region_name") or "",
+        "policy_version": chunk.policy_version or metadata.get("policy_version") or "",
+        "source_version": metadata.get("source_version") or chunk.policy_version or "",
+        "official_source_url": metadata.get("official_source_url") or chunk.source_url or "",
+        "catalog_name": metadata.get("catalog_name") or "",
+        "catalog_subitem_name": metadata.get("catalog_subitem_name") or "",
+        "item_code": metadata.get("item_code") or "",
+        "item_name": metadata.get("item_name") or "",
+        "item_type": metadata.get("item_type") or "",
+        "theme_code": metadata.get("theme_code") or "",
+        "service_object": metadata.get("service_object") or "",
+        "basic_code": metadata.get("basic_code") or "",
+        "agency_name": metadata.get("agency_name") or "",
+        "ssqd_code": metadata.get("ssqd_code") or "",
+        "ssqd_id": metadata.get("ssqd_id") or "",
+        "chunking_strategy": metadata.get("chunking_strategy") or "",
+        "effective_start_time": metadata.get("effective_start_time") or "",
+        "effective_end_time": metadata.get("effective_end_time") or "",
+    }
+    return {
+        **{
+            field_name: truncate_milvus_text(values.get(field_name), max_length)
+            for field_name, max_length in MILVUS_TEXT_METADATA_FIELDS.items()
+        },
+        MILVUS_JSON_METADATA_FIELD: milvus_json_value(metadata),
+    }
+
+
+def truncate_milvus_text(value: Any, max_length: int) -> str:
+    text = "" if value is None else str(value)
+    return text[:max_length]
+
+
+def milvus_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): milvus_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [milvus_json_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [milvus_json_value(item) for item in value]
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:

@@ -53,6 +53,8 @@ def test_declaration_qa_frontend_has_required_workflows():
     assert "clearCurrentTicket" in js
     assert "openTicketPicker" in js
     assert "renderTicketPicker" in js
+    assert "onQueryKeyDown" in js
+    assert "requestSubmit" in js
     assert "need_ticket_selection" in js
     assert "ticket-option" in js
 

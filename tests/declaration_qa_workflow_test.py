@@ -1,13 +1,14 @@
 from fastapi.testclient import TestClient
 from pathlib import Path
 
+from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import LLMIntentRouter
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
-from declaration_qa.workflow import DeclarationQAWorkflow
+from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, token_events
 
 
 def test_declaration_qa_entrypoint_isolated_from_existing_main():
@@ -30,6 +31,15 @@ def test_ticket_list_endpoint_supports_pre_chat_selection():
 
     assert response.status_code == 200
     assert any(item["ticket_id"] == "A1001" for item in response.json())
+
+
+def test_ticket_list_matches_six_digit_region_to_twelve_digit_province_code():
+    adapter = InMemoryBusinessDataAdapter()
+    adapter._applications["A1001"]["region_code"] = "340000000000"
+
+    tickets = adapter.list_applications(user_id=1, region_code="340000")
+
+    assert any(item["ticket_id"] == "A1001" for item in tickets)
 
 
 def test_knowledge_refresh_loads_persisted_chunks_without_reembedding(monkeypatch):
@@ -93,6 +103,32 @@ def test_policy_filter_does_not_use_app_version():
     assert response.suggested_actions[0].payload["appVersion"] == "1.2.3"
     assert response.retrieval_chain == "knowledge_retrieval"
     assert response.evidence_decision["ok"] is True
+
+
+def test_stream_token_events_are_small_and_throttled():
+    delays = []
+
+    events = list(token_events("abcdefg", sleep=delays.append))
+
+    assert [event["data"]["content"] for event in events] == ["abc", "def", "g"]
+    assert STREAM_TOKEN_SIZE == 3
+    assert delays == [STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_DELAY_SECONDS]
+
+
+def test_llm_stream_generator_emits_model_tokens_and_records_answer():
+    class FakeStreamingGenerator:
+        def stream_generate(self, state):
+            return iter(["真", "流", "式"]), "prompt-text"
+
+    workflow = DeclarationQAWorkflow(answer_generator=FakeStreamingGenerator())
+    state = workflow._initial_state(ChatRequest(query="测试", user_id=1, region_code="340000"))
+
+    events = list(workflow.llm_generate_stream_events(state))
+
+    assert [event["data"]["content"] for event in events if event["event"] == "token"] == ["真", "流", "式"]
+    assert events[-1] == {"event": "answer_generated", "data": {"intent": "unknown", "streamed": True}}
+    assert state["answer"] == "真流式"
+    assert state["audit_payload"]["final_prompt"] == "prompt-text"
 
 
 def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
