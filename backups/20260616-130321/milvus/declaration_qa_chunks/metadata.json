@@ -1,0 +1,64 @@
+{
+  "collection": "declaration_qa_chunks",
+  "description": {
+    "collection_name": "declaration_qa_chunks",
+    "auto_id": false,
+    "num_shards": 1,
+    "description": "",
+    "fields": [
+      {
+        "field_id": 100,
+        "name": "id",
+        "description": "",
+        "type": "VARCHAR",
+        "params": {
+          "max_length": 180
+        },
+        "is_primary": true
+      },
+      {
+        "field_id": 101,
+        "name": "doc_id",
+        "description": "",
+        "type": "VARCHAR",
+        "params": {
+          "max_length": 120
+        }
+      },
+      {
+        "field_id": 102,
+        "name": "vector",
+        "description": "",
+        "type": "FLOAT_VECTOR",
+        "params": {
+          "dim": 1536
+        }
+      }
+    ],
+    "functions": [],
+    "aliases": [],
+    "collection_id": 467015843519937630,
+    "consistency_level": 2,
+    "consistency_level_name": "Bounded",
+    "properties": {},
+    "num_partitions": 1,
+    "enable_dynamic_field": false,
+    "enable_namespace": false,
+    "created_timestamp": 467032156008873993,
+    "update_timestamp": 467032156008873993
+  },
+  "stats": {
+    "row_count": 0
+  },
+  "field_names": [
+    "id",
+    "doc_id",
+    "vector"
+  ],
+  "vector_fields": [
+    "vector"
+  ],
+  "exported_rows": 0,
+  "rows_file": "rows.jsonl",
+  "query_error": null
+}
