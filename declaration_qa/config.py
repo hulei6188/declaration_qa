@@ -37,6 +37,7 @@ class DeclarationQASettings(BaseSettings):
     openai_api_key: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_KEY")
     openai_api_base: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_BASE")
     llm_temperature: float = Field(default=0.1, alias="DECLARATION_QA_LLM_TEMPERATURE")
+    external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
     intent_router_provider: str = Field(default="auto", alias="DECLARATION_QA_INTENT_ROUTER_PROVIDER")
     intent_router_model: str = Field(default="", alias="DECLARATION_QA_INTENT_ROUTER_MODEL")
     intent_router_temperature: float = Field(default=0.0, alias="DECLARATION_QA_INTENT_ROUTER_TEMPERATURE")

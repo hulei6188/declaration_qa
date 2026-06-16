@@ -38,12 +38,27 @@ class HashEmbeddingProvider:
 class OpenAIEmbeddingProvider:
     name = "openai"
 
-    def __init__(self, *, api_key: str, model: str, base_url: str = "", dimension: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        base_url: str = "",
+        dimension: int | None = None,
+        timeout_seconds: float = 10.0,
+    ) -> None:
         if not api_key:
             raise ValueError("OpenAI embedding provider requires an API key")
         from langchain_openai import OpenAIEmbeddings
 
-        kwargs: dict[str, Any] = {"api_key": api_key, "model": model}
+        kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "model": model,
+            "timeout": timeout_seconds,
+            "max_retries": 1,
+            "retry_min_seconds": 1,
+            "retry_max_seconds": 2,
+        }
         if base_url:
             kwargs["base_url"] = base_url
         if dimension:
@@ -153,12 +168,26 @@ class HttpReranker:
 class OpenAIAnswerGenerator:
     name = "openai"
 
-    def __init__(self, *, api_key: str, model: str, base_url: str = "", temperature: float = 0.1) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        base_url: str = "",
+        temperature: float = 0.1,
+        timeout_seconds: float = 10.0,
+    ) -> None:
         if not api_key:
             raise ValueError("OpenAI answer generator requires an API key")
         from langchain_openai import ChatOpenAI
 
-        kwargs: dict[str, Any] = {"api_key": api_key, "model": model, "temperature": temperature}
+        kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "model": model,
+            "temperature": temperature,
+            "timeout": timeout_seconds,
+            "max_retries": 1,
+        }
         if base_url:
             kwargs["base_url"] = base_url
         self._llm = ChatOpenAI(**kwargs)
@@ -188,6 +217,7 @@ def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvid
             model=settings.embedding_model,
             base_url=settings.openai_api_base,
             dimension=settings.embedding_dimensions if settings.embedding_dimensions > 0 else None,
+            timeout_seconds=settings.external_request_timeout_seconds,
         )
     if provider == "hashing":
         return HashEmbeddingProvider(dimension=settings.embedding_dimensions or 96)
@@ -201,6 +231,7 @@ def build_reranker(settings: DeclarationQASettings) -> Reranker:
             url=settings.rerank_api_url,
             api_key=settings.rerank_api_key,
             model=settings.rerank_model,
+            timeout_seconds=settings.external_request_timeout_seconds,
         )
     if provider == "heuristic":
         return HeuristicReranker()
@@ -215,6 +246,7 @@ def build_answer_generator(settings: DeclarationQASettings):
             model=settings.llm_model,
             base_url=settings.openai_api_base,
             temperature=settings.llm_temperature,
+            timeout_seconds=settings.external_request_timeout_seconds,
         )
     if provider == "deterministic":
         return DeterministicAnswerGenerator()
@@ -243,6 +275,8 @@ def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
         "api_key": settings.openai_api_key,
         "model": settings.intent_router_model or settings.llm_model,
         "temperature": settings.intent_router_temperature,
+        "timeout": settings.external_request_timeout_seconds,
+        "max_retries": 1,
     }
     if settings.openai_api_base:
         kwargs["base_url"] = settings.openai_api_base

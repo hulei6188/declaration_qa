@@ -157,10 +157,19 @@ class InMemoryRAGEngine:
             self._cache_result(cache_key, result)
             return result
 
-        dense_hits = self._dense_retrieve(normalized_query, candidates, effective_filter, limit=max(top_k * 3, 8))
+        degraded: list[dict[str, str]] = []
+        try:
+            dense_hits = self._dense_retrieve(normalized_query, candidates, effective_filter, limit=max(top_k * 3, 8))
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
         bm25_hits = bm25_retrieve(normalized_query, candidates, limit=max(top_k * 3, 8))
         fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
-        reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+        try:
+            reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+        except Exception as exc:
+            reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+            degraded.append({"stage": "rerank", "error": type(exc).__name__})
         expanded_sources = expand_parent_context(reranked, self._chunks)
         result = RetrievalResult(
             sources=expanded_sources,
@@ -181,6 +190,7 @@ class InMemoryRAGEngine:
                     "rrf": len(fused_hits),
                     "rerank": len(reranked),
                 },
+                "degraded": degraded,
                 "filter": effective_filter,
             },
         )
@@ -210,6 +220,8 @@ class InMemoryRAGEngine:
         ]
         if hits:
             return hits[:limit]
+        if not self._vectors:
+            return []
         return dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
@@ -412,7 +424,10 @@ def dense_retrieve(
     query_vector = embedding_provider.embed_query(query)
     hits = []
     for chunk in candidates:
-        score = cosine(query_vector, vectors.get(chunk.embedding_id) or embedding_provider.embed_query(chunk.content))
+        vector = vectors.get(chunk.embedding_id)
+        if not vector:
+            continue
+        score = cosine(query_vector, vector)
         if score > 0:
             hits.append(
                 RetrievedSource(

@@ -55,6 +55,7 @@ from declaration_qa.schemas import (
     RetryIndexJobResponse,
     SessionDetail,
     SessionSummary,
+    TicketSummary,
 )
 from declaration_qa.workflow import DeclarationQAWorkflow
 
@@ -70,7 +71,14 @@ assert_production_ready(settings)
 workflow = create_workflow(settings)
 index_job_store = create_index_job_store(workflow)
 _knowledge_sync_lock = Lock()
-_knowledge_base_revision = ""
+try:
+    _knowledge_base_revision = (
+        workflow.audit_store.knowledge_base_revision()
+        if hasattr(workflow.audit_store, "knowledge_base_revision")
+        else ""
+    )
+except Exception:
+    _knowledge_base_revision = ""
 
 
 def process_index_job_inline(job_uid: str) -> dict:
@@ -142,6 +150,24 @@ def create_app() -> FastAPI:
             sse_event_stream(workflow.stream(apply_chat_auth(request, context, settings))),
             media_type="text/event-stream",
             headers=SSE_HEADERS,
+        )
+
+    @app.get("/api/declaration-qa/tickets", response_model=list[TicketSummary])
+    def list_tickets(
+        user_id: int = 1,
+        biz_type: str = "",
+        region_code: str = "340000",
+        context: RequestContext = Depends(auth_context),
+    ):
+        effective_user_id = context.user_id or user_id
+        if settings.effective_auth_required and not effective_user_id:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if not hasattr(workflow.business_adapter, "list_applications"):
+            return []
+        return workflow.business_adapter.list_applications(
+            user_id=int(effective_user_id or 1),
+            biz_type=biz_type or None,
+            region_code=region_code or None,
         )
 
     @app.post("/api/declaration-qa/knowledge/documents", response_model=KnowledgeDocumentResponse)
@@ -489,7 +515,7 @@ def parse_optional_date(value: str) -> date | None:
 
 def ensure_knowledge_base_fresh(*, force: bool = False) -> None:
     global _knowledge_base_revision
-    if not hasattr(workflow.audit_store, "knowledge_base_revision") or not hasattr(workflow.audit_store, "list_documents"):
+    if not hasattr(workflow.audit_store, "knowledge_base_revision"):
         return
     revision = workflow.audit_store.knowledge_base_revision()
     if not force and revision == _knowledge_base_revision:
@@ -498,8 +524,12 @@ def ensure_knowledge_base_fresh(*, force: bool = False) -> None:
         revision = workflow.audit_store.knowledge_base_revision()
         if not force and revision == _knowledge_base_revision:
             return
-        documents = workflow.audit_store.list_documents()
-        workflow.rag_engine.rebuild(documents)
+        if hasattr(workflow.audit_store, "list_indexed_knowledge") and hasattr(workflow.rag_engine, "load_indexed_data"):
+            documents, chunks = workflow.audit_store.list_indexed_knowledge()
+            workflow.rag_engine.load_indexed_data(documents, chunks)
+        elif hasattr(workflow.audit_store, "list_documents"):
+            documents = workflow.audit_store.list_documents()
+            workflow.rag_engine.rebuild(documents)
         _knowledge_base_revision = revision
 
 

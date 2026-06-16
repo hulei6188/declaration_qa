@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from pathlib import Path
 
-from declaration_qa.domain import KnowledgeDocument
+from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import LLMIntentRouter
@@ -21,6 +21,53 @@ def test_declaration_qa_entrypoint_isolated_from_existing_main():
     assert payload["service"] == "declaration-qa"
     assert payload["audit_store"] == "InMemoryAuditStore"
     assert client.get("/api/agents").status_code == 404
+
+
+def test_ticket_list_endpoint_supports_pre_chat_selection():
+    client = TestClient(create_app())
+
+    response = client.get("/api/declaration-qa/tickets", params={"user_id": 1, "region_code": "340000"})
+
+    assert response.status_code == 200
+    assert any(item["ticket_id"] == "A1001" for item in response.json())
+
+
+def test_knowledge_refresh_loads_persisted_chunks_without_reembedding(monkeypatch):
+    from declaration_qa import server
+
+    document = KnowledgeDocument(id="doc-refresh", title="刷新测试", content="原文")
+    chunk = KnowledgeChunk(id="chunk-refresh", doc_id="doc-refresh", parent_id="", chunk_type="child", title="刷新测试", content="内容")
+
+    class FakeStore:
+        def knowledge_base_revision(self):
+            return "rev-new"
+
+        def list_indexed_knowledge(self):
+            return [document], [chunk]
+
+    class FakeRagEngine:
+        def __init__(self):
+            self.loaded = None
+
+        def load_indexed_data(self, documents, chunks):
+            self.loaded = (documents, chunks)
+
+        def rebuild(self, documents):
+            raise AssertionError("chat refresh must not rebuild embeddings")
+
+    class FakeWorkflow:
+        def __init__(self):
+            self.audit_store = FakeStore()
+            self.rag_engine = FakeRagEngine()
+
+    fake_workflow = FakeWorkflow()
+    monkeypatch.setattr(server, "workflow", fake_workflow)
+    monkeypatch.setattr(server, "_knowledge_base_revision", "rev-old")
+
+    server.ensure_knowledge_base_fresh()
+
+    assert fake_workflow.rag_engine.loaded == ([document], [chunk])
+    assert server._knowledge_base_revision == "rev-new"
 
 
 def test_policy_filter_does_not_use_app_version():
@@ -378,6 +425,38 @@ def test_rag_cache_reports_hit_on_repeated_query():
     assert second.status["cache"]["hit"] is True
     assert second.status["cache"]["backend"] == "memory"
     assert second.status["vector_backend"] == "memory"
+
+
+def test_rag_retrieval_degrades_to_bm25_when_dense_embedding_fails():
+    class FailingEmbeddingProvider:
+        name = "failing"
+        dimension = 3
+
+        def embed_query(self, text: str):
+            raise TimeoutError("embedding timed out")
+
+        def embed_documents(self, texts: list[str]):
+            raise TimeoutError("embedding timed out")
+
+    engine = InMemoryRAGEngine(embedding_provider=FailingEmbeddingProvider())
+    document = KnowledgeDocument(id="doc-housing-fund", title="住房公积金提取", content="")
+    chunk = KnowledgeChunk(
+        id="chunk-housing-fund",
+        doc_id=document.id,
+        parent_id="",
+        chunk_type="child",
+        title=document.title,
+        content="住房公积金提取需要身份证、银行卡、提取申请材料。",
+    )
+    engine.load_indexed_data([document], [chunk])
+
+    result = engine.retrieve("住房公积金提取需要什么材料", {}, top_k=1)
+
+    assert result.sources
+    assert result.sources[0].chunk.id == "chunk-housing-fund"
+    assert result.status["channels"]["dense"] == 0
+    assert result.status["channels"]["bm25"] == 1
+    assert result.status["degraded"] == [{"stage": "dense_retrieve", "error": "TimeoutError"}]
 
 
 def test_postgres_business_adapter_reads_application_status_and_reject_tables():

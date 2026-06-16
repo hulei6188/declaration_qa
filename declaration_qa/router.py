@@ -75,11 +75,9 @@ ROUTER_SYSTEM_PROMPT = """你是政务服务智能问答系统的意图路由器
 
 决策要求:
 1. 当前有工单不代表一定使用工单。只有问题依赖真实工单事实时才 route=ticket_aware。
-2. “我的/这个/当前申请/办到哪/状态/审核/驳回/退回/补正/为什么不通过”通常依赖工单事实。
-3. “怎么办理/需要哪些材料/流程/条件/费用/入口/地址/电话/政策依据”通常是知识问题，即使请求里带了 apply_id，也应 route=knowledge_only。
-4. ticket_aware 目前只输出 intent=ticket_status 或 rejection_reason。
-5. 如果用户咨询的业务类型和当前工单业务类型明显不同，不要使用当前工单；通用咨询走 knowledge_only，个人进度/驳回问题走 clarification。
-6. 只返回 JSON，不能包含 Markdown、解释文字或代码块。
+2. ticket_aware 目前只输出 intent=ticket_status 或 rejection_reason。
+3. 如果用户咨询的业务类型和当前工单业务类型明显不同，不要使用当前工单；通用咨询走 knowledge_only，个人进度/驳回问题走 clarification。
+4. 只返回 JSON，不能包含 Markdown、解释文字或代码块。
 
 JSON 字段:
 {

@@ -11,6 +11,7 @@ const state = {
   lastUserQuery: "",
   pendingTicketQuery: "",
   currentTicket: null,
+  uploadInFlight: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -38,6 +39,7 @@ const els = {
   currentTicketLabel: $("currentTicketLabel"),
   changeTicketButton: $("changeTicketButton"),
   clearTicketButton: $("clearTicketButton"),
+  ticketPicker: $("ticketPicker"),
   feedbackResult: $("feedbackResult"),
   sessionList: $("sessionList"),
   documentList: $("documentList"),
@@ -261,8 +263,8 @@ function renderTicketSelection(tickets, reason) {
 
 async function selectTicket(ticket) {
   const ticketId = String(ticket?.ticket_id || "").trim();
-  const query = state.pendingTicketQuery || state.lastUserQuery;
-  if (!ticketId || !query) return;
+  const query = state.pendingTicketQuery;
+  if (!ticketId) return;
   document.querySelectorAll(".ticket-option").forEach((button) => {
     button.disabled = true;
   });
@@ -272,6 +274,8 @@ async function selectTicket(ticket) {
   setCurrentTicket(ticket);
   state.pendingTicketQuery = "";
   els.sendState.textContent = "已选择工单";
+  hideTicketPicker();
+  if (!query) return;
   await sendChat(query, {
     meta: "用户选择",
     displayText: `${query}\n已选择工单：${ticketLabel(ticket)}`,
@@ -299,14 +303,14 @@ function clearCurrentTicket() {
   state.currentTicket = null;
   state.pendingTicketQuery = "";
   els.applyId.value = "";
+  hideTicketPicker();
   renderCurrentTicket();
   els.sendState.textContent = "当前工单已清除";
 }
 
-function changeCurrentTicket() {
-  clearCurrentTicket();
-  els.queryInput.focus();
-  els.sendState.textContent = "已清除当前工单，请重新提问选择";
+async function changeCurrentTicket() {
+  state.pendingTicketQuery = "";
+  await openTicketPicker();
 }
 
 function syncCurrentTicketFromApplyId() {
@@ -323,14 +327,61 @@ function renderCurrentTicket() {
   const ticketId = state.currentTicket?.ticket_id || els.applyId.value.trim();
   if (!ticketId) {
     els.currentTicketLabel.textContent = "当前工单：未选择";
-    els.changeTicketButton.disabled = true;
+    els.changeTicketButton.textContent = "选择";
+    els.changeTicketButton.disabled = false;
     els.clearTicketButton.disabled = true;
     return;
   }
   const label = state.currentTicket ? ticketLabel(state.currentTicket) : ticketId;
   els.currentTicketLabel.textContent = `当前工单：${label}`;
+  els.changeTicketButton.textContent = "更换";
   els.changeTicketButton.disabled = false;
   els.clearTicketButton.disabled = false;
+}
+
+async function openTicketPicker() {
+  if (!els.ticketPicker) return;
+  els.ticketPicker.hidden = false;
+  els.ticketPicker.innerHTML = '<p class="hint">正在加载工单...</p>';
+  try {
+    const response = await fetch(
+      `${apiBase()}/api/declaration-qa/tickets?user_id=${encodeURIComponent(els.userId.value || "1")}&region_code=${encodeURIComponent(els.regionCode.value || "340000")}&biz_type=${encodeURIComponent(els.bizType.value || "")}`
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const tickets = await response.json();
+    renderTicketPicker(tickets || []);
+  } catch (error) {
+    els.ticketPicker.innerHTML = `<p class="hint">工单加载失败：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderTicketPicker(tickets) {
+  if (!els.ticketPicker) return;
+  if (!tickets.length) {
+    els.ticketPicker.innerHTML = '<p class="hint">暂无可选择工单。</p>';
+    return;
+  }
+  els.ticketPicker.innerHTML = "";
+  const title = document.createElement("strong");
+  title.textContent = "选择当前工单";
+  els.ticketPicker.appendChild(title);
+  tickets.forEach((ticket) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ticket-option";
+    button.innerHTML = `
+      <span>${escapeHtml(ticket.title || ticket.biz_type || "申报工单")}</span>
+      <code>${escapeHtml(ticket.ticket_id || "-")} · ${escapeHtml(ticket.node_name || ticket.current_node || ticket.status || "-")} · ${escapeHtml(ticket.updated_at || "-")}</code>
+    `;
+    button.addEventListener("click", () => selectTicket(ticket));
+    els.ticketPicker.appendChild(button);
+  });
+}
+
+function hideTicketPicker() {
+  if (!els.ticketPicker) return;
+  els.ticketPicker.hidden = true;
+  els.ticketPicker.innerHTML = "";
 }
 
 function addTimeline(event, data) {
@@ -363,6 +414,7 @@ function renderSources(items) {
 }
 
 async function uploadDocument() {
+  if (state.uploadInFlight) return;
   const title = $("docTitle").value.trim();
   const content = $("docContent").value.trim();
   const files = selectedUploadFiles();
@@ -408,16 +460,18 @@ async function uploadFileBatch(files, title) {
     name: file.name,
     size: file.size,
     status: "waiting",
-    message: "等待上传",
+    message: "准备上传",
     chunksIndexed: null,
     documentId: "",
     strategyLabel,
   }));
   renderUploadQueue();
   els.uploadResult.textContent = `准备上传 ${state.uploadItems.length} 个文件`;
+  state.uploadInFlight = true;
   $("uploadDocButton").disabled = true;
   try {
     state.uploadItems.forEach((item) => updateUploadItem(item.id, { status: "running", message: "上传中" }));
+    els.uploadResult.textContent = `正在上传 ${state.uploadItems.length} 个文件`;
     const response = await uploadFileDocuments(files, title);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const batchPayload = await response.json();
@@ -479,10 +533,14 @@ async function uploadFileBatch(files, title) {
     }
     await refreshDocuments();
   } catch (error) {
-    const runningItem = state.uploadItems.find((item) => ["running", "indexing"].includes(item.status));
-    if (runningItem) updateUploadItem(runningItem.id, { status: "failed", message: error.message });
+    state.uploadItems.forEach((item) => {
+      if (["waiting", "running", "indexing"].includes(item.status)) {
+        updateUploadItem(item.id, { status: "failed", message: error.message });
+      }
+    });
     els.uploadResult.textContent = `批量入库失败：${error.message}`;
   } finally {
+    state.uploadInFlight = false;
     $("uploadDocButton").disabled = false;
   }
 }
@@ -512,7 +570,7 @@ function updateUploadQueueFromInput() {
     name: file.name,
     size: file.size,
     status: "waiting",
-    message: "等待上传",
+    message: "已选择，点击上传",
     strategyLabel: selectedChunkingStrategyLabel(),
   }));
   renderUploadQueue();
