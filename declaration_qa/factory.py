@@ -50,13 +50,16 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         embedding_provider=embedding_provider,
         reranker=reranker,
         cache_ttl_seconds=settings.redis_ttl_seconds,
+        include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
     )
-    if not settings.seed_knowledge:
-        rag_engine.rebuild([])
-    if hasattr(audit_store, "list_documents"):
-        stored_documents = audit_store.list_documents()
-        if stored_documents or not settings.seed_knowledge:
+    if hasattr(audit_store, "list_indexed_knowledge"):
+        stored_documents, stored_chunks = audit_store.list_indexed_knowledge()
+        if stored_chunks:
+            rag_engine.load_indexed_data(stored_documents, stored_chunks)
+        elif stored_documents and settings.vector_backend != "milvus":
             rag_engine.rebuild(stored_documents)
+    elif not settings.seed_knowledge:
+        rag_engine.rebuild([])
 
     return DeclarationQAWorkflow(
         rag_engine=rag_engine,

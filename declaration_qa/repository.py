@@ -693,6 +693,61 @@ class PostgresDeclarationQAStore:
             ))
         return documents
 
+    def list_indexed_knowledge(self) -> tuple[list[KnowledgeDocument], list[KnowledgeChunk]]:
+        documents = self.list_documents()
+        document_ids = {document.id for document in documents}
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        c.chunk_uid,
+                        COALESCE(d.document_uid, d.id::text) AS document_uid,
+                        COALESCE(p.chunk_uid, '') AS parent_chunk_uid,
+                        c.chunk_type,
+                        d.title,
+                        c.content,
+                        c.embedding_id,
+                        COALESCE(c.source_url, d.source_url, '') AS source_url,
+                        COALESCE(c.audit_node, d.audit_node, '') AS audit_node,
+                        c.status,
+                        c.metadata
+                    FROM declaration_qa.chunks c
+                    JOIN declaration_qa.documents d ON d.id = c.document_id
+                    LEFT JOIN declaration_qa.chunks p ON p.id = c.parent_chunk_id
+                    WHERE d.status = 'published'
+                      AND c.status = 'published'
+                    ORDER BY d.id ASC, c.chunk_index ASC, c.id ASC
+                    """
+                )
+            ).mappings().all()
+        chunks = []
+        for row in rows:
+            metadata = sanitize_metadata(dict(row["metadata"] or {}))
+            doc_id = str(row["document_uid"] or "")
+            if document_ids and doc_id not in document_ids:
+                continue
+            chunks.append(
+                KnowledgeChunk(
+                    id=str(row["chunk_uid"] or ""),
+                    doc_id=doc_id,
+                    parent_id=str(row["parent_chunk_uid"] or ""),
+                    chunk_type=str(row["chunk_type"] or ""),
+                    title=str(row["title"] or ""),
+                    content=str(row["content"] or ""),
+                    region_code=str(metadata.get("region_code") or metadata.get("region_key") or ""),
+                    policy_version=str(metadata.get("policy_version") or metadata.get("source_version") or ""),
+                    source_url=str(row["source_url"] or ""),
+                    audit_node=str(row["audit_node"] or ""),
+                    status=str(row["status"] or "published"),
+                    effective_start_time=parse_metadata_date(metadata.get("effective_start_time")),
+                    effective_end_time=parse_metadata_date(metadata.get("effective_end_time")),
+                    embedding_id=str(row["embedding_id"] or row["chunk_uid"] or ""),
+                    metadata=metadata,
+                )
+            )
+        return documents, chunks
+
     def knowledge_base_revision(self) -> str:
         with self.engine.begin() as connection:
             value = connection.execute(

@@ -89,6 +89,18 @@ class InMemoryRAGEngine:
         self.cache_store.clear()
         return count
 
+    def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
+        """Load persisted document/chunk metadata without re-embedding.
+
+        Startup should not call external embedding services or rewrite Milvus.
+        Indexing endpoints and workers are responsible for creating vectors.
+        """
+        self._documents = {document.id: document for document in documents}
+        self._chunks = {chunk.id: chunk for chunk in chunks}
+        self._vectors.clear()
+        self.cache_store.clear()
+        return len(self._chunks)
+
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         return split_document(document)
 
@@ -582,6 +594,7 @@ def build_seed_rag_engine(
     embedding_provider: EmbeddingProvider | None = None,
     reranker: Reranker | None = None,
     cache_ttl_seconds: int = 600,
+    include_seed: bool = True,
 ) -> InMemoryRAGEngine:
     engine = InMemoryRAGEngine(
         cache_store=cache_store,
@@ -590,8 +603,9 @@ def build_seed_rag_engine(
         reranker=reranker,
         cache_ttl_seconds=cache_ttl_seconds,
     )
-    for document in seed_documents():
-        engine.index_document(document)
+    if include_seed:
+        for document in seed_documents():
+            engine.index_document(document)
     return engine
 
 
