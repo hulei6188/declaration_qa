@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from html import escape
 from typing import Any
 
@@ -37,17 +38,21 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 )
 
 MULTI_QUESTION_ANSWER_PROMPT = PromptTemplate.from_template(
-    """你是一证办申报辅助问答模块，只能基于按子问题分组的业务查询结果和检索证据回答。
+    """你是一个极其严格的一证办申报辅助问答模块，只能基于按子问题分组的业务查询结果和检索证据回答。
 不能编造政策，不能承诺审核结果，不能替代人工审核结论。
 请严格基于以下按问题划分的证据回答，禁止跨越标签范围套用数据。
 不得跨子问题挪用证据；不得新增证据中没有的材料、时限、费用、条件或审核结论。
 如果某个子问题需要用户选择工单，只能提示先选择工单，不要推测进度或驳回原因。
 如果某个子问题证据不足，只能说明暂未查询到可靠依据。
 
+【重要规则：指针解码】
+下方的每个子问题（SubQuery）中仅包含证据的引用标签（如 <Ref>chunk_a7b1c2d3</Ref>）。
+在回答该子问题时，你必须前往顶部的 <SharedEvidencePool> 中，找到 id 与 Ref 文本完全一致的 <Evidence> 标签，将其内部的具体文本作为你回答该问题的唯一合法依据。
+严禁跨越该子问题指定的 <EvidenceRefs> 去偷看、引用或套用其他未授权的证据 id。
+不要向用户输出 Ref、Evidence id 或 XML 标签本身，只输出自然语言答案。
+
 用户原始问题：{query}
-<SubQueries>
 {sub_task_payload}
-</SubQueries>
 
 请按子问题原顺序分点回答，语言自然但必须可追溯。"""
 )
@@ -156,6 +161,19 @@ def deterministic_sub_task_answer(task: dict[str, Any]) -> str:
 
 def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:
     """把子问题状态格式化为最终回答模型输入。"""
+    evidence_pool = build_shared_evidence_pool(sub_tasks)
+    evidence_lookup = {item["key"]: item["id"] for item in evidence_pool}
+    pool_text = "\n".join(
+        "\n".join(
+            [
+                f"  <Evidence id=\"{item['id']}\">",
+                f"    <Title>{xml_text(item['title'])}</Title>",
+                f"    <Snippet>{xml_text(item['snippet'])}</Snippet>",
+                "  </Evidence>",
+            ]
+        )
+        for item in evidence_pool
+    )
     sections = []
     for index, task in enumerate(sub_tasks, start=1):
         sources = task.get("sources") or []
@@ -164,16 +182,10 @@ def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:
             if task.get("route") == "ticket_context_related"
             else []
         )
-        source_text = "\n".join(
-            "\n".join(
-                [
-                    f"    <Evidence index=\"{source_index}\">",
-                    f"      <Title>{xml_text(source.get('title') or '')}</Title>",
-                    f"      <Snippet>{xml_text(source.get('snippet') or '')}</Snippet>",
-                    "    </Evidence>",
-                ]
-            )
-            for source_index, source in enumerate(sources[:6], start=1)
+        ref_text = "\n".join(
+            f"      <Ref>{evidence_lookup[evidence_key(source)]}</Ref>"
+            for source in sources[:6]
+            if evidence_key(source) in evidence_lookup
         )
         sections.append(
             "\n".join(
@@ -187,14 +199,62 @@ def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:
                     f"    <RefuseReason>{xml_text(task.get('refuse_reason') or '')}</RefuseReason>",
                     *ticket_context,
                     f"    <BusinessContext>{xml_text(task.get('business_snapshot') or {})}</BusinessContext>",
-                    "    <EvidenceList>",
-                    source_text or "    <Evidence>暂无</Evidence>",
-                    "    </EvidenceList>",
+                    "    <EvidenceRefs>",
+                    ref_text or "      <Ref>none</Ref>",
+                    "    </EvidenceRefs>",
                     f"  </SubQuery_{index}>",
                 ]
             )
         )
-    return "\n\n".join(sections)
+    return "\n".join(
+        [
+            "<SharedEvidencePool>",
+            pool_text or "  <Evidence id=\"none\">暂无</Evidence>",
+            "</SharedEvidencePool>",
+            "",
+            "<SubQueries>",
+            "\n\n".join(sections),
+            "</SubQueries>",
+        ]
+    )
+
+
+def build_shared_evidence_pool(sub_tasks: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """构造全局去重证据池。"""
+    pool = []
+    seen = set()
+    for task in sub_tasks:
+        for source in (task.get("sources") or [])[:6]:
+            key = evidence_key(source)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            pool.append(
+                {
+                    "id": evidence_id(source),
+                    "key": key,
+                    "title": str(source.get("title") or ""),
+                    "snippet": str(source.get("snippet") or ""),
+                }
+            )
+    return pool
+
+
+def evidence_key(source: dict[str, Any]) -> str:
+    """生成证据去重键。"""
+    return "|".join(
+        [
+            str(source.get("chunk_id") or ""),
+            str(source.get("doc_id") or ""),
+            str(source.get("title") or ""),
+        ]
+    )
+
+
+def evidence_id(source: dict[str, Any]) -> str:
+    """生成不易和回答编号混淆的证据 ID。"""
+    raw = evidence_key(source) or str(source)
+    return f"chunk_{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:10]}"
 
 
 def xml_text(value: Any) -> str:

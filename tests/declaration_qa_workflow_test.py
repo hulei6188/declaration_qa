@@ -4,10 +4,10 @@ from pathlib import Path
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.question_planner import RuleQuestionPlanner
+from declaration_qa.question_planner import QUESTION_PLANNER_PROMPT, RuleQuestionPlanner
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
-from declaration_qa.router import LLMIntentRouter
+from declaration_qa.router import LLMIntentRouter, parse_json_object
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
 from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, ticket_rag_query, token_events
@@ -194,6 +194,48 @@ def test_rule_question_planner_splits_multi_question():
 
     assert plan.is_multi_question is True
     assert [item["query"] for item in plan.questions] == ["办理居住证需要哪些材料", "多久能办完，收费吗"]
+
+
+def test_rule_question_planner_keeps_single_question_in_questions():
+    planner = RuleQuestionPlanner()
+
+    plan = planner.plan(
+        {
+            "query": "办理健康证需要哪些材料？",
+            "normalized_query": "办理健康证需要哪些材料？",
+            "region_code": "340000",
+        }
+    )
+
+    assert plan.is_multi_question is False
+    assert [item["query"] for item in plan.questions] == ["办理健康证需要哪些材料"]
+
+
+def test_question_planner_prompt_limits_over_splitting_and_markdown():
+    assert "如果不是多问题，也要返回 questions 数组" in QUESTION_PLANNER_PROMPT
+    assert "只输出合法 JSON，不要输出 markdown" in QUESTION_PLANNER_PROMPT
+    assert "同一个业务问题中的限定条件" in QUESTION_PLANNER_PROMPT
+
+
+def test_parse_json_object_strips_uppercase_json_markdown_fence():
+    payload = parse_json_object('```JSON\n{"is_multi_question": false, "questions": []}\n```')
+
+    assert payload == {"is_multi_question": False, "questions": []}
+
+
+def test_multi_question_prompt_uses_shared_evidence_pool_and_refs():
+    source_a = {"chunk_id": "doc-a:chunk-1", "doc_id": "doc-a", "title": "指南A", "snippet": "重复证据"}
+    payload = format_sub_task_payload(
+        [
+            {"query": "问题一", "route": "ticket_context_unrelated", "sources": [source_a]},
+            {"query": "问题二", "route": "ticket_context_unrelated", "sources": [source_a]},
+        ]
+    )
+
+    assert "<SharedEvidencePool>" in payload
+    assert payload.count("<Evidence id=\"chunk_") == 1
+    assert payload.count("<Ref>chunk_") == 2
+    assert payload.count("重复证据") == 1
 
 
 def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answer():

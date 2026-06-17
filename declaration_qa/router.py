@@ -393,7 +393,7 @@ def parse_json_object(value: str) -> dict[str, Any]:
     """从模型输出中解析 JSON 对象。"""
     text = value.strip()
     if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
         text = re.sub(r"\s*```$", "", text)
     try:
         parsed = json.loads(text)
