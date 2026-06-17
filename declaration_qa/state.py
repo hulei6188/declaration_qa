@@ -24,6 +24,9 @@ class DeclarationQAState(TypedDict, total=False):
     sub_intent: str
     route: str
     route_decision: dict[str, Any]
+    question_plan: dict[str, Any]
+    multi_question: bool
+    sub_tasks: list[dict[str, Any]]
     retrieval_chain: str
     need_ticket_selection: bool
     ticket_selection_reason: str

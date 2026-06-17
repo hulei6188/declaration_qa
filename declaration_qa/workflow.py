@@ -14,6 +14,7 @@ from declaration_qa.audit import InMemoryAuditStore
 from declaration_qa.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.evidence import decide_evidence
 from declaration_qa.prompting import DeterministicAnswerGenerator
+from declaration_qa.question_planner import RuleQuestionPlanner
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine, normalize_text
 from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
 from declaration_qa.router import (
@@ -39,6 +40,7 @@ class DeclarationQAWorkflow:
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         intent_router: IntentRouter | None = None,
+        question_planner: RuleQuestionPlanner | None = None,
     ) -> None:
         """初始化申报问答工作流。"""
         self.rag_engine = rag_engine or build_seed_rag_engine()
@@ -46,6 +48,7 @@ class DeclarationQAWorkflow:
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.intent_router = intent_router or IntentRouter()
+        self.question_planner = question_planner or RuleQuestionPlanner()
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -59,6 +62,9 @@ class DeclarationQAWorkflow:
             route=str(final_state.get("route") or ""),
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
+            multi_question=bool(final_state.get("multi_question")),
+            question_plan=final_state.get("question_plan") or {},
+            sub_tasks=final_state.get("sub_tasks") or [],
             need_ticket_selection=bool(final_state.get("need_ticket_selection")),
             ticket_selection_reason=str(final_state.get("ticket_selection_reason") or ""),
             tickets=final_state.get("tickets") or [],
@@ -99,6 +105,47 @@ class DeclarationQAWorkflow:
         for name, handler in [
             ("context_build", self.context_build),
             ("query_preprocess", self.query_preprocess),
+            ("question_plan", self.question_plan),
+        ]:
+            run_node(name, handler)
+            yield from drain()
+
+        if state.get("multi_question"):
+            run_node("multi_question_collect", self.multi_question_collect)
+            yield from drain()
+            if state.get("retrieved_sources"):
+                yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
+            yield from self.llm_generate_stream_events(state)
+            for name, handler in [
+                ("answer_postprocess", self.answer_postprocess),
+                ("audit_log", self.audit_log),
+            ]:
+                run_node(name, handler)
+                yield from drain()
+            yield {
+                "event": "done",
+                "data": {
+                    "session_id": state.get("session_id"),
+                    "audit_id": state.get("audit_id"),
+                    "intent": state.get("intent"),
+                    "route": state.get("route"),
+                    "sub_intent": state.get("sub_intent"),
+                    "multi_question": bool(state.get("multi_question")),
+                    "question_plan": state.get("question_plan") or {},
+                    "sub_tasks": state.get("sub_tasks") or [],
+                    "need_ticket_selection": bool(state.get("need_ticket_selection")),
+                    "ticket_selection_reason": state.get("ticket_selection_reason"),
+                    "tickets": state.get("tickets") or [],
+                    "ticket_context": state.get("ticket_context") or {},
+                    "retrieval_chain": state.get("retrieval_chain"),
+                    "refused": bool(state.get("refused")),
+                    "refuse_reason": state.get("refuse_reason"),
+                    "suggested_actions": state.get("suggested_actions") or [],
+                },
+            }
+            return
+
+        for name, handler in [
             ("intent_route", self.intent_route),
         ]:
             run_node(name, handler)
@@ -166,6 +213,9 @@ class DeclarationQAWorkflow:
                 "intent": state.get("intent"),
                 "route": state.get("route"),
                 "sub_intent": state.get("sub_intent"),
+                "multi_question": bool(state.get("multi_question")),
+                "question_plan": state.get("question_plan") or {},
+                "sub_tasks": state.get("sub_tasks") or [],
                 "need_ticket_selection": bool(state.get("need_ticket_selection")),
                 "ticket_selection_reason": state.get("ticket_selection_reason"),
                 "tickets": state.get("tickets") or [],
@@ -224,6 +274,9 @@ class DeclarationQAWorkflow:
             "sub_intent": "",
             "route": "",
             "route_decision": {},
+            "question_plan": {},
+            "multi_question": False,
+            "sub_tasks": [],
             "retrieval_chain": "",
             "need_ticket_selection": False,
             "ticket_selection_reason": "",
@@ -249,6 +302,8 @@ class DeclarationQAWorkflow:
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
+        builder.add_node("question_plan", self.question_plan)
+        builder.add_node("multi_question_collect", self.multi_question_collect)
         builder.add_node("intent_route", self.intent_route)
         builder.add_node("ticket_list_query", self.ticket_list_query)
         builder.add_node("ticket_selection", self.ticket_selection)
@@ -265,7 +320,13 @@ class DeclarationQAWorkflow:
 
         builder.add_edge(START, "context_build")
         builder.add_edge("context_build", "query_preprocess")
-        builder.add_edge("query_preprocess", "intent_route")
+        builder.add_edge("query_preprocess", "question_plan")
+        builder.add_conditional_edges(
+            "question_plan",
+            lambda state: "multi" if state.get("multi_question") else "single",
+            {"multi": "multi_question_collect", "single": "intent_route"},
+        )
+        builder.add_edge("multi_question_collect", "llm_generate")
         builder.add_conditional_edges(
             "intent_route",
             lambda state: state.get("route") or "refuse",
@@ -337,6 +398,170 @@ class DeclarationQAWorkflow:
         next_state["biz_type"] = next_state.get("biz_type") or infer_biz_type(query)
         add_event(next_state, "query_preprocessed", {"normalized_query": query, "biz_type": next_state.get("biz_type")})
         return next_state
+
+    def question_plan(self, state: DeclarationQAState) -> DeclarationQAState:
+        """拆解多问题请求。"""
+        next_state = dict(state)
+        plan = self.question_planner.plan(next_state)
+        questions = []
+        for index, item in enumerate(plan.questions, start=1):
+            question = dict(item)
+            question["id"] = question.get("id") or f"q{index}"
+            questions.append(question)
+        next_state["question_plan"] = {**plan.payload(), "questions": questions}
+        next_state["multi_question"] = bool(plan.is_multi_question and len(questions) > 1)
+        next_state["sub_tasks"] = questions if next_state["multi_question"] else []
+        add_event(
+            next_state,
+            "question_plan",
+            {
+                "multi_question": next_state["multi_question"],
+                "count": len(questions),
+                "provider": plan.provider,
+                "reason": plan.reason,
+            },
+        )
+        return next_state
+
+    def multi_question_collect(self, state: DeclarationQAState) -> DeclarationQAState:
+        """对每个子问题单独路由、查询业务数据和检索证据。"""
+        next_state = dict(state)
+        sub_tasks = []
+        all_sources = []
+        tickets = []
+        route_values = []
+        intent_values = []
+        need_ticket_selection = False
+        for index, question in enumerate(next_state.get("sub_tasks") or [], start=1):
+            task_state = self.state_for_sub_question(next_state, question)
+            task = self.collect_sub_question(task_state, question, index)
+            sub_tasks.append(task)
+            all_sources.extend(task.get("sources") or [])
+            if task.get("need_ticket_selection"):
+                need_ticket_selection = True
+                tickets.extend(task.get("tickets") or [])
+            if task.get("route"):
+                route_values.append(task["route"])
+            if task.get("intent"):
+                intent_values.append(task["intent"])
+        next_state["sub_tasks"] = sub_tasks
+        next_state["retrieved_sources"] = unique_sources(all_sources)
+        next_state["need_ticket_selection"] = need_ticket_selection
+        next_state["ticket_selection_reason"] = "multi_question_partial_selection" if need_ticket_selection else ""
+        next_state["tickets"] = unique_tickets(tickets)
+        next_state["route"] = "multi_question"
+        next_state["intent"] = "multi_question"
+        next_state["sub_intent"] = ",".join(unique_strings(intent_values))
+        next_state["retrieval_chain"] = "multi_question_grouped_evidence"
+        next_state["route_decision"] = {"route": "multi_question", "sub_routes": unique_strings(route_values)}
+        next_state["evidence_ok"] = any(task.get("status") in {"ready", "answered"} for task in sub_tasks)
+        next_state["evidence_decision"] = {
+            "ok": next_state["evidence_ok"],
+            "reason": "" if next_state["evidence_ok"] else "no_sub_question_evidence",
+            "sub_task_count": len(sub_tasks),
+            "ready_count": sum(1 for task in sub_tasks if task.get("status") in {"ready", "answered"}),
+        }
+        add_event(
+            next_state,
+            "multi_question_collected",
+            {
+                "count": len(sub_tasks),
+                "need_ticket_selection": need_ticket_selection,
+                "source_count": len(next_state["retrieved_sources"]),
+            },
+        )
+        return next_state
+
+    def state_for_sub_question(self, state: DeclarationQAState, question: dict[str, Any]) -> DeclarationQAState:
+        """构造子问题状态，复用原始请求上下文。"""
+        query = normalize_text(str(question.get("query") or ""))
+        inherited_apply_context = state.get("apply_context")
+        inherited_biz_type = (
+            (inherited_apply_context or {}).get("biz_type")
+            if inherited_apply_context
+            else infer_biz_type(query)
+        )
+        return {
+            **state,
+            "query": query,
+            "normalized_query": query,
+            "biz_type": inherited_biz_type,
+            "multi_question": False,
+            "sub_tasks": [],
+            "question_plan": {},
+            "intent": "unknown",
+            "sub_intent": "",
+            "route": "",
+            "route_decision": {},
+            "retrieval_chain": "",
+            "need_ticket_selection": False,
+            "ticket_selection_reason": "",
+            "tickets": [],
+            "ticket_context": None,
+            "rag_query": "",
+            "business_status": None,
+            "reject_info": None,
+            "business_snapshot": None,
+            "material_mapping": None,
+            "retrieval_filter": {},
+            "retrieved_sources": [],
+            "rag_status": {},
+            "evidence_ok": False,
+            "evidence_decision": {},
+            "refuse_reason": None,
+            "answer": "",
+            "refused": False,
+            "suggested_actions": [],
+            "events": [],
+            "audit_payload": {},
+        }
+
+    def collect_sub_question(self, state: DeclarationQAState, question: dict[str, Any], index: int) -> dict[str, Any]:
+        """收集单个子问题的路由、业务上下文和证据。"""
+        state = self.intent_route(state)
+        if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED:
+            state = self.ticket_list_query(state)
+            if not state.get("refuse_reason"):
+                state = self.ticket_selection(state)
+            if not state.get("refuse_reason"):
+                state = self.ticket_detail_query(state)
+            if not state.get("refuse_reason"):
+                state = self.ticket_context_build(state)
+                state = self.ticket_knowledge_rag(state)
+                state = self.evidence_check(state)
+        elif state.get("route") == ROUTE_TICKET_CONTEXT_UNRELATED:
+            state = self.knowledge_filter_build(state)
+            state = self.hybrid_retrieve(state)
+            state = self.evidence_check(state)
+        if state.get("refuse_reason") and not state.get("answer"):
+            state = self.refuse_or_human(state)
+        status = "ready" if state.get("evidence_ok") and not state.get("refused") else "refused"
+        if state.get("need_ticket_selection"):
+            status = "need_ticket_selection"
+        return {
+            "id": question.get("id") or f"q{index}",
+            "query": state.get("query") or question.get("query") or "",
+            "requires_ticket_context": bool(question.get("requires_ticket_context")),
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "sub_intent": state.get("sub_intent") or "",
+            "route_decision": state.get("route_decision") or {},
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "status": status,
+            "need_ticket_selection": bool(state.get("need_ticket_selection")),
+            "ticket_selection_reason": state.get("ticket_selection_reason") or "",
+            "tickets": state.get("tickets") or [],
+            "ticket_context": state.get("ticket_context") or {},
+            "business_snapshot": state.get("business_snapshot") or {},
+            "retrieval_filter": state.get("retrieval_filter") or {},
+            "rag_query": state.get("rag_query") or state.get("normalized_query") or "",
+            "sources": state.get("retrieved_sources") or [],
+            "rag_status": state.get("rag_status") or {},
+            "evidence_decision": state.get("evidence_decision") or {},
+            "refused": bool(state.get("refused")),
+            "refuse_reason": state.get("refuse_reason"),
+            "answer": state.get("answer") or "",
+        }
 
     def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
         """执行意图路由并写入路由结果。"""
@@ -720,6 +945,9 @@ class DeclarationQAWorkflow:
             "sub_intent": next_state.get("sub_intent"),
             "route": next_state.get("route"),
             "route_decision": next_state.get("route_decision") or {},
+            "question_plan": next_state.get("question_plan") or {},
+            "multi_question": next_state.get("multi_question"),
+            "sub_tasks": next_state.get("sub_tasks") or [],
             "retrieval_chain": next_state.get("retrieval_chain"),
             "region_code": next_state.get("region_code"),
             "biz_type": next_state.get("biz_type"),
@@ -864,6 +1092,45 @@ def add_event(state: dict[str, Any], event: str, data: dict[str, Any]) -> None:
     events = list(state.get("events") or [])
     events.append({"event": event, "data": data})
     state["events"] = events
+
+
+def unique_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 chunk/doc 去重来源。"""
+    seen = set()
+    output = []
+    for source in sources:
+        key = (source.get("chunk_id") or "", source.get("doc_id") or "", source.get("title") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(source)
+    return output
+
+
+def unique_tickets(tickets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 ticket_id 去重办件摘要。"""
+    seen = set()
+    output = []
+    for ticket in tickets:
+        ticket_id = str(ticket.get("ticket_id") or "")
+        if not ticket_id or ticket_id in seen:
+            continue
+        seen.add(ticket_id)
+        output.append(ticket)
+    return output
+
+
+def unique_strings(values: list[str]) -> list[str]:
+    """按出现顺序去重字符串。"""
+    seen = set()
+    output = []
+    for value in values:
+        item = str(value or "")
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output
 
 
 STREAM_TOKEN_SIZE = 3

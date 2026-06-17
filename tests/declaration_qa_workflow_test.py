@@ -3,6 +3,8 @@ from pathlib import Path
 
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
+from declaration_qa.question_planner import RuleQuestionPlanner
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import LLMIntentRouter
@@ -177,6 +179,100 @@ def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
     assert "source_type" not in audit["retrieval_filter"]
     assert "material_code" not in audit["retrieval_filter"]
     assert "reject_code" not in audit["retrieval_filter"]
+
+
+def test_rule_question_planner_splits_multi_question():
+    planner = RuleQuestionPlanner()
+
+    plan = planner.plan(
+        {
+            "query": "办理居住证需要哪些材料？多久能办完，收费吗？",
+            "normalized_query": "办理居住证需要哪些材料？多久能办完，收费吗？",
+            "region_code": "340000",
+        }
+    )
+
+    assert plan.is_multi_question is True
+    assert [item["query"] for item in plan.questions] == ["办理居住证需要哪些材料", "多久能办完，收费吗"]
+
+
+def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answer():
+    class CapturingAnswerGenerator:
+        def generate(self, state):
+            self.state = dict(state)
+            prompt = MULTI_QUESTION_ANSWER_PROMPT.format(
+                query=state.get("query") or "",
+                sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
+            )
+            return "多问题最终回答", prompt
+
+    answer_generator = CapturingAnswerGenerator()
+    workflow = DeclarationQAWorkflow(answer_generator=answer_generator)
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="我的健康证办理到哪一步了？办理居住证需要哪些材料？",
+            user_id=1,
+            region_code="340000",
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.multi_question is True
+    assert response.route == "multi_question"
+    assert response.intent == "multi_question"
+    assert response.refused is False
+    assert response.answer == "多问题最终回答"
+    assert [task["query"] for task in response.sub_tasks] == ["我的健康证办理到哪一步了", "办理居住证需要哪些材料"]
+    assert response.sub_tasks[0]["route"] == "ticket_context_related"
+    assert response.sub_tasks[0]["intent"] == "ticket_status"
+    assert response.sub_tasks[0]["status"] == "ready"
+    assert response.sub_tasks[0]["business_snapshot"]["current_node"] == "DEPT_REVIEW"
+    assert response.sub_tasks[1]["route"] == "ticket_context_unrelated"
+    assert response.sub_tasks[1]["intent"] == "material_requirements"
+    assert response.sub_tasks[1]["status"] == "ready"
+    assert "问题1" in audit["final_prompt"]
+    assert "我的健康证办理到哪一步了" in audit["final_prompt"]
+    assert "问题2" in audit["final_prompt"]
+    assert "办理居住证需要哪些材料" in audit["final_prompt"]
+    assert audit["multi_question"] is True
+    assert len(audit["sub_tasks"]) == 2
+
+
+def test_multi_question_preserves_unrelated_answer_when_ticket_selection_is_needed():
+    workflow = DeclarationQAWorkflow()
+
+    response = workflow.invoke(ChatRequest(query="我的申请办到哪了？办理居住证需要哪些材料？", user_id=1, region_code="340000"))
+
+    assert response.multi_question is True
+    assert response.need_ticket_selection is True
+    assert response.ticket_selection_reason == "multi_question_partial_selection"
+    assert response.sub_tasks[0]["status"] == "need_ticket_selection"
+    assert response.sub_tasks[0]["need_ticket_selection"] is True
+    assert len(response.sub_tasks[0]["tickets"]) >= 2
+    assert response.sub_tasks[1]["status"] == "ready"
+    assert response.sub_tasks[1]["route"] == "ticket_context_unrelated"
+    assert "办理居住证需要哪些材料" in response.answer
+
+
+def test_material_definition_question_uses_current_ticket_context():
+    workflow = DeclarationQAWorkflow()
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="申请报告是干嘛的",
+            user_id=1,
+            region_code="340000",
+            apply_id="A1001",
+        )
+    )
+
+    assert response.route == "ticket_context_related"
+    assert response.intent == "knowledge_qa"
+    assert response.need_ticket_selection is False
+    assert response.ticket_selection_reason == "provided_apply_context"
+    assert response.retrieval_chain == "ticket_augmented"
+    assert response.ticket_context["ticket"]["ticket_id"] == "A1001"
 
 
 def test_status_question_auto_selects_single_related_ticket():

@@ -9,7 +9,8 @@ from typing import Any, Iterable, Protocol
 import requests
 
 from declaration_qa.config import DeclarationQASettings
-from declaration_qa.prompting import ANSWER_PROMPT, DeterministicAnswerGenerator
+from declaration_qa.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
+from declaration_qa.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
 from declaration_qa.router import IntentRouter, LLMIntentRouter
 
 
@@ -215,6 +216,11 @@ class OpenAIAnswerGenerator:
 
     def build_prompt(self, state: dict[str, Any]) -> str:
         """根据工作流状态构造回答提示词。"""
+        if state.get("multi_question"):
+            return MULTI_QUESTION_ANSWER_PROMPT.format(
+                query=state.get("query") or "",
+                sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
+            )
         sources = state.get("retrieved_sources") or []
         source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:6])
         business_payload = state.get("business_status") or state.get("reject_info") or {}
@@ -323,6 +329,24 @@ def build_intent_router(settings: DeclarationQASettings):
     if provider in {"llm", "openai", "compatible-openai", "dashscope"}:
         return build_llm_intent_router(settings)
     raise ValueError(f"Unsupported intent router provider: {settings.intent_router_provider}")
+
+
+def build_question_planner(settings: DeclarationQASettings):
+    """按配置创建多问题拆解 planner。"""
+    if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
+        from langchain_openai import ChatOpenAI
+
+        kwargs: dict[str, Any] = {
+            "api_key": settings.openai_api_key,
+            "model": settings.intent_router_model or settings.llm_model,
+            "temperature": 0.0,
+            "timeout": settings.external_request_timeout_seconds,
+            "max_retries": 1,
+        }
+        if settings.openai_api_base:
+            kwargs["base_url"] = settings.openai_api_base
+        return LLMQuestionPlanner(ChatOpenAI(**kwargs), fallback_planner=RuleQuestionPlanner())
+    return RuleQuestionPlanner()
 
 
 def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
