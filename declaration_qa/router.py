@@ -77,7 +77,7 @@ def classify_knowledge_intent(query: str) -> str:
         return INTENT_PROCESS_STEPS
     if contains_any(query, ["条件", "资格", "能不能办", "是否可以"]):
         return INTENT_ELIGIBILITY
-    if contains_any(query, ["费用", "收费", "多少钱", "时限", "多久"]):
+    if contains_any(query, ["费用", "收费", "多少钱", "时限", "多久", "几天", "多少天", "拿结果", "办结"]):
         return INTENT_FEE_TIME_LIMIT
     if contains_any(query, ["地点", "窗口", "地址", "哪里办"]):
         return INTENT_OFFICE_LOCATION

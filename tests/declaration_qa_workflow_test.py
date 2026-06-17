@@ -390,9 +390,9 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
     assert response.sub_tasks[1]["route"] == "ticket_context_unrelated"
     assert response.sub_tasks[1]["intent"] == "material_requirements"
     assert response.sub_tasks[1]["status"] == "ready"
-    assert "问题1" in audit["final_prompt"]
+    assert "<SubQuery_1>" in audit["final_prompt"]
     assert "我的健康证办理到哪一步了" in audit["final_prompt"]
-    assert "问题2" in audit["final_prompt"]
+    assert "<SubQuery_2>" in audit["final_prompt"]
     assert "办理居住证需要哪些材料" in audit["final_prompt"]
     assert audit["multi_question"] is True
     assert len(audit["sub_tasks"]) == 2
@@ -518,6 +518,108 @@ def test_question_planner_drives_knowledge_route_without_router():
     assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
     assert response.route_decision["entities"]["router_provider"] == "question_planner"
+
+
+def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context():
+    fire_context = {
+        "apply_id": "AHZWFW-MOCK-FIRE-001",
+        "user_id": 1,
+        "biz_type": "grassland_fire_blasting_approval",
+        "region_code": "340000",
+        "status": "rejected",
+        "current_node": "MATERIAL_REVIEW",
+        "node_name": "材料预审",
+        "payload": {
+            "title": "防火办事流程",
+            "official_item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批",
+            "source_file": "item_30.md",
+        },
+    }
+
+    class FireAdapter(InMemoryBusinessDataAdapter):
+        def get_apply_context(self, *, user_id: int, apply_id: str):
+            return dict(fire_context) if apply_id == fire_context["apply_id"] else None
+
+        def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+            return apply_id == fire_context["apply_id"]
+
+    class CapturingRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.queries = []
+
+        def retrieve(self, query, filters, *, top_k=4):
+            self.queries.append(query)
+            return super().retrieve(query, filters, top_k=top_k)
+
+    engine = CapturingRAGEngine()
+    engine.index_document(
+        KnowledgeDocument(
+            id="doc-fire-time-limit",
+            title="草原防火期内在草原上进行爆破、勘察和施工等活动审批办事指南",
+            content=(
+                "草原防火期内在草原上进行爆破、勘察和施工等活动审批的"
+                "法定办结时限为20个工作日，承诺办结时限为10个工作日。"
+            ),
+            region_code="340000",
+            policy_version="2025",
+            metadata={"item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批"},
+        )
+    )
+
+    class KnowledgePlanner:
+        def plan(self, state):
+            return type(
+                "Plan",
+                (),
+                {
+                    "is_multi_question": False,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "original_query": "这个事情最快几天能拿结果？",
+                            "query": "这个事情最快几天能拿结果？",
+                            "requires_ticket_context": False,
+                            "is_expanded": False,
+                            "expansion_reason": "",
+                        }
+                    ],
+                    "reason": "planner_marks_time_limit_as_knowledge",
+                    "provider": "test",
+                    "payload": lambda self: {
+                        "is_multi_question": self.is_multi_question,
+                        "questions": self.questions,
+                        "reason": self.reason,
+                        "provider": self.provider,
+                    },
+                },
+            )()
+
+    workflow = DeclarationQAWorkflow(
+        rag_engine=engine,
+        business_adapter=FireAdapter(),
+        question_planner=KnowledgePlanner(),
+    )
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="这个事情最快几天能拿结果？",
+            user_id=1,
+            region_code="340000",
+            apply_id="AHZWFW-MOCK-FIRE-001",
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.route == "ticket_context_unrelated"
+    assert response.intent == "fee_time_limit"
+    assert response.retrieval_chain == "knowledge_retrieval"
+    assert response.business_snapshot == {}
+    assert engine.queries
+    assert "草原防火期内在草原上进行爆破、勘察和施工等活动审批" in engine.queries[-1]
+    assert "这个事情最快几天能拿结果" in engine.queries[-1]
+    assert audit["rag_query"] == engine.queries[-1]
+    assert "10个工作日" in response.answer
 
 
 def test_status_question_uses_business_status_then_rag_explanation():

@@ -216,16 +216,27 @@ class LLMQuestionPlanner:
 
 def build_question_planner_prompt(state: dict[str, Any]) -> str:
     """构造问题拆解提示词。"""
+    apply_context = state.get("apply_context") or {}
+    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
+    current_ticket_title = (
+        apply_context.get("title")
+        or apply_context.get("item_name")
+        or payload.get("official_item_name")
+        or payload.get("item_name")
+        or payload.get("title")
+        or payload.get("catalog_name")
+        or ""
+    )
     context = {
         "query": state.get("query") or "",
         "normalized_query": state.get("normalized_query") or "",
         "has_bound_ticket": bool(state.get("apply_id") or state.get("apply_context")),
         "current_ticket": {
-            "apply_id": (state.get("apply_context") or {}).get("apply_id") or state.get("apply_id") or "",
-            "biz_type": (state.get("apply_context") or {}).get("biz_type") or state.get("biz_type") or "",
-            "title": (state.get("apply_context") or {}).get("title") or "",
-            "status": (state.get("apply_context") or {}).get("status") or "",
-            "node_name": (state.get("apply_context") or {}).get("node_name") or "",
+            "apply_id": apply_context.get("apply_id") or state.get("apply_id") or "",
+            "biz_type": apply_context.get("biz_type") or state.get("biz_type") or "",
+            "title": current_ticket_title,
+            "status": apply_context.get("status") or "",
+            "node_name": apply_context.get("node_name") or "",
         },
     }
     return f"{QUESTION_PLANNER_PROMPT}\n\n请求上下文 JSON:\n{json.dumps(context, ensure_ascii=False)}"

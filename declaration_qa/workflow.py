@@ -441,6 +441,7 @@ class DeclarationQAWorkflow:
         tickets = []
         route_values = []
         intent_values = []
+        rag_queries = []
         need_ticket_selection = False
         for index, question in enumerate(next_state.get("sub_tasks") or [], start=1):
             task_state = self.state_for_sub_question(next_state, question)
@@ -454,6 +455,8 @@ class DeclarationQAWorkflow:
                 route_values.append(task["route"])
             if task.get("intent"):
                 intent_values.append(task["intent"])
+            if task.get("rag_query"):
+                rag_queries.append(str(task.get("rag_query") or ""))
         next_state["need_ticket_selection"] = need_ticket_selection
         ticket_selection_reason = next(
             (
@@ -471,6 +474,7 @@ class DeclarationQAWorkflow:
         next_state["intent"] = "multi_question"
         next_state["sub_intent"] = ",".join(unique_strings(intent_values))
         next_state["retrieval_chain"] = "multi_question_grouped_evidence"
+        next_state["rag_query"] = "\n".join(unique_strings(rag_queries))
         next_state["route_decision"] = {"route": "multi_question", "sub_routes": unique_strings(route_values)}
         next_state["evidence_ok"] = False if need_ticket_selection else any(task.get("status") in {"ready", "answered"} for task in sub_tasks)
         if need_ticket_selection:
@@ -899,14 +903,16 @@ class DeclarationQAWorkflow:
     def hybrid_retrieve(self, state: DeclarationQAState) -> DeclarationQAState:
         """执行普通知识问答混合检索。"""
         next_state = dict(state)
+        query = knowledge_rag_query(next_state)
         result = self.rag_engine.retrieve(
-            next_state.get("normalized_query") or next_state.get("query") or "",
+            query,
             next_state.get("retrieval_filter") or {},
             top_k=4,
         )
+        next_state["rag_query"] = query
         next_state["retrieved_sources"] = [source.payload() for source in result.sources]
         next_state["rag_status"] = result.status
-        add_event(next_state, "rag_status", result.status)
+        add_event(next_state, "rag_status", {**result.status, "rag_query": query})
         return next_state
 
     def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -1063,6 +1069,34 @@ def ticket_rag_query(state: DeclarationQAState) -> str:
         state.get("normalized_query"),
     ]
     return normalize_text(" ".join(str(item) for item in parts if item))
+
+
+def knowledge_rag_query(state: DeclarationQAState) -> str:
+    """构造普通知识检索查询，已选办件时继承事项范围。"""
+    query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
+    scope = selected_ticket_scope_text(state)
+    if not scope:
+        return query
+    return normalize_text(f"{scope} {query}")
+
+
+def selected_ticket_scope_text(state: DeclarationQAState) -> str:
+    """从当前办件提取事项范围，不包含节点、退回原因等工单事实。"""
+    apply_context = state.get("apply_context") or {}
+    if not isinstance(apply_context, dict) or not apply_context:
+        return ""
+    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
+    parts = [
+        business_title(apply_context, state),
+        payload.get("official_item_name"),
+        payload.get("item_name"),
+        payload.get("title"),
+        payload.get("catalog_name"),
+        payload.get("source_file"),
+        payload.get("item_code"),
+        apply_context.get("biz_type"),
+    ]
+    return normalize_text(" ".join(unique_strings([str(item) for item in parts if item])))
 
 
 def business_title(*sources: dict[str, Any]) -> str:
@@ -1236,7 +1270,7 @@ def classify_intent(query: str) -> str:
         return "process_steps"
     if any(keyword in text for keyword in ["条件", "资格", "能不能办", "是否可以"]):
         return "eligibility"
-    if any(keyword in text for keyword in ["费用", "收费", "多少钱", "时限", "多久"]):
+    if any(keyword in text for keyword in ["费用", "收费", "多少钱", "时限", "多久", "几天", "多少天", "拿结果", "办结"]):
         return "fee_time_limit"
     if any(keyword in text for keyword in ["地点", "窗口", "地址", "哪里办"]):
         return "office_location"

@@ -13,6 +13,10 @@ class ApplyContext(BaseModel):
     apply_id: str = ""
     biz_type: str | None = None
     region_code: str | None = None
+    title: str | None = None
+    item_name: str | None = None
+    item_code: str | None = None
+    source_file: str | None = None
     status: str | None = None
     current_node: str | None = None
     node_name: str | None = None
@@ -21,6 +25,7 @@ class ApplyContext(BaseModel):
     material_code: str | None = None
     material_name: str | None = None
     audit_node: str | None = None
+    payload: dict[str, Any] | None = None
 
 
 class TicketSummary(BaseModel):
