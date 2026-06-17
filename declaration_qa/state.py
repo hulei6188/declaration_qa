@@ -25,6 +25,7 @@ class DeclarationQAState(TypedDict, total=False):
     route: str
     route_decision: dict[str, Any]
     question_plan: dict[str, Any]
+    requires_ticket_context: bool
     multi_question: bool
     sub_tasks: list[dict[str, Any]]
     retrieval_chain: str

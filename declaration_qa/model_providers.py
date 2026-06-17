@@ -1,4 +1,4 @@
-"""向量、重排、问答生成和意图路由模型适配器。"""
+"""向量、重排、问答生成和问题规划模型适配器。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import requests
 from declaration_qa.config import DeclarationQASettings
 from declaration_qa.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
 from declaration_qa.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
-from declaration_qa.router import IntentRouter, LLMIntentRouter
 
 
 class EmbeddingProvider(Protocol):
@@ -317,20 +316,6 @@ def build_answer_generator(settings: DeclarationQASettings):
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
 
 
-def build_intent_router(settings: DeclarationQASettings):
-    """按配置创建意图路由器。"""
-    provider = settings.intent_router_provider.strip().lower()
-    if provider in {"rule", "rules", "deterministic"}:
-        return IntentRouter()
-    if provider == "auto":
-        if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
-            return build_llm_intent_router(settings)
-        return IntentRouter()
-    if provider in {"llm", "openai", "compatible-openai", "dashscope"}:
-        return build_llm_intent_router(settings)
-    raise ValueError(f"Unsupported intent router provider: {settings.intent_router_provider}")
-
-
 def build_question_planner(settings: DeclarationQASettings):
     """按配置创建多问题拆解 planner。"""
     if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
@@ -338,7 +323,7 @@ def build_question_planner(settings: DeclarationQASettings):
 
         kwargs: dict[str, Any] = {
             "api_key": settings.openai_api_key,
-            "model": settings.intent_router_model or settings.llm_model,
+            "model": settings.question_planner_model or settings.legacy_intent_router_model or settings.llm_model,
             "temperature": 0.0,
             "timeout": settings.external_request_timeout_seconds,
             "max_retries": 1,
@@ -347,24 +332,6 @@ def build_question_planner(settings: DeclarationQASettings):
             kwargs["base_url"] = settings.openai_api_base
         return LLMQuestionPlanner(ChatOpenAI(**kwargs), fallback_planner=RuleQuestionPlanner())
     return RuleQuestionPlanner()
-
-
-def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
-    """创建基于大模型的意图路由器。"""
-    if not settings.openai_api_key:
-        raise ValueError("LLM intent router requires DECLARATION_QA_OPENAI_API_KEY")
-    from langchain_openai import ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "api_key": settings.openai_api_key,
-        "model": settings.intent_router_model or settings.llm_model,
-        "temperature": settings.intent_router_temperature,
-        "timeout": settings.external_request_timeout_seconds,
-        "max_retries": 1,
-    }
-    if settings.openai_api_base:
-        kwargs["base_url"] = settings.openai_api_base
-    return LLMIntentRouter(ChatOpenAI(**kwargs), fallback_router=IntentRouter())
 
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:

@@ -6,7 +6,7 @@ from declaration_qa.audit import InMemoryAuditStore
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.cache import InMemoryCacheStore, RedisCacheStore
 from declaration_qa.config import DeclarationQASettings, get_settings
-from declaration_qa.model_providers import build_answer_generator, build_embedding_provider, build_intent_router, build_question_planner, build_reranker
+from declaration_qa.model_providers import build_answer_generator, build_embedding_provider, build_question_planner, build_reranker
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.rag_engine import build_seed_rag_engine
 from declaration_qa.runtime import assert_production_ready
@@ -21,7 +21,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
     answer_generator = build_answer_generator(settings)
-    intent_router = build_intent_router(settings)
     question_planner = build_question_planner(settings)
     cache_store = (
         RedisCacheStore(
@@ -70,7 +69,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         business_adapter=business_adapter,
         audit_store=audit_store,
         answer_generator=answer_generator,
-        intent_router=intent_router,
         question_planner=question_planner,
     )
 

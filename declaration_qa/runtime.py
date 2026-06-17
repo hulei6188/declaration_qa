@@ -27,8 +27,6 @@ def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
         errors.append("DECLARATION_QA_JWT_SECRET or DECLARATION_QA_INTERNAL_API_KEY is required in production")
     if settings.llm_provider.lower() == "deterministic":
         errors.append("DECLARATION_QA_LLM_PROVIDER must use a real chat model in production")
-    if settings.intent_router_provider.lower() in {"rule", "rules", "deterministic"}:
-        errors.append("DECLARATION_QA_INTENT_ROUTER_PROVIDER must use llm or auto in production")
     if settings.embedding_provider.lower() == "hashing":
         errors.append("DECLARATION_QA_EMBEDDING_PROVIDER must use a real embedding model in production")
     if settings.rerank_provider.lower() == "heuristic":

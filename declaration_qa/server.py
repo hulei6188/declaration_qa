@@ -130,7 +130,7 @@ def create_app() -> FastAPI:
             "audit_store": workflow.audit_store.__class__.__name__,
             "embedding_provider": workflow.rag_engine.embedding_provider.name,
             "rerank_provider": workflow.rag_engine.reranker.name,
-            "intent_router": getattr(workflow.intent_router, "name", workflow.intent_router.__class__.__name__),
+            "question_planner": getattr(workflow.question_planner, "name", workflow.question_planner.__class__.__name__),
             "answer_generator": workflow.answer_generator.__class__.__name__,
             "auth_required": settings.effective_auth_required,
             "production_ready": not production_readiness_errors(settings),

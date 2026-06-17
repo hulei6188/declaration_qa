@@ -7,7 +7,7 @@ from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_ta
 from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
-from declaration_qa.router import LLMIntentRouter, parse_json_object
+from declaration_qa.router import parse_json_object
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
 from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, ticket_rag_query, token_events
@@ -217,6 +217,11 @@ def test_question_planner_prompt_limits_over_splitting_and_markdown():
     assert "同一个业务问题中的限定条件" in QUESTION_PLANNER_PROMPT
     assert "不输出 intent" in QUESTION_PLANNER_PROMPT
     assert "不输出 route" in QUESTION_PLANNER_PROMPT
+    assert "示例事项甲" in QUESTION_PLANNER_PROMPT
+    assert "示例证照乙" in QUESTION_PLANNER_PROMPT
+    assert "防火办事流程" not in QUESTION_PLANNER_PROMPT
+    assert "草原防火期" not in QUESTION_PLANNER_PROMPT
+    assert "健康证" not in QUESTION_PLANNER_PROMPT
 
 
 def test_llm_question_planner_keeps_only_understanding_fields():
@@ -248,6 +253,44 @@ def test_llm_question_planner_keeps_only_understanding_fields():
     assert plan.questions[0]["is_expanded"] is True
     assert "intent" not in plan.questions[0]
     assert "route" not in plan.questions[0]
+
+
+def test_llm_question_planner_keeps_ticket_related_query_unexpanded():
+    class FakeLLM:
+        def invoke(self, prompt):
+            return """
+            {
+              "is_multi_question": false,
+              "questions": [
+                {
+                  "original_query": "这个要哪些材料",
+                  "query": "涉外收养登记需要哪些材料",
+                  "requires_ticket_context": true,
+                  "is_expanded": true,
+                  "expansion_reason": "expanded_with_current_ticket_title"
+                }
+              ],
+              "reason": "ticket_related_query"
+            }
+            """
+
+    plan = LLMQuestionPlanner(FakeLLM()).plan(
+        {
+            "query": "这个要哪些材料",
+            "normalized_query": "这个要哪些材料",
+            "apply_id": "AHZWFW-REAL40-MOCK-001",
+            "apply_context": {
+                "apply_id": "AHZWFW-REAL40-MOCK-001",
+                "title": "涉外收养登记",
+                "biz_type": "foreign_related_adoption_registration",
+            },
+        }
+    )
+
+    assert plan.questions[0]["query"] == "这个要哪些材料"
+    assert plan.questions[0]["requires_ticket_context"] is True
+    assert plan.questions[0]["is_expanded"] is False
+    assert plan.questions[0]["expansion_reason"] == "ticket_related_query_kept_unexpanded"
 
 
 def test_single_question_workflow_uses_planner_expanded_query_without_planner_route():
@@ -355,20 +398,27 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
     assert len(audit["sub_tasks"]) == 2
 
 
-def test_multi_question_preserves_unrelated_answer_when_ticket_selection_is_needed():
-    workflow = DeclarationQAWorkflow()
+def test_multi_question_requires_ticket_selection_before_answer_generation():
+    class FailIfCalledAnswerGenerator:
+        def generate(self, state):
+            raise AssertionError("multi-question ticket selection should happen before final answer generation")
+
+    workflow = DeclarationQAWorkflow(answer_generator=FailIfCalledAnswerGenerator())
 
     response = workflow.invoke(ChatRequest(query="我的申请办到哪了？办理居住证需要哪些材料？", user_id=1, region_code="340000"))
 
     assert response.multi_question is True
     assert response.need_ticket_selection is True
-    assert response.ticket_selection_reason == "multi_question_partial_selection"
+    assert response.ticket_selection_reason == "multiple_candidates"
+    assert response.refused is True
+    assert response.refuse_reason == "ticket_selection_required"
     assert response.sub_tasks[0]["status"] == "need_ticket_selection"
     assert response.sub_tasks[0]["need_ticket_selection"] is True
     assert len(response.sub_tasks[0]["tickets"]) >= 2
     assert response.sub_tasks[1]["status"] == "ready"
     assert response.sub_tasks[1]["route"] == "ticket_context_unrelated"
-    assert "办理居住证需要哪些材料" in response.answer
+    assert response.sources == []
+    assert "多个可能相关的申请单" in response.answer
 
 
 def test_material_definition_question_uses_current_ticket_context():
@@ -419,31 +469,36 @@ def test_ticket_question_requires_selection_when_multiple_candidates():
     assert "多个可能相关的申请单" in response.answer
 
 
-class FakeRouterLLM:
-    def __init__(self, content: str) -> None:
-        self.content = content
+def test_question_planner_drives_ticket_context_route_without_router():
+    class TicketRelatedPlanner:
+        def plan(self, state):
+            return type(
+                "Plan",
+                (),
+                {
+                    "is_multi_question": False,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "original_query": "麻烦看一下这单现在什么情况",
+                            "query": "麻烦看一下这单现在什么情况",
+                            "requires_ticket_context": True,
+                            "is_expanded": False,
+                            "expansion_reason": "",
+                        }
+                    ],
+                    "reason": "planner_ticket_related",
+                    "provider": "test",
+                    "payload": lambda self: {
+                        "is_multi_question": self.is_multi_question,
+                        "questions": self.questions,
+                        "reason": self.reason,
+                        "provider": self.provider,
+                    },
+                },
+            )()
 
-    def invoke(self, prompt: str):
-        self.prompt = prompt
-        return type("FakeMessage", (), {"content": self.content})()
-
-
-def test_llm_router_handles_ticket_question_without_keyword():
-    llm = FakeRouterLLM(
-        """
-        {
-          "route": "ticket_context_related",
-          "intent": "ticket_status",
-          "sub_intent": "ticket_status",
-          "confidence": 0.91,
-          "requires_ticket_context": true,
-          "can_answer_from_knowledge": false,
-          "reason": "llm_personal_ticket_status",
-          "entities": {"biz_type": "health_certificate", "apply_id": "A1001"}
-        }
-        """
-    )
-    workflow = DeclarationQAWorkflow(intent_router=LLMIntentRouter(llm))
+    workflow = DeclarationQAWorkflow(question_planner=TicketRelatedPlanner())
 
     response = workflow.invoke(
         ChatRequest(query="麻烦看一下这单现在什么情况", user_id=1, region_code="340000", apply_id="A1001")
@@ -451,18 +506,18 @@ def test_llm_router_handles_ticket_question_without_keyword():
 
     assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
-    assert response.route_decision["entities"]["router_provider"] == "llm"
+    assert response.route_decision["entities"]["router_provider"] == "question_planner"
     assert "部门审核中" in response.answer
 
 
-def test_llm_router_falls_back_to_rules_when_model_output_is_invalid():
-    workflow = DeclarationQAWorkflow(intent_router=LLMIntentRouter(FakeRouterLLM("不是 JSON")))
+def test_question_planner_drives_knowledge_route_without_router():
+    workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(ChatRequest(query="办理居住证需要哪些材料", user_id=1, region_code="340000"))
 
     assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
-    assert response.route_decision["entities"]["router_provider"] == "rule_fallback"
+    assert response.route_decision["entities"]["router_provider"] == "question_planner"
 
 
 def test_status_question_uses_business_status_then_rag_explanation():
@@ -631,6 +686,26 @@ def test_status_stream_returns_business_status_and_rag_progress():
     assert "DEPT_REVIEW" in response.text
     assert "event: rag_status" in response.text
     assert "event: sources" in response.text
+
+
+def test_multi_question_stream_requires_ticket_selection_before_tokens():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/declaration-qa/chat/stream",
+        json={
+            "query": "我的申请办到哪了？办理居住证需要哪些材料？",
+            "user_id": 1,
+            "region_code": "340000",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "event: token" in response.text
+    assert "多个可能相关的申请单" in response.text
+    assert "need_ticket_selection" in response.text
+    assert "办理居住证需要准备" not in response.text
+    assert "event: sources" not in response.text
 
 
 def test_declaration_qa_schema_file_defines_isolated_tables():

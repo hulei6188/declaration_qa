@@ -24,7 +24,6 @@ from declaration_qa.router import (
     ROUTE_REFUSE,
     ROUTE_TICKET_CONTEXT_RELATED,
     ROUTE_TICKET_CONTEXT_UNRELATED,
-    IntentRouter,
 )
 from declaration_qa.schemas import ChatRequest, ChatResponse
 from declaration_qa.state import DeclarationQAState
@@ -39,7 +38,6 @@ class DeclarationQAWorkflow:
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
-        intent_router: IntentRouter | None = None,
         question_planner: RuleQuestionPlanner | None = None,
     ) -> None:
         """初始化申报问答工作流。"""
@@ -47,7 +45,6 @@ class DeclarationQAWorkflow:
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
-        self.intent_router = intent_router or IntentRouter()
         self.question_planner = question_planner or RuleQuestionPlanner()
         self.graph = self._build_graph()
 
@@ -113,9 +110,14 @@ class DeclarationQAWorkflow:
         if state.get("multi_question"):
             run_node("multi_question_collect", self.multi_question_collect)
             yield from drain()
-            if state.get("retrieved_sources"):
-                yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-            yield from self.llm_generate_stream_events(state)
+            if state.get("need_ticket_selection"):
+                run_node("refuse_or_human", self.refuse_or_human)
+                yield from drain()
+                yield from token_events(str(state.get("answer") or ""))
+            else:
+                if state.get("retrieved_sources"):
+                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
+                yield from self.llm_generate_stream_events(state)
             for name, handler in [
                 ("answer_postprocess", self.answer_postprocess),
                 ("audit_log", self.audit_log),
@@ -275,6 +277,7 @@ class DeclarationQAWorkflow:
             "route": "",
             "route_decision": {},
             "question_plan": {},
+            "requires_ticket_context": False,
             "multi_question": False,
             "sub_tasks": [],
             "retrieval_chain": "",
@@ -326,7 +329,11 @@ class DeclarationQAWorkflow:
             lambda state: "multi" if state.get("multi_question") else "single",
             {"multi": "multi_question_collect", "single": "intent_route"},
         )
-        builder.add_edge("multi_question_collect", "llm_generate")
+        builder.add_conditional_edges(
+            "multi_question_collect",
+            lambda state: "needs_selection" if state.get("need_ticket_selection") else "ready",
+            {"needs_selection": "refuse_or_human", "ready": "llm_generate"},
+        )
         builder.add_conditional_edges(
             "intent_route",
             lambda state: state.get("route") or "refuse",
@@ -447,20 +454,34 @@ class DeclarationQAWorkflow:
                 route_values.append(task["route"])
             if task.get("intent"):
                 intent_values.append(task["intent"])
-        next_state["sub_tasks"] = sub_tasks
-        next_state["retrieved_sources"] = unique_sources(all_sources)
         next_state["need_ticket_selection"] = need_ticket_selection
-        next_state["ticket_selection_reason"] = "multi_question_partial_selection" if need_ticket_selection else ""
+        ticket_selection_reason = next(
+            (
+                str(task.get("ticket_selection_reason") or "")
+                for task in sub_tasks
+                if task.get("need_ticket_selection") and task.get("ticket_selection_reason")
+            ),
+            "",
+        )
+        next_state["ticket_selection_reason"] = ticket_selection_reason or ("multiple_candidates" if need_ticket_selection else "")
         next_state["tickets"] = unique_tickets(tickets)
+        next_state["sub_tasks"] = sub_tasks
+        next_state["retrieved_sources"] = [] if need_ticket_selection else unique_sources(all_sources)
         next_state["route"] = "multi_question"
         next_state["intent"] = "multi_question"
         next_state["sub_intent"] = ",".join(unique_strings(intent_values))
         next_state["retrieval_chain"] = "multi_question_grouped_evidence"
         next_state["route_decision"] = {"route": "multi_question", "sub_routes": unique_strings(route_values)}
-        next_state["evidence_ok"] = any(task.get("status") in {"ready", "answered"} for task in sub_tasks)
+        next_state["evidence_ok"] = False if need_ticket_selection else any(task.get("status") in {"ready", "answered"} for task in sub_tasks)
+        if need_ticket_selection:
+            next_state["refuse_reason"] = "ticket_selection_required"
         next_state["evidence_decision"] = {
             "ok": next_state["evidence_ok"],
-            "reason": "" if next_state["evidence_ok"] else "no_sub_question_evidence",
+            "reason": (
+                "ticket_selection_required"
+                if need_ticket_selection
+                else ("" if next_state["evidence_ok"] else "no_sub_question_evidence")
+            ),
             "sub_task_count": len(sub_tasks),
             "ready_count": sum(1 for task in sub_tasks if task.get("status") in {"ready", "answered"}),
         }
@@ -488,6 +509,7 @@ class DeclarationQAWorkflow:
             **state,
             "query": query,
             "normalized_query": query,
+            "requires_ticket_context": bool(question.get("requires_ticket_context")),
             "biz_type": inherited_biz_type,
             "multi_question": False,
             "sub_tasks": [],
@@ -570,24 +592,40 @@ class DeclarationQAWorkflow:
         }
 
     def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
-        """执行意图路由并写入路由结果。"""
+        """根据 question planner 输出映射路由并派生内部意图。"""
         next_state = dict(state)
         if next_state.get("refuse_reason"):
             next_state["route"] = ROUTE_REFUSE
             next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
             add_event(next_state, "intent", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
             return next_state
-        decision = self.intent_router.route(next_state)
-        next_state["route_decision"] = decision.payload()
-        next_state["route"] = decision.route
-        next_state["intent"] = decision.intent
-        next_state["sub_intent"] = decision.sub_intent
-        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if decision.route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN
-        if decision.route == ROUTE_REFUSE:
-            next_state["refuse_reason"] = decision.reason or "unsafe_or_out_of_scope"
-        elif decision.route == ROUTE_CLARIFICATION:
+        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
+        intent = classify_intent(query)
+        if intent == "unsafe":
+            route = ROUTE_REFUSE
+            next_state["refuse_reason"] = "unsafe_or_out_of_scope"
+        elif intent == "clarification":
+            route = ROUTE_CLARIFICATION
             next_state["refuse_reason"] = "clarification_required"
-        add_event(next_state, "intent", decision.payload())
+        else:
+            route = ROUTE_TICKET_CONTEXT_RELATED if bool(next_state.get("requires_ticket_context")) else ROUTE_TICKET_CONTEXT_UNRELATED
+        route_decision = {
+            "route": route,
+            "intent": intent,
+            "sub_intent": intent,
+            "confidence": 1.0,
+            "requires_ticket_context": route == ROUTE_TICKET_CONTEXT_RELATED,
+            "can_answer_from_knowledge": route == ROUTE_TICKET_CONTEXT_UNRELATED or intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON},
+            "reason": "question_planner_requires_ticket_context",
+            "risk_level": "block" if route == ROUTE_REFUSE else "pass",
+            "entities": {"router_provider": "question_planner"},
+        }
+        next_state["route_decision"] = route_decision
+        next_state["route"] = route
+        next_state["intent"] = intent
+        next_state["sub_intent"] = intent
+        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN
+        add_event(next_state, "intent", route_decision)
         return next_state
 
     def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -1107,6 +1145,7 @@ def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> N
         return
     state["query"] = planned_query
     state["normalized_query"] = planned_query
+    state["requires_ticket_context"] = bool(question.get("requires_ticket_context"))
     state["biz_type"] = state.get("biz_type") or infer_biz_type(planned_query)
 
 
@@ -1185,11 +1224,31 @@ def classify_intent(query: str) -> str:
     text = str(query or "")
     if any(keyword in text for keyword in ["伪造", "造假", "假材料", "绕过审核"]):
         return "unsafe"
-    if any(keyword in text for keyword in ["退回", "驳回", "补正", "不通过", "被拒"]):
-        return "reject"
-    if any(keyword in text for keyword in ["进度", "到哪", "状态", "审核到", "办到哪"]):
-        return "status"
-    return "knowledge"
+    if len(text.strip()) < 3:
+        return "clarification"
+    if any(keyword in text for keyword in ["退回", "驳回", "补正", "不通过", "被拒", "被退"]):
+        return INTENT_REJECTION_REASON
+    if any(keyword in text for keyword in ["进度", "到哪", "状态", "审核到", "办到哪", "多久能办完", "什么情况", "怎么样"]):
+        return INTENT_TICKET_STATUS
+    if any(keyword in text for keyword in ["材料", "要带", "提交什么", "需要什么", "清单"]):
+        return "material_requirements"
+    if any(keyword in text for keyword in ["流程", "步骤", "怎么办", "如何办理", "怎么申请"]):
+        return "process_steps"
+    if any(keyword in text for keyword in ["条件", "资格", "能不能办", "是否可以"]):
+        return "eligibility"
+    if any(keyword in text for keyword in ["费用", "收费", "多少钱", "时限", "多久"]):
+        return "fee_time_limit"
+    if any(keyword in text for keyword in ["地点", "窗口", "地址", "哪里办"]):
+        return "office_location"
+    if any(keyword in text for keyword in ["电话", "咨询", "投诉"]):
+        return "contact"
+    if any(keyword in text for keyword in ["网上办", "入口", "链接", "在线"]):
+        return "online_apply"
+    if any(keyword in text for keyword in ["依据", "政策", "法规", "文件"]):
+        return "policy_basis"
+    if any(keyword in text for keyword in ["表格", "模板", "样表", "申请表"]):
+        return "form_template"
+    return "knowledge_qa"
 
 
 def infer_biz_type(query: str) -> str | None:
@@ -1224,7 +1283,7 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
     apply_context = state.get("apply_context") or {}
     if state.get("refused"):
         return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version}}]
-    if state.get("intent") in {"status", INTENT_TICKET_STATUS}:
+    if state.get("intent") in {INTENT_TICKET_STATUS}:
         return [
             {
                 "type": "open_apply_detail",
@@ -1232,7 +1291,7 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
                 "payload": {"applyId": apply_context.get("apply_id"), "appVersion": app_version},
             }
         ]
-    if state.get("intent") in {"reject", INTENT_REJECTION_REASON}:
+    if state.get("intent") in {INTENT_REJECTION_REASON}:
         reject_info = state.get("reject_info") or {}
         return [
             {

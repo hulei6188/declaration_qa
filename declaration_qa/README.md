@@ -52,7 +52,6 @@ Required production environment variables:
 - `DECLARATION_QA_MILVUS_URI`, `DECLARATION_QA_MILVUS_TOKEN`, `DECLARATION_QA_MILVUS_COLLECTION`: Milvus connection.
 - `DECLARATION_QA_AUTH_REQUIRED=true` plus `DECLARATION_QA_JWT_SECRET` or `DECLARATION_QA_INTERNAL_API_KEY`.
 - `DECLARATION_QA_LLM_PROVIDER=openai`, `DECLARATION_QA_OPENAI_API_KEY`, `DECLARATION_QA_OPENAI_API_BASE`, `DECLARATION_QA_LLM_MODEL`.
-- `DECLARATION_QA_INTENT_ROUTER_PROVIDER=auto`: uses the configured real chat model for structured intent routing; set `DECLARATION_QA_INTENT_ROUTER_MODEL` only when routing should use a different model.
 - `DECLARATION_QA_EMBEDDING_PROVIDER=openai`, `DECLARATION_QA_EMBEDDING_MODEL`, `DECLARATION_QA_EMBEDDING_DIMENSIONS`.
 - `DECLARATION_QA_RERANK_PROVIDER=http`, `DECLARATION_QA_RERANK_API_URL`, `DECLARATION_QA_RERANK_API_KEY`.
 - `DECLARATION_QA_OCR_API_URL`: required for image uploads that need OCR.
@@ -91,7 +90,7 @@ Core endpoints:
 
 The workflow keeps declaration business state and RAG knowledge separate:
 
-- intent routing uses an LLM JSON classifier when `DECLARATION_QA_INTENT_ROUTER_PROVIDER=auto` and a real chat model is configured; invalid model output falls back to the rule router after enum validation;
+- the question planner performs question splitting, query completion, and `requires_ticket_context` detection; the workflow maps that field directly to `ticket_augmented` or `knowledge_retrieval` instead of running a separate router pass;
 - status and reject questions run on the `ticket_augmented` chain: an application context is mandatory, real business status/reject records are queried first, and RAG only explains the verified business snapshot;
 - policy/material/process questions run on the `knowledge_retrieval` chain and retrieve from the full knowledge corpus; metadata is retained only for display, auditing, and source traceability;
 - Milvus stores common metadata fields and the full metadata JSON for observability, but metadata fields are not used as vector retrieval filters; similarly named business fields remain only in the real ticket snapshot;

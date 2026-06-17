@@ -27,14 +27,6 @@ def test_production_mode_reports_missing_real_dependencies():
     assert "DECLARATION_QA_SEED_KNOWLEDGE=false is required in production" in errors
 
 
-def test_production_mode_rejects_rule_only_intent_router():
-    settings = DeclarationQASettings(_env_file=None, DECLARATION_QA_ENV="production", DECLARATION_QA_INTENT_ROUTER_PROVIDER="rule")
-
-    errors = production_readiness_errors(settings)
-
-    assert "DECLARATION_QA_INTENT_ROUTER_PROVIDER must use llm or auto in production" in errors
-
-
 def test_jwt_context_overrides_request_body_user_id():
     settings = DeclarationQASettings(_env_file=None, DECLARATION_QA_AUTH_REQUIRED=True, DECLARATION_QA_JWT_SECRET="secret")
     token = jwt.encode({"sub": "7", "user_id": 7, "scope": "declaration:qa"}, "secret", algorithm="HS256")

@@ -54,7 +54,10 @@ MULTI_QUESTION_ANSWER_PROMPT = PromptTemplate.from_template(
 用户原始问题：{query}
 {sub_task_payload}
 
-请按子问题原顺序分点回答，语言自然但必须可追溯。"""
+请按用户自然提问方式组织最终答案。
+如果多个子问题属于同一事项或同一办事情境，应合并成连贯段落回答，不要机械输出“1、2”编号。
+只有多个问题彼此明显无关时，才使用编号分点。
+对于证据不足的部分，用一句自然提醒说明，避免生硬堆叠“暂未查询到可靠依据”。"""
 )
 
 
@@ -128,16 +131,15 @@ def multi_question_answer(state: dict[str, Any]) -> tuple[str, str]:
         query=state.get("query") or "",
         sub_task_payload=format_sub_task_payload(sub_tasks),
     )
-    lines = [f"我把你的问题分成 {len(sub_tasks)} 部分："]
-    for index, task in enumerate(sub_tasks, start=1):
-        lines.append(f"{index}. {task.get('query') or '子问题'}")
+    lines = []
+    for task in sub_tasks:
         if task.get("status") == "need_ticket_selection":
             lines.append("这个问题需要先确定具体申请单，请先选择要咨询的工单后继续。")
         elif task.get("status") == "refused":
             lines.append(str(task.get("answer") or "这个问题暂时无法回答，请补充信息或联系人工客服。"))
         else:
             lines.append(deterministic_sub_task_answer(task))
-    return "\n\n".join(lines), prompt
+    return "\n\n".join(dedupe_adjacent_text(lines)), prompt
 
 
 def deterministic_sub_task_answer(task: dict[str, Any]) -> str:
@@ -260,3 +262,16 @@ def evidence_id(source: dict[str, Any]) -> str:
 def xml_text(value: Any) -> str:
     """转义 XML-like 标签中的文本值。"""
     return escape(str(value or ""), quote=False)
+
+
+def dedupe_adjacent_text(values: list[str]) -> list[str]:
+    """去掉相邻重复的空白和文本片段。"""
+    output = []
+    previous = ""
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text == previous:
+            continue
+        output.append(text)
+        previous = text
+    return output

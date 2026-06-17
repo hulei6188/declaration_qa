@@ -13,7 +13,7 @@ from declaration_qa.router import parse_json_object, ticket_context_related
 QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器，只能返回 JSON 对象，不回答业务问题。
 
 任务：
-1. 先理解用户真实问题。用户输入可能是完整问题，也可能只是搜索式关键词短语，例如“防火办事流程”“要什么证 怎么投诉”“多少天”。
+1. 先理解用户真实问题。用户输入可能是完整问题，也可能只是搜索式关键词短语，例如“示例事项甲办事流程”“要什么证 怎么投诉”“多少天”。
 2. 对关键词短语做语义补全，把它改写成适合政务知识库检索的标准、完整问题。
 3. 再判断用户是否在一次输入中询问了多个相对独立、需要分别处理的问题。
 4. 如果是多问题，按用户原始表达顺序拆成可以独立处理的子问题。
@@ -28,7 +28,7 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器
 
 补全原则：
 * 完整自然语言问题尽量保持原意，只做必要清理。
-* 搜索式关键词短语可以补全为标准问句，例如“防火办事流程”可补全为“草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？”
+* 搜索式关键词短语可以补全为标准问句，例如“示例事项甲办事流程”可补全为“示例事项甲的办理流程是什么？”
 * “要什么证”“需要哪些证”“要交什么材料”可补全为“办理该事项需要准备哪些证件和申请材料？”
 * “多少天”“多久拿结果”可补全为“该事项的法定办结时限和承诺办结时限是多少天？”
 * 如果上下文中有 current_ticket 或明确事项名称，可使用该事项名称补全短语；不要猜测无依据的具体事项。
@@ -58,21 +58,21 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器
 }
 
 示例 1：
-用户：防火办事流程，还有要交什么材料
+用户：示例事项甲办事流程，还有要交什么材料
 输出：
 {
   "is_multi_question": true,
   "questions": [
     {
-      "original_query": "防火办事流程",
-      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
+      "original_query": "示例事项甲办事流程",
+      "query": "示例事项甲的办理流程是什么？",
       "requires_ticket_context": false,
       "is_expanded": true,
       "expansion_reason": "keyword_query_to_process_question"
     },
     {
       "original_query": "还有要交什么材料",
-      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批需要提交哪些申请材料？",
+      "query": "示例事项甲需要提交哪些申请材料？",
       "requires_ticket_context": false,
       "is_expanded": true,
       "expansion_reason": "keyword_query_to_material_question"
@@ -106,14 +106,14 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器
 }
 
 示例 3：
-用户：办理健康证需要哪些材料？
+用户：办理示例证照乙需要哪些材料？
 输出：
 {
   "is_multi_question": false,
   "questions": [
     {
-      "original_query": "办理健康证需要哪些材料？",
-      "query": "办理健康证需要哪些材料？",
+      "original_query": "办理示例证照乙需要哪些材料？",
+      "query": "办理示例证照乙需要哪些材料？",
       "requires_ticket_context": false,
       "is_expanded": false,
       "expansion_reason": ""
@@ -250,6 +250,10 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
         )
         is_expanded = bool(item.get("is_expanded")) if isinstance(item, dict) else original_query != query
         expansion_reason = str(item.get("expansion_reason") or "").strip()[:120] if isinstance(item, dict) else ""
+        if requires_ticket_context and original_query:
+            query = original_query
+            is_expanded = False
+            expansion_reason = "ticket_related_query_kept_unexpanded"
         questions.append(
             {
                 "id": f"q{len(questions) + 1}",
