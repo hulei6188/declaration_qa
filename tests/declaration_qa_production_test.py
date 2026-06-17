@@ -396,3 +396,98 @@ def test_hierarchical_chunking_uses_context_parent_only_for_long_sections():
     assert all(parent.metadata.get("indexable") is False for parent in parents)
     assert not any(parent.content == child.content for parent in parents for child in children)
     assert all("\n" in child.content for child in children)
+    assert {chunk.metadata.get("parent_section_id") for chunk in chunks} == {"doc-hierarchical-long#申请材料"}
+
+
+def test_material_query_backfills_sibling_items_by_parent_section_id():
+    engine = InMemoryRAGEngine()
+    document = KnowledgeDocument(
+        id="doc-material-backfill",
+        title="材料回填测试",
+        content=(
+            "# 办事指南\n\n"
+            "## 申请材料\n\n"
+            "### 1. 身份证件\n身份证件通过共享核验。\n\n"
+            "### 2. 单位组织机构代码证\n单位组织机构代码证通过共享核验。\n\n"
+            "### 3. 申请表\n申请表需要申请人自备。"
+        ),
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    engine.index_document(document)
+    result = engine.retrieve("申请表需要哪些材料", {}, top_k=1)
+
+    material_titles = [
+        source.chunk.metadata.get("node_title")
+        for source in result.sources
+        if source.chunk.metadata.get("chunk_type") == "material_item"
+    ]
+    assert material_titles[:3] == ["1. 身份证件", "2. 单位组织机构代码证", "3. 申请表"]
+    assert result.status["structured_backfill"]["applied"] is True
+    assert result.status["structured_backfill"]["target_chunk_type"] == "material_item"
+
+
+def test_material_backfill_merges_all_windows_for_long_item():
+    engine = InMemoryRAGEngine()
+    long_material_body = "\n".join(
+        [f"| 字段{i} | 长材料内容{i}，用于制造多个 child window |" for i in range(30)]
+        + ["| 结尾字段 | 长材料尾段XYZ必须保留 |"]
+    )
+    document = KnowledgeDocument(
+        id="doc-material-long-backfill",
+        title="长材料回填测试",
+        content=(
+            "# 办事指南\n\n"
+            "## 申请材料\n\n"
+            "### 1. 身份证件\n身份证件通过共享核验。\n\n"
+            f"### 2. 长材料\n{long_material_body}"
+        ),
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    engine.index_document(document)
+    result = engine.retrieve("长材料尾段XYZ需要哪些材料", {}, top_k=1)
+
+    long_material = next(
+        source.chunk
+        for source in result.sources
+        if source.chunk.metadata.get("node_title") == "2. 长材料"
+    )
+    assert long_material.metadata["merged_chunk_count"] > 1
+    assert "字段0" in long_material.content
+    assert "长材料尾段XYZ必须保留" in long_material.content
+    assert len([
+        source
+        for source in result.sources
+        if source.chunk.metadata.get("node_title") == "2. 长材料"
+    ]) == 1
+
+
+def test_process_query_backfills_sibling_steps_by_parent_section_id():
+    engine = InMemoryRAGEngine()
+    document = KnowledgeDocument(
+        id="doc-process-backfill",
+        title="流程回填测试",
+        content=(
+            "# 办事指南\n\n"
+            "## 办理流程\n\n"
+            "#### 受理\n办理时限：1个工作日。\n\n"
+            "#### 审查\n办理时限：3个工作日。\n\n"
+            "#### 决定\n办理时限：4个工作日。\n\n"
+            "#### 办结\n办理时限：2个工作日。\n\n"
+            "#### 送达\n办理时限：0个工作日。"
+        ),
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    engine.index_document(document)
+    result = engine.retrieve("审查流程是啥", {}, top_k=1)
+
+    process_titles = [
+        source.chunk.metadata.get("node_title")
+        for source in result.sources
+        if source.chunk.metadata.get("chunk_type") == "process_step"
+    ]
+    assert process_titles[:5] == ["受理", "审查", "决定", "办结", "送达"]
+    assert result.status["structured_backfill"]["applied"] is True
+    assert result.status["structured_backfill"]["target_chunk_type"] == "process_step"

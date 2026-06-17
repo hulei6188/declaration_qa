@@ -171,6 +171,11 @@ class InMemoryRAGEngine:
             reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
         expanded_sources = expand_parent_context(reranked, self._chunks)
+        expanded_sources, structured_backfill_status = expand_structured_section_context(
+            normalized_query,
+            expanded_sources,
+            self._chunks,
+        )
         result = RetrievalResult(
             sources=expanded_sources,
             filter=effective_filter,
@@ -190,6 +195,7 @@ class InMemoryRAGEngine:
                     "rrf": len(fused_hits),
                     "rerank": len(reranked),
                 },
+                "structured_backfill": structured_backfill_status,
                 "degraded": degraded,
                 "filter": effective_filter,
             },
@@ -630,6 +636,170 @@ def expand_parent_context(sources: list[RetrievedSource], chunks: dict[str, Know
         else:
             expanded.append(source)
     return expanded
+
+
+def expand_structured_section_context(
+    query: str,
+    sources: list[RetrievedSource],
+    chunks: dict[str, KnowledgeChunk],
+) -> tuple[list[RetrievedSource], dict[str, Any]]:
+    target_chunk_type = structured_backfill_chunk_type(query)
+    if not target_chunk_type:
+        return sources, {"applied": False}
+
+    expanded: list[RetrievedSource] = []
+    seen_chunk_ids: set[str] = set()
+    seen_node_keys: set[tuple[str, str, str]] = set()
+    backfilled_sections: set[str] = set()
+    added_count = 0
+
+    for source in sources:
+        parent_section_id = str(source.chunk.metadata.get("parent_section_id") or "")
+        if (
+            parent_section_id
+            and parent_section_id not in backfilled_sections
+            and structured_source_matches(source, target_chunk_type)
+        ):
+            siblings = structured_section_sibling_sources(source, chunks, parent_section_id, target_chunk_type)
+            for sibling in siblings:
+                if append_unique_source(expanded, sibling, seen_chunk_ids, seen_node_keys):
+                    added_count += 1
+            backfilled_sections.add(parent_section_id)
+        append_unique_source(expanded, source, seen_chunk_ids, seen_node_keys)
+
+    return expanded, {
+        "applied": bool(backfilled_sections),
+        "target_chunk_type": target_chunk_type,
+        "section_count": len(backfilled_sections),
+        "added_source_count": added_count,
+    }
+
+
+def structured_backfill_chunk_type(query: str) -> str:
+    text = str(query or "")
+    if any(keyword in text for keyword in ["材料", "申请材料", "要交啥", "要准备什么", "提交什么", "上传什么", "需要哪些材料", "要带", "需要什么"]):
+        return "material_item"
+    if any(keyword in text for keyword in ["流程", "怎么办", "怎么申请", "办理步骤", "提交后", "审核", "如何办理"]):
+        return "process_step"
+    return ""
+
+
+def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -> bool:
+    metadata = source.chunk.metadata or {}
+    semantic_chunk_type = str(metadata.get("chunk_type") or "")
+    section_title = str(metadata.get("section_title") or "")
+    if semantic_chunk_type == target_chunk_type:
+        return True
+    if target_chunk_type == "material_item":
+        return section_title == "申请材料"
+    if target_chunk_type == "process_step":
+        return section_title == "办理流程"
+    return False
+
+
+def structured_section_sibling_sources(
+    trigger: RetrievedSource,
+    chunks: dict[str, KnowledgeChunk],
+    parent_section_id: str,
+    target_chunk_type: str,
+) -> list[RetrievedSource]:
+    grouped: dict[tuple[int, str], list[KnowledgeChunk]] = defaultdict(list)
+    for chunk in chunks.values():
+        metadata = chunk.metadata or {}
+        if chunk.chunk_type != "child":
+            continue
+        if metadata.get("indexable") is False:
+            continue
+        if str(metadata.get("parent_section_id") or "") != parent_section_id:
+            continue
+        if str(metadata.get("chunk_type") or "") != target_chunk_type:
+            continue
+        node_title = str(metadata.get("node_title") or "")
+        node_order = safe_int(metadata.get("node_order"))
+        grouped[(node_order, node_title)].append(chunk)
+
+    sibling_sources = []
+    for _, node_chunks in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+        sibling_sources.append(merged_structured_node_source(trigger, node_chunks))
+    return sibling_sources
+
+
+def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[KnowledgeChunk]) -> RetrievedSource:
+    ordered_chunks = sorted(node_chunks, key=structured_chunk_sort_key)
+    first = ordered_chunks[0]
+    merged_content = merge_structured_node_content(ordered_chunks)
+    merged_chunk = replace(
+        first,
+        id=first.id,
+        parent_id="",
+        content=merged_content,
+        metadata={
+            **first.metadata,
+            "merged_chunk_ids": [chunk.id for chunk in ordered_chunks],
+            "merged_chunk_count": len(ordered_chunks),
+            "structured_backfill_merged": True,
+        },
+    )
+    return RetrievedSource(
+        chunk=merged_chunk,
+        score=trigger.score,
+        dense_score=0.0,
+        bm25_score=0.0,
+        rerank_score=0.0,
+        retrieval_channel=f"{trigger.retrieval_channel}+structured_backfill",
+    )
+
+
+def structured_chunk_sort_key(chunk: KnowledgeChunk) -> tuple[int, int, int, str]:
+    metadata = chunk.metadata or {}
+    return (
+        safe_int(metadata.get("node_order")),
+        safe_int(metadata.get("parent_window_index")),
+        safe_int(metadata.get("child_window_index")),
+        chunk.id,
+    )
+
+
+def merge_structured_node_content(chunks: list[KnowledgeChunk]) -> str:
+    parts: list[str] = []
+    seen_content: set[str] = set()
+    for chunk in chunks:
+        content = chunk.content.strip()
+        if not content or content in seen_content:
+            continue
+        parts.append(content)
+        seen_content.add(content)
+    return "\n\n".join(parts)
+
+
+def append_unique_source(
+    output: list[RetrievedSource],
+    source: RetrievedSource,
+    seen_chunk_ids: set[str],
+    seen_node_keys: set[tuple[str, str, str]],
+) -> bool:
+    chunk = source.chunk
+    if chunk.id in seen_chunk_ids:
+        return False
+    metadata = chunk.metadata or {}
+    parent_section_id = str(metadata.get("parent_section_id") or "")
+    semantic_chunk_type = str(metadata.get("chunk_type") or "")
+    node_title = str(metadata.get("node_title") or "")
+    if parent_section_id and semantic_chunk_type and node_title:
+        node_key = (parent_section_id, semantic_chunk_type, node_title)
+        if node_key in seen_node_keys:
+            return False
+        seen_node_keys.add(node_key)
+    seen_chunk_ids.add(chunk.id)
+    output.append(source)
+    return True
+
+
+def safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def bm25_retrieve(query: str, candidates: list[KnowledgeChunk], *, limit: int) -> list[RetrievedSource]:

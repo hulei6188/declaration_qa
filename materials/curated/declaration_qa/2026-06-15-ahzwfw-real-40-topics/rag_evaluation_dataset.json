@@ -1,0 +1,5390 @@
+{
+  "name": "安徽政务服务网真实40事项RAG回归测评集",
+  "description": "基于 materials/curated/declaration_qa/2026-06-15-ahzwfw-real-40-topics 已入库的40份安徽政务服务网真实事项文档生成。覆盖材料清单、受理条件、时限收费、办理流程和常见问题；expected_doc_ids 使用当前知识库 document_uid。",
+  "cases": [
+    {
+      "query": "办理对退出现役残疾军人集中供养的确定需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "disabled_veterans_centralized_support_determination",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-86270ebb951000cb259955b5e4a0f2c9"
+      ],
+      "expected_answer_keywords": [
+        "中华人民共和国居民身份证",
+        "残疾军人证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:disabled_veterans_centralized_support_determination.md",
+        "document_uid:doc-86270ebb951000cb259955b5e4a0f2c9",
+        "theme:44",
+        "official_id:disabled_veterans_centralized_support_determination_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "对退出现役残疾军人集中供养的确定的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "disabled_veterans_centralized_support_determination",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-86270ebb951000cb259955b5e4a0f2c9"
+      ],
+      "expected_answer_keywords": [
+        "（一）退出现役的一级至四级残疾军人",
+        "（二）需要长年医疗或者独身一人不便分散安置"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:disabled_veterans_centralized_support_determination.md",
+        "document_uid:doc-86270ebb951000cb259955b5e4a0f2c9",
+        "theme:44",
+        "official_id:disabled_veterans_centralized_support_determination_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "对退出现役残疾军人集中供养的确定多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "disabled_veterans_centralized_support_determination",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-86270ebb951000cb259955b5e4a0f2c9"
+      ],
+      "expected_answer_keywords": [
+        "20个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:disabled_veterans_centralized_support_determination.md",
+        "document_uid:doc-86270ebb951000cb259955b5e4a0f2c9",
+        "theme:44",
+        "official_id:disabled_veterans_centralized_support_determination_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "对退出现役残疾军人集中供养的确定的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "disabled_veterans_centralized_support_determination",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-86270ebb951000cb259955b5e4a0f2c9"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "办结"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:disabled_veterans_centralized_support_determination.md",
+        "document_uid:doc-86270ebb951000cb259955b5e4a0f2c9",
+        "theme:44",
+        "official_id:disabled_veterans_centralized_support_determination_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "对退出现役残疾军人集中供养的确定：集中供养采取的主要方式是什么",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "disabled_veterans_centralized_support_determination",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-86270ebb951000cb259955b5e4a0f2c9"
+      ],
+      "expected_answer_keywords": [
+        "接收1级至4级残疾军人进入荣誉军人康复医院等优抚",
+        "康复和医疗"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:disabled_veterans_centralized_support_determination.md",
+        "document_uid:doc-86270ebb951000cb259955b5e4a0f2c9",
+        "theme:44",
+        "official_id:disabled_veterans_centralized_support_determination_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理安徽省工程勘察设计大师评选需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "engineering_survey_design_master_selection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06487ddb673a337943a141fdb1cbed69"
+      ],
+      "expected_answer_keywords": [
+        "申报材料意见函",
+        "安徽省工程勘察设计大师申报表"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:engineering_survey_design_master_selection.md",
+        "document_uid:doc-06487ddb673a337943a141fdb1cbed69",
+        "theme:42",
+        "official_id:engineering_survey_design_master_selection_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "安徽省工程勘察设计大师评选的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "engineering_survey_design_master_selection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06487ddb673a337943a141fdb1cbed69"
+      ],
+      "expected_answer_keywords": [
+        "《关于印发〈安徽省工程勘察设计大师评选与管理办法",
+        "热爱祖国"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:engineering_survey_design_master_selection.md",
+        "document_uid:doc-06487ddb673a337943a141fdb1cbed69",
+        "theme:42",
+        "official_id:engineering_survey_design_master_selection_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "安徽省工程勘察设计大师评选多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "engineering_survey_design_master_selection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06487ddb673a337943a141fdb1cbed69"
+      ],
+      "expected_answer_keywords": [
+        "20个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:engineering_survey_design_master_selection.md",
+        "document_uid:doc-06487ddb673a337943a141fdb1cbed69",
+        "theme:42",
+        "official_id:engineering_survey_design_master_selection_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "安徽省工程勘察设计大师评选的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "engineering_survey_design_master_selection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06487ddb673a337943a141fdb1cbed69"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:engineering_survey_design_master_selection.md",
+        "document_uid:doc-06487ddb673a337943a141fdb1cbed69",
+        "theme:42",
+        "official_id:engineering_survey_design_master_selection_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "安徽省工程勘察设计大师评选：安徽省工程勘察设计大师评选委员会如何组成？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "engineering_survey_design_master_selection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06487ddb673a337943a141fdb1cbed69"
+      ],
+      "expected_answer_keywords": [
+        "每次评选前",
+        "安徽省住房城乡建设厅会同安徽省人力资源社会保障厅"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:engineering_survey_design_master_selection.md",
+        "document_uid:doc-06487ddb673a337943a141fdb1cbed69",
+        "theme:42",
+        "official_id:engineering_survey_design_master_selection_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理出入境证件办理进度查询需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "entry_exit_document_progress_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-cdf9ef5c87c01f5bc2267200ffa9f117"
+      ],
+      "expected_answer_keywords": [
+        "居民身份证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:entry_exit_document_progress_query.md",
+        "document_uid:doc-cdf9ef5c87c01f5bc2267200ffa9f117",
+        "theme:12",
+        "official_id:entry_exit_document_progress_query_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "出入境证件办理进度查询的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "entry_exit_document_progress_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-cdf9ef5c87c01f5bc2267200ffa9f117"
+      ],
+      "expected_answer_keywords": [
+        "最近一个月内",
+        "在我省公安出入境管理部门申请办理出入境证件的公民"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:entry_exit_document_progress_query.md",
+        "document_uid:doc-cdf9ef5c87c01f5bc2267200ffa9f117",
+        "theme:12",
+        "official_id:entry_exit_document_progress_query_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "出入境证件办理进度查询多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "entry_exit_document_progress_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-cdf9ef5c87c01f5bc2267200ffa9f117"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:entry_exit_document_progress_query.md",
+        "document_uid:doc-cdf9ef5c87c01f5bc2267200ffa9f117",
+        "theme:12",
+        "official_id:entry_exit_document_progress_query_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "出入境证件办理进度查询的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "entry_exit_document_progress_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-cdf9ef5c87c01f5bc2267200ffa9f117"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:entry_exit_document_progress_query.md",
+        "document_uid:doc-cdf9ef5c87c01f5bc2267200ffa9f117",
+        "theme:12",
+        "official_id:entry_exit_document_progress_query_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "出入境证件办理进度查询：请问是否可以查询到证件邮寄单号?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "entry_exit_document_progress_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-cdf9ef5c87c01f5bc2267200ffa9f117"
+      ],
+      "expected_answer_keywords": [
+        "否"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:entry_exit_document_progress_query.md",
+        "document_uid:doc-cdf9ef5c87c01f5bc2267200ffa9f117",
+        "theme:12",
+        "official_id:entry_exit_document_progress_query_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理火灾事故认定复核需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "fire_accident_identification_review",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-25ecd3d977144b175dd78b4203b8d367"
+      ],
+      "expected_answer_keywords": [
+        "申请材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:fire_accident_identification_review.md",
+        "document_uid:doc-25ecd3d977144b175dd78b4203b8d367",
+        "theme:37",
+        "official_id:fire_accident_identification_review_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "火灾事故认定复核的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "fire_accident_identification_review",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-25ecd3d977144b175dd78b4203b8d367"
+      ],
+      "expected_answer_keywords": [
+        "当事人对火灾事故认定有异议的",
+        "可以自火灾事故认定书送达之日起十五日内"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:fire_accident_identification_review.md",
+        "document_uid:doc-25ecd3d977144b175dd78b4203b8d367",
+        "theme:37",
+        "official_id:fire_accident_identification_review_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "火灾事故认定复核多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "fire_accident_identification_review",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-25ecd3d977144b175dd78b4203b8d367"
+      ],
+      "expected_answer_keywords": [
+        "30个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:fire_accident_identification_review.md",
+        "document_uid:doc-25ecd3d977144b175dd78b4203b8d367",
+        "theme:37",
+        "official_id:fire_accident_identification_review_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "火灾事故认定复核的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "fire_accident_identification_review",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-25ecd3d977144b175dd78b4203b8d367"
+      ],
+      "expected_answer_keywords": [
+        "咨询",
+        "受理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:fire_accident_identification_review.md",
+        "document_uid:doc-25ecd3d977144b175dd78b4203b8d367",
+        "theme:37",
+        "official_id:fire_accident_identification_review_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "火灾事故认定复核：复核受理期限？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "fire_accident_identification_review",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-25ecd3d977144b175dd78b4203b8d367"
+      ],
+      "expected_answer_keywords": [
+        "当事人对火灾事故认定有异议的",
+        "可以自火灾事故认定书送达之日起十五日内"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:fire_accident_identification_review.md",
+        "document_uid:doc-25ecd3d977144b175dd78b4203b8d367",
+        "theme:37",
+        "official_id:fire_accident_identification_review_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理涉外、涉港澳台、涉华侨结婚登记需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_hmt_overseas_chinese_marriage_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-e3b1bfe2394c94cc52c711cf89eeee66"
+      ],
+      "expected_answer_keywords": [
+        "内地居民身份证",
+        "港澳台居民身份证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_hmt_overseas_chinese_marriage_registration.md",
+        "document_uid:doc-e3b1bfe2394c94cc52c711cf89eeee66",
+        "theme:47",
+        "official_id:foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "涉外、涉港澳台、涉华侨结婚登记的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_hmt_overseas_chinese_marriage_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-e3b1bfe2394c94cc52c711cf89eeee66"
+      ],
+      "expected_answer_keywords": [
+        "一方是中国内地居民居民",
+        "另一方是外国人"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_hmt_overseas_chinese_marriage_registration.md",
+        "document_uid:doc-e3b1bfe2394c94cc52c711cf89eeee66",
+        "theme:47",
+        "official_id:foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "涉外、涉港澳台、涉华侨结婚登记多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_hmt_overseas_chinese_marriage_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-e3b1bfe2394c94cc52c711cf89eeee66"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_hmt_overseas_chinese_marriage_registration.md",
+        "document_uid:doc-e3b1bfe2394c94cc52c711cf89eeee66",
+        "theme:47",
+        "official_id:foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "涉外、涉港澳台、涉华侨结婚登记的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_hmt_overseas_chinese_marriage_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-e3b1bfe2394c94cc52c711cf89eeee66"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_hmt_overseas_chinese_marriage_registration.md",
+        "document_uid:doc-e3b1bfe2394c94cc52c711cf89eeee66",
+        "theme:47",
+        "official_id:foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "涉外、涉港澳台、涉华侨结婚登记：对结婚登记当事人提供的单身证明有什么要求？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_hmt_overseas_chinese_marriage_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-e3b1bfe2394c94cc52c711cf89eeee66"
+      ],
+      "expected_answer_keywords": [
+        "需提供所在国公证机构或者有权机关出具的",
+        "经中华人民共和国驻该国使（领）馆认证的本人无配偶"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_hmt_overseas_chinese_marriage_registration.md",
+        "document_uid:doc-e3b1bfe2394c94cc52c711cf89eeee66",
+        "theme:47",
+        "official_id:foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理涉外收养登记需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_related_adoption_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-15b17087cb2c978dff5c18ccee1608ca"
+      ],
+      "expected_answer_keywords": [
+        "收养人护照",
+        "来华收养子女通知书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_related_adoption_registration.md",
+        "document_uid:doc-15b17087cb2c978dff5c18ccee1608ca",
+        "theme:25",
+        "official_id:foreign_related_adoption_registration_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "涉外收养登记的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_related_adoption_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-15b17087cb2c978dff5c18ccee1608ca"
+      ],
+      "expected_answer_keywords": [
+        "申请收养人持中国儿童福利和收养中心出具的来华收养"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_related_adoption_registration.md",
+        "document_uid:doc-15b17087cb2c978dff5c18ccee1608ca",
+        "theme:25",
+        "official_id:foreign_related_adoption_registration_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "涉外收养登记多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_related_adoption_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-15b17087cb2c978dff5c18ccee1608ca"
+      ],
+      "expected_answer_keywords": [
+        "2个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_related_adoption_registration.md",
+        "document_uid:doc-15b17087cb2c978dff5c18ccee1608ca",
+        "theme:25",
+        "official_id:foreign_related_adoption_registration_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "涉外收养登记的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_related_adoption_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-15b17087cb2c978dff5c18ccee1608ca"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_related_adoption_registration.md",
+        "document_uid:doc-15b17087cb2c978dff5c18ccee1608ca",
+        "theme:25",
+        "official_id:foreign_related_adoption_registration_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "涉外收养登记：外籍夫妻双方共同收养的，若一方因故无法到场可以办理涉外收养登记么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreign_related_adoption_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-15b17087cb2c978dff5c18ccee1608ca"
+      ],
+      "expected_answer_keywords": [
+        "如果一方因故不能来华",
+        "应当书面委托另一方"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreign_related_adoption_registration.md",
+        "document_uid:doc-15b17087cb2c978dff5c18ccee1608ca",
+        "theme:25",
+        "official_id:foreign_related_adoption_registration_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理境内外国人集体进行宗教活动临时地点审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06eb623e5b43ddfa18b4c4afad31cb60"
+      ],
+      "expected_answer_keywords": [
+        "在华外国人集体进行宗教活动临时地点审批申请表",
+        "管理规章制度草案"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreigners_group_religious_activity_temporary_site_approval.md",
+        "document_uid:doc-06eb623e5b43ddfa18b4c4afad31cb60",
+        "theme:22",
+        "official_id:foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "境内外国人集体进行宗教活动临时地点审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06eb623e5b43ddfa18b4c4afad31cb60"
+      ],
+      "expected_answer_keywords": [
+        "申请人能够遵守中国的法律法规和规章",
+        "愿意接受当地人民政府宗教事务部门管理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreigners_group_religious_activity_temporary_site_approval.md",
+        "document_uid:doc-06eb623e5b43ddfa18b4c4afad31cb60",
+        "theme:22",
+        "official_id:foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "境内外国人集体进行宗教活动临时地点审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06eb623e5b43ddfa18b4c4afad31cb60"
+      ],
+      "expected_answer_keywords": [
+        "2个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreigners_group_religious_activity_temporary_site_approval.md",
+        "document_uid:doc-06eb623e5b43ddfa18b4c4afad31cb60",
+        "theme:22",
+        "official_id:foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "境内外国人集体进行宗教活动临时地点审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06eb623e5b43ddfa18b4c4afad31cb60"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreigners_group_religious_activity_temporary_site_approval.md",
+        "document_uid:doc-06eb623e5b43ddfa18b4c4afad31cb60",
+        "theme:22",
+        "official_id:foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "境内外国人集体进行宗教活动临时地点审批：申请人有什么要求?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "foreigners_group_religious_activity_temporary_site_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "office_location",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-06eb623e5b43ddfa18b4c4afad31cb60"
+      ],
+      "expected_answer_keywords": [
+        "申请人能够遵守中国的法律法规和规章",
+        "愿意接受当地人民政府宗教事务部门管理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:foreigners_group_religious_activity_temporary_site_approval.md",
+        "document_uid:doc-06eb623e5b43ddfa18b4c4afad31cb60",
+        "theme:22",
+        "official_id:foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理举办高危险性体育赛事活动许可需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "high_risk_sports_event_permit",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-7ee0a86b5d76199629df81ad9e2c0508"
+      ],
+      "expected_answer_keywords": [
+        "举办高危险性体育赛事活动申请书",
+        "专业技术人员的资格或资质证明材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:high_risk_sports_event_permit.md",
+        "document_uid:doc-7ee0a86b5d76199629df81ad9e2c0508",
+        "theme:30",
+        "official_id:high_risk_sports_event_permit_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "举办高危险性体育赛事活动许可的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "high_risk_sports_event_permit",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-7ee0a86b5d76199629df81ad9e2c0508"
+      ],
+      "expected_answer_keywords": [
+        "高危险性体育赛事活动组织者应当向地方体育行政部门",
+        "并提交《体育赛事活动管理办法》2023年1月1日"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:high_risk_sports_event_permit.md",
+        "document_uid:doc-7ee0a86b5d76199629df81ad9e2c0508",
+        "theme:30",
+        "official_id:high_risk_sports_event_permit_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "举办高危险性体育赛事活动许可多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "high_risk_sports_event_permit",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-7ee0a86b5d76199629df81ad9e2c0508"
+      ],
+      "expected_answer_keywords": [
+        "30个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:high_risk_sports_event_permit.md",
+        "document_uid:doc-7ee0a86b5d76199629df81ad9e2c0508",
+        "theme:30",
+        "official_id:high_risk_sports_event_permit_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "举办高危险性体育赛事活动许可的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "high_risk_sports_event_permit",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-7ee0a86b5d76199629df81ad9e2c0508"
+      ],
+      "expected_answer_keywords": [
+        "预审",
+        "受理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:high_risk_sports_event_permit.md",
+        "document_uid:doc-7ee0a86b5d76199629df81ad9e2c0508",
+        "theme:30",
+        "official_id:high_risk_sports_event_permit_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "举办高危险性体育赛事活动许可：哪些赛事需要办这个许可？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "high_risk_sports_event_permit",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-7ee0a86b5d76199629df81ad9e2c0508"
+      ],
+      "expected_answer_keywords": [
+        "根据国家《高危险性体育赛事活动目录（第一批）》",
+        "共6 大类 18 小项必须办许可： 1.潜水赛事"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:high_risk_sports_event_permit.md",
+        "document_uid:doc-7ee0a86b5d76199629df81ad9e2c0508",
+        "theme:30",
+        "official_id:high_risk_sports_event_permit_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_no_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d8b360fdf778dd35995c9e7ebe297ca0"
+      ],
+      "expected_answer_keywords": [
+        "行政许可申请书",
+        "技术评价报告"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_no_asset_loss.md",
+        "document_uid:doc-d8b360fdf778dd35995c9e7ebe297ca0",
+        "theme:45",
+        "official_id:highway_crossing_facility_approval_no_asset_loss_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_no_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d8b360fdf778dd35995c9e7ebe297ca0"
+      ],
+      "expected_answer_keywords": [
+        "因基本建设需要跨越",
+        "穿越公路修建桥梁"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_no_asset_loss.md",
+        "document_uid:doc-d8b360fdf778dd35995c9e7ebe297ca0",
+        "theme:45",
+        "official_id:highway_crossing_facility_approval_no_asset_loss_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_no_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d8b360fdf778dd35995c9e7ebe297ca0"
+      ],
+      "expected_answer_keywords": [
+        "5个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_no_asset_loss.md",
+        "document_uid:doc-d8b360fdf778dd35995c9e7ebe297ca0",
+        "theme:45",
+        "official_id:highway_crossing_facility_approval_no_asset_loss_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_no_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d8b360fdf778dd35995c9e7ebe297ca0"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_no_asset_loss.md",
+        "document_uid:doc-d8b360fdf778dd35995c9e7ebe297ca0",
+        "theme:45",
+        "official_id:highway_crossing_facility_approval_no_asset_loss_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（不涉及路产损失的）：问：该事项可以异地办理申请吗?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_no_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d8b360fdf778dd35995c9e7ebe297ca0"
+      ],
+      "expected_answer_keywords": [
+        "到项目所在高速公路路政大队驻地申请",
+        "具体地址可以拨打咨询电话或网上查询"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_no_asset_loss.md",
+        "document_uid:doc-d8b360fdf778dd35995c9e7ebe297ca0",
+        "theme:45",
+        "official_id:highway_crossing_facility_approval_no_asset_loss_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_with_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a82eff9f7285409b66740db00bab2b29"
+      ],
+      "expected_answer_keywords": [
+        "交通运输行政许可申请书",
+        "技术评价报告"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_with_asset_loss.md",
+        "document_uid:doc-a82eff9f7285409b66740db00bab2b29",
+        "theme:6",
+        "official_id:highway_crossing_facility_approval_with_asset_loss_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_with_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a82eff9f7285409b66740db00bab2b29"
+      ],
+      "expected_answer_keywords": [
+        "因基本建设需要跨越",
+        "穿越公路修建桥梁"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_with_asset_loss.md",
+        "document_uid:doc-a82eff9f7285409b66740db00bab2b29",
+        "theme:6",
+        "official_id:highway_crossing_facility_approval_with_asset_loss_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_with_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a82eff9f7285409b66740db00bab2b29"
+      ],
+      "expected_answer_keywords": [
+        "5个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_with_asset_loss.md",
+        "document_uid:doc-a82eff9f7285409b66740db00bab2b29",
+        "theme:6",
+        "official_id:highway_crossing_facility_approval_with_asset_loss_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_with_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a82eff9f7285409b66740db00bab2b29"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_with_asset_loss.md",
+        "document_uid:doc-a82eff9f7285409b66740db00bab2b29",
+        "theme:6",
+        "official_id:highway_crossing_facility_approval_with_asset_loss_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "跨越、穿越高速公路修建桥梁、渡槽或者架设、埋设管线等设施审批（涉及路产损失的）：该事项可以异地办理申请吗?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "highway_crossing_facility_approval_with_asset_loss",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a82eff9f7285409b66740db00bab2b29"
+      ],
+      "expected_answer_keywords": [
+        "可以异地办理",
+        "线下渠道为到项目所在高速公路路政大队驻地申请"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:highway_crossing_facility_approval_with_asset_loss.md",
+        "document_uid:doc-a82eff9f7285409b66740db00bab2b29",
+        "theme:6",
+        "official_id:highway_crossing_facility_approval_with_asset_loss_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理利用堤顶、戗台兼做公路审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_27",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-adf3b25aeaf41533972ac89a74b56495"
+      ],
+      "expected_answer_keywords": [
+        "利用堤顶、戗台兼做公路申请书",
+        "利用堤顶、戗台兼做公路方案报告书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_27.md",
+        "document_uid:doc-adf3b25aeaf41533972ac89a74b56495",
+        "theme:42",
+        "official_id:item_27_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "利用堤顶、戗台兼做公路审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_27",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-adf3b25aeaf41533972ac89a74b56495"
+      ],
+      "expected_answer_keywords": [
+        "活动必须符合河道堤防管理与防汛要求",
+        "符合水资源保护等专项规划"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_27.md",
+        "document_uid:doc-adf3b25aeaf41533972ac89a74b56495",
+        "theme:42",
+        "official_id:item_27_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "利用堤顶、戗台兼做公路审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_27",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-adf3b25aeaf41533972ac89a74b56495"
+      ],
+      "expected_answer_keywords": [
+        "4个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_27.md",
+        "document_uid:doc-adf3b25aeaf41533972ac89a74b56495",
+        "theme:42",
+        "official_id:item_27_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "利用堤顶、戗台兼做公路审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_27",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-adf3b25aeaf41533972ac89a74b56495"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_27.md",
+        "document_uid:doc-adf3b25aeaf41533972ac89a74b56495",
+        "theme:42",
+        "official_id:item_27_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "利用堤顶、戗台兼做公路审批：水利厅负责哪些堤防的堤顶及戗台兼做公路审批",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_27",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-adf3b25aeaf41533972ac89a74b56495"
+      ],
+      "expected_answer_keywords": [
+        "包括长江干流",
+        "淮河干流"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_27.md",
+        "document_uid:doc-adf3b25aeaf41533972ac89a74b56495",
+        "theme:42",
+        "official_id:item_27_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理取水许可需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_28",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f9378b7e9f9b7938c70fb4eda279b4e2"
+      ],
+      "expected_answer_keywords": [
+        "建设项目水资源论证报告书（表）",
+        "水权转让可行性研究报告"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_28.md",
+        "document_uid:doc-f9378b7e9f9b7938c70fb4eda279b4e2",
+        "theme:42",
+        "official_id:item_28_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "取水许可的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_28",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f9378b7e9f9b7938c70fb4eda279b4e2"
+      ],
+      "expected_answer_keywords": [
+        "非农业用水年取用地表水在2000万立方米以上",
+        "地下水在1000万立方米以上"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_28.md",
+        "document_uid:doc-f9378b7e9f9b7938c70fb4eda279b4e2",
+        "theme:42",
+        "official_id:item_28_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "取水许可多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_28",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f9378b7e9f9b7938c70fb4eda279b4e2"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_28.md",
+        "document_uid:doc-f9378b7e9f9b7938c70fb4eda279b4e2",
+        "theme:42",
+        "official_id:item_28_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "取水许可的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_28",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f9378b7e9f9b7938c70fb4eda279b4e2"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_28.md",
+        "document_uid:doc-f9378b7e9f9b7938c70fb4eda279b4e2",
+        "theme:42",
+        "official_id:item_28_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "取水许可：哪些情形不需要办理取水许可？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_28",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f9378b7e9f9b7938c70fb4eda279b4e2"
+      ],
+      "expected_answer_keywords": [
+        "下列情形不需要申请领取取水许可证: 一农村集体经",
+        "水库中的水的"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_28.md",
+        "document_uid:doc-f9378b7e9f9b7938c70fb4eda279b4e2",
+        "theme:42",
+        "official_id:item_28_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理水利建设市场主体信用信息查询服务需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_29",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-c55ef8f1a655902ddc9bf8319f7c327e"
+      ],
+      "expected_answer_keywords": [
+        "申请材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_29.md",
+        "document_uid:doc-c55ef8f1a655902ddc9bf8319f7c327e",
+        "theme:42",
+        "official_id:item_29_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "水利建设市场主体信用信息查询服务的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_29",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-c55ef8f1a655902ddc9bf8319f7c327e"
+      ],
+      "expected_answer_keywords": [
+        "申请人提供单位名称",
+        "统一信用代码等信息"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_29.md",
+        "document_uid:doc-c55ef8f1a655902ddc9bf8319f7c327e",
+        "theme:42",
+        "official_id:item_29_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "水利建设市场主体信用信息查询服务多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_29",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-c55ef8f1a655902ddc9bf8319f7c327e"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_29.md",
+        "document_uid:doc-c55ef8f1a655902ddc9bf8319f7c327e",
+        "theme:42",
+        "official_id:item_29_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "水利建设市场主体信用信息查询服务的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_29",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-c55ef8f1a655902ddc9bf8319f7c327e"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "办结"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_29.md",
+        "document_uid:doc-c55ef8f1a655902ddc9bf8319f7c327e",
+        "theme:42",
+        "official_id:item_29_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "水利建设市场主体信用信息查询服务：信用信息可以下载打印吗?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_29",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-c55ef8f1a655902ddc9bf8319f7c327e"
+      ],
+      "expected_answer_keywords": [
+        "可以"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_29.md",
+        "document_uid:doc-c55ef8f1a655902ddc9bf8319f7c327e",
+        "theme:42",
+        "official_id:item_29_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理草原防火期内在草原上进行爆破、勘察和施工等活动审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_30",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-80cad054d5f200ce1dc6012be912f6cd"
+      ],
+      "expected_answer_keywords": [
+        "身份证件",
+        "单位组织机构代码证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_30.md",
+        "document_uid:doc-80cad054d5f200ce1dc6012be912f6cd",
+        "theme:42",
+        "official_id:item_30_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_30",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-80cad054d5f200ce1dc6012be912f6cd"
+      ],
+      "expected_answer_keywords": [
+        "草原防火期内",
+        "确实需要在草原上进行爆破"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_30.md",
+        "document_uid:doc-80cad054d5f200ce1dc6012be912f6cd",
+        "theme:42",
+        "official_id:item_30_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_30",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-80cad054d5f200ce1dc6012be912f6cd"
+      ],
+      "expected_answer_keywords": [
+        "10个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_30.md",
+        "document_uid:doc-80cad054d5f200ce1dc6012be912f6cd",
+        "theme:42",
+        "official_id:item_30_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_30",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-80cad054d5f200ce1dc6012be912f6cd"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_30.md",
+        "document_uid:doc-80cad054d5f200ce1dc6012be912f6cd",
+        "theme:42",
+        "official_id:item_30_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批：个人是否可以申请?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_30",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-80cad054d5f200ce1dc6012be912f6cd"
+      ],
+      "expected_answer_keywords": [
+        "可以",
+        "但要有完全民事行为能力"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_30.md",
+        "document_uid:doc-80cad054d5f200ce1dc6012be912f6cd",
+        "theme:42",
+        "official_id:item_30_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理出售、购买、利用国家重点保护陆生野生动物及其制品审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_31",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-da079c636a58dba3da99f8f8e59c09b9"
+      ],
+      "expected_answer_keywords": [
+        "营业执照",
+        "居民身份证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_31.md",
+        "document_uid:doc-da079c636a58dba3da99f8f8e59c09b9",
+        "theme:42",
+        "official_id:item_31_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_31",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-da079c636a58dba3da99f8f8e59c09b9"
+      ],
+      "expected_answer_keywords": [
+        "申报主体：因科学研究",
+        "人工繁育"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_31.md",
+        "document_uid:doc-da079c636a58dba3da99f8f8e59c09b9",
+        "theme:42",
+        "official_id:item_31_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_31",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-da079c636a58dba3da99f8f8e59c09b9"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_31.md",
+        "document_uid:doc-da079c636a58dba3da99f8f8e59c09b9",
+        "theme:42",
+        "official_id:item_31_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_31",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-da079c636a58dba3da99f8f8e59c09b9"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_31.md",
+        "document_uid:doc-da079c636a58dba3da99f8f8e59c09b9",
+        "theme:42",
+        "official_id:item_31_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批：经营利用的野生动物什么情形才是合法的?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_31",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-da079c636a58dba3da99f8f8e59c09b9"
+      ],
+      "expected_answer_keywords": [
+        "人工繁育",
+        "合法进口"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_31.md",
+        "document_uid:doc-da079c636a58dba3da99f8f8e59c09b9",
+        "theme:42",
+        "official_id:item_31_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_32",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8053655d7d6e469bdbc3ae5952aa6b4c"
+      ],
+      "expected_answer_keywords": [
+        "购买保护野生动物或制品协议",
+        "野生动物保护管理行政许可事项申请表"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_32.md",
+        "document_uid:doc-8053655d7d6e469bdbc3ae5952aa6b4c",
+        "theme:42",
+        "official_id:item_32_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_32",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8053655d7d6e469bdbc3ae5952aa6b4c"
+      ],
+      "expected_answer_keywords": [
+        "申报主体：因科学研究",
+        "人工繁育"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_32.md",
+        "document_uid:doc-8053655d7d6e469bdbc3ae5952aa6b4c",
+        "theme:42",
+        "official_id:item_32_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_32",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8053655d7d6e469bdbc3ae5952aa6b4c"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_32.md",
+        "document_uid:doc-8053655d7d6e469bdbc3ae5952aa6b4c",
+        "theme:42",
+        "official_id:item_32_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_32",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8053655d7d6e469bdbc3ae5952aa6b4c"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_32.md",
+        "document_uid:doc-8053655d7d6e469bdbc3ae5952aa6b4c",
+        "theme:42",
+        "official_id:item_32_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "出售、购买、利用国家重点保护陆生野生动物及其制品审批（购买）：经营利用的野生动物合法来源是什么?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_32",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8053655d7d6e469bdbc3ae5952aa6b4c"
+      ],
+      "expected_answer_keywords": [
+        "人工繁育",
+        "合法进口"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_32.md",
+        "document_uid:doc-8053655d7d6e469bdbc3ae5952aa6b4c",
+        "theme:42",
+        "official_id:item_32_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级建造师延续注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_33",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-33d69f82d593e5b78f3e37df442413a8"
+      ],
+      "expected_answer_keywords": [
+        "二级建造师延续注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_33.md",
+        "document_uid:doc-33d69f82d593e5b78f3e37df442413a8",
+        "theme:32",
+        "official_id:item_33_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级建造师延续注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_33",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-33d69f82d593e5b78f3e37df442413a8"
+      ],
+      "expected_answer_keywords": [
+        "经全国注册建造师执业资格统一考试合格",
+        "取得资格证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_33.md",
+        "document_uid:doc-33d69f82d593e5b78f3e37df442413a8",
+        "theme:32",
+        "official_id:item_33_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级建造师延续注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_33",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-33d69f82d593e5b78f3e37df442413a8"
+      ],
+      "expected_answer_keywords": [
+        "4个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_33.md",
+        "document_uid:doc-33d69f82d593e5b78f3e37df442413a8",
+        "theme:32",
+        "official_id:item_33_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级建造师延续注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_33",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-33d69f82d593e5b78f3e37df442413a8"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_33.md",
+        "document_uid:doc-33d69f82d593e5b78f3e37df442413a8",
+        "theme:32",
+        "official_id:item_33_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级建造师延续注册：延续注册时，系统提示“存在多个单位注册”怎么办理？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_33",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-33d69f82d593e5b78f3e37df442413a8"
+      ],
+      "expected_answer_keywords": [
+        "提示说明申请人的多个执业证书分别注册在多家企业",
+        "需将其他证书变更至同一企业或者注销之后"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_33.md",
+        "document_uid:doc-33d69f82d593e5b78f3e37df442413a8",
+        "theme:32",
+        "official_id:item_33_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级建造师增项注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_34",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-82c8faf3bae97f574f0473e2303aea97"
+      ],
+      "expected_answer_keywords": [
+        "二级建造师增项注册表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_34.md",
+        "document_uid:doc-82c8faf3bae97f574f0473e2303aea97",
+        "theme:32",
+        "official_id:item_34_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级建造师增项注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_34",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-82c8faf3bae97f574f0473e2303aea97"
+      ],
+      "expected_answer_keywords": [
+        "经全国注册建造师执业资格统一考试合格",
+        "取得资格证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_34.md",
+        "document_uid:doc-82c8faf3bae97f574f0473e2303aea97",
+        "theme:32",
+        "official_id:item_34_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级建造师增项注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_34",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-82c8faf3bae97f574f0473e2303aea97"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_34.md",
+        "document_uid:doc-82c8faf3bae97f574f0473e2303aea97",
+        "theme:32",
+        "official_id:item_34_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级建造师增项注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_34",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-82c8faf3bae97f574f0473e2303aea97"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_34.md",
+        "document_uid:doc-82c8faf3bae97f574f0473e2303aea97",
+        "theme:32",
+        "official_id:item_34_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级建造师增项注册：二级建造师增项注册有哪些注意事项？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_34",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-82c8faf3bae97f574f0473e2303aea97"
+      ],
+      "expected_answer_keywords": [
+        "（1）二级建造师只能在主项注册后",
+        "才能进行增项注册"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_34.md",
+        "document_uid:doc-82c8faf3bae97f574f0473e2303aea97",
+        "theme:32",
+        "official_id:item_34_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级建造师重新注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_35",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f8f85ad84f0a9a2dbeb205c037794ad1"
+      ],
+      "expected_answer_keywords": [
+        "二级建造师重新注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_35.md",
+        "document_uid:doc-f8f85ad84f0a9a2dbeb205c037794ad1",
+        "theme:32",
+        "official_id:item_35_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级建造师重新注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_35",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f8f85ad84f0a9a2dbeb205c037794ad1"
+      ],
+      "expected_answer_keywords": [
+        "经全国注册建造师执业资格统一考试合格",
+        "取得资格证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_35.md",
+        "document_uid:doc-f8f85ad84f0a9a2dbeb205c037794ad1",
+        "theme:32",
+        "official_id:item_35_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级建造师重新注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_35",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f8f85ad84f0a9a2dbeb205c037794ad1"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_35.md",
+        "document_uid:doc-f8f85ad84f0a9a2dbeb205c037794ad1",
+        "theme:32",
+        "official_id:item_35_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级建造师重新注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_35",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f8f85ad84f0a9a2dbeb205c037794ad1"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_35.md",
+        "document_uid:doc-f8f85ad84f0a9a2dbeb205c037794ad1",
+        "theme:32",
+        "official_id:item_35_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级建造师重新注册：二级建造师有多个专业的，重新注册时是否可以一起同时注册？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_35",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-f8f85ad84f0a9a2dbeb205c037794ad1"
+      ],
+      "expected_answer_keywords": [
+        "存在多个专业的",
+        "可以同时注册"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_35.md",
+        "document_uid:doc-f8f85ad84f0a9a2dbeb205c037794ad1",
+        "theme:32",
+        "official_id:item_35_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级结构工程师初始注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_36",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-6c3343f56eb2b885069d2a43f9630bd9"
+      ],
+      "expected_answer_keywords": [
+        "二级注册结构工程师初始注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_36.md",
+        "document_uid:doc-6c3343f56eb2b885069d2a43f9630bd9",
+        "theme:32",
+        "official_id:item_36_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级结构工程师初始注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_36",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-6c3343f56eb2b885069d2a43f9630bd9"
+      ],
+      "expected_answer_keywords": [
+        "经全国勘察设计注册工程师执业资格统一考试合格",
+        "取得资格证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_36.md",
+        "document_uid:doc-6c3343f56eb2b885069d2a43f9630bd9",
+        "theme:32",
+        "official_id:item_36_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级结构工程师初始注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_36",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-6c3343f56eb2b885069d2a43f9630bd9"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_36.md",
+        "document_uid:doc-6c3343f56eb2b885069d2a43f9630bd9",
+        "theme:32",
+        "official_id:item_36_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级结构工程师初始注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_36",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-6c3343f56eb2b885069d2a43f9630bd9"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_36.md",
+        "document_uid:doc-6c3343f56eb2b885069d2a43f9630bd9",
+        "theme:32",
+        "official_id:item_36_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级结构工程师初始注册：二级注册结构工程师公告后多久能下载电子注册证书？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_36",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-6c3343f56eb2b885069d2a43f9630bd9"
+      ],
+      "expected_answer_keywords": [
+        "自二级注册结构工程师注册业务公告之日起5日后",
+        "可在个人注册系统内查询并下载电子注册证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_36.md",
+        "document_uid:doc-6c3343f56eb2b885069d2a43f9630bd9",
+        "theme:32",
+        "official_id:item_36_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级造价工程师变更注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_37",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4adb940c34a29e1bf277562c449762c"
+      ],
+      "expected_answer_keywords": [
+        "二级造价工程师变更注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_37.md",
+        "document_uid:doc-a4adb940c34a29e1bf277562c449762c",
+        "theme:32",
+        "official_id:item_37_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级造价工程师变更注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_37",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4adb940c34a29e1bf277562c449762c"
+      ],
+      "expected_answer_keywords": [
+        "取得安徽省二级造价工程师资格证书",
+        "受聘于一个工程造价咨询企业或者工程建设领域的建设"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_37.md",
+        "document_uid:doc-a4adb940c34a29e1bf277562c449762c",
+        "theme:32",
+        "official_id:item_37_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级造价工程师变更注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_37",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4adb940c34a29e1bf277562c449762c"
+      ],
+      "expected_answer_keywords": [
+        "4个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_37.md",
+        "document_uid:doc-a4adb940c34a29e1bf277562c449762c",
+        "theme:32",
+        "official_id:item_37_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级造价工程师变更注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_37",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4adb940c34a29e1bf277562c449762c"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_37.md",
+        "document_uid:doc-a4adb940c34a29e1bf277562c449762c",
+        "theme:32",
+        "official_id:item_37_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级造价工程师变更注册：外省考试通过的二级造价工程师资格证书是否可以在安徽注册？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_37",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4adb940c34a29e1bf277562c449762c"
+      ],
+      "expected_answer_keywords": [
+        "根据《造价工程师职业资格制度规定》（建人〔201",
+        "原则上在所在行政区域内有效……”"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_37.md",
+        "document_uid:doc-a4adb940c34a29e1bf277562c449762c",
+        "theme:32",
+        "official_id:item_37_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级造价工程师初始注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_38",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-be45feeb6880a004437981255e505551"
+      ],
+      "expected_answer_keywords": [
+        "二级造价工程师初始注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_38.md",
+        "document_uid:doc-be45feeb6880a004437981255e505551",
+        "theme:32",
+        "official_id:item_38_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级造价工程师初始注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_38",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-be45feeb6880a004437981255e505551"
+      ],
+      "expected_answer_keywords": [
+        "取得安徽省二级造价工程师资格证书",
+        "受聘于一个工程造价咨询企业或者工程建设领域的建设"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_38.md",
+        "document_uid:doc-be45feeb6880a004437981255e505551",
+        "theme:32",
+        "official_id:item_38_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级造价工程师初始注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_38",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-be45feeb6880a004437981255e505551"
+      ],
+      "expected_answer_keywords": [
+        "6个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_38.md",
+        "document_uid:doc-be45feeb6880a004437981255e505551",
+        "theme:32",
+        "official_id:item_38_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级造价工程师初始注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_38",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-be45feeb6880a004437981255e505551"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_38.md",
+        "document_uid:doc-be45feeb6880a004437981255e505551",
+        "theme:32",
+        "official_id:item_38_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级造价工程师初始注册：外省考试通过的二级造价工程师资格证书是否可以在安徽注册？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_38",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-be45feeb6880a004437981255e505551"
+      ],
+      "expected_answer_keywords": [
+        "根据《造价工程师职业资格制度规定》（建人〔201",
+        "原则上在所在行政区域内有效……”"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_38.md",
+        "document_uid:doc-be45feeb6880a004437981255e505551",
+        "theme:32",
+        "official_id:item_38_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级造价工程师延续注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_39",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d0365bae404f274d2bd20c42d5727efa"
+      ],
+      "expected_answer_keywords": [
+        "二级造价工程师延续注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_39.md",
+        "document_uid:doc-d0365bae404f274d2bd20c42d5727efa",
+        "theme:32",
+        "official_id:item_39_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级造价工程师延续注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_39",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d0365bae404f274d2bd20c42d5727efa"
+      ],
+      "expected_answer_keywords": [
+        "取得安徽省二级造价工程师资格证书",
+        "受聘于一个工程造价咨询企业或者工程建设领域的建设"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_39.md",
+        "document_uid:doc-d0365bae404f274d2bd20c42d5727efa",
+        "theme:32",
+        "official_id:item_39_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级造价工程师延续注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_39",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d0365bae404f274d2bd20c42d5727efa"
+      ],
+      "expected_answer_keywords": [
+        "4个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_39.md",
+        "document_uid:doc-d0365bae404f274d2bd20c42d5727efa",
+        "theme:32",
+        "official_id:item_39_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级造价工程师延续注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_39",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d0365bae404f274d2bd20c42d5727efa"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_39.md",
+        "document_uid:doc-d0365bae404f274d2bd20c42d5727efa",
+        "theme:32",
+        "official_id:item_39_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级造价工程师延续注册：外省考试通过的二级造价工程师资格证书是否可以在安徽注册？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_39",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d0365bae404f274d2bd20c42d5727efa"
+      ],
+      "expected_answer_keywords": [
+        "根据《造价工程师职业资格制度规定》（建人〔201",
+        "原则上在所在行政区域内有效……”"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_39.md",
+        "document_uid:doc-d0365bae404f274d2bd20c42d5727efa",
+        "theme:32",
+        "official_id:item_39_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理药品违法行为举报奖励需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_40",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4c59188d9edc42aa6376a202e027b742"
+      ],
+      "expected_answer_keywords": [
+        "申请材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_40.md",
+        "document_uid:doc-4c59188d9edc42aa6376a202e027b742",
+        "theme:5",
+        "official_id:item_40_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "药品违法行为举报奖励的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_40",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4c59188d9edc42aa6376a202e027b742"
+      ],
+      "expected_answer_keywords": [
+        "负责举报调查",
+        "作出最终处理决定的药品监督管理部门对举报立案查处"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_40.md",
+        "document_uid:doc-4c59188d9edc42aa6376a202e027b742",
+        "theme:5",
+        "official_id:item_40_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "药品违法行为举报奖励多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_40",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4c59188d9edc42aa6376a202e027b742"
+      ],
+      "expected_answer_keywords": [
+        "20个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_40.md",
+        "document_uid:doc-4c59188d9edc42aa6376a202e027b742",
+        "theme:5",
+        "official_id:item_40_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "药品违法行为举报奖励的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_40",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4c59188d9edc42aa6376a202e027b742"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "决定"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_40.md",
+        "document_uid:doc-4c59188d9edc42aa6376a202e027b742",
+        "theme:5",
+        "official_id:item_40_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "药品违法行为举报奖励：举报奖励实施部门",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "item_40",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4c59188d9edc42aa6376a202e027b742"
+      ],
+      "expected_answer_keywords": [
+        "负责举报调查处理的县级以上药品监督管理部门为举报",
+        "负责奖励标准审定"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:item_40.md",
+        "document_uid:doc-4c59188d9edc42aa6376a202e027b742",
+        "theme:5",
+        "official_id:item_40_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理法律援助律师工作证颁发（省级审批）需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "legal_aid_lawyer_work_permit_issuance",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4e787e39995b1afd879c398aae9d9c5"
+      ],
+      "expected_answer_keywords": [
+        "律师执业登记表",
+        "中华人民共和国居民身份证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:legal_aid_lawyer_work_permit_issuance.md",
+        "document_uid:doc-a4e787e39995b1afd879c398aae9d9c5",
+        "theme:21",
+        "official_id:legal_aid_lawyer_work_permit_issuance_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "法律援助律师工作证颁发（省级审批）的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "legal_aid_lawyer_work_permit_issuance",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4e787e39995b1afd879c398aae9d9c5"
+      ],
+      "expected_answer_keywords": [
+        "拥护中华人民共和国宪法",
+        "具有律师资格或法律职业资格"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:legal_aid_lawyer_work_permit_issuance.md",
+        "document_uid:doc-a4e787e39995b1afd879c398aae9d9c5",
+        "theme:21",
+        "official_id:legal_aid_lawyer_work_permit_issuance_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "法律援助律师工作证颁发（省级审批）多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "legal_aid_lawyer_work_permit_issuance",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4e787e39995b1afd879c398aae9d9c5"
+      ],
+      "expected_answer_keywords": [
+        "5个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:legal_aid_lawyer_work_permit_issuance.md",
+        "document_uid:doc-a4e787e39995b1afd879c398aae9d9c5",
+        "theme:21",
+        "official_id:legal_aid_lawyer_work_permit_issuance_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "法律援助律师工作证颁发（省级审批）的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "legal_aid_lawyer_work_permit_issuance",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4e787e39995b1afd879c398aae9d9c5"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:legal_aid_lawyer_work_permit_issuance.md",
+        "document_uid:doc-a4e787e39995b1afd879c398aae9d9c5",
+        "theme:21",
+        "official_id:legal_aid_lawyer_work_permit_issuance_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "法律援助律师工作证颁发（省级审批）：律师执业有哪些行为规范?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "legal_aid_lawyer_work_permit_issuance",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a4e787e39995b1afd879c398aae9d9c5"
+      ],
+      "expected_answer_keywords": [
+        "根据《律师执业管理办法》及相关规定",
+        "律师执业必须遵守宪法和法律"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:legal_aid_lawyer_work_permit_issuance.md",
+        "document_uid:doc-a4e787e39995b1afd879c398aae9d9c5",
+        "theme:21",
+        "official_id:legal_aid_lawyer_work_permit_issuance_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理对计量纠纷的调解和仲裁检定需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "measurement_dispute_mediation_arbitration_verification",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-df453f7199ed722d0d1c9c2b694231cd"
+      ],
+      "expected_answer_keywords": [
+        "仲裁检定申请书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:measurement_dispute_mediation_arbitration_verification.md",
+        "document_uid:doc-df453f7199ed722d0d1c9c2b694231cd",
+        "theme:17",
+        "official_id:measurement_dispute_mediation_arbitration_verification_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "对计量纠纷的调解和仲裁检定的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "measurement_dispute_mediation_arbitration_verification",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-df453f7199ed722d0d1c9c2b694231cd"
+      ],
+      "expected_answer_keywords": [
+        "应递交仲裁检定申请书及副本",
+        "仲裁检定申请书应写明以下事项： - （一）计量纠"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:measurement_dispute_mediation_arbitration_verification.md",
+        "document_uid:doc-df453f7199ed722d0d1c9c2b694231cd",
+        "theme:17",
+        "official_id:measurement_dispute_mediation_arbitration_verification_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "对计量纠纷的调解和仲裁检定多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "measurement_dispute_mediation_arbitration_verification",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-df453f7199ed722d0d1c9c2b694231cd"
+      ],
+      "expected_answer_keywords": [
+        "20个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:measurement_dispute_mediation_arbitration_verification.md",
+        "document_uid:doc-df453f7199ed722d0d1c9c2b694231cd",
+        "theme:17",
+        "official_id:measurement_dispute_mediation_arbitration_verification_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "对计量纠纷的调解和仲裁检定的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "measurement_dispute_mediation_arbitration_verification",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-df453f7199ed722d0d1c9c2b694231cd"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "办结"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:measurement_dispute_mediation_arbitration_verification.md",
+        "document_uid:doc-df453f7199ed722d0d1c9c2b694231cd",
+        "theme:17",
+        "official_id:measurement_dispute_mediation_arbitration_verification_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "对计量纠纷的调解和仲裁检定：仲裁检定委托的要求有哪些？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "measurement_dispute_mediation_arbitration_verification",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-df453f7199ed722d0d1c9c2b694231cd"
+      ],
+      "expected_answer_keywords": [
+        "根据《仲裁检定和计量调解办法》第七条第二款：仲裁",
+        "地址"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:measurement_dispute_mediation_arbitration_verification.md",
+        "document_uid:doc-df453f7199ed722d0d1c9c2b694231cd",
+        "theme:17",
+        "official_id:measurement_dispute_mediation_arbitration_verification_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理（流动人员）档案材料的收集、鉴别和归档需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "mobile_personnel_archive_material_collection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-b8c247facacbdbacfb41a95484a2e46d"
+      ],
+      "expected_answer_keywords": [
+        "归档材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:mobile_personnel_archive_material_collection.md",
+        "document_uid:doc-b8c247facacbdbacfb41a95484a2e46d",
+        "theme:28",
+        "official_id:mobile_personnel_archive_material_collection_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "（流动人员）档案材料的收集、鉴别和归档的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "mobile_personnel_archive_material_collection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-b8c247facacbdbacfb41a95484a2e46d"
+      ],
+      "expected_answer_keywords": [
+        "（一）人事档案存放于安徽省人才服务中心的人员",
+        "（二）在合肥市落实工作单位（工作单位营业执照登记"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:mobile_personnel_archive_material_collection.md",
+        "document_uid:doc-b8c247facacbdbacfb41a95484a2e46d",
+        "theme:28",
+        "official_id:mobile_personnel_archive_material_collection_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "（流动人员）档案材料的收集、鉴别和归档多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "mobile_personnel_archive_material_collection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-b8c247facacbdbacfb41a95484a2e46d"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:mobile_personnel_archive_material_collection.md",
+        "document_uid:doc-b8c247facacbdbacfb41a95484a2e46d",
+        "theme:28",
+        "official_id:mobile_personnel_archive_material_collection_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "（流动人员）档案材料的收集、鉴别和归档的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "mobile_personnel_archive_material_collection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-b8c247facacbdbacfb41a95484a2e46d"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "办结"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:mobile_personnel_archive_material_collection.md",
+        "document_uid:doc-b8c247facacbdbacfb41a95484a2e46d",
+        "theme:28",
+        "official_id:mobile_personnel_archive_material_collection_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "（流动人员）档案材料的收集、鉴别和归档：离校高校毕业生如何关注、落实好自己的学籍档案？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "mobile_personnel_archive_material_collection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-b8c247facacbdbacfb41a95484a2e46d"
+      ],
+      "expected_answer_keywords": [
+        "毕业生学籍档案是毕业生学习经历",
+        "思想表现"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:mobile_personnel_archive_material_collection.md",
+        "document_uid:doc-b8c247facacbdbacfb41a95484a2e46d",
+        "theme:28",
+        "official_id:mobile_personnel_archive_material_collection_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理携带少量麻醉药品和精神药品出入境证明需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "narcotic_psychotropic_medicine_entry_exit_certificate",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4cdda8314f9bc084a0501e2ff49861a5"
+      ],
+      "expected_answer_keywords": [
+        "医疗机构确定携带人为本单位的医务人员说明",
+        "携带少量麻醉药品和精神药品出入境的需求证明性材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:narcotic_psychotropic_medicine_entry_exit_certificate.md",
+        "document_uid:doc-4cdda8314f9bc084a0501e2ff49861a5",
+        "theme:5",
+        "official_id:narcotic_psychotropic_medicine_entry_exit_certificate_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "携带少量麻醉药品和精神药品出入境证明的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "narcotic_psychotropic_medicine_entry_exit_certificate",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4cdda8314f9bc084a0501e2ff49861a5"
+      ],
+      "expected_answer_keywords": [
+        "携带人应为属于本医疗机构的医务人员",
+        "该医务人员应当具备出具麻醉药品和精神药品使用的处"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:narcotic_psychotropic_medicine_entry_exit_certificate.md",
+        "document_uid:doc-4cdda8314f9bc084a0501e2ff49861a5",
+        "theme:5",
+        "official_id:narcotic_psychotropic_medicine_entry_exit_certificate_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "携带少量麻醉药品和精神药品出入境证明多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "narcotic_psychotropic_medicine_entry_exit_certificate",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4cdda8314f9bc084a0501e2ff49861a5"
+      ],
+      "expected_answer_keywords": [
+        "5个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:narcotic_psychotropic_medicine_entry_exit_certificate.md",
+        "document_uid:doc-4cdda8314f9bc084a0501e2ff49861a5",
+        "theme:5",
+        "official_id:narcotic_psychotropic_medicine_entry_exit_certificate_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "携带少量麻醉药品和精神药品出入境证明的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "narcotic_psychotropic_medicine_entry_exit_certificate",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4cdda8314f9bc084a0501e2ff49861a5"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:narcotic_psychotropic_medicine_entry_exit_certificate.md",
+        "document_uid:doc-4cdda8314f9bc084a0501e2ff49861a5",
+        "theme:5",
+        "official_id:narcotic_psychotropic_medicine_entry_exit_certificate_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "携带少量麻醉药品和精神药品出入境证明：奥赛利定属于麻醉药品吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "narcotic_psychotropic_medicine_entry_exit_certificate",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-4cdda8314f9bc084a0501e2ff49861a5"
+      ],
+      "expected_answer_keywords": [
+        "奥赛利定已列入麻醉药品目录"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:narcotic_psychotropic_medicine_entry_exit_certificate.md",
+        "document_uid:doc-4cdda8314f9bc084a0501e2ff49861a5",
+        "theme:5",
+        "official_id:narcotic_psychotropic_medicine_entry_exit_certificate_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理国民体质测试服务需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "national_physical_fitness_testing_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d170209a2650b1531443fa14ecd25246"
+      ],
+      "expected_answer_keywords": [
+        "身份证件材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:national_physical_fitness_testing_service.md",
+        "document_uid:doc-d170209a2650b1531443fa14ecd25246",
+        "theme:40",
+        "official_id:national_physical_fitness_testing_service_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "国民体质测试服务的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "national_physical_fitness_testing_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d170209a2650b1531443fa14ecd25246"
+      ],
+      "expected_answer_keywords": [
+        "申请人是20-69岁",
+        "身体健康的成年人"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:national_physical_fitness_testing_service.md",
+        "document_uid:doc-d170209a2650b1531443fa14ecd25246",
+        "theme:40",
+        "official_id:national_physical_fitness_testing_service_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "国民体质测试服务多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "national_physical_fitness_testing_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d170209a2650b1531443fa14ecd25246"
+      ],
+      "expected_answer_keywords": [
+        "10个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:national_physical_fitness_testing_service.md",
+        "document_uid:doc-d170209a2650b1531443fa14ecd25246",
+        "theme:40",
+        "official_id:national_physical_fitness_testing_service_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "国民体质测试服务的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "national_physical_fitness_testing_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d170209a2650b1531443fa14ecd25246"
+      ],
+      "expected_answer_keywords": [
+        "咨询",
+        "受理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:national_physical_fitness_testing_service.md",
+        "document_uid:doc-d170209a2650b1531443fa14ecd25246",
+        "theme:40",
+        "official_id:national_physical_fitness_testing_service_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "国民体质测试服务：国民体质测试服务要预约吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "national_physical_fitness_testing_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-d170209a2650b1531443fa14ecd25246"
+      ],
+      "expected_answer_keywords": [
+        "是的",
+        "要提前电话预约"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:national_physical_fitness_testing_service.md",
+        "document_uid:doc-d170209a2650b1531443fa14ecd25246",
+        "theme:40",
+        "official_id:national_physical_fitness_testing_service_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理华侨回国定居审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "overseas_chinese_return_settlement_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a52eb75fb207cb595c599e0fc5a204e9"
+      ],
+      "expected_answer_keywords": [
+        "华侨回国定居申请表",
+        "自愿放弃国外居留资格声明书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:overseas_chinese_return_settlement_approval.md",
+        "document_uid:doc-a52eb75fb207cb595c599e0fc5a204e9",
+        "theme:33",
+        "official_id:overseas_chinese_return_settlement_approval_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "华侨回国定居审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "overseas_chinese_return_settlement_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a52eb75fb207cb595c599e0fc5a204e9"
+      ],
+      "expected_answer_keywords": [
+        "出境前在我省注销户籍的华侨 - 2",
+        "出境前非在我省注销户籍的"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:overseas_chinese_return_settlement_approval.md",
+        "document_uid:doc-a52eb75fb207cb595c599e0fc5a204e9",
+        "theme:33",
+        "official_id:overseas_chinese_return_settlement_approval_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "华侨回国定居审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "overseas_chinese_return_settlement_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a52eb75fb207cb595c599e0fc5a204e9"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:overseas_chinese_return_settlement_approval.md",
+        "document_uid:doc-a52eb75fb207cb595c599e0fc5a204e9",
+        "theme:33",
+        "official_id:overseas_chinese_return_settlement_approval_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "华侨回国定居审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "overseas_chinese_return_settlement_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a52eb75fb207cb595c599e0fc5a204e9"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:overseas_chinese_return_settlement_approval.md",
+        "document_uid:doc-a52eb75fb207cb595c599e0fc5a204e9",
+        "theme:33",
+        "official_id:overseas_chinese_return_settlement_approval_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "华侨回国定居审批：如何界定申请人是否属于华侨？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "overseas_chinese_return_settlement_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a52eb75fb207cb595c599e0fc5a204e9"
+      ],
+      "expected_answer_keywords": [
+        "华侨是指定居在国外的中国公民",
+        "（一）“定居”是指中国公民已取得住在国长期或永久"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:overseas_chinese_return_settlement_approval.md",
+        "document_uid:doc-a52eb75fb207cb595c599e0fc5a204e9",
+        "theme:33",
+        "official_id:overseas_chinese_return_settlement_approval_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理专利费用代收服务需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "patent_fee_collection_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8a43f3021e28bca7a324bfc0569d861e"
+      ],
+      "expected_answer_keywords": [
+        "缴费清单"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:patent_fee_collection_service.md",
+        "document_uid:doc-8a43f3021e28bca7a324bfc0569d861e",
+        "theme:38",
+        "official_id:patent_fee_collection_service_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "专利费用代收服务的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "patent_fee_collection_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8a43f3021e28bca7a324bfc0569d861e"
+      ],
+      "expected_answer_keywords": [
+        "缴纳费用",
+        "并提供正确的专利申请号（或专利号）"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:patent_fee_collection_service.md",
+        "document_uid:doc-8a43f3021e28bca7a324bfc0569d861e",
+        "theme:38",
+        "official_id:patent_fee_collection_service_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "专利费用代收服务多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "patent_fee_collection_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8a43f3021e28bca7a324bfc0569d861e"
+      ],
+      "expected_answer_keywords": [
+        "15个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:patent_fee_collection_service.md",
+        "document_uid:doc-8a43f3021e28bca7a324bfc0569d861e",
+        "theme:38",
+        "official_id:patent_fee_collection_service_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "专利费用代收服务的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "patent_fee_collection_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8a43f3021e28bca7a324bfc0569d861e"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:patent_fee_collection_service.md",
+        "document_uid:doc-8a43f3021e28bca7a324bfc0569d861e",
+        "theme:38",
+        "official_id:patent_fee_collection_service_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "专利费用代收服务：请问代办处可以收取PCT申请的费用吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "patent_fee_collection_service",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-8a43f3021e28bca7a324bfc0569d861e"
+      ],
+      "expected_answer_keywords": [
+        "代办处受国家知识产权局的委托",
+        "可以代收取专利申请费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:patent_fee_collection_service.md",
+        "document_uid:doc-8a43f3021e28bca7a324bfc0569d861e",
+        "theme:38",
+        "official_id:patent_fee_collection_service_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理松材线虫病疫木加工板材定点加工企业变更审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "pine_wood_nematode_infected_timber_processing_change_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0136f0f329d2726879b2b56ae4558b6b"
+      ],
+      "expected_answer_keywords": [
+        "原证书",
+        "营业执照"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:pine_wood_nematode_infected_timber_processing_change_approval.md",
+        "document_uid:doc-0136f0f329d2726879b2b56ae4558b6b",
+        "theme:29",
+        "official_id:pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "松材线虫病疫木加工板材定点加工企业变更审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "pine_wood_nematode_infected_timber_processing_change_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0136f0f329d2726879b2b56ae4558b6b"
+      ],
+      "expected_answer_keywords": [
+        "从事木材经营加工的企业进行松材线虫病疫木加工板材",
+        "具有符合疫木加工板材要求和标准的生产设施"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:pine_wood_nematode_infected_timber_processing_change_approval.md",
+        "document_uid:doc-0136f0f329d2726879b2b56ae4558b6b",
+        "theme:29",
+        "official_id:pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "松材线虫病疫木加工板材定点加工企业变更审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "pine_wood_nematode_infected_timber_processing_change_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0136f0f329d2726879b2b56ae4558b6b"
+      ],
+      "expected_answer_keywords": [
+        "20个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:pine_wood_nematode_infected_timber_processing_change_approval.md",
+        "document_uid:doc-0136f0f329d2726879b2b56ae4558b6b",
+        "theme:29",
+        "official_id:pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "松材线虫病疫木加工板材定点加工企业变更审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "pine_wood_nematode_infected_timber_processing_change_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0136f0f329d2726879b2b56ae4558b6b"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:pine_wood_nematode_infected_timber_processing_change_approval.md",
+        "document_uid:doc-0136f0f329d2726879b2b56ae4558b6b",
+        "theme:29",
+        "official_id:pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "松材线虫病疫木加工板材定点加工企业变更审批：审批结果名称？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "pine_wood_nematode_infected_timber_processing_change_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0136f0f329d2726879b2b56ae4558b6b"
+      ],
+      "expected_answer_keywords": [
+        "松材线虫病疫木加工板材定点加工企业许可证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:pine_wood_nematode_infected_timber_processing_change_approval.md",
+        "document_uid:doc-0136f0f329d2726879b2b56ae4558b6b",
+        "theme:29",
+        "official_id:pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理采集国家二级保护野生植物以及甘草和麻黄草审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "protected_wild_plants_licorice_ephedra_collection_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-545b844e2c42ffc6367d536160325eb5"
+      ],
+      "expected_answer_keywords": [
+        "国家重点保护野生植物采集申请表",
+        "用于人工培育的证明材料"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:protected_wild_plants_licorice_ephedra_collection_approval.md",
+        "document_uid:doc-545b844e2c42ffc6367d536160325eb5",
+        "theme:39",
+        "official_id:protected_wild_plants_licorice_ephedra_collection_approval_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "采集国家二级保护野生植物以及甘草和麻黄草审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "protected_wild_plants_licorice_ephedra_collection_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-545b844e2c42ffc6367d536160325eb5"
+      ],
+      "expected_answer_keywords": [
+        "因科学研究",
+        "人工培育"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:protected_wild_plants_licorice_ephedra_collection_approval.md",
+        "document_uid:doc-545b844e2c42ffc6367d536160325eb5",
+        "theme:39",
+        "official_id:protected_wild_plants_licorice_ephedra_collection_approval_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "采集国家二级保护野生植物以及甘草和麻黄草审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "protected_wild_plants_licorice_ephedra_collection_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-545b844e2c42ffc6367d536160325eb5"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:protected_wild_plants_licorice_ephedra_collection_approval.md",
+        "document_uid:doc-545b844e2c42ffc6367d536160325eb5",
+        "theme:39",
+        "official_id:protected_wild_plants_licorice_ephedra_collection_approval_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "采集国家二级保护野生植物以及甘草和麻黄草审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "protected_wild_plants_licorice_ephedra_collection_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-545b844e2c42ffc6367d536160325eb5"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:protected_wild_plants_licorice_ephedra_collection_approval.md",
+        "document_uid:doc-545b844e2c42ffc6367d536160325eb5",
+        "theme:39",
+        "official_id:protected_wild_plants_licorice_ephedra_collection_approval_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "采集国家二级保护野生植物以及甘草和麻黄草审批：采集国家重点保护的野生植物注意事项有哪些？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "protected_wild_plants_licorice_ephedra_collection_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-545b844e2c42ffc6367d536160325eb5"
+      ],
+      "expected_answer_keywords": [
+        "不能破坏生态环境和植被",
+        "必须按照采集证规定的种类"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:protected_wild_plants_licorice_ephedra_collection_approval.md",
+        "document_uid:doc-545b844e2c42ffc6367d536160325eb5",
+        "theme:39",
+        "official_id:protected_wild_plants_licorice_ephedra_collection_approval_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理在省级自然保护区修筑设施审批需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "provincial_nature_reserve_facility_construction_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-ff2b6d442d308d83e8ced3af1a7677fe"
+      ],
+      "expected_answer_keywords": [
+        "申请表",
+        "拟修筑设施对地方级自然保护区生物多样性影响的评价报告或影响评价表"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:provincial_nature_reserve_facility_construction_approval.md",
+        "document_uid:doc-ff2b6d442d308d83e8ced3af1a7677fe",
+        "theme:36",
+        "official_id:provincial_nature_reserve_facility_construction_approval_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "在省级自然保护区修筑设施审批的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "provincial_nature_reserve_facility_construction_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-ff2b6d442d308d83e8ced3af1a7677fe"
+      ],
+      "expected_answer_keywords": [
+        "符合条件的法人",
+        "自然人"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:provincial_nature_reserve_facility_construction_approval.md",
+        "document_uid:doc-ff2b6d442d308d83e8ced3af1a7677fe",
+        "theme:36",
+        "official_id:provincial_nature_reserve_facility_construction_approval_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "在省级自然保护区修筑设施审批多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "provincial_nature_reserve_facility_construction_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-ff2b6d442d308d83e8ced3af1a7677fe"
+      ],
+      "expected_answer_keywords": [
+        "10个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:provincial_nature_reserve_facility_construction_approval.md",
+        "document_uid:doc-ff2b6d442d308d83e8ced3af1a7677fe",
+        "theme:36",
+        "official_id:provincial_nature_reserve_facility_construction_approval_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "在省级自然保护区修筑设施审批的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "provincial_nature_reserve_facility_construction_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-ff2b6d442d308d83e8ced3af1a7677fe"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:provincial_nature_reserve_facility_construction_approval.md",
+        "document_uid:doc-ff2b6d442d308d83e8ced3af1a7677fe",
+        "theme:36",
+        "official_id:provincial_nature_reserve_facility_construction_approval_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "在省级自然保护区修筑设施审批：建立省级自然保护区，由谁提出申请？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "provincial_nature_reserve_facility_construction_approval",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-ff2b6d442d308d83e8ced3af1a7677fe"
+      ],
+      "expected_answer_keywords": [
+        "由拟设立的自然保护区所在地设区的市",
+        "县级人民政府提出申请"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:provincial_nature_reserve_facility_construction_approval.md",
+        "document_uid:doc-ff2b6d442d308d83e8ced3af1a7677fe",
+        "theme:36",
+        "official_id:provincial_nature_reserve_facility_construction_approval_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理拆迁安置住房增购住房面积提取公积金需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "resettlement_housing_area_purchase_provident_fund_withdrawal",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-1bb79b2cdfd36f1c517306ac07a06eb5"
+      ],
+      "expected_answer_keywords": [
+        "身份证",
+        "银行卡"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:resettlement_housing_area_purchase_provident_fund_withdrawal.md",
+        "document_uid:doc-1bb79b2cdfd36f1c517306ac07a06eb5",
+        "theme:14",
+        "official_id:resettlement_housing_area_purchase_provident_fund_withdrawal_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "拆迁安置住房增购住房面积提取公积金的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "resettlement_housing_area_purchase_provident_fund_withdrawal",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-1bb79b2cdfd36f1c517306ac07a06eb5"
+      ],
+      "expected_answer_keywords": [
+        "拆迁安置房有增购部分",
+        "提取人提供材料真实"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:resettlement_housing_area_purchase_provident_fund_withdrawal.md",
+        "document_uid:doc-1bb79b2cdfd36f1c517306ac07a06eb5",
+        "theme:14",
+        "official_id:resettlement_housing_area_purchase_provident_fund_withdrawal_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "拆迁安置住房增购住房面积提取公积金多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "resettlement_housing_area_purchase_provident_fund_withdrawal",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-1bb79b2cdfd36f1c517306ac07a06eb5"
+      ],
+      "expected_answer_keywords": [
+        "3个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:resettlement_housing_area_purchase_provident_fund_withdrawal.md",
+        "document_uid:doc-1bb79b2cdfd36f1c517306ac07a06eb5",
+        "theme:14",
+        "official_id:resettlement_housing_area_purchase_provident_fund_withdrawal_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "拆迁安置住房增购住房面积提取公积金的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "resettlement_housing_area_purchase_provident_fund_withdrawal",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-1bb79b2cdfd36f1c517306ac07a06eb5"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:resettlement_housing_area_purchase_provident_fund_withdrawal.md",
+        "document_uid:doc-1bb79b2cdfd36f1c517306ac07a06eb5",
+        "theme:14",
+        "official_id:resettlement_housing_area_purchase_provident_fund_withdrawal_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "拆迁安置住房增购住房面积提取公积金：本人无法到现场也不想线上办理，可由家人代办吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "resettlement_housing_area_purchase_provident_fund_withdrawal",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-1bb79b2cdfd36f1c517306ac07a06eb5"
+      ],
+      "expected_answer_keywords": [
+        "提取",
+        "转移公积金一般由本人来办理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:resettlement_housing_area_purchase_provident_fund_withdrawal.md",
+        "document_uid:doc-1bb79b2cdfd36f1c517306ac07a06eb5",
+        "theme:14",
+        "official_id:resettlement_housing_area_purchase_provident_fund_withdrawal_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理科技档案查询需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "science_technology_archive_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-485b9a0a2e21bb81c7ab26618deb7617"
+      ],
+      "expected_answer_keywords": [
+        "中华人民共和国居民身份证",
+        "介绍信"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:science_technology_archive_query.md",
+        "document_uid:doc-485b9a0a2e21bb81c7ab26618deb7617",
+        "theme:26",
+        "official_id:science_technology_archive_query_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "科技档案查询的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "science_technology_archive_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-485b9a0a2e21bb81c7ab26618deb7617"
+      ],
+      "expected_answer_keywords": [
+        "仅限项目完成单位及完成人",
+        "项目归口管理部门查询"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:science_technology_archive_query.md",
+        "document_uid:doc-485b9a0a2e21bb81c7ab26618deb7617",
+        "theme:26",
+        "official_id:science_technology_archive_query_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "科技档案查询多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "science_technology_archive_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-485b9a0a2e21bb81c7ab26618deb7617"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:science_technology_archive_query.md",
+        "document_uid:doc-485b9a0a2e21bb81c7ab26618deb7617",
+        "theme:26",
+        "official_id:science_technology_archive_query_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "科技档案查询的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "science_technology_archive_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-485b9a0a2e21bb81c7ab26618deb7617"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "办结"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:science_technology_archive_query.md",
+        "document_uid:doc-485b9a0a2e21bb81c7ab26618deb7617",
+        "theme:26",
+        "official_id:science_technology_archive_query_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "科技档案查询：贵单位所称科技档案查询主要包括哪些服务内容?",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "science_technology_archive_query",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-485b9a0a2e21bb81c7ab26618deb7617"
+      ],
+      "expected_answer_keywords": [
+        "主要包括历年省级科学技术奖励成果",
+        "鉴定成果"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:science_technology_archive_query.md",
+        "document_uid:doc-485b9a0a2e21bb81c7ab26618deb7617",
+        "theme:26",
+        "official_id:science_technology_archive_query_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级建造师初始注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_constructor_initial_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0d201c04b62e30793dd78b78def0a5ff"
+      ],
+      "expected_answer_keywords": [
+        "二级建造师初始注册申请表",
+        "承诺函"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_constructor_initial_registration.md",
+        "document_uid:doc-0d201c04b62e30793dd78b78def0a5ff",
+        "theme:32",
+        "official_id:second_level_constructor_initial_registration_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级建造师初始注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_constructor_initial_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0d201c04b62e30793dd78b78def0a5ff"
+      ],
+      "expected_answer_keywords": [
+        "经全国注册建造师执业资格统一考试合格",
+        "取得资格证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_constructor_initial_registration.md",
+        "document_uid:doc-0d201c04b62e30793dd78b78def0a5ff",
+        "theme:32",
+        "official_id:second_level_constructor_initial_registration_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级建造师初始注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_constructor_initial_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0d201c04b62e30793dd78b78def0a5ff"
+      ],
+      "expected_answer_keywords": [
+        "8个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_constructor_initial_registration.md",
+        "document_uid:doc-0d201c04b62e30793dd78b78def0a5ff",
+        "theme:32",
+        "official_id:second_level_constructor_initial_registration_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级建造师初始注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_constructor_initial_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0d201c04b62e30793dd78b78def0a5ff"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_constructor_initial_registration.md",
+        "document_uid:doc-0d201c04b62e30793dd78b78def0a5ff",
+        "theme:32",
+        "official_id:second_level_constructor_initial_registration_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级建造师初始注册：外省考试通过的二级建造师资格证书是否可以在安徽注册？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_constructor_initial_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-0d201c04b62e30793dd78b78def0a5ff"
+      ],
+      "expected_answer_keywords": [
+        "根据《建造师执业资格制度暂行规定》（人发〔200",
+        "外省考试通过的二级建造师资格证书目前不能在安徽注"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_constructor_initial_registration.md",
+        "document_uid:doc-0d201c04b62e30793dd78b78def0a5ff",
+        "theme:32",
+        "official_id:second_level_constructor_initial_registration_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理二级造价工程师（水利工程）变更注册需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_cost_engineer_water_conservancy_change_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-51507d76a1806ba571f244b7d6d1d404"
+      ],
+      "expected_answer_keywords": [
+        "承诺书",
+        "变更注册申请表"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_cost_engineer_water_conservancy_change_registration.md",
+        "document_uid:doc-51507d76a1806ba571f244b7d6d1d404",
+        "theme:34",
+        "official_id:second_level_cost_engineer_water_conservancy_change_registration_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "二级造价工程师（水利工程）变更注册的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_cost_engineer_water_conservancy_change_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-51507d76a1806ba571f244b7d6d1d404"
+      ],
+      "expected_answer_keywords": [
+        "取得安徽省二级造价工程师（水利工程）注册证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_cost_engineer_water_conservancy_change_registration.md",
+        "document_uid:doc-51507d76a1806ba571f244b7d6d1d404",
+        "theme:34",
+        "official_id:second_level_cost_engineer_water_conservancy_change_registration_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "二级造价工程师（水利工程）变更注册多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_cost_engineer_water_conservancy_change_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-51507d76a1806ba571f244b7d6d1d404"
+      ],
+      "expected_answer_keywords": [
+        "7个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_cost_engineer_water_conservancy_change_registration.md",
+        "document_uid:doc-51507d76a1806ba571f244b7d6d1d404",
+        "theme:34",
+        "official_id:second_level_cost_engineer_water_conservancy_change_registration_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "二级造价工程师（水利工程）变更注册的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_cost_engineer_water_conservancy_change_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-51507d76a1806ba571f244b7d6d1d404"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_cost_engineer_water_conservancy_change_registration.md",
+        "document_uid:doc-51507d76a1806ba571f244b7d6d1d404",
+        "theme:34",
+        "official_id:second_level_cost_engineer_water_conservancy_change_registration_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "二级造价工程师（水利工程）变更注册：社会保险参保缴费材料对缴费时间段有什么要求？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "second_level_cost_engineer_water_conservancy_change_registration",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-51507d76a1806ba571f244b7d6d1d404"
+      ],
+      "expected_answer_keywords": [
+        "社会保险参保缴费时间段应为申请注册前一个月"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:second_level_cost_engineer_water_conservancy_change_registration.md",
+        "document_uid:doc-51507d76a1806ba571f244b7d6d1d404",
+        "theme:34",
+        "official_id:second_level_cost_engineer_water_conservancy_change_registration_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理船舶、海上设施、集装箱及船用产品检验需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "ship_offshore_container_marine_product_inspection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-fe9c98107b6e32c89d507ddc5f607729"
+      ],
+      "expected_answer_keywords": [
+        "船舶检验申请表",
+        "船舶所有权证书"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:ship_offshore_container_marine_product_inspection.md",
+        "document_uid:doc-fe9c98107b6e32c89d507ddc5f607729",
+        "theme:35",
+        "official_id:ship_offshore_container_marine_product_inspection_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "船舶、海上设施、集装箱及船用产品检验的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "ship_offshore_container_marine_product_inspection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-fe9c98107b6e32c89d507ddc5f607729"
+      ],
+      "expected_answer_keywords": [
+        "申请需属于本机构管辖范围",
+        "申请材料齐备"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:ship_offshore_container_marine_product_inspection.md",
+        "document_uid:doc-fe9c98107b6e32c89d507ddc5f607729",
+        "theme:35",
+        "official_id:ship_offshore_container_marine_product_inspection_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "船舶、海上设施、集装箱及船用产品检验多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "ship_offshore_container_marine_product_inspection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-fe9c98107b6e32c89d507ddc5f607729"
+      ],
+      "expected_answer_keywords": [
+        "3个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:ship_offshore_container_marine_product_inspection.md",
+        "document_uid:doc-fe9c98107b6e32c89d507ddc5f607729",
+        "theme:35",
+        "official_id:ship_offshore_container_marine_product_inspection_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "船舶、海上设施、集装箱及船用产品检验的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "ship_offshore_container_marine_product_inspection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-fe9c98107b6e32c89d507ddc5f607729"
+      ],
+      "expected_answer_keywords": [
+        "受理",
+        "审查"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:ship_offshore_container_marine_product_inspection.md",
+        "document_uid:doc-fe9c98107b6e32c89d507ddc5f607729",
+        "theme:35",
+        "official_id:ship_offshore_container_marine_product_inspection_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "船舶、海上设施、集装箱及船用产品检验：船舶发生有下列情况时，应实行临时检验？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "ship_offshore_container_marine_product_inspection",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-fe9c98107b6e32c89d507ddc5f607729"
+      ],
+      "expected_answer_keywords": [
+        "下列情况应申请临时检验：因发生事故",
+        "影响船舶适航性能"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:ship_offshore_container_marine_product_inspection.md",
+        "document_uid:doc-fe9c98107b6e32c89d507ddc5f607729",
+        "theme:35",
+        "official_id:ship_offshore_container_marine_product_inspection_official_ahzwfw",
+        "case_type:faq"
+      ]
+    },
+    {
+      "query": "办理城市生活无着的流浪乞讨人员救助管理需要提交哪些申请材料？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "urban_homeless_beggar_assistance_management",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "material_requirements",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a386e8f4589573c49843d7629fca1708"
+      ],
+      "expected_answer_keywords": [
+        "中华人民共和国居民身份证"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:urban_homeless_beggar_assistance_management.md",
+        "document_uid:doc-a386e8f4589573c49843d7629fca1708",
+        "theme:46",
+        "official_id:urban_homeless_beggar_assistance_management_official_ahzwfw",
+        "case_type:material_requirements"
+      ]
+    },
+    {
+      "query": "城市生活无着的流浪乞讨人员救助管理的受理条件是什么？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "urban_homeless_beggar_assistance_management",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "eligibility",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a386e8f4589573c49843d7629fca1708"
+      ],
+      "expected_answer_keywords": [
+        "离家在外",
+        "自身无力解决食宿"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:urban_homeless_beggar_assistance_management.md",
+        "document_uid:doc-a386e8f4589573c49843d7629fca1708",
+        "theme:46",
+        "official_id:urban_homeless_beggar_assistance_management_official_ahzwfw",
+        "case_type:eligibility"
+      ]
+    },
+    {
+      "query": "城市生活无着的流浪乞讨人员救助管理多久能办完，收费吗？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "urban_homeless_beggar_assistance_management",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "fee_time_limit",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a386e8f4589573c49843d7629fca1708"
+      ],
+      "expected_answer_keywords": [
+        "1个工作日",
+        "收费"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:urban_homeless_beggar_assistance_management.md",
+        "document_uid:doc-a386e8f4589573c49843d7629fca1708",
+        "theme:46",
+        "official_id:urban_homeless_beggar_assistance_management_official_ahzwfw",
+        "case_type:fee_time_limit"
+      ]
+    },
+    {
+      "query": "城市生活无着的流浪乞讨人员救助管理的办理流程有哪些环节？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "urban_homeless_beggar_assistance_management",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "process_steps",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a386e8f4589573c49843d7629fca1708"
+      ],
+      "expected_answer_keywords": [
+        "咨询",
+        "受理"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:urban_homeless_beggar_assistance_management.md",
+        "document_uid:doc-a386e8f4589573c49843d7629fca1708",
+        "theme:46",
+        "official_id:urban_homeless_beggar_assistance_management_official_ahzwfw",
+        "case_type:process_steps"
+      ]
+    },
+    {
+      "query": "城市生活无着的流浪乞讨人员救助管理：生活无着的流浪乞讨人员救助对象如何界定？",
+      "user_id": 1,
+      "region_code": "340000",
+      "policy_version": "2025",
+      "biz_type": "urban_homeless_beggar_assistance_management",
+      "apply_id": null,
+      "apply_context": null,
+      "expected_intent": "knowledge_qa",
+      "expected_refused": false,
+      "expected_doc_ids": [
+        "doc-a386e8f4589573c49843d7629fca1708"
+      ],
+      "expected_answer_keywords": [
+        "生活无着的流浪人员",
+        "乞讨人员"
+      ],
+      "tags": [
+        "ahzwfw-real-40-topics",
+        "auto-generated",
+        "doc:urban_homeless_beggar_assistance_management.md",
+        "document_uid:doc-a386e8f4589573c49843d7629fca1708",
+        "theme:46",
+        "official_id:urban_homeless_beggar_assistance_management_official_ahzwfw",
+        "case_type:faq"
+      ]
+    }
+  ]
+}
