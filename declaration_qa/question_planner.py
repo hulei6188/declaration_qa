@@ -1,4 +1,4 @@
-"""多问题拆解 planner。"""
+"""问题理解、语义补全和多问题拆解 planner。"""
 
 from __future__ import annotations
 
@@ -10,19 +10,28 @@ from typing import Any
 from declaration_qa.router import parse_json_object, ticket_context_related
 
 
-QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题拆解器，只能返回 JSON 对象，不回答业务问题。
+QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器，只能返回 JSON 对象，不回答业务问题。
 
 任务：
-1. 判断用户是否在一次输入中询问了多个相对独立、需要分别路由或检索的问题。
-2. 如果是，按用户原始表达顺序拆成可以独立处理的子问题。
-3. 如果不是多问题，也要返回 questions 数组，里面只放原始问题。
-4. 不要新增用户没问的问题，不要补充隐藏意图，不要改写业务含义，不要输出业务答案。
-5. 每个子问题应尽量保留用户原话，只做必要的拆分，不做扩写。
-6. 每个子问题保留必要指代词；如果用户使用“这个、该事项、当前申请、我这单”等指代，不要擅自替换成具体事项。
-7. requires_ticket_context 只表示该子问题看起来是否需要当前/个人工单上下文。
-8. 用户询问“我这单、当前申请、为什么被驳回、进度到哪了、还要补什么、能不能继续办理”等，通常 requires_ticket_context=true。
-9. 用户询问“办理条件、申请材料、办理流程、收费标准、办理时限、政策依据”等通用知识，通常 requires_ticket_context=false，除非明显依赖当前申请。
-10. 只输出合法 JSON，不要输出 markdown，不要输出解释文字。
+1. 先理解用户真实问题。用户输入可能是完整问题，也可能只是搜索式关键词短语，例如“防火办事流程”“要什么证 怎么投诉”“多少天”。
+2. 对关键词短语做语义补全，把它改写成适合政务知识库检索的标准、完整问题。
+3. 再判断用户是否在一次输入中询问了多个相对独立、需要分别处理的问题。
+4. 如果是多问题，按用户原始表达顺序拆成可以独立处理的子问题。
+5. 如果不是多问题，也要返回 questions 数组，里面只放一个问题。
+6. 只负责理解、补全和拆解，不判断业务意图，不输出 intent，不输出 route，不输出答案。
+7. 不要新增用户没问的问题，不要补充隐藏意图，不要把背景陈述扩展成独立问题。
+8. 每个子问题保留必要指代词；如果用户使用“这个、该事项、当前申请、我这单”等指代，不要擅自替换成具体事项。
+9. requires_ticket_context 只表示该子问题看起来是否需要当前/个人工单上下文。
+10. 用户询问“我这单、当前申请、为什么被驳回、进度到哪了、还要补什么、能不能继续办理”等，通常 requires_ticket_context=true。
+11. 用户询问“办理条件、申请材料、办理流程、收费标准、办理时限、政策依据”等通用知识，通常 requires_ticket_context=false，除非明显依赖当前申请。
+12. 只输出合法 JSON，不要输出 markdown，不要输出解释文字。
+
+补全原则：
+* 完整自然语言问题尽量保持原意，只做必要清理。
+* 搜索式关键词短语可以补全为标准问句，例如“防火办事流程”可补全为“草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？”
+* “要什么证”“需要哪些证”“要交什么材料”可补全为“办理该事项需要准备哪些证件和申请材料？”
+* “多少天”“多久拿结果”可补全为“该事项的法定办结时限和承诺办结时限是多少天？”
+* 如果上下文中有 current_ticket 或明确事项名称，可使用该事项名称补全短语；不要猜测无依据的具体事项。
 
 拆分原则：
 * 多个独立问句应拆分。
@@ -31,35 +40,45 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题拆解器，只能
 * 不要把“需要哪些材料”拆成多个材料项。
 * 不要把“条件和材料”强行合并；如果用户同时问“条件”和“材料”，可以拆成两个子问题。
 * 不要把一句话改写成更宽泛的问题。
+* 用户的事实陈述、时间背景、已提交、已上传、刚办理等信息，如果没有明确询问进度、状态、结果、退回原因，不要单独生成子问题；只把它作为其他子问题的上下文。
 
 返回 JSON 格式：
 {
   "is_multi_question": true,
   "questions": [
     {
-      "query": "子问题",
-      "requires_ticket_context": false
+      "original_query": "用户原始片段",
+      "query": "理解和必要补全后的标准独立问题",
+      "requires_ticket_context": false,
+      "is_expanded": false,
+      "expansion_reason": ""
     }
   ],
   "reason": "short_english_reason"
 }
 
 示例 1：
-用户：办理草原防火期内在草原上爆破需要哪些材料，流程是什么？
+用户：防火办事流程，还有要交什么材料
 输出：
 {
   "is_multi_question": true,
   "questions": [
     {
-      "query": "办理草原防火期内在草原上爆破需要哪些材料？",
-      "requires_ticket_context": false
+      "original_query": "防火办事流程",
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
+      "requires_ticket_context": false,
+      "is_expanded": true,
+      "expansion_reason": "keyword_query_to_process_question"
     },
     {
-      "query": "办理草原防火期内在草原上爆破的流程是什么？",
-      "requires_ticket_context": false
+      "original_query": "还有要交什么材料",
+      "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批需要提交哪些申请材料？",
+      "requires_ticket_context": false,
+      "is_expanded": true,
+      "expansion_reason": "keyword_query_to_material_question"
     }
   ],
-  "reason": "User asks about materials and process."
+  "reason": "User asks two searchable knowledge questions."
 }
 
 示例 2：
@@ -69,12 +88,18 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题拆解器，只能
   "is_multi_question": true,
   "questions": [
     {
+      "original_query": "我这单为什么被驳回",
       "query": "我这单为什么被驳回？",
-      "requires_ticket_context": true
+      "requires_ticket_context": true,
+      "is_expanded": false,
+      "expansion_reason": ""
     },
     {
+      "original_query": "还要补什么材料",
       "query": "还要补什么材料？",
-      "requires_ticket_context": true
+      "requires_ticket_context": true,
+      "is_expanded": false,
+      "expansion_reason": ""
     }
   ],
   "reason": "User asks two ticket-related questions."
@@ -87,11 +112,31 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题拆解器，只能
   "is_multi_question": false,
   "questions": [
     {
+      "original_query": "办理健康证需要哪些材料？",
       "query": "办理健康证需要哪些材料？",
-      "requires_ticket_context": false
+      "requires_ticket_context": false,
+      "is_expanded": false,
+      "expansion_reason": ""
     }
   ],
   "reason": "User asks one knowledge question."
+}
+
+示例 4：
+用户：我今天材料交上去了，最快几天能拿到结果？
+输出：
+{
+  "is_multi_question": false,
+  "questions": [
+    {
+      "original_query": "最快几天能拿到结果",
+      "query": "该事项提交申请后最快几天能拿到审批结果，法定办结时限和承诺办结时限是多少天？",
+      "requires_ticket_context": false,
+      "is_expanded": true,
+      "expansion_reason": "background_statement_plus_time_limit_question"
+    }
+  ],
+  "reason": "Submission statement is background, user asks one time-limit question."
 }"""
 
 
@@ -197,12 +242,24 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
         if not query or query in seen:
             continue
         seen.add(query)
+        original_query = normalize_question_text(str(item.get("original_query") or item.get("original_intent_segment") or query)) if isinstance(item, dict) else query
         requires_ticket_context = (
             bool(item.get("requires_ticket_context"))
             if isinstance(item, dict) and "requires_ticket_context" in item
             else ticket_context_related(query, {**state, "query": query, "normalized_query": query})
         )
-        questions.append({"id": f"q{len(questions) + 1}", "query": query, "requires_ticket_context": requires_ticket_context})
+        is_expanded = bool(item.get("is_expanded")) if isinstance(item, dict) else original_query != query
+        expansion_reason = str(item.get("expansion_reason") or "").strip()[:120] if isinstance(item, dict) else ""
+        questions.append(
+            {
+                "id": f"q{len(questions) + 1}",
+                "original_query": original_query,
+                "query": query,
+                "requires_ticket_context": requires_ticket_context,
+                "is_expanded": is_expanded,
+                "expansion_reason": expansion_reason,
+            }
+        )
     fallback_query = str(state.get("normalized_query") or state.get("query") or "").strip()
     if not questions and fallback_query:
         questions = [question_item(fallback_query, state)]
@@ -220,8 +277,11 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_question_text(query)
     return {
         "id": "",
+        "original_query": normalized,
         "query": normalized,
         "requires_ticket_context": ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized}),
+        "is_expanded": False,
+        "expansion_reason": "",
     }
 
 

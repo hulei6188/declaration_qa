@@ -411,6 +411,8 @@ class DeclarationQAWorkflow:
         next_state["question_plan"] = {**plan.payload(), "questions": questions}
         next_state["multi_question"] = bool(plan.is_multi_question and len(questions) > 1)
         next_state["sub_tasks"] = questions if next_state["multi_question"] else []
+        if not next_state["multi_question"] and questions:
+            apply_planned_question(next_state, questions[0])
         add_event(
             next_state,
             "question_plan",
@@ -419,6 +421,7 @@ class DeclarationQAWorkflow:
                 "count": len(questions),
                 "provider": plan.provider,
                 "reason": plan.reason,
+                "expanded": any(bool(question.get("is_expanded")) for question in questions),
             },
         )
         return next_state
@@ -540,8 +543,11 @@ class DeclarationQAWorkflow:
             status = "need_ticket_selection"
         return {
             "id": question.get("id") or f"q{index}",
+            "original_query": question.get("original_query") or question.get("query") or "",
             "query": state.get("query") or question.get("query") or "",
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
+            "is_expanded": bool(question.get("is_expanded")),
+            "expansion_reason": question.get("expansion_reason") or "",
             "route": state.get("route") or "",
             "intent": state.get("intent") or "",
             "sub_intent": state.get("sub_intent") or "",
@@ -1092,6 +1098,16 @@ def add_event(state: dict[str, Any], event: str, data: dict[str, Any]) -> None:
     events = list(state.get("events") or [])
     events.append({"event": event, "data": data})
     state["events"] = events
+
+
+def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> None:
+    """将 planner 理解后的单问题写回状态，保留原始问题在 question_plan 中。"""
+    planned_query = normalize_text(str(question.get("query") or ""))
+    if not planned_query:
+        return
+    state["query"] = planned_query
+    state["normalized_query"] = planned_query
+    state["biz_type"] = state.get("biz_type") or infer_biz_type(planned_query)
 
 
 def unique_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:

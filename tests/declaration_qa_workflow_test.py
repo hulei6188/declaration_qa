@@ -4,7 +4,7 @@ from pathlib import Path
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.question_planner import QUESTION_PLANNER_PROMPT, RuleQuestionPlanner
+from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import LLMIntentRouter, parse_json_object
@@ -215,6 +215,80 @@ def test_question_planner_prompt_limits_over_splitting_and_markdown():
     assert "如果不是多问题，也要返回 questions 数组" in QUESTION_PLANNER_PROMPT
     assert "只输出合法 JSON，不要输出 markdown" in QUESTION_PLANNER_PROMPT
     assert "同一个业务问题中的限定条件" in QUESTION_PLANNER_PROMPT
+    assert "不输出 intent" in QUESTION_PLANNER_PROMPT
+    assert "不输出 route" in QUESTION_PLANNER_PROMPT
+
+
+def test_llm_question_planner_keeps_only_understanding_fields():
+    class FakeLLM:
+        def invoke(self, prompt):
+            return """
+            {
+              "is_multi_question": false,
+              "questions": [
+                {
+                  "original_query": "防火办事流程",
+                  "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
+                  "requires_ticket_context": false,
+                  "is_expanded": true,
+                  "expansion_reason": "keyword_query_to_process_question",
+                  "intent": "process_and_time",
+                  "route": "ticket_context_unrelated"
+                }
+              ],
+              "reason": "keyword_query_expanded"
+            }
+            """
+
+    plan = LLMQuestionPlanner(FakeLLM()).plan({"query": "防火办事流程", "normalized_query": "防火办事流程"})
+
+    assert plan.is_multi_question is False
+    assert plan.questions[0]["original_query"] == "防火办事流程"
+    assert plan.questions[0]["query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
+    assert plan.questions[0]["is_expanded"] is True
+    assert "intent" not in plan.questions[0]
+    assert "route" not in plan.questions[0]
+
+
+def test_single_question_workflow_uses_planner_expanded_query_without_planner_route():
+    class ExpandingPlanner:
+        def plan(self, state):
+            return type(
+                "Plan",
+                (),
+                {
+                    "is_multi_question": False,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "original_query": "防火办事流程",
+                            "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么",
+                            "requires_ticket_context": False,
+                            "is_expanded": True,
+                            "expansion_reason": "keyword_query_to_process_question",
+                        }
+                    ],
+                    "reason": "keyword_query_expanded",
+                    "provider": "test",
+                    "payload": lambda self: {
+                        "is_multi_question": self.is_multi_question,
+                        "questions": self.questions,
+                        "reason": self.reason,
+                        "provider": self.provider,
+                    },
+                },
+            )()
+
+    workflow = DeclarationQAWorkflow(question_planner=ExpandingPlanner())
+    response = workflow.invoke(ChatRequest(query="防火办事流程", user_id=1, region_code="340000"))
+
+    assert response.multi_question is False
+    assert response.question_plan["questions"][0]["original_query"] == "防火办事流程"
+    assert response.question_plan["questions"][0]["is_expanded"] is True
+    assert response.route in {"ticket_context_unrelated", "clarification", "refuse"}
+    assert response.route_decision.get("route") == response.route
+    question_plan_event = next(event for event in response.events if event["event"] == "question_plan")
+    assert question_plan_event["data"]["expanded"] is True
 
 
 def test_parse_json_object_strips_uppercase_json_markdown_fence():
