@@ -1,3 +1,5 @@
+"""上传文档的文本抽取和格式解析工具。"""
+
 from __future__ import annotations
 
 import csv
@@ -12,24 +14,29 @@ import requests
 
 
 class DocumentParseError(ValueError):
+    """文档解析失败时抛出的业务异常。"""
     pass
 
 
 @dataclass(frozen=True)
 class ParsedDocument:
+    """上传文档解析后的标准文本结果。"""
     filename: str
     content_type: str
     text: str
 
 
 class HttpOcrClient:
+    """通过外部 HTTP OCR 服务提取图片文本。"""
     def __init__(self, *, url: str, api_key: str = "", model: str = "", timeout_seconds: int = 30) -> None:
+        """初始化HttpOcrClient。"""
         self.url = url
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
 
     def extract_text(self, *, filename: str, content_type: str, data: bytes) -> str:
+        """调用 OCR 服务从文件字节中提取文本。"""
         if not self.url:
             raise DocumentParseError("Image OCR requires DECLARATION_QA_OCR_API_URL")
         headers = {"Accept": "application/json"}
@@ -60,6 +67,7 @@ def parse_document_bytes(
     data: bytes,
     ocr_client: HttpOcrClient | None = None,
 ) -> ParsedDocument:
+    """根据文件类型解析上传文档文本。"""
     if not data:
         raise DocumentParseError("Uploaded file is empty")
     suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
@@ -89,6 +97,7 @@ def parse_document_bytes(
 
 
 def decode_text(data: bytes) -> str:
+    """按常见编码解码文本文件内容。"""
     for encoding in ("utf-8-sig", "utf-8", "gb18030"):
         try:
             return data.decode(encoding)
@@ -98,12 +107,14 @@ def decode_text(data: bytes) -> str:
 
 
 def parse_csv(data: bytes) -> str:
+    """将 CSV 内容解析为可检索文本。"""
     text = decode_text(data)
     rows = csv.reader(io.StringIO(text))
     return "\n".join(" | ".join(cell.strip() for cell in row) for row in rows)
 
 
 def parse_pdf(data: bytes) -> str:
+    """从 PDF 字节中提取页面文本。"""
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
@@ -111,6 +122,7 @@ def parse_pdf(data: bytes) -> str:
 
 
 def parse_docx(data: bytes) -> str:
+    """从 DOCX 文档中提取正文文本。"""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             xml = archive.read("word/document.xml")
@@ -122,6 +134,7 @@ def parse_docx(data: bytes) -> str:
 
 
 def parse_xlsx(data: bytes) -> str:
+    """从 XLSX 工作表中提取单元格文本。"""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             shared_strings = read_xlsx_shared_strings(archive)
@@ -149,6 +162,7 @@ def parse_xlsx(data: bytes) -> str:
 
 
 def read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    """读取 XLSX 共享字符串表。"""
     try:
         root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
     except KeyError:
@@ -161,6 +175,7 @@ def read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
 
 
 def normalize_extracted_text(text: str) -> str:
+    """清理并压缩抽取文本中的空白字符。"""
     text = unescape(str(text or ""))
     text = re.sub(r"[ \t\r\f\v]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)

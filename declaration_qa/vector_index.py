@@ -1,3 +1,5 @@
+"""向量索引协议以及内存和 Milvus 实现。"""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -32,36 +34,46 @@ MILVUS_JSON_METADATA_FIELD = "metadata"
 
 
 class VectorIndex(Protocol):
+    """向量索引读写协议。"""
     backend: str
 
     def upsert(self, chunk: KnowledgeChunk, vector: list[float]) -> None:
+        """写入或更新向量索引记录。"""
         ...
 
     def delete_by_doc(self, doc_id: str) -> None:
+        """按文档 ID 删除向量索引记录。"""
         ...
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
+        """按向量和过滤条件搜索相似片段。"""
         ...
 
     def clear(self) -> None:
+        """清空当前存储中的全部数据。"""
         ...
 
 
 class MemoryVectorIndex:
+    """进程内向量索引实现。"""
     backend = "memory"
 
     def __init__(self) -> None:
+        """初始化MemoryVectorIndex。"""
         self._items: dict[str, tuple[list[float], KnowledgeChunk]] = {}
 
     def upsert(self, chunk: KnowledgeChunk, vector: list[float]) -> None:
+        """写入或更新向量索引记录。"""
         self._items[chunk.id] = (list(vector), chunk)
 
     def delete_by_doc(self, doc_id: str) -> None:
+        """按文档 ID 删除向量索引记录。"""
         for chunk_id, (_, chunk) in list(self._items.items()):
             if chunk.doc_id == doc_id:
                 self._items.pop(chunk_id, None)
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
+        """按向量和过滤条件搜索相似片段。"""
         from declaration_qa.rag_engine import cosine
 
         hits = []
@@ -74,10 +86,12 @@ class MemoryVectorIndex:
         return sorted(hits, key=lambda item: item[1], reverse=True)[:limit]
 
     def clear(self) -> None:
+        """清空当前存储中的全部数据。"""
         self._items.clear()
 
 
 class MilvusVectorIndex:
+    """基于 Milvus 的向量索引实现。"""
     backend = "milvus"
 
     def __init__(
@@ -89,6 +103,7 @@ class MilvusVectorIndex:
         dimension: int = 96,
         allow_fallback: bool = True,
     ) -> None:
+        """初始化MilvusVectorIndex。"""
         from pymilvus import MilvusClient
 
         kwargs = {"uri": uri}
@@ -107,6 +122,7 @@ class MilvusVectorIndex:
             self._available = False
 
     def upsert(self, chunk: KnowledgeChunk, vector: list[float]) -> None:
+        """写入或更新向量索引记录。"""
         self._fallback.upsert(chunk, vector)
         if not self._available:
             return
@@ -124,6 +140,7 @@ class MilvusVectorIndex:
             self._available = False
 
     def delete_by_doc(self, doc_id: str) -> None:
+        """按文档 ID 删除向量索引记录。"""
         self._fallback.delete_by_doc(doc_id)
         if not self._available:
             return
@@ -136,6 +153,7 @@ class MilvusVectorIndex:
             self._available = False
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
+        """按向量和过滤条件搜索相似片段。"""
         if not self._available:
             return self._fallback.search(vector, filters, limit=limit)
         expr = milvus_filter_expr(filters)
@@ -162,6 +180,7 @@ class MilvusVectorIndex:
         return hits
 
     def clear(self) -> None:
+        """清空当前存储中的全部数据。"""
         self._fallback.clear()
         if not self._available:
             return
@@ -175,6 +194,7 @@ class MilvusVectorIndex:
             self._available = False
 
     def _ensure_collection(self) -> None:
+        """确保 Milvus 集合和索引已创建。"""
         from pymilvus import DataType
 
         if self._client.has_collection(self.collection_name):
@@ -198,6 +218,7 @@ class MilvusVectorIndex:
         )
 
     def _collection_schema_is_current(self) -> bool:
+        """判断 Milvus 集合结构是否符合当前版本。"""
         description = self._client.describe_collection(self.collection_name)
         fields = {str(field.get("name") or ""): field for field in description.get("fields", [])}
         expected_fields = {"id", "doc_id", "vector", MILVUS_JSON_METADATA_FIELD, *MILVUS_TEXT_METADATA_FIELDS}
@@ -212,6 +233,7 @@ class MilvusVectorIndex:
 
 
 def milvus_metadata_row(chunk: KnowledgeChunk) -> dict[str, Any]:
+    """将知识片段转换为 Milvus 存储行。"""
     metadata = dict(chunk.metadata or {})
     values = {
         "region_code": chunk.region_code or metadata.get("region_code") or "",
@@ -245,11 +267,13 @@ def milvus_metadata_row(chunk: KnowledgeChunk) -> dict[str, Any]:
 
 
 def truncate_milvus_text(value: Any, max_length: int) -> str:
+    """按长度截断 Milvus 文本字段。"""
     text = "" if value is None else str(value)
     return text[:max_length]
 
 
 def milvus_json_value(value: Any) -> Any:
+    """将值序列化为 Milvus JSON 字段文本。"""
     if isinstance(value, dict):
         return {str(key): milvus_json_value(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -264,4 +288,5 @@ def milvus_json_value(value: Any) -> Any:
 
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:
+    """将检索过滤条件转换为 Milvus 表达式。"""
     return ""

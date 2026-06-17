@@ -1,3 +1,5 @@
+"""运行时配置校验和生产环境安全检查。"""
+
 from __future__ import annotations
 
 from declaration_qa.config import DeclarationQASettings
@@ -39,6 +41,7 @@ def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
 
 
 def assert_production_ready(settings: DeclarationQASettings) -> None:
+    """校验生产环境必需配置是否齐备。"""
     errors = production_readiness_errors(settings)
     if errors:
         raise RuntimeError("Declaration QA production configuration is incomplete: " + "; ".join(errors))

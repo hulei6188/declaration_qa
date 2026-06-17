@@ -1,3 +1,5 @@
+"""知识文档索引任务的处理和元数据抽取逻辑。"""
+
 from __future__ import annotations
 
 import json
@@ -17,6 +19,7 @@ from declaration_qa.workflow import DeclarationQAWorkflow
 
 
 def index_document_for_workflow(workflow: DeclarationQAWorkflow, document: KnowledgeDocument) -> int:
+    """将知识文档写入工作流索引和持久化存储。"""
     chunks_indexed = workflow.rag_engine.index_document(document)
     if hasattr(workflow.audit_store, "persist_document"):
         workflow.audit_store.persist_document(document, workflow.rag_engine.document_chunks(document))
@@ -30,6 +33,7 @@ def process_index_job(
     job_store: IndexJobStore,
     settings: DeclarationQASettings,
 ) -> dict[str, Any]:
+    """执行索引任务并更新任务状态。"""
     item = job_store.get_index_job(job_uid)
     if not item:
         raise ValueError(f"Index job not found: {job_uid}")
@@ -68,6 +72,7 @@ def process_document_index(
     workflow: DeclarationQAWorkflow,
     settings: DeclarationQASettings,
 ) -> dict[str, Any]:
+    """处理单篇知识文档的索引入库。"""
     input_type = str(payload.get("input_type") or "text")
     if input_type == "file":
         file_path = Path(str(payload.get("file_path") or ""))
@@ -135,6 +140,7 @@ def process_document_index(
 
 
 def process_reindex(workflow: DeclarationQAWorkflow) -> dict[str, Any]:
+    """重建当前知识库索引。"""
     documents = (
         workflow.audit_store.list_documents()
         if hasattr(workflow.audit_store, "list_documents")
@@ -149,6 +155,7 @@ def process_reindex(workflow: DeclarationQAWorkflow) -> dict[str, Any]:
 
 
 def process_document_delete(payload: dict[str, Any], *, workflow: DeclarationQAWorkflow) -> dict[str, Any]:
+    """删除知识文档及其索引。"""
     document_id = str(payload.get("document_id") or "")
     if not document_id:
         raise ValueError("document_id is required")
@@ -158,6 +165,7 @@ def process_document_delete(payload: dict[str, Any], *, workflow: DeclarationQAW
 
 
 def parse_optional_date(value) -> date | None:
+    """将可选输入解析为日期对象。"""
     if isinstance(value, date):
         return value
     if not value:
@@ -183,6 +191,7 @@ FIELD_ALIASES = {
 
 
 def extract_document_metadata(content: str, *, title: str = "", source_url: str = "") -> dict[str, Any]:
+    """从文档正文、标题和来源地址抽取元数据。"""
     values = extract_markdown_key_values(content)
     values.update(extract_json_key_values(content))
     metadata = normalize_metadata_values(values)
@@ -198,6 +207,7 @@ def extract_document_metadata(content: str, *, title: str = "", source_url: str 
 
 
 def extract_markdown_key_values(content: str) -> dict[str, Any]:
+    """从 Markdown 文本中抽取键值对。"""
     values: dict[str, Any] = {}
     for raw_line in str(content or "").splitlines():
         line = raw_line.strip()
@@ -219,6 +229,7 @@ def extract_markdown_key_values(content: str) -> dict[str, Any]:
 
 
 def extract_json_key_values(content: str) -> dict[str, Any]:
+    """从 JSON 文档中抽取顶层键值对。"""
     text = str(content or "").strip()
     if not text or text[0] not in "{[":
         return {}
@@ -234,6 +245,7 @@ def extract_json_key_values(content: str) -> dict[str, Any]:
 
 
 def normalize_metadata_values(values: dict[str, Any]) -> dict[str, Any]:
+    """将不同字段别名归一到标准元数据键。"""
     normalized: dict[str, Any] = {}
     for target_key, aliases in FIELD_ALIASES.items():
         value = first_value(values, aliases)
@@ -243,6 +255,7 @@ def normalize_metadata_values(values: dict[str, Any]) -> dict[str, Any]:
 
 
 def first_value(values: dict[str, Any], aliases: list[str]) -> Any:
+    """按别名顺序读取第一个有效字段值。"""
     for alias in aliases:
         if alias in values and values[alias] not in ("", None):
             return values[alias]
@@ -255,6 +268,7 @@ def first_value(values: dict[str, Any], aliases: list[str]) -> Any:
 
 
 def extract_source_url_metadata(source_url: str) -> dict[str, str]:
+    """从来源 URL 查询参数中抽取元数据。"""
     if not source_url:
         return {}
     query = parse_qs(urlparse(source_url).query)
@@ -268,5 +282,6 @@ def extract_source_url_metadata(source_url: str) -> dict[str, str]:
 
 
 def normalize_item_title(title: str) -> str:
+    """清理事项标题中的指南后缀。"""
     text = str(title or "").strip()
     return re.sub(r"(办事指南|流程文档)$", "", text).strip()

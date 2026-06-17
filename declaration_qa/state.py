@@ -1,9 +1,12 @@
+"""申报问答 LangGraph 状态模型。"""
+
 from __future__ import annotations
 
 from typing import Any, TypedDict
 
 
 class DeclarationQAState(TypedDict, total=False):
+    """申报问答工作流中的可变状态。"""
     user_id: int
     session_id: str
     query: str

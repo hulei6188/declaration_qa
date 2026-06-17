@@ -1,3 +1,5 @@
+"""知识库、检索结果和证据判断的领域模型。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +9,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class KnowledgeDocument:
+    """知识库原始文档及其版本元数据。"""
     id: str
     title: str
     content: str
@@ -28,6 +31,7 @@ class KnowledgeDocument:
 
 @dataclass(frozen=True)
 class KnowledgeChunk:
+    """知识文档切分后的检索片段。"""
     id: str
     doc_id: str
     parent_id: str
@@ -47,6 +51,7 @@ class KnowledgeChunk:
 
 @dataclass(frozen=True)
 class RetrievedSource:
+    """一次检索命中的片段及评分信息。"""
     chunk: KnowledgeChunk
     score: float
     dense_score: float = 0.0
@@ -55,6 +60,7 @@ class RetrievedSource:
     retrieval_channel: str = "hybrid"
 
     def payload(self) -> dict[str, Any]:
+        """转换为接口响应使用的字典载荷。"""
         return {
             "chunk_id": self.chunk.id,
             "doc_id": self.chunk.doc_id,
@@ -87,6 +93,7 @@ class RetrievedSource:
 
 @dataclass(frozen=True)
 class RetrievalResult:
+    """检索链路返回的来源、过滤条件和状态。"""
     sources: list[RetrievedSource]
     filter: dict[str, Any]
     status: dict[str, Any]
@@ -94,6 +101,7 @@ class RetrievalResult:
 
 @dataclass(frozen=True)
 class EvidenceDecision:
+    """证据门控检查的判断结果。"""
     ok: bool
     reason: str = ""
     top_score: float = 0.0
@@ -103,6 +111,7 @@ class EvidenceDecision:
     checks: dict[str, Any] = field(default_factory=dict)
 
     def payload(self) -> dict[str, Any]:
+        """转换为接口响应使用的字典载荷。"""
         return {
             "ok": self.ok,
             "reason": self.reason,

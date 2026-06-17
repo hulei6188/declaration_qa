@@ -1,3 +1,5 @@
+"""离线评测数据集运行与指标计算工具。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,6 +16,7 @@ def run_evaluation(
     note: str = "",
     top_k: int = 4,
 ) -> dict[str, Any]:
+    """运行指定评测数据集并写入评测结果。"""
     cases = store.list_eval_cases(dataset_id)
     run = store.create_eval_run(dataset_id=dataset_id, note=note, top_k=top_k)
     metric_inputs = []
@@ -31,6 +34,7 @@ def run_evaluation(
 
 
 def chat_request_from_case(case: dict[str, Any]) -> ChatRequest:
+    """将评测用例转换为问答请求。"""
     payload = {
         "query": str(case.get("query") or ""),
         "user_id": int(case.get("user_id") or 1),
@@ -44,6 +48,7 @@ def chat_request_from_case(case: dict[str, Any]) -> ChatRequest:
 
 
 def build_run_item(case: dict[str, Any], response, retrieved_doc_ids: list[str]) -> dict[str, Any]:
+    """构造单条评测运行明细。"""
     expected_doc_ids = [str(item) for item in case.get("expected_doc_ids") or []]
     expected_keywords = [str(item) for item in case.get("expected_answer_keywords") or []]
     expected_intent = str(case.get("expected_intent") or "")
@@ -68,6 +73,7 @@ def build_run_item(case: dict[str, Any], response, retrieved_doc_ids: list[str])
 
 
 def calculate_metrics(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """根据评测明细计算整体指标。"""
     return {
         "case_count": len(items),
         "recall_at_k": ratio(item.get("recall_hit") for item in items),
@@ -78,6 +84,7 @@ def calculate_metrics(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def ratio(values) -> float | None:
+    """计算布尔结果序列的命中比例。"""
     effective = [value for value in values if value is not None]
     if not effective:
         return None
@@ -85,6 +92,7 @@ def ratio(values) -> float | None:
 
 
 def unique_doc_ids(values) -> list[str]:
+    """按出现顺序去重文档 ID。"""
     seen = set()
     output = []
     for value in values:

@@ -1,3 +1,5 @@
+"""知识文档切分、索引、混合检索和种子数据构建。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -40,6 +42,7 @@ class InMemoryRAGEngine:
         reranker: Reranker | None = None,
         cache_ttl_seconds: int = 600,
     ) -> None:
+        """初始化InMemoryRAGEngine。"""
         self._documents: dict[str, KnowledgeDocument] = {}
         self._chunks: dict[str, KnowledgeChunk] = {}
         self._vectors: dict[str, list[float]] = {}
@@ -51,12 +54,15 @@ class InMemoryRAGEngine:
 
     @property
     def chunk_count(self) -> int:
+        """返回当前索引中的片段数量。"""
         return len(self._chunks)
 
     def documents(self) -> list[KnowledgeDocument]:
+        """返回当前知识文档列表。"""
         return list(self._documents.values())
 
     def index_document(self, document: KnowledgeDocument) -> int:
+        """索引单篇知识文档并返回片段数。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
         chunks = split_document(document)
@@ -70,6 +76,7 @@ class InMemoryRAGEngine:
         return len(chunks)
 
     def delete_document(self, doc_id: str) -> None:
+        """删除知识文档及相关片段。"""
         self._documents.pop(doc_id, None)
         for chunk_id, chunk in list(self._chunks.items()):
             if chunk.doc_id == doc_id:
@@ -79,6 +86,7 @@ class InMemoryRAGEngine:
         self.cache_store.clear()
 
     def rebuild(self, documents: list[KnowledgeDocument]) -> int:
+        """使用文档集合重建知识索引。"""
         self._documents.clear()
         self._chunks.clear()
         self._vectors.clear()
@@ -102,9 +110,11 @@ class InMemoryRAGEngine:
         return len(self._chunks)
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
+        """返回文档切分后的片段列表。"""
         return split_document(document)
 
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
+        """按查询和过滤条件执行混合检索。"""
         normalized_query = normalize_text(query)
         effective_filter: dict[str, Any] = {}
         cache_key = json.dumps(
@@ -211,6 +221,7 @@ class InMemoryRAGEngine:
         *,
         limit: int,
     ) -> list[RetrievedSource]:
+        """执行实例级向量召回。"""
         query_vector = self.embedding_provider.embed_query(query)
         by_id = {chunk.id: chunk for chunk in candidates}
         vector_hits = self.vector_index.search(query_vector, filters, limit=limit)
@@ -231,6 +242,7 @@ class InMemoryRAGEngine:
         return dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
+        """将检索结果写入缓存。"""
         self.cache_store.set_json(
             cache_key,
             {
@@ -243,6 +255,7 @@ class InMemoryRAGEngine:
 
 
 def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
+    """按文档配置选择切分策略。"""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
     if strategy == CHUNKING_HIERARCHICAL:
         return split_hierarchical(document)
@@ -250,6 +263,7 @@ def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
 
 
 def embed_chunk_batch(embedding_provider: EmbeddingProvider, texts: list[str], *, batch_size: int = 10) -> list[list[float]]:
+    """批量生成知识片段向量。"""
     vectors: list[list[float]] = []
     for index in range(0, len(texts), batch_size):
         vectors.extend(embedding_provider.embed_documents(texts[index : index + batch_size]))
@@ -257,11 +271,13 @@ def embed_chunk_batch(embedding_provider: EmbeddingProvider, texts: list[str], *
 
 
 def normalize_chunking_strategy(value: Any) -> str:
+    """标准化文档切分策略名称。"""
     strategy = str(value or CHUNKING_PARENT_CHILD).strip().lower().replace("-", "_")
     return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_PARENT_CHILD
 
 
 def split_parent_child(document: KnowledgeDocument, *, parent_size: int = 1200, child_size: int = 420, overlap: int = 80) -> list[KnowledgeChunk]:
+    """按父子窗口策略切分文档。"""
     content = document.content.strip()
     if not content:
         return []
@@ -293,6 +309,7 @@ def split_parent_child(document: KnowledgeDocument, *, parent_size: int = 1200, 
 
 
 def split_hierarchical(document: KnowledgeDocument, *, parent_size: int = 1200, child_size: int = 420, overlap: int = 80) -> list[KnowledgeChunk]:
+    """按标题层级切分结构化文档。"""
     content = document.content.strip()
     if not content:
         return []
@@ -377,6 +394,7 @@ def split_hierarchical(document: KnowledgeDocument, *, parent_size: int = 1200, 
 
 
 def hierarchical_section_metadata(document: KnowledgeDocument, section: dict[str, Any], section_index: int) -> dict[str, Any]:
+    """为层级片段生成结构化元数据。"""
     section_title = str(section.get("section_title") or section.get("title") or "Document")
     node_title = str(section.get("node_title") or section.get("title") or section_title)
     node_order = parse_heading_order(node_title)
@@ -397,6 +415,7 @@ def hierarchical_section_metadata(document: KnowledgeDocument, section: dict[str
 
 
 def classify_hierarchical_chunk_type(section_title: str, node_title: str) -> str:
+    """识别层级片段的结构类型。"""
     if section_title == "申请材料" and parse_heading_order(node_title) is not None:
         return "material_item"
     normalized_node_title = strip_heading_order(node_title)
@@ -406,6 +425,7 @@ def classify_hierarchical_chunk_type(section_title: str, node_title: str) -> str
 
 
 def parse_heading_order(title: str) -> int | None:
+    """解析标题中的序号层级。"""
     match = re.match(r"^\s*(\d+)(?:[\.、．\)]\s*|\s+)", str(title or ""))
     if not match:
         return None
@@ -413,10 +433,12 @@ def parse_heading_order(title: str) -> int | None:
 
 
 def strip_heading_order(title: str) -> str:
+    """移除标题前缀序号。"""
     return re.sub(r"^\s*\d+(?:[\.、．\)]\s*|\s+)", "", str(title or "")).strip()
 
 
 def markdown_sections(text: str) -> list[dict[str, Any]]:
+    """将 Markdown 文本解析为标题章节。"""
     sections: list[dict[str, Any]] = []
     stack: list[tuple[int, str]] = []
     current_lines: list[str] = []
@@ -426,6 +448,7 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
     heading_pattern = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
     def flush_current() -> None:
+        """刷新当前累积的章节内容。"""
         body = "\n".join(current_lines).strip()
         if not body:
             return
@@ -468,6 +491,7 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
 
 
 def markdown_section_title(stack: list[tuple[int, str]], current_title: str) -> str:
+    """读取 Markdown 标题文本。"""
     for level, title in stack:
         if level == 2:
             return title
@@ -479,6 +503,7 @@ def markdown_section_title(stack: list[tuple[int, str]], current_title: str) -> 
 
 
 def split_windows(text: str, size: int, overlap: int) -> list[str]:
+    """将文本按窗口和重叠大小切分。"""
     content = str(text or "").strip()
     if len(content) <= size:
         return [content]
@@ -497,6 +522,7 @@ def split_windows(text: str, size: int, overlap: int) -> list[str]:
 
 
 def split_window_units(text: str, size: int) -> list[str]:
+    """将文本拆分为适合滑窗的基础单元。"""
     units: list[str] = []
     for line in text.splitlines():
         if not line.strip():
@@ -506,6 +532,7 @@ def split_window_units(text: str, size: int) -> list[str]:
 
 
 def split_long_line(line: str, size: int) -> list[str]:
+    """按长度拆分过长文本行。"""
     if len(line) <= size:
         return [line]
     if "http://" in line or "https://" in line:
@@ -522,6 +549,7 @@ def split_long_line(line: str, size: int) -> list[str]:
 
 
 def best_soft_split(text: str, size: int) -> int:
+    """在目标长度附近寻找软切分点。"""
     search_start = max(1, size // 2)
     candidates = [text.rfind(separator, search_start, size) for separator in ["。", "；", "，", "、", " ", "\t"]]
     split_at = max(candidates)
@@ -531,6 +559,7 @@ def best_soft_split(text: str, size: int) -> int:
 
 
 def trailing_overlap_units(units: list[str], overlap: int) -> list[str]:
+    """计算滑窗重叠所需的尾部单元。"""
     if overlap <= 0:
         return []
     retained: list[str] = []
@@ -544,6 +573,7 @@ def trailing_overlap_units(units: list[str], overlap: int) -> list[str]:
 
 
 def join_window_units(units: list[str]) -> str:
+    """合并滑窗单元为文本片段。"""
     return "\n".join(unit for unit in units if unit.strip()).strip()
 
 
@@ -556,6 +586,7 @@ def knowledge_chunk_from_document(
     content: str,
     extra_metadata: dict[str, Any] | None = None,
 ) -> KnowledgeChunk:
+    """由文档内容创建知识片段对象。"""
     document_metadata = sanitize_metadata(document.metadata)
     metadata = {
         **document_metadata,
@@ -597,6 +628,7 @@ def dense_retrieve(
     limit: int,
     embedding_provider: EmbeddingProvider | None = None,
 ) -> list[RetrievedSource]:
+    """执行向量召回并转换为检索来源。"""
     embedding_provider = embedding_provider or HashEmbeddingProvider(dimension=EMBEDDING_DIMS)
     query_vector = embedding_provider.embed_query(query)
     hits = []
@@ -618,6 +650,7 @@ def dense_retrieve(
 
 
 def expand_parent_context(sources: list[RetrievedSource], chunks: dict[str, KnowledgeChunk]) -> list[RetrievedSource]:
+    """为子片段补充父级上下文。"""
     expanded = []
     for source in sources:
         chunk = source.chunk
@@ -643,6 +676,7 @@ def expand_structured_section_context(
     sources: list[RetrievedSource],
     chunks: dict[str, KnowledgeChunk],
 ) -> tuple[list[RetrievedSource], dict[str, Any]]:
+    """为结构化片段补充章节上下文。"""
     target_chunk_type = structured_backfill_chunk_type(query)
     if not target_chunk_type:
         return sources, {"applied": False}
@@ -676,6 +710,7 @@ def expand_structured_section_context(
 
 
 def structured_backfill_chunk_type(query: str) -> str:
+    """为结构化来源补齐片段类型。"""
     text = str(query or "")
     if any(keyword in text for keyword in ["材料", "申请材料", "要交啥", "要准备什么", "提交什么", "上传什么", "需要哪些材料", "要带", "需要什么"]):
         return "material_item"
@@ -685,6 +720,7 @@ def structured_backfill_chunk_type(query: str) -> str:
 
 
 def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -> bool:
+    """判断结构化来源是否与目标片段匹配。"""
     metadata = source.chunk.metadata or {}
     semantic_chunk_type = str(metadata.get("chunk_type") or "")
     section_title = str(metadata.get("section_title") or "")
@@ -703,6 +739,7 @@ def structured_section_sibling_sources(
     parent_section_id: str,
     target_chunk_type: str,
 ) -> list[RetrievedSource]:
+    """查找同一结构章节下的兄弟来源。"""
     grouped: dict[tuple[int, str], list[KnowledgeChunk]] = defaultdict(list)
     for chunk in chunks.values():
         metadata = chunk.metadata or {}
@@ -725,6 +762,7 @@ def structured_section_sibling_sources(
 
 
 def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[KnowledgeChunk]) -> RetrievedSource:
+    """合并结构化节点上下文为单个来源。"""
     ordered_chunks = sorted(node_chunks, key=structured_chunk_sort_key)
     first = ordered_chunks[0]
     merged_content = merge_structured_node_content(ordered_chunks)
@@ -751,6 +789,7 @@ def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[Kn
 
 
 def structured_chunk_sort_key(chunk: KnowledgeChunk) -> tuple[int, int, int, str]:
+    """生成结构化片段排序键。"""
     metadata = chunk.metadata or {}
     return (
         safe_int(metadata.get("node_order")),
@@ -761,6 +800,7 @@ def structured_chunk_sort_key(chunk: KnowledgeChunk) -> tuple[int, int, int, str
 
 
 def merge_structured_node_content(chunks: list[KnowledgeChunk]) -> str:
+    """合并结构化节点及相关内容。"""
     parts: list[str] = []
     seen_content: set[str] = set()
     for chunk in chunks:
@@ -778,6 +818,7 @@ def append_unique_source(
     seen_chunk_ids: set[str],
     seen_node_keys: set[tuple[str, str, str]],
 ) -> bool:
+    """按片段 ID 追加唯一来源。"""
     chunk = source.chunk
     if chunk.id in seen_chunk_ids:
         return False
@@ -796,6 +837,7 @@ def append_unique_source(
 
 
 def safe_int(value: Any) -> int:
+    """安全地将值转换为整数。"""
     try:
         return int(value or 0)
     except (TypeError, ValueError):
@@ -803,6 +845,7 @@ def safe_int(value: Any) -> int:
 
 
 def bm25_retrieve(query: str, candidates: list[KnowledgeChunk], *, limit: int) -> list[RetrievedSource]:
+    """执行 BM25 关键词召回。"""
     query_tokens = tokenize(query)
     corpus = [tokenize(chunk.content) for chunk in candidates]
     if not query_tokens:
@@ -826,6 +869,7 @@ def bm25_retrieve(query: str, candidates: list[KnowledgeChunk], *, limit: int) -
 
 
 def bm25_scores(query_tokens: list[str], corpus: list[list[str]]) -> list[float]:
+    """计算候选片段的 BM25 分数。"""
     try:
         from rank_bm25 import BM25Okapi
 
@@ -836,6 +880,7 @@ def bm25_scores(query_tokens: list[str], corpus: list[list[str]]) -> list[float]
 
 
 def rrf_fuse(hit_lists: list[list[RetrievedSource]], *, rrf_k: int) -> list[RetrievedSource]:
+    """使用 RRF 融合多路召回结果。"""
     chunk_scores: dict[str, float] = defaultdict(float)
     best_source: dict[str, RetrievedSource] = {}
     dense_scores: dict[str, float] = defaultdict(float)
@@ -867,6 +912,7 @@ def rrf_fuse(hit_lists: list[list[RetrievedSource]], *, rrf_k: int) -> list[Retr
 
 
 def rerank(query: str, hits: list[RetrievedSource], filters: dict[str, Any], *, top_n: int) -> list[RetrievedSource]:
+    """按查询相关性重新排序候选来源。"""
     query_tokens = set(tokenize(query))
     reranked = []
     for hit in hits:
@@ -888,14 +934,17 @@ def rerank(query: str, hits: list[RetrievedSource], filters: dict[str, Any], *, 
 
 
 def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> float:
+    """计算片段元数据与过滤条件的加权提升。"""
     return 0.0
 
 
 def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
+    """判断知识片段是否满足检索过滤条件。"""
     return True
 
 
 def parse_filter_date(value: Any) -> date | None:
+    """解析检索过滤中的日期值。"""
     if isinstance(value, date):
         return value
     if isinstance(value, str) and value:
@@ -907,6 +956,7 @@ def parse_filter_date(value: Any) -> date | None:
 
 
 def embed_text(text: str) -> list[float]:
+    """生成文本的本地哈希向量。"""
     values = [0.0 for _ in range(EMBEDDING_DIMS)]
     for token in tokenize(text):
         digest = hashlib.sha256(token.encode("utf-8")).digest()
@@ -918,16 +968,19 @@ def embed_text(text: str) -> list[float]:
 
 
 def cosine(left: Iterable[float], right: Iterable[float]) -> float:
+    """计算两个向量的余弦点积分数。"""
     left_values = list(left)
     right_values = list(right)
     return sum(a * b for a, b in zip(left_values, right_values))
 
 
 def normalize_text(value: str) -> str:
+    """将文本规范化为小写紧凑形式。"""
     return re.sub(r"\s+", " ", str(value or "").strip())
 
 
 def tokenize(text: str) -> list[str]:
+    """将文本切分为检索用词元。"""
     normalized = normalize_text(text).lower()
     try:
         import jieba
@@ -952,6 +1005,7 @@ def build_seed_rag_engine(
     cache_ttl_seconds: int = 600,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
+    """创建并可选加载种子知识的 RAG 引擎。"""
     engine = InMemoryRAGEngine(
         cache_store=cache_store,
         vector_index=vector_index,
@@ -966,6 +1020,7 @@ def build_seed_rag_engine(
 
 
 def seed_documents() -> list[KnowledgeDocument]:
+    """返回内置种子知识文档列表。"""
     return [
         KnowledgeDocument(
             id="doc-residence-guide-2025",

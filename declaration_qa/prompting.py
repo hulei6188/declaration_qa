@@ -1,3 +1,5 @@
+"""问答提示词和本地确定性回答生成器。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -28,6 +30,7 @@ class DeterministicAnswerGenerator:
     """
 
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:
+        """生成非流式回答和提示词。"""
         sources = state.get("retrieved_sources") or []
         source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:3])
         business_payload = state.get("business_status") or state.get("reject_info") or {}
@@ -50,6 +53,7 @@ class DeterministicAnswerGenerator:
 
 
 def status_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
+    """生成办件状态类问题的确定性回答。"""
     status = state.get("business_status") or {}
     node_name = status.get("node_name") or status.get("current_node") or "当前节点"
     answer = f"您的申请当前处于“{node_name}”。该状态来自办件流程服务，RAG 仅用于解释节点含义。"
@@ -59,6 +63,7 @@ def status_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
 
 
 def reject_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
+    """生成退回补正类问题的确定性回答。"""
     reject = state.get("reject_info") or {}
     material_name = reject.get("material_name") or reject.get("material_code") or "相关材料"
     reason = reject.get("reject_reason") or "材料不符合要求"
@@ -70,6 +75,7 @@ def reject_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
 
 
 def knowledge_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
+    """生成知识检索类问题的确定性回答。"""
     if not sources:
         return "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
     title = sources[0].get("title") or "办理指南"

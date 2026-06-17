@@ -1,3 +1,5 @@
+"""申报问答意图识别、实体抽取和路由决策。"""
+
 from __future__ import annotations
 
 import json
@@ -62,6 +64,7 @@ JSON 字段:
 
 @dataclass(frozen=True)
 class RouteDecision:
+    """意图路由器输出的标准决策对象。"""
     route: str
     intent: str
     sub_intent: str = ""
@@ -73,6 +76,7 @@ class RouteDecision:
     entities: dict[str, Any] = field(default_factory=dict)
 
     def payload(self) -> dict[str, Any]:
+        """转换为接口响应使用的字典载荷。"""
         return {
             "route": self.route,
             "intent": self.intent,
@@ -87,9 +91,11 @@ class RouteDecision:
 
 
 class IntentRouter:
+    """基于规则的申报问答意图路由器。"""
     name = "rule"
 
     def route(self, state: dict[str, Any]) -> RouteDecision:
+        """执行当前函数对应的业务处理。"""
         query = str(state.get("normalized_query") or state.get("query") or "")
         entities = extract_entities(query, state)
 
@@ -150,13 +156,16 @@ class IntentRouter:
 
 
 class LLMIntentRouter:
+    """基于大模型的意图路由器并带规则兜底。"""
     name = "llm"
 
     def __init__(self, llm: Any, *, fallback_router: IntentRouter | None = None) -> None:
+        """初始化LLMIntentRouter。"""
         self.llm = llm
         self.fallback_router = fallback_router or IntentRouter()
 
     def route(self, state: dict[str, Any]) -> RouteDecision:
+        """执行当前函数对应的业务处理。"""
         query = str(state.get("normalized_query") or state.get("query") or "")
         entities = extract_entities(query, state)
         risk = risk_check(query)
@@ -191,6 +200,7 @@ class LLMIntentRouter:
             )
 
     def _invoke_llm(self, state: dict[str, Any], entities: dict[str, Any]) -> dict[str, Any]:
+        """执行当前函数对应的业务处理。"""
         prompt = build_router_prompt(state, entities)
         response = self.llm.invoke(prompt)
         content = getattr(response, "content", response)
@@ -204,6 +214,7 @@ class LLMIntentRouter:
         fallback_entities: dict[str, Any],
         risk: dict[str, str],
     ) -> RouteDecision:
+        """执行当前函数对应的业务处理。"""
         route = normalize_route(payload.get("route"))
         intent = derive_internal_intent(route, state)
         sub_intent = intent
@@ -234,6 +245,7 @@ class LLMIntentRouter:
 
 
 def risk_check(query: str) -> dict[str, str]:
+    """识别请求中的高风险表达。"""
     if contains_any(query, ["伪造", "造假", "假材料", "绕过审核", "买卖证件", "冒名"]):
         return {"level": "block", "reason": "unsafe_or_out_of_scope"}
     if contains_any(query, ["身份证号", "手机号", "个人隐私", "他人申请"]):
@@ -242,6 +254,7 @@ def risk_check(query: str) -> dict[str, str]:
 
 
 def ticket_context_related(query: str, state: dict[str, Any]) -> bool:
+    """判断问题是否与当前办件上下文相关。"""
     if personal_ticket_signal(query):
         return True
     if not (state.get("apply_id") or state.get("apply_context")):
@@ -252,16 +265,19 @@ def ticket_context_related(query: str, state: dict[str, Any]) -> bool:
 
 
 def personal_ticket_signal(query: str) -> bool:
+    """判断问题是否包含个人办件信号。"""
     return contains_any(query, ["我的", "我这个", "这单", "申请单", "办件", "订单", "提交的", "被退回了", "被驳回了"])
 
 
 def explicit_other_business_query(query: str, state: dict[str, Any]) -> bool:
+    """判断用户是否显式询问其他业务。"""
     current_biz_type = str((state.get("apply_context") or {}).get("biz_type") or state.get("biz_type") or "")
     requested_biz_type = infer_biz_type(query)
     return bool(current_biz_type and requested_biz_type and requested_biz_type != current_biz_type)
 
 
 def classify_ticket_intent(query: str) -> str:
+    """按规则识别办件类意图。"""
     if contains_any(query, ["退回", "驳回", "补正", "不通过", "被拒", "被退"]):
         return INTENT_REJECTION_REASON
     if contains_any(query, ["进度", "到哪", "状态", "审核到", "办到哪", "多久能办完", "什么情况", "怎么样"]):
@@ -270,6 +286,7 @@ def classify_ticket_intent(query: str) -> str:
 
 
 def classify_knowledge_intent(query: str) -> str:
+    """按规则识别知识问答类意图。"""
     if contains_any(query, ["材料", "要带", "提交什么", "需要什么", "清单"]):
         return INTENT_MATERIAL_REQUIREMENTS
     if contains_any(query, ["流程", "步骤", "怎么办", "如何办理", "怎么申请"]):
@@ -294,6 +311,7 @@ def classify_knowledge_intent(query: str) -> str:
 
 
 def extract_entities(query: str, state: dict[str, Any]) -> dict[str, Any]:
+    """从问题和上下文中抽取路由实体。"""
     entities = {
         "apply_id": state.get("apply_id") or "",
         "biz_type": state.get("biz_type") or infer_biz_type(query) or "",
@@ -306,6 +324,7 @@ def extract_entities(query: str, state: dict[str, Any]) -> dict[str, Any]:
 
 
 def infer_biz_type(query: str) -> str | None:
+    """根据文本推断业务类型。"""
     if "健康证" in query:
         return "health_certificate"
     if "居住证" in query or "居住证明" in query:
@@ -316,6 +335,7 @@ def infer_biz_type(query: str) -> str | None:
 
 
 def ticket_title_from_biz_type(biz_type: str) -> str:
+    """根据业务类型生成办件名称。"""
     names = {
         "health_certificate": "健康证办理",
         "residence_permit": "居住证办理",
@@ -325,10 +345,12 @@ def ticket_title_from_biz_type(biz_type: str) -> str:
 
 
 def contains_any(text: str, keywords: list[str]) -> bool:
+    """判断文本是否包含任一关键词。"""
     return any(keyword in str(text or "") for keyword in keywords)
 
 
 def build_router_prompt(state: dict[str, Any], entities: dict[str, Any]) -> str:
+    """构造大模型意图路由提示词。"""
     current_ticket = build_current_ticket_context(state)
     request_context = {
         "query": state.get("query") or "",
@@ -342,6 +364,7 @@ def build_router_prompt(state: dict[str, Any], entities: dict[str, Any]) -> str:
 
 
 def build_current_ticket_context(state: dict[str, Any]) -> dict[str, Any]:
+    """构造当前办件的紧凑上下文。"""
     apply_context = state.get("apply_context") or {}
     biz_type = apply_context.get("biz_type") or state.get("biz_type") or ""
     return compact_dict(
@@ -362,10 +385,12 @@ def build_current_ticket_context(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def compact_dict(values: dict[str, Any]) -> dict[str, Any]:
+    """移除字典中的空值字段。"""
     return {key: value for key, value in values.items() if value not in ("", None, [], {})}
 
 
 def parse_json_object(value: str) -> dict[str, Any]:
+    """从模型输出中解析 JSON 对象。"""
     text = value.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -383,6 +408,7 @@ def parse_json_object(value: str) -> dict[str, Any]:
 
 
 def normalize_route(value: Any) -> str:
+    """标准化大模型路由输出。"""
     route = str(value or "").strip()
     if route not in ALLOWED_ROUTES:
         raise ValueError(f"Unsupported route: {route}")
@@ -390,6 +416,7 @@ def normalize_route(value: Any) -> str:
 
 
 def derive_internal_intent(route: str, state: dict[str, Any]) -> str:
+    """将外部意图转换为内部意图。"""
     query = str(state.get("normalized_query") or state.get("query") or "")
     if route == ROUTE_REFUSE:
         return INTENT_UNSAFE
@@ -404,6 +431,7 @@ def derive_internal_intent(route: str, state: dict[str, Any]) -> str:
 
 
 def normalize_entities(values: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    """标准化路由实体字段。"""
     query = str(state.get("normalized_query") or state.get("query") or "")
     entities = {
         "apply_id": values.get("apply_id") or state.get("apply_id") or "",
@@ -422,6 +450,7 @@ def enforce_route_contract(
     can_answer_from_knowledge: bool,
     reason: str,
 ) -> tuple[str, str, str, bool, bool, str]:
+    """校验并修正路由决策契约。"""
     if route == ROUTE_TICKET_CONTEXT_RELATED:
         requires_ticket_context = True
         can_answer_from_knowledge = intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON, INTENT_UNSAFE, INTENT_CLARIFICATION}
@@ -446,11 +475,13 @@ def enforce_route_contract(
 
 
 def append_reason(reason: str, suffix: str) -> str:
+    """追加路由决策原因。"""
     base = reason or "llm_router"
     return f"{base}|{suffix}"[:120]
 
 
 def clamp_float(value: Any, *, default: float) -> float:
+    """将浮点数限制在指定区间内。"""
     try:
         number = float(value)
     except (TypeError, ValueError):

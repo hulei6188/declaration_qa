@@ -1,3 +1,5 @@
+"""申报问答 LangGraph 工作流和业务节点实现。"""
+
 from __future__ import annotations
 
 import re
@@ -28,6 +30,7 @@ from declaration_qa.state import DeclarationQAState
 
 
 class DeclarationQAWorkflow:
+    """申报问答的图工作流编排器。"""
     def __init__(
         self,
         *,
@@ -37,6 +40,7 @@ class DeclarationQAWorkflow:
         answer_generator: DeterministicAnswerGenerator | None = None,
         intent_router: IntentRouter | None = None,
     ) -> None:
+        """初始化申报问答工作流。"""
         self.rag_engine = rag_engine or build_seed_rag_engine()
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
@@ -45,6 +49,7 @@ class DeclarationQAWorkflow:
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
+        """同步执行问答工作流并返回最终响应。"""
         initial_state = self._initial_state(request)
         final_state = self.graph.invoke(initial_state)
         return ChatResponse(
@@ -71,10 +76,12 @@ class DeclarationQAWorkflow:
         )
 
     def stream(self, request: ChatRequest) -> Iterable[dict[str, Any]]:
+        """流式执行问答工作流并产出事件。"""
         state: DeclarationQAState = self._initial_state(request)
         yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
 
         def run_node(name: str, handler) -> None:
+            """执行工作流节点并记录节点事件。"""
             nonlocal state
             before = len(state.get("events") or [])
             state = handler(state)
@@ -85,6 +92,7 @@ class DeclarationQAWorkflow:
         emitted: list[dict[str, Any]] = []
 
         def drain() -> Iterable[dict[str, Any]]:
+            """收集流式文本片段并返回完整文本。"""
             while emitted:
                 yield emitted.pop(0)
 
@@ -170,6 +178,7 @@ class DeclarationQAWorkflow:
         }
 
     def llm_generate_stream_events(self, state: DeclarationQAState) -> Iterable[dict[str, Any]]:
+        """流式调用回答生成器并产出文本事件。"""
         stream_generate = getattr(self.answer_generator, "stream_generate", None)
         if not callable(stream_generate):
             before = len(state.get("events") or [])
@@ -197,6 +206,7 @@ class DeclarationQAWorkflow:
         yield {"event": "answer_generated", "data": {"intent": state.get("intent"), "streamed": True}}
 
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
+        """根据请求构造工作流初始状态。"""
         apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
         return {
             "user_id": request.user_id,
@@ -235,6 +245,7 @@ class DeclarationQAWorkflow:
         }
 
     def _build_graph(self):
+        """构建 LangGraph 节点和边。"""
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
@@ -296,6 +307,7 @@ class DeclarationQAWorkflow:
         return builder.compile()
 
     def context_build(self, state: DeclarationQAState) -> DeclarationQAState:
+        """构造基础请求上下文。"""
         next_state = dict(state)
         if not next_state.get("apply_context") and next_state.get("apply_id"):
             next_state["apply_context"] = self.business_adapter.get_apply_context(
@@ -318,6 +330,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def query_preprocess(self, state: DeclarationQAState) -> DeclarationQAState:
+        """清理用户问题并写入状态。"""
         next_state = dict(state)
         query = normalize_text(mask_sensitive_text(next_state.get("query") or ""))
         next_state["normalized_query"] = query
@@ -326,6 +339,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
+        """执行意图路由并写入路由结果。"""
         next_state = dict(state)
         if next_state.get("refuse_reason"):
             next_state["route"] = ROUTE_REFUSE
@@ -346,6 +360,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        """查询用户办件列表并写入状态。"""
         next_state = dict(state)
         if next_state.get("apply_context"):
             next_state["tickets"] = [ticket_summary_from_context(next_state["apply_context"] or {})]
@@ -374,6 +389,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def ticket_selection(self, state: DeclarationQAState) -> DeclarationQAState:
+        """选择当前问题对应的办件。"""
         next_state = dict(state)
         if next_state.get("apply_context"):
             next_state["need_ticket_selection"] = False
@@ -404,6 +420,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def ticket_detail_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        """查询选中办件的详细上下文。"""
         next_state = dict(state)
         apply_context = next_state.get("apply_context") or {}
         if not apply_context:
@@ -445,6 +462,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def ticket_context_build(self, state: DeclarationQAState) -> DeclarationQAState:
+        """构造办件增强检索上下文。"""
         next_state = dict(state)
         ticket_context = {
             "ticket": ticket_summary_from_context(next_state.get("apply_context") or {}),
@@ -456,6 +474,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def ticket_knowledge_rag(self, state: DeclarationQAState) -> DeclarationQAState:
+        """围绕办件问题执行知识检索。"""
         next_state = dict(state)
         filters = base_policy_filter(next_state, allow_request_filter=False)
         query = ticket_rag_query(next_state)
@@ -476,6 +495,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def status_apply_context_check(self, state: DeclarationQAState) -> DeclarationQAState:
+        """检查状态查询是否具备办件上下文。"""
         next_state = dict(state)
         apply_context = next_state.get("apply_context") or {}
         if not apply_context or not str(apply_context.get("apply_id") or "").strip():
@@ -483,6 +503,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def reject_apply_context_check(self, state: DeclarationQAState) -> DeclarationQAState:
+        """检查退回查询是否具备办件上下文。"""
         next_state = dict(state)
         apply_context = next_state.get("apply_context") or {}
         if not apply_context or not str(apply_context.get("apply_id") or "").strip():
@@ -490,6 +511,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def business_status_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        """查询办件状态业务数据。"""
         next_state = dict(state)
         status = self.business_adapter.get_status(next_state.get("apply_context") or {})
         if not (status.get("status") or status.get("current_node") or status.get("node_name")):
@@ -506,6 +528,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def status_explain_rag(self, state: DeclarationQAState) -> DeclarationQAState:
+        """检索办件状态解释知识。"""
         next_state = dict(state)
         status = next_state.get("business_status") or {}
         if not status:
@@ -531,6 +554,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def business_reject_query(self, state: DeclarationQAState) -> DeclarationQAState:
+        """查询办件退回补正业务数据。"""
         next_state = dict(state)
         reject_info = self.business_adapter.get_reject_info(next_state.get("apply_context") or {})
         if not (reject_info.get("reject_code") or reject_info.get("reject_reason") or reject_info.get("material_code")):
@@ -547,6 +571,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def material_mapping(self, state: DeclarationQAState) -> DeclarationQAState:
+        """从退回信息中生成材料检索条件。"""
         next_state = dict(state)
         reject = next_state.get("reject_info") or {}
         if not reject:
@@ -565,6 +590,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def material_rule_rag(self, state: DeclarationQAState) -> DeclarationQAState:
+        """检索补正材料规则知识。"""
         next_state = dict(state)
         reject = next_state.get("reject_info") or {}
         if not reject:
@@ -592,6 +618,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
+        """构造普通知识检索过滤条件。"""
         next_state = dict(state)
         if not next_state.get("biz_type"):
             next_state["biz_type"] = infer_biz_type(next_state.get("normalized_query") or "")
@@ -601,6 +628,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def hybrid_retrieve(self, state: DeclarationQAState) -> DeclarationQAState:
+        """执行普通知识问答混合检索。"""
         next_state = dict(state)
         result = self.rag_engine.retrieve(
             next_state.get("normalized_query") or next_state.get("query") or "",
@@ -613,6 +641,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
+        """执行证据门控检查。"""
         next_state = dict(state)
         if next_state.get("route") == ROUTE_TICKET_CONTEXT_RELATED and next_state.get("evidence_ok"):
             add_event(next_state, "evidence", next_state.get("evidence_decision") or {})
@@ -632,6 +661,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def refuse_or_human(self, state: DeclarationQAState) -> DeclarationQAState:
+        """在证据不足时生成拒答和人工建议。"""
         next_state = dict(state)
         next_state["refused"] = True
         reason = next_state.get("refuse_reason") or "out_of_scope"
@@ -661,6 +691,7 @@ class DeclarationQAWorkflow:
         return next_state
 
     def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
+        """调用回答生成器生成最终回答。"""
         next_state = dict(state)
         answer, prompt = self.answer_generator.generate(next_state)
         next_state["answer"] = answer
@@ -671,12 +702,14 @@ class DeclarationQAWorkflow:
         return next_state
 
     def answer_postprocess(self, state: DeclarationQAState) -> DeclarationQAState:
+        """补充默认回答并整理输出。"""
         next_state = dict(state)
         next_state["suggested_actions"] = suggested_actions(next_state)
         add_event(next_state, "suggested_actions", {"items": next_state["suggested_actions"]})
         return next_state
 
     def audit_log(self, state: DeclarationQAState) -> DeclarationQAState:
+        """写入问答审计日志。"""
         next_state = dict(state)
         payload = {
             "user_id": next_state.get("user_id"),
@@ -719,6 +752,7 @@ class DeclarationQAWorkflow:
 
 
 def ticket_summary_from_context(context: dict[str, Any]) -> dict[str, Any]:
+    """从办件上下文生成摘要。"""
     return {
         "ticket_id": str(context.get("apply_id") or ""),
         "biz_type": str(context.get("biz_type") or ""),
@@ -732,6 +766,7 @@ def ticket_summary_from_context(context: dict[str, Any]) -> dict[str, Any]:
 
 
 def ticket_title_from_biz_type(biz_type: str) -> str:
+    """根据业务类型生成办件名称。"""
     names = {
         "health_certificate": "健康证办理",
         "residence_permit": "居住证办理",
@@ -741,6 +776,7 @@ def ticket_title_from_biz_type(biz_type: str) -> str:
 
 
 def ticket_rag_query(state: DeclarationQAState) -> str:
+    """构造办件增强检索查询文本。"""
     business = state.get("business_status") or state.get("reject_info") or {}
     apply_context = state.get("apply_context") or {}
     mapping = state.get("material_mapping") or {}
@@ -758,6 +794,7 @@ def ticket_rag_query(state: DeclarationQAState) -> str:
 
 
 def business_title(*sources: dict[str, Any]) -> str:
+    """生成业务类型展示名称。"""
     for source in sources:
         if not isinstance(source, dict):
             continue
@@ -779,10 +816,12 @@ def business_title(*sources: dict[str, Any]) -> str:
 
 
 def base_policy_filter(state: DeclarationQAState, *, allow_request_filter: bool = True) -> dict[str, Any]:
+    """构造基础政策检索过滤条件。"""
     return {}
 
 
 def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """构造可用于回答的办件快照。"""
     cleaned = {key: value for key, value in (payload or {}).items() if value not in ("", None, [], {})}
     if not cleaned:
         return {}
@@ -809,6 +848,7 @@ def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any
 
 
 def redact_business_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """脱敏业务载荷中的敏感字段。"""
     redacted = {}
     for key, value in (payload or {}).items():
         lowered = str(key).lower()
@@ -820,6 +860,7 @@ def redact_business_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def add_event(state: dict[str, Any], event: str, data: dict[str, Any]) -> None:
+    """向工作流事件列表追加事件。"""
     events = list(state.get("events") or [])
     events.append({"event": event, "data": data})
     state["events"] = events
@@ -836,6 +877,7 @@ def token_events(
     delay_seconds: float = STREAM_TOKEN_DELAY_SECONDS,
     sleep: Callable[[float], None] | None = None,
 ) -> Iterable[dict[str, Any]]:
+    """将文本切分为 token 事件。"""
     if sleep is None:
         from time import sleep as sleep_func
 
@@ -848,6 +890,7 @@ def token_events(
 
 
 def mask_sensitive_text(value: str) -> str:
+    """遮盖文本中的敏感证件和手机号信息。"""
     text = str(value or "")
     text = re.sub(r"\b\d{17}[\dXx]\b", "[id_card]", text)
     text = re.sub(r"\b1[3-9]\d{9}\b", "[phone]", text)
@@ -855,6 +898,7 @@ def mask_sensitive_text(value: str) -> str:
 
 
 def classify_intent(query: str) -> str:
+    """按查询文本粗分类业务意图。"""
     text = str(query or "")
     if any(keyword in text for keyword in ["伪造", "造假", "假材料", "绕过审核"]):
         return "unsafe"
@@ -866,6 +910,7 @@ def classify_intent(query: str) -> str:
 
 
 def infer_biz_type(query: str) -> str | None:
+    """根据文本推断业务类型。"""
     text = str(query or "")
     if "健康证" in text:
         return "health_certificate"
@@ -877,6 +922,7 @@ def infer_biz_type(query: str) -> str | None:
 
 
 def material_tags(reject: dict[str, Any]) -> list[str]:
+    """根据退回信息生成材料标签。"""
     material_code = str(reject.get("material_code") or "")
     reject_code = str(reject.get("reject_code") or "")
     tags = []
@@ -890,6 +936,7 @@ def material_tags(reject: dict[str, Any]) -> list[str]:
 
 
 def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
+    """根据状态生成后续建议动作。"""
     app_version = state.get("app_version") or ""
     apply_context = state.get("apply_context") or {}
     if state.get("refused"):

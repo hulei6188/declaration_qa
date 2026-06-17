@@ -1,3 +1,5 @@
+"""按配置组装申报问答工作流及配套组件。"""
+
 from __future__ import annotations
 
 from declaration_qa.audit import InMemoryAuditStore
@@ -13,6 +15,7 @@ from declaration_qa.workflow import DeclarationQAWorkflow
 
 
 def create_workflow(settings: DeclarationQASettings | None = None) -> DeclarationQAWorkflow:
+    """按配置创建完整申报问答工作流。"""
     settings = settings or get_settings()
     assert_production_ready(settings)
     embedding_provider = build_embedding_provider(settings)
@@ -71,6 +74,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
 
 
 def create_index_job_store(workflow: DeclarationQAWorkflow):
+    """根据工作流存储能力创建索引任务存储。"""
     from declaration_qa.indexing import InMemoryIndexJobStore
 
     return workflow.audit_store if hasattr(workflow.audit_store, "create_index_job") else InMemoryIndexJobStore()

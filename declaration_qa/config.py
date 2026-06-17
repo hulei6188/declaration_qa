@@ -1,3 +1,5 @@
+"""申报问答服务的环境配置定义。"""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -8,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DeclarationQASettings(BaseSettings):
+    """申报问答服务运行所需的环境变量配置。"""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     environment: str = Field(default="development", alias="DECLARATION_QA_ENV")
@@ -60,33 +63,41 @@ class DeclarationQASettings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
+        """判断当前运行环境是否为生产环境。"""
         return self.environment.strip().lower() in {"prod", "production"}
 
     @property
     def effective_allow_in_memory_fallbacks(self) -> bool:
+        """计算当前环境是否允许内存兜底。"""
         return False if self.is_production else self.allow_in_memory_fallbacks
 
     @property
     def effective_database_url(self) -> str | None:
+        """返回当前生效的数据库连接地址。"""
         return self.database_url
 
     @property
     def effective_redis_url(self) -> str | None:
+        """返回当前生效的 Redis 连接地址。"""
         return self.redis_url
 
     @property
     def effective_auth_required(self) -> bool:
+        """计算当前环境是否强制鉴权。"""
         return self.auth_required or self.is_production
 
     @property
     def jwt_algorithm_list(self) -> list[str]:
+        """解析 JWT 算法配置为列表。"""
         return [item.strip() for item in self.jwt_algorithms.split(",") if item.strip()]
 
     @property
     def effective_upload_dir(self) -> Path:
+        """返回上传文件存储目录。"""
         return Path(self.upload_dir)
 
 
 @lru_cache
 def get_settings() -> DeclarationQASettings:
+    """创建并缓存服务配置对象。"""
     return DeclarationQASettings()

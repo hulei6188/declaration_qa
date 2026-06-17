@@ -1,3 +1,5 @@
+"""PostgreSQL 持久化存储、业务数据和知识库管理实现。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -15,15 +17,19 @@ from declaration_qa.retrieval import sanitize_metadata
 
 
 class PostgresDeclarationQAStore:
+    """PostgreSQL 持久化存储和业务数据适配器。"""
     def __init__(self, database_url: str) -> None:
+        """初始化PostgreSQL 存储。"""
         self.engine: Engine = create_engine(database_url, future=True, pool_pre_ping=True)
 
     def init_schema(self) -> None:
+        """初始化数据库表结构。"""
         schema_path = Path(__file__).resolve().parents[1] / "sql" / "postgresql" / "003_declaration_qa_schema.sql"
         with self.engine.begin() as connection:
             connection.exec_driver_sql(schema_path.read_text(encoding="utf-8"))
 
     def append(self, payload: dict[str, Any]) -> str:
+        """追加一条审计记录并返回记录 ID。"""
         audit_uid = str(payload.get("audit_id") or "")
         if not audit_uid:
             from uuid import uuid4
@@ -123,6 +129,7 @@ class PostgresDeclarationQAStore:
         return audit_uid
 
     def get(self, audit_id: str) -> dict[str, Any] | None:
+        """按 ID 查询记录并返回副本。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text("SELECT * FROM declaration_qa.audit_logs WHERE audit_uid = :audit_uid"),
@@ -131,6 +138,7 @@ class PostgresDeclarationQAStore:
         return dict(row) if row else None
 
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        """查询指定办件的业务上下文。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -169,6 +177,7 @@ class PostgresDeclarationQAStore:
         return normalize_business_row(row) if row else None
 
     def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        """查询用户可访问的办件列表。"""
         region_codes = region_code_variants(region_code)
         with self.engine.begin() as connection:
             rows = connection.execute(
@@ -204,6 +213,7 @@ class PostgresDeclarationQAStore:
         return [business_ticket_summary(row) for row in rows]
 
     def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        """校验用户是否有权访问指定办件。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -220,6 +230,7 @@ class PostgresDeclarationQAStore:
         return row is not None
 
     def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取状态信息。"""
         apply_id = str(apply_context.get("apply_id") or "").strip()
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -262,6 +273,7 @@ class PostgresDeclarationQAStore:
         }
 
     def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取退回和补正信息。"""
         apply_id = str(apply_context.get("apply_id") or "").strip()
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -314,6 +326,7 @@ class PostgresDeclarationQAStore:
         }
 
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
+        """保存用户对问答结果的反馈。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text("SELECT id, user_id FROM declaration_qa.audit_logs WHERE audit_uid = :audit_uid"),
@@ -333,6 +346,7 @@ class PostgresDeclarationQAStore:
         return {"audit_id": audit_id, "rating": rating, "comment": comment}
 
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
+        """创建评测数据集并写入初始用例。"""
         dataset_uid = f"eval-ds-{uuid4().hex}"
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -350,6 +364,7 @@ class PostgresDeclarationQAStore:
         return {**normalize_eval_dataset(row), "case_count": len(self.list_eval_cases(dataset_uid))}
 
     def list_eval_datasets(self) -> list[dict[str, Any]]:
+        """返回评测数据集列表及用例数量。"""
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -366,6 +381,7 @@ class PostgresDeclarationQAStore:
         return [normalize_eval_dataset(row) for row in rows]
 
     def add_eval_case(self, *, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:
+        """向指定评测数据集添加用例。"""
         case_uid = f"eval-case-{uuid4().hex}"
         stmt = text(
             """
@@ -415,6 +431,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_case(row)
 
     def list_eval_cases(self, dataset_id: str) -> list[dict[str, Any]]:
+        """查询指定评测数据集下的用例列表。"""
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -435,6 +452,7 @@ class PostgresDeclarationQAStore:
         return [normalize_eval_case(row) for row in rows]
 
     def create_eval_run(self, *, dataset_id: str, note: str, top_k: int) -> dict[str, Any]:
+        """创建一次评测运行记录。"""
         run_uid = f"eval-run-{uuid4().hex}"
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -455,6 +473,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run(row, items=[])
 
     def append_eval_run_item(self, *, run_id: str, item: dict[str, Any]) -> dict[str, Any]:
+        """追加单条评测运行明细。"""
         item_uid = f"eval-item-{uuid4().hex}"
         stmt = text(
             """
@@ -510,6 +529,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run_item(row)
 
     def finish_eval_run(self, *, run_id: str, status: str, metrics: dict[str, Any], error_message: str = "") -> dict[str, Any]:
+        """结束评测运行并写入指标或错误信息。"""
         stmt = text(
             """
             UPDATE declaration_qa.eval_runs SET
@@ -531,6 +551,7 @@ class PostgresDeclarationQAStore:
         return self.get_eval_run(run_id) or normalize_eval_run(row, items=[])
 
     def get_eval_run(self, run_id: str) -> dict[str, Any] | None:
+        """查询评测运行及其明细。"""
         with self.engine.begin() as connection:
             run = connection.execute(
                 text(
@@ -569,6 +590,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run(run, items=[normalize_eval_run_item(item) for item in items])
 
     def annotate_eval_item(self, *, item_id: str, label: str, comment: str) -> dict[str, Any]:
+        """保存人工标注的评测明细结果。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -593,6 +615,7 @@ class PostgresDeclarationQAStore:
         return normalize_eval_run_item(row)
 
     def persist_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
+        """持久化知识文档及其片段。"""
         with self.engine.begin() as connection:
             kb_id = self._ensure_default_kb(connection)
             row = connection.execute(
@@ -665,6 +688,7 @@ class PostgresDeclarationQAStore:
                     parent_db_ids[chunk.id] = int(chunk_row["id"])
 
     def list_documents(self) -> list[KnowledgeDocument]:
+        """查询已发布或可索引的知识文档。"""
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -703,6 +727,7 @@ class PostgresDeclarationQAStore:
         return documents
 
     def list_indexed_knowledge(self) -> tuple[list[KnowledgeDocument], list[KnowledgeChunk]]:
+        """查询已持久化的知识文档和片段。"""
         documents = self.list_documents()
         document_ids = {document.id for document in documents}
         with self.engine.begin() as connection:
@@ -758,6 +783,7 @@ class PostgresDeclarationQAStore:
         return documents, chunks
 
     def knowledge_base_revision(self) -> str:
+        """返回知识库当前修订标识。"""
         with self.engine.begin() as connection:
             value = connection.execute(
                 text("SELECT COALESCE(MAX(updated_at)::text, '') FROM declaration_qa.documents")
@@ -765,6 +791,7 @@ class PostgresDeclarationQAStore:
         return str(value or "")
 
     def delete_document(self, document_uid: str) -> bool:
+        """删除知识文档及相关片段。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text("DELETE FROM declaration_qa.documents WHERE document_uid = :document_uid RETURNING id"),
@@ -773,6 +800,7 @@ class PostgresDeclarationQAStore:
         return bool(row)
 
     def list_document_records(self, *, status: str | None = None) -> list[dict[str, Any]]:
+        """查询后台管理用知识文档记录。"""
         where = "WHERE status = :status" if status else ""
         params = {"status": status} if status else {}
         with self.engine.begin() as connection:
@@ -793,6 +821,7 @@ class PostgresDeclarationQAStore:
         return [normalize_document_record(row) for row in rows]
 
     def get_document_record(self, document_uid: str) -> dict[str, Any] | None:
+        """查询单条后台管理用知识文档记录。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -810,6 +839,7 @@ class PostgresDeclarationQAStore:
         return dict(row) if row else None
 
     def set_document_status(self, document_uid: str, status: str) -> dict[str, Any]:
+        """更新知识文档发布状态。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -850,6 +880,7 @@ class PostgresDeclarationQAStore:
         effective_start_time,
         effective_end_time,
     ) -> dict[str, Any]:
+        """调整知识文档灰度比例。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -893,6 +924,7 @@ class PostgresDeclarationQAStore:
         policy_version: str | None,
         change_note: str,
     ) -> dict[str, Any]:
+        """基于已有文档创建新版本。"""
         source = self.get_document_record(source_document_uid)
         if not source:
             raise ValueError("Source document not found")
@@ -935,6 +967,7 @@ class PostgresDeclarationQAStore:
         }
 
     def rollback_document(self, *, target_document_uid: str, change_note: str) -> dict[str, Any]:
+        """将文档版本组回滚到指定版本。"""
         target = self.get_document_record(target_document_uid)
         if not target:
             raise ValueError("Target document not found")
@@ -965,6 +998,7 @@ class PostgresDeclarationQAStore:
         return dict(row)
 
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """创建索引任务记录。"""
         from uuid import uuid4
 
         job_uid = uuid4().hex
@@ -989,6 +1023,7 @@ class PostgresDeclarationQAStore:
         error_message: str = "",
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """更新索引任务状态和进度。"""
         payload_assignment = "payload = :payload," if payload is not None else ""
         stmt = text(
             f"""
@@ -1023,6 +1058,7 @@ class PostgresDeclarationQAStore:
         return dict(row)
 
     def get_index_job(self, job_uid: str) -> dict[str, Any] | None:
+        """查询索引任务状态。"""
         with self.engine.begin() as connection:
             row = connection.execute(
                 text("SELECT * FROM declaration_qa.index_jobs WHERE job_uid = :job_uid"),
@@ -1031,6 +1067,7 @@ class PostgresDeclarationQAStore:
         return dict(row) if row else None
 
     def list_sessions(self, *, user_id: int) -> list[dict[str, Any]]:
+        """按用户查询历史会话摘要列表。"""
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -1050,6 +1087,7 @@ class PostgresDeclarationQAStore:
         return [normalize_session_row(row) for row in rows]
 
     def get_session(self, *, user_id: int, session_id: str) -> dict[str, Any] | None:
+        """按用户和会话 ID 查询完整会话详情。"""
         with self.engine.begin() as connection:
             session = connection.execute(
                 text(
@@ -1085,6 +1123,7 @@ class PostgresDeclarationQAStore:
         return payload
 
     def _ensure_session(self, connection, payload: dict[str, Any]) -> int:
+        """确保会话记录存在并返回会话 ID。"""
         row = connection.execute(
             text(
                 """
@@ -1121,6 +1160,7 @@ class PostgresDeclarationQAStore:
         suggested_actions: list[dict[str, Any]],
         meta: dict[str, Any],
     ) -> None:
+        """插入一条会话消息。"""
         stmt = text(
             """
             INSERT INTO declaration_qa.messages (
@@ -1153,6 +1193,7 @@ class PostgresDeclarationQAStore:
         )
 
     def _ensure_default_kb(self, connection) -> int:
+        """确保默认知识库记录存在。"""
         existing = connection.execute(
             text("SELECT id FROM declaration_qa.knowledge_bases WHERE name = '默认申报知识库' ORDER BY id ASC LIMIT 1")
         ).mappings().first()
@@ -1170,6 +1211,7 @@ class PostgresDeclarationQAStore:
         return int(row["id"])
 
     def _insert_chunk(self, connection, document_id: int, parent_chunk_id: int | None, chunk: KnowledgeChunk):
+        """插入单个知识片段记录。"""
         stmt = text(
             """
             INSERT INTO declaration_qa.chunks (
@@ -1211,6 +1253,7 @@ class PostgresDeclarationQAStore:
 
 
 def normalize_session_row(row) -> dict[str, Any]:
+    """标准化数据库会话行。"""
     return {
         "session_id": str(row["session_id"] or ""),
         "user_id": int(row["user_id"] or 0),
@@ -1224,6 +1267,7 @@ def normalize_session_row(row) -> dict[str, Any]:
 
 
 def normalize_document_record(row) -> dict[str, Any]:
+    """标准化知识文档管理记录。"""
     metadata = sanitize_metadata(dict(row.get("metadata") or {}) if hasattr(row, "get") else dict(row["metadata"] or {}))
     return {
         "document_id": str(row["document_id"] or ""),
@@ -1247,6 +1291,7 @@ def normalize_document_record(row) -> dict[str, Any]:
 
 
 def normalize_business_row(row) -> dict[str, Any]:
+    """标准化办件业务数据行。"""
     if not row:
         return {}
     values = dict(row)
@@ -1276,6 +1321,7 @@ def normalize_business_row(row) -> dict[str, Any]:
 
 
 def business_ticket_summary(row) -> dict[str, Any]:
+    """将业务数据行转换为办件摘要。"""
     values = dict(row or {})
     return {
         "ticket_id": str(values.get("apply_id") or ""),
@@ -1290,6 +1336,7 @@ def business_ticket_summary(row) -> dict[str, Any]:
 
 
 def business_ticket_title(values: dict[str, Any]) -> str:
+    """根据业务类型生成业务办件标题。"""
     payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
     if not payload and isinstance(values.get("application_payload"), dict):
         payload = values["application_payload"]
@@ -1306,6 +1353,7 @@ def business_ticket_title(values: dict[str, Any]) -> str:
 
 
 def isoformat_or_empty(value: Any) -> str:
+    """将日期时间值转换为 ISO 字符串。"""
     if not value:
         return ""
     if hasattr(value, "isoformat"):
@@ -1314,6 +1362,7 @@ def isoformat_or_empty(value: Any) -> str:
 
 
 def parse_metadata_date(value: Any) -> date | None:
+    """从元数据中解析日期字段。"""
     if isinstance(value, date):
         return value
     if not value:
@@ -1325,6 +1374,7 @@ def parse_metadata_date(value: Any) -> date | None:
 
 
 def normalize_eval_dataset(row) -> dict[str, Any]:
+    """标准化评测数据集行。"""
     return {
         "dataset_id": str(row["dataset_id"] or ""),
         "name": str(row["name"] or ""),
@@ -1335,6 +1385,7 @@ def normalize_eval_dataset(row) -> dict[str, Any]:
 
 
 def normalize_eval_case(row) -> dict[str, Any]:
+    """标准化评测用例行。"""
     return {
         "case_id": str(row["case_id"] or ""),
         "dataset_id": str(row["dataset_id"] or ""),
@@ -1355,6 +1406,7 @@ def normalize_eval_case(row) -> dict[str, Any]:
 
 
 def normalize_eval_run(row, *, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """标准化评测运行行。"""
     return {
         "run_id": str(row["run_id"] or ""),
         "dataset_id": str(row["dataset_id"] or ""),
@@ -1367,6 +1419,7 @@ def normalize_eval_run(row, *, items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def normalize_eval_run_item(row) -> dict[str, Any]:
+    """标准化评测运行明细行。"""
     return {
         "item_id": str(row["item_id"] or ""),
         "case_id": str(row["case_id"] or ""),

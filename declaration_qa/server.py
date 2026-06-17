@@ -1,3 +1,5 @@
+"""FastAPI 应用创建、接口路由和流式响应实现。"""
+
 from __future__ import annotations
 
 import json
@@ -82,6 +84,7 @@ except Exception:
 
 
 def process_index_job_inline(job_uid: str) -> dict:
+    """以内联方式处理索引任务。"""
     return process_index_job(job_uid, workflow=workflow, job_store=index_job_store, settings=settings)
 
 
@@ -89,7 +92,9 @@ index_queue = build_index_queue(settings, inline_handler=process_index_job_inlin
 
 
 def create_app() -> FastAPI:
+    """创建并配置 FastAPI 应用实例。"""
     def auth_context(request: Request) -> RequestContext:
+        """解析当前请求的认证上下文。"""
         return resolve_request_context(request, settings)
 
     app = FastAPI(
@@ -112,6 +117,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/health")
     def health():
+        """返回服务健康检查信息。"""
         return {
             "ok": True,
             "service": "declaration-qa",
@@ -133,6 +139,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/admin/init-schema")
     def init_schema():
+        """初始化数据库表结构。"""
         if not hasattr(workflow.audit_store, "init_schema"):
             return {"initialized": False, "message": "PostgreSQL store is not configured"}
         workflow.audit_store.init_schema()
@@ -140,11 +147,13 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/chat", response_model=ChatResponse)
     def chat(request: ChatRequest, context: RequestContext = Depends(auth_context)):
+        """处理非流式问答请求。"""
         ensure_knowledge_base_fresh()
         return workflow.invoke(apply_chat_auth(request, context, settings))
 
     @app.post("/api/declaration-qa/chat/stream")
     def chat_stream(request: ChatRequest, context: RequestContext = Depends(auth_context)):
+        """处理流式问答请求。"""
         ensure_knowledge_base_fresh()
         return StreamingResponse(
             sse_event_stream(workflow.stream(apply_chat_auth(request, context, settings))),
@@ -159,6 +168,7 @@ def create_app() -> FastAPI:
         region_code: str = "340000",
         context: RequestContext = Depends(auth_context),
     ):
+        """查询当前用户办件列表。"""
         effective_user_id = context.user_id or user_id
         if settings.effective_auth_required and not effective_user_id:
             raise HTTPException(status_code=401, detail="Authentication required")
@@ -172,6 +182,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/documents", response_model=KnowledgeDocumentResponse)
     def add_document(request: KnowledgeDocumentRequest, context: RequestContext = Depends(auth_context)):
+        """创建文本知识文档索引任务。"""
         require_service_or_user(context, settings)
         document_id = f"doc-{uuid4().hex}"
         job = index_job_store.create_index_job(
@@ -218,6 +229,7 @@ def create_app() -> FastAPI:
         metadata: str = Form(""),
         chunking_strategy: str = Form("parent_child"),
     ):
+        """接收单个文件上传并创建索引任务。"""
         require_service_or_user(context, settings)
         upload_data = await file.read()
         return enqueue_upload_document(
@@ -251,6 +263,7 @@ def create_app() -> FastAPI:
         metadata: str = Form(""),
         chunking_strategy: str = Form("parent_child"),
     ):
+        """接收批量文件上传并创建索引任务。"""
         require_service_or_user(context, settings)
         parsed_metadata = parse_metadata_form(metadata)
         responses = []
@@ -279,6 +292,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/reindex", response_model=ReindexResponse)
     def reindex_documents(context: RequestContext = Depends(auth_context)):
+        """创建知识库重建索引任务。"""
         require_service_or_user(context, settings)
         job = index_job_store.create_index_job(job_type="knowledge_base_reindex", payload={})
         index_queue.enqueue(job["job_uid"])
@@ -292,6 +306,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/index-jobs/{job_id}", response_model=IndexJobResponse)
     def get_index_job(job_id: str, context: RequestContext = Depends(auth_context)):
+        """查询索引任务状态。"""
         require_service_or_user(context, settings)
         item = index_job_store.get_index_job(job_id)
         if not item:
@@ -300,6 +315,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/index-jobs/{job_id}/retry", response_model=RetryIndexJobResponse)
     def retry_index_job(job_id: str, context: RequestContext = Depends(auth_context)):
+        """基于失败任务创建重试任务。"""
         require_service_or_user(context, settings)
         item = index_job_store.get_index_job(job_id)
         if not item:
@@ -314,6 +330,7 @@ def create_app() -> FastAPI:
 
     @app.delete("/api/declaration-qa/knowledge/documents/{document_id}", response_model=DeleteDocumentResponse)
     def delete_document(document_id: str, context: RequestContext = Depends(auth_context)):
+        """删除知识文档及相关片段。"""
         require_service_or_user(context, settings)
         job = index_job_store.create_index_job(job_type="document_delete", payload={"document_id": document_id})
         index_queue.enqueue(job["job_uid"])
@@ -323,11 +340,13 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/knowledge/documents", response_model=list[KnowledgeDocumentAdminRecord])
     def list_knowledge_documents(status: str | None = None, context: RequestContext = Depends(auth_context)):
+        """查询知识文档管理列表。"""
         require_service_or_user(context, settings)
         return list_document_records(status=status)
 
     @app.post("/api/declaration-qa/knowledge/documents/{document_id}/publish", response_model=DocumentStatusResponse)
     def publish_document(document_id: str, context: RequestContext = Depends(auth_context)):
+        """发布指定知识文档。"""
         require_service_or_user(context, settings)
         payload = set_document_status(document_id, "published")
         ensure_knowledge_base_fresh(force=True)
@@ -335,6 +354,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/documents/{document_id}/unpublish", response_model=DocumentStatusResponse)
     def unpublish_document(document_id: str, context: RequestContext = Depends(auth_context)):
+        """下线指定知识文档。"""
         require_service_or_user(context, settings)
         payload = set_document_status(document_id, "deprecated")
         ensure_knowledge_base_fresh(force=True)
@@ -342,6 +362,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/documents/{document_id}/rollout", response_model=DocumentRolloutResponse)
     def update_document_rollout(document_id: str, request: DocumentRolloutRequest, context: RequestContext = Depends(auth_context)):
+        """调整知识文档灰度比例。"""
         require_service_or_user(context, settings)
         payload = update_rollout(document_id, request)
         ensure_knowledge_base_fresh(force=True)
@@ -349,6 +370,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/documents/{document_id}/versions", response_model=DocumentVersionResponse)
     def create_document_version(document_id: str, request: DocumentVersionRequest, context: RequestContext = Depends(auth_context)):
+        """基于已有文档创建新版本。"""
         require_service_or_user(context, settings)
         new_document_id = f"doc-{uuid4().hex}"
         payload = create_version(document_id, new_document_id, request)
@@ -386,6 +408,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/knowledge/documents/{left_document_id}/compare/{right_document_id}", response_model=DocumentCompareResponse)
     def compare_documents(left_document_id: str, right_document_id: str, context: RequestContext = Depends(auth_context)):
+        """比较两个知识文档版本的文本差异。"""
         require_service_or_user(context, settings)
         left = get_document_record(left_document_id)
         right = get_document_record(right_document_id)
@@ -402,6 +425,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/knowledge/documents/rollback", response_model=DocumentStatusResponse)
     def rollback_document(request: DocumentRollbackRequest, context: RequestContext = Depends(auth_context)):
+        """将文档版本组回滚到指定版本。"""
         require_service_or_user(context, settings)
         payload = rollback_to_document(request.target_document_id, request.change_note)
         ensure_knowledge_base_fresh(force=True)
@@ -409,6 +433,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/sessions", response_model=list[SessionSummary])
     def list_sessions(user_id: int = 1, context: RequestContext = Depends(auth_context)):
+        """按用户查询历史会话摘要列表。"""
         effective_user_id = context.user_id or user_id
         if settings.effective_auth_required and not effective_user_id:
             raise HTTPException(status_code=401, detail="Authenticated user_id is required")
@@ -416,6 +441,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/sessions/{session_id}", response_model=SessionDetail)
     def get_session(session_id: str, user_id: int = 1, context: RequestContext = Depends(auth_context)):
+        """按用户和会话 ID 查询完整会话详情。"""
         effective_user_id = context.user_id or user_id
         if settings.effective_auth_required and not effective_user_id:
             raise HTTPException(status_code=401, detail="Authenticated user_id is required")
@@ -426,6 +452,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/audit/{audit_id}")
     def get_audit(audit_id: str, context: RequestContext = Depends(auth_context)):
+        """查询并返回对应的数据详情。"""
         require_service_or_user(context, settings)
         item = workflow.audit_store.get(audit_id)
         if not item:
@@ -434,6 +461,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/feedback")
     def feedback(request: FeedbackRequest, context: RequestContext = Depends(auth_context)):
+        """执行当前函数对应的业务处理。"""
         require_service_or_user(context, settings)
         if not workflow.audit_store.get(request.audit_id):
             raise HTTPException(status_code=404, detail="Audit log not found")
@@ -445,6 +473,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/evaluation/datasets", response_model=EvaluationDatasetResponse)
     def create_evaluation_dataset(request: EvaluationDatasetRequest, context: RequestContext = Depends(auth_context)):
+        """创建对应业务记录并返回结果。"""
         require_service_or_user(context, settings)
         try:
             return workflow.audit_store.create_eval_dataset(
@@ -457,11 +486,13 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/evaluation/datasets", response_model=list[EvaluationDatasetResponse])
     def list_evaluation_datasets(context: RequestContext = Depends(auth_context)):
+        """查询评测数据集列表。"""
         require_service_or_user(context, settings)
         return workflow.audit_store.list_eval_datasets()
 
     @app.post("/api/declaration-qa/evaluation/datasets/{dataset_id}/cases", response_model=EvaluationCaseResponse)
     def add_evaluation_case(dataset_id: str, request: EvaluationCaseRequest, context: RequestContext = Depends(auth_context)):
+        """新增评测用例。"""
         require_service_or_user(context, settings)
         try:
             return workflow.audit_store.add_eval_case(dataset_id=dataset_id, case=request.model_dump(mode="json"))
@@ -470,11 +501,13 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/evaluation/datasets/{dataset_id}/cases", response_model=list[EvaluationCaseResponse])
     def list_evaluation_cases(dataset_id: str, context: RequestContext = Depends(auth_context)):
+        """查询评测用例列表。"""
         require_service_or_user(context, settings)
         return workflow.audit_store.list_eval_cases(dataset_id)
 
     @app.post("/api/declaration-qa/evaluation/datasets/{dataset_id}/runs", response_model=EvaluationRunResponse)
     def run_evaluation_dataset(dataset_id: str, request: EvaluationRunRequest, context: RequestContext = Depends(auth_context)):
+        """运行评测数据集。"""
         require_service_or_user(context, settings)
         ensure_knowledge_base_fresh()
         try:
@@ -490,6 +523,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/declaration-qa/evaluation/runs/{run_id}", response_model=EvaluationRunResponse)
     def get_evaluation_run(run_id: str, context: RequestContext = Depends(auth_context)):
+        """查询评测运行结果。"""
         require_service_or_user(context, settings)
         item = workflow.audit_store.get_eval_run(run_id)
         if not item:
@@ -498,6 +532,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/declaration-qa/evaluation/run-items/{item_id}/annotation", response_model=EvaluationRunItemResponse)
     def annotate_evaluation_item(item_id: str, request: EvaluationAnnotationRequest, context: RequestContext = Depends(auth_context)):
+        """标注评测运行明细。"""
         require_service_or_user(context, settings)
         try:
             return workflow.audit_store.annotate_eval_item(item_id=item_id, label=request.label, comment=request.comment)
@@ -508,12 +543,14 @@ def create_app() -> FastAPI:
 
 
 def parse_optional_date(value: str) -> date | None:
+    """将可选输入解析为日期对象。"""
     if not value:
         return None
     return date.fromisoformat(value)
 
 
 def ensure_knowledge_base_fresh(*, force: bool = False) -> None:
+    """在需要时根据知识库修订刷新 RAG 索引。"""
     global _knowledge_base_revision
     if not hasattr(workflow.audit_store, "knowledge_base_revision"):
         return
@@ -534,6 +571,7 @@ def ensure_knowledge_base_fresh(*, force: bool = False) -> None:
 
 
 def list_document_records(status: str | None = None) -> list[dict]:
+    """查询后台管理用知识文档记录。"""
     if hasattr(workflow.audit_store, "list_document_records"):
         return workflow.audit_store.list_document_records(status=status)
     records = []
@@ -545,6 +583,7 @@ def list_document_records(status: str | None = None) -> list[dict]:
 
 
 def get_document_record(document_id: str) -> dict | None:
+    """查询单条后台管理用知识文档记录。"""
     if hasattr(workflow.audit_store, "get_document_record"):
         item = workflow.audit_store.get_document_record(document_id)
         if item:
@@ -556,6 +595,7 @@ def get_document_record(document_id: str) -> dict | None:
 
 
 def document_record_from_domain(document) -> dict:
+    """将领域文档转换为后台记录。"""
     return {
         "document_id": document.id,
         "title": document.title,
@@ -578,6 +618,7 @@ def document_record_from_domain(document) -> dict:
 
 
 def parse_metadata_form(value: str) -> dict:
+    """解析表单中的元数据 JSON。"""
     if not str(value or "").strip():
         return {}
     try:
@@ -605,6 +646,7 @@ def enqueue_upload_document(
     metadata: dict,
     chunking_strategy: str,
 ) -> KnowledgeUploadResponse:
+    """创建上传文档索引任务并投递队列。"""
     document_id = stable_upload_document_id(data)
     staged_path = stage_upload_bytes(data, filename=filename, document_id=document_id)
     strategy = normalize_chunking_strategy(chunking_strategy)
@@ -642,12 +684,14 @@ def enqueue_upload_document(
 
 
 def batch_upload_title(title: str, filename: str, file_count: int) -> str:
+    """生成批量上传文档标题。"""
     if not title:
         return filename
     return f"{title} - {filename}" if file_count > 1 else title
 
 
 def date_or_text(value) -> str | None:
+    """将日期对象或文本转换为接口字符串。"""
     if not value:
         return None
     if hasattr(value, "isoformat"):
@@ -656,6 +700,7 @@ def date_or_text(value) -> str | None:
 
 
 def set_document_status(document_id: str, status: str) -> dict:
+    """更新知识文档发布状态。"""
     if hasattr(workflow.audit_store, "set_document_status"):
         return workflow.audit_store.set_document_status(document_id, status)
     document = find_rag_document(document_id)
@@ -667,6 +712,7 @@ def set_document_status(document_id: str, status: str) -> dict:
 
 
 def update_rollout(document_id: str, request: DocumentRolloutRequest) -> dict:
+    """更新文档灰度并刷新知识库。"""
     if hasattr(workflow.audit_store, "update_document_rollout"):
         item = workflow.audit_store.update_document_rollout(
             document_uid=document_id,
@@ -700,6 +746,7 @@ def update_rollout(document_id: str, request: DocumentRolloutRequest) -> dict:
 
 
 def create_version(source_document_id: str, new_document_id: str, request: DocumentVersionRequest) -> dict:
+    """创建文档新版本并刷新知识库。"""
     source = get_document_record(source_document_id)
     if not source:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -728,6 +775,7 @@ def create_version(source_document_id: str, new_document_id: str, request: Docum
 
 
 def rollback_to_document(target_document_id: str, change_note: str) -> dict:
+    """回滚到指定文档版本并刷新知识库。"""
     if hasattr(workflow.audit_store, "rollback_document"):
         return workflow.audit_store.rollback_document(target_document_uid=target_document_id, change_note=change_note)
     target = find_rag_document(target_document_id)
@@ -744,10 +792,12 @@ def rollback_to_document(target_document_id: str, change_note: str) -> dict:
 
 
 def find_rag_document(document_id: str):
+    """在 RAG 引擎中查找指定文档。"""
     return next((document for document in workflow.rag_engine.documents() if document.id == document_id), None)
 
 
 def compare_text(left: str, right: str) -> tuple[list[str], list[str]]:
+    """生成两段文本的统一差异。"""
     left_lines = [line.strip() for line in left.splitlines() if line.strip()]
     right_lines = [line.strip() for line in right.splitlines() if line.strip()]
     left_set = set(left_lines)
@@ -756,10 +806,12 @@ def compare_text(left: str, right: str) -> tuple[list[str], list[str]]:
 
 
 async def stage_upload_file(file: UploadFile, *, document_id: str) -> Path:
+    """将上传文件保存到临时目录。"""
     return stage_upload_bytes(await file.read(), filename=file.filename or "upload.bin", document_id=document_id)
 
 
 def stage_upload_bytes(data: bytes, *, filename: str, document_id: str) -> Path:
+    """将文件字节写入上传暂存目录。"""
     settings.effective_upload_dir.mkdir(parents=True, exist_ok=True)
     filename = safe_filename(filename)
     path = settings.effective_upload_dir / f"{document_id}-{filename}"
@@ -768,19 +820,23 @@ def stage_upload_bytes(data: bytes, *, filename: str, document_id: str) -> Path:
 
 
 def stable_upload_document_id(data: bytes) -> str:
+    """根据文件名和内容生成稳定文档 ID。"""
     return f"doc-{hashlib.sha256(data).hexdigest()[:32]}"
 
 
 def safe_filename(value: str) -> str:
+    """清理上传文件名中的不安全字符。"""
     return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._") or "upload.bin"
 
 
 def sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
+    """将文本片段转换为 SSE 数据流。"""
     for event in events:
         yield sse_event(str(event.get("event") or "event"), event.get("data") or {})
 
 
 def sse_response(response: ChatResponse) -> Iterable[str]:
+    """包装工作流事件为 SSE 响应。"""
     yield sse_event("run_started", {"session_id": response.session_id, "audit_id": response.audit_id})
     for event in response.events:
         yield sse_event(str(event.get("event") or "event"), event.get("data") or {})
@@ -809,10 +865,12 @@ def sse_response(response: ChatResponse) -> Iterable[str]:
 
 
 def sse_event(event: str, data: dict) -> str:
+    """序列化单个 SSE 事件。"""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def chunk_text(text: str, *, size: int = 24) -> Iterable[str]:
+    """按固定长度切分响应文本。"""
     value = str(text or "")
     if not value:
         return []

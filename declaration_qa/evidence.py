@@ -1,3 +1,5 @@
+"""检索证据可用性和可追溯性判断逻辑。"""
+
 from __future__ import annotations
 
 from datetime import date
@@ -24,6 +26,7 @@ def decide_evidence(
     chain: str = KNOWLEDGE_RETRIEVAL_CHAIN,
     business_payload: dict[str, Any] | None = None,
 ) -> EvidenceDecision:
+    """根据检索来源和链路要求判断证据是否可用。"""
     coverage = metadata_coverage(filters, chain=chain)
     checks: dict[str, Any] = {
         "chain": chain,
@@ -101,6 +104,7 @@ def decide_evidence(
 
 
 def conflict_reason(sources: list[dict[str, Any]], *, keys: list[str]) -> str:
+    """检查高置信来源在关键字段上是否冲突。"""
     high_confidence = [source for source in sources if float(source.get("score") or 0.0) >= DEFAULT_TOP_SCORE_THRESHOLD]
     for key in keys:
         values = {str(source.get(key) or "").strip() for source in high_confidence if str(source.get(key) or "").strip()}
@@ -110,6 +114,7 @@ def conflict_reason(sources: list[dict[str, Any]], *, keys: list[str]) -> str:
 
 
 def source_traceable(source: dict[str, Any]) -> bool:
+    """判断来源是否具备可追溯信息。"""
     if str(source.get("doc_id") or "").strip() and str(source.get("title") or "").strip():
         return True
     metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
@@ -123,6 +128,7 @@ def source_traceable(source: dict[str, Any]) -> bool:
 
 
 def source_effective(source: dict[str, Any], as_of: date) -> bool:
+    """判断来源在指定日期是否有效。"""
     start = parse_date(source.get("effective_start_time"))
     end = parse_date(source.get("effective_end_time"))
     if start and start > as_of:
@@ -133,6 +139,7 @@ def source_effective(source: dict[str, Any], as_of: date) -> bool:
 
 
 def parse_date(value: Any) -> date | None:
+    """将输入值解析为日期对象。"""
     if isinstance(value, date):
         return value
     if isinstance(value, str) and value:

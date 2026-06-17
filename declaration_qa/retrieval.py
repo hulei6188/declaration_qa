@@ -1,3 +1,5 @@
+"""检索过滤条件、元数据清洗和链路辅助函数。"""
+
 from __future__ import annotations
 
 from datetime import date
@@ -67,6 +69,7 @@ REQUIRED_METADATA_BY_CHAIN = {
 
 
 def normalize_retrieval_filter(filters: dict[str, Any] | None) -> dict[str, Any]:
+    """标准化外部传入的检索过滤条件。"""
     normalized: dict[str, Any] = {}
     for raw_key, raw_value in (filters or {}).items():
         key = FILTER_ALIASES.get(str(raw_key), str(raw_key))
@@ -80,6 +83,7 @@ def normalize_retrieval_filter(filters: dict[str, Any] | None) -> dict[str, Any]
 
 
 def normalize_filter_value(value: Any) -> Any:
+    """标准化单个检索过滤值。"""
     if isinstance(value, str):
         return value.strip()
     if isinstance(value, date):
@@ -90,6 +94,7 @@ def normalize_filter_value(value: Any) -> Any:
 
 
 def sanitize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """移除不应参与知识检索的元数据字段。"""
     return {
         str(key): value
         for key, value in (metadata or {}).items()
@@ -98,6 +103,7 @@ def sanitize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def metadata_coverage(filters: dict[str, Any], *, chain: str) -> dict[str, Any]:
+    """计算检索链路所需元数据的覆盖情况。"""
     required = REQUIRED_METADATA_BY_CHAIN.get(chain, REQUIRED_METADATA_BY_CHAIN[KNOWLEDGE_RETRIEVAL_CHAIN])
     present = [key for key in required if bool(filters.get(key))]
     missing = [key for key in required if not filters.get(key)]
@@ -111,4 +117,5 @@ def metadata_coverage(filters: dict[str, Any], *, chain: str) -> dict[str, Any]:
 
 
 def is_ticket_chain(intent: str) -> bool:
+    """判断意图是否属于办件增强链路。"""
     return intent in {"status", "reject", "ticket_status", "rejection_reason"}

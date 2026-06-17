@@ -1,3 +1,5 @@
+"""知识库索引任务存储协议和内存实现。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,7 +9,9 @@ from uuid import uuid4
 
 
 class IndexJobStore(Protocol):
+    """索引任务状态存储协议。"""
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """创建索引任务记录。"""
         ...
 
     def update_index_job(
@@ -20,17 +24,21 @@ class IndexJobStore(Protocol):
         error_message: str = "",
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """更新索引任务状态和进度。"""
         ...
 
     def get_index_job(self, job_uid: str) -> dict[str, Any] | None:
+        """查询索引任务状态。"""
         ...
 
 
 @dataclass
 class InMemoryIndexJobStore:
+    """进程内索引任务状态存储。"""
     _jobs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """创建索引任务记录。"""
         job_uid = uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         job = {
@@ -59,6 +67,7 @@ class InMemoryIndexJobStore:
         error_message: str = "",
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """更新索引任务状态和进度。"""
         job = self._jobs[job_uid]
         now = datetime.now(timezone.utc).isoformat()
         job.update(
@@ -78,5 +87,6 @@ class InMemoryIndexJobStore:
         return dict(job)
 
     def get_index_job(self, job_uid: str) -> dict[str, Any] | None:
+        """查询索引任务状态。"""
         job = self._jobs.get(job_uid)
         return dict(job) if job else None

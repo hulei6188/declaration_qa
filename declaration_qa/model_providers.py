@@ -1,3 +1,5 @@
+"""向量、重排、问答生成和意图路由模型适配器。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -12,30 +14,38 @@ from declaration_qa.router import IntentRouter, LLMIntentRouter
 
 
 class EmbeddingProvider(Protocol):
+    """文本向量化提供方协议。"""
     name: str
     dimension: int
 
     def embed_query(self, text: str) -> list[float]:
+        """为单条查询文本生成向量表示。"""
         ...
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """为多条文档文本生成向量表示。"""
         ...
 
 
 class HashEmbeddingProvider:
+    """基于哈希特征的本地向量化实现。"""
     name = "hashing"
 
     def __init__(self, *, dimension: int = 96) -> None:
+        """初始化HashEmbeddingProvider。"""
         self.dimension = dimension
 
     def embed_query(self, text: str) -> list[float]:
+        """为单条查询文本生成向量表示。"""
         return hashing_embedding(text, dimension=self.dimension)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """为多条文档文本生成向量表示。"""
         return [self.embed_query(text) for text in texts]
 
 
 class OpenAIEmbeddingProvider:
+    """兼容 OpenAI Embeddings API 的向量化实现。"""
     name = "openai"
 
     def __init__(
@@ -47,6 +57,7 @@ class OpenAIEmbeddingProvider:
         dimension: int | None = None,
         timeout_seconds: float = 10.0,
     ) -> None:
+        """初始化OpenAIEmbeddingProvider。"""
         if not api_key:
             raise ValueError("OpenAI embedding provider requires an API key")
         from langchain_openai import OpenAIEmbeddings
@@ -69,23 +80,29 @@ class OpenAIEmbeddingProvider:
         self.dimension = int(dimension or 1536)
 
     def embed_query(self, text: str) -> list[float]:
+        """为单条查询文本生成向量表示。"""
         return [float(value) for value in self._embeddings.embed_query(text)]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """为多条文档文本生成向量表示。"""
         return [[float(value) for value in item] for item in self._embeddings.embed_documents(texts)]
 
 
 class Reranker(Protocol):
+    """候选检索结果重排协议。"""
     name: str
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
+        """按查询相关性重新排序候选来源。"""
         ...
 
 
 class HeuristicReranker:
+    """基于词面重叠和检索分数的启发式重排器。"""
     name = "heuristic"
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
+        """按查询相关性重新排序候选来源。"""
         from declaration_qa.rag_engine import RetrievedSource, metadata_match_boost, tokenize
 
         query_tokens = set(tokenize(query))
@@ -120,6 +137,7 @@ class HttpReranker:
     name = "http"
 
     def __init__(self, *, url: str, api_key: str = "", model: str = "", timeout_seconds: int = 10) -> None:
+        """初始化HttpReranker。"""
         if not url:
             raise ValueError("HTTP reranker requires DECLARATION_QA_RERANK_API_URL")
         self.url = url
@@ -128,6 +146,7 @@ class HttpReranker:
         self.timeout_seconds = timeout_seconds
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
+        """按查询相关性重新排序候选来源。"""
         from declaration_qa.rag_engine import RetrievedSource
 
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
@@ -166,6 +185,7 @@ class HttpReranker:
 
 
 class OpenAIAnswerGenerator:
+    """兼容 OpenAI Chat API 的回答生成器。"""
     name = "openai"
 
     def __init__(
@@ -177,6 +197,7 @@ class OpenAIAnswerGenerator:
         temperature: float = 0.1,
         timeout_seconds: float = 10.0,
     ) -> None:
+        """初始化OpenAIAnswerGenerator。"""
         if not api_key:
             raise ValueError("OpenAI answer generator requires an API key")
         from langchain_openai import ChatOpenAI
@@ -193,6 +214,7 @@ class OpenAIAnswerGenerator:
         self._llm = ChatOpenAI(**kwargs)
 
     def build_prompt(self, state: dict[str, Any]) -> str:
+        """根据工作流状态构造回答提示词。"""
         sources = state.get("retrieved_sources") or []
         source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:6])
         business_payload = state.get("business_status") or state.get("reject_info") or {}
@@ -206,17 +228,20 @@ class OpenAIAnswerGenerator:
         )
 
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:
+        """生成非流式回答和提示词。"""
         prompt = self.build_prompt(state)
         response = self._llm.invoke(prompt)
         content = getattr(response, "content", response)
         return str(content), prompt
 
     def stream_generate(self, state: dict[str, Any]) -> tuple[Iterable[str], str]:
+        """生成流式回答片段和提示词。"""
         prompt = self.build_prompt(state)
         return stream_chat_model_content(self._llm.stream(prompt)), prompt
 
 
 def stream_chat_model_content(chunks: Iterable[Any]) -> Iterable[str]:
+    """从聊天模型流式结果中抽取文本片段。"""
     for chunk in chunks:
         content = getattr(chunk, "content", chunk)
         if isinstance(content, list):
@@ -231,6 +256,7 @@ def stream_chat_model_content(chunks: Iterable[Any]) -> Iterable[str]:
 
 
 def chat_content_part_text(value: Any) -> str:
+    """将聊天内容片段转换为纯文本。"""
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
@@ -239,6 +265,7 @@ def chat_content_part_text(value: Any) -> str:
 
 
 def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvider:
+    """按配置创建向量化提供方。"""
     provider = settings.embedding_provider.strip().lower()
     if provider in {"openai", "compatible-openai", "dashscope"}:
         return OpenAIEmbeddingProvider(
@@ -254,6 +281,7 @@ def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvid
 
 
 def build_reranker(settings: DeclarationQASettings) -> Reranker:
+    """按配置创建重排器。"""
     provider = settings.rerank_provider.strip().lower()
     if provider == "http":
         return HttpReranker(
@@ -268,6 +296,7 @@ def build_reranker(settings: DeclarationQASettings) -> Reranker:
 
 
 def build_answer_generator(settings: DeclarationQASettings):
+    """按配置创建回答生成器。"""
     provider = settings.llm_provider.strip().lower()
     if provider in {"openai", "compatible-openai", "dashscope"}:
         return OpenAIAnswerGenerator(
@@ -283,6 +312,7 @@ def build_answer_generator(settings: DeclarationQASettings):
 
 
 def build_intent_router(settings: DeclarationQASettings):
+    """按配置创建意图路由器。"""
     provider = settings.intent_router_provider.strip().lower()
     if provider in {"rule", "rules", "deterministic"}:
         return IntentRouter()
@@ -296,6 +326,7 @@ def build_intent_router(settings: DeclarationQASettings):
 
 
 def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
+    """创建基于大模型的意图路由器。"""
     if not settings.openai_api_key:
         raise ValueError("LLM intent router requires DECLARATION_QA_OPENAI_API_KEY")
     from langchain_openai import ChatOpenAI
@@ -313,6 +344,7 @@ def build_llm_intent_router(settings: DeclarationQASettings) -> LLMIntentRouter:
 
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:
+    """使用哈希技巧生成归一化文本向量。"""
     from declaration_qa.rag_engine import tokenize
 
     values = [0.0 for _ in range(dimension)]
@@ -326,6 +358,7 @@ def hashing_embedding(text: str, *, dimension: int) -> list[float]:
 
 
 def cosine(left: Iterable[float], right: Iterable[float]) -> float:
+    """计算两个向量的余弦点积分数。"""
     left_values = list(left)
     right_values = list(right)
     return sum(a * b for a, b in zip(left_values, right_values))

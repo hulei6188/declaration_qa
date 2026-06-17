@@ -1,22 +1,30 @@
+"""办件业务数据访问协议和本地内存示例实现。"""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
 
 class BusinessDataAdapter(Protocol):
+    """办件业务数据访问适配器协议。"""
     def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        """查询用户可访问的办件列表。"""
         ...
 
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        """查询指定办件的业务上下文。"""
         ...
 
     def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        """校验用户是否有权访问指定办件。"""
         ...
 
     def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取状态信息。"""
         ...
 
     def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取退回和补正信息。"""
         ...
 
 
@@ -29,6 +37,7 @@ class InMemoryBusinessDataAdapter:
     """
 
     def __init__(self) -> None:
+        """初始化内存业务适配器。"""
         self._applications: dict[str, dict[str, Any]] = {
             "A1001": {
                 "apply_id": "A1001",
@@ -79,6 +88,7 @@ class InMemoryBusinessDataAdapter:
         }
 
     def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        """查询用户可访问的办件列表。"""
         rows = []
         for item in self._applications.values():
             if int(item.get("user_id") or 0) != int(user_id):
@@ -91,15 +101,18 @@ class InMemoryBusinessDataAdapter:
         return sorted(rows, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
 
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        """查询指定办件的业务上下文。"""
         item = self._applications.get(str(apply_id or "").strip())
         if not item or int(item.get("user_id") or 0) != int(user_id):
             return None
         return dict(item)
 
     def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        """校验用户是否有权访问指定办件。"""
         return self.get_apply_context(user_id=user_id, apply_id=apply_id) is not None
 
     def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取状态信息。"""
         return {
             "apply_id": apply_context.get("apply_id"),
             "biz_type": apply_context.get("biz_type"),
@@ -114,6 +127,7 @@ class InMemoryBusinessDataAdapter:
         }
 
     def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取退回和补正信息。"""
         return {
             "apply_id": apply_context.get("apply_id"),
             "biz_type": apply_context.get("biz_type"),
@@ -133,6 +147,7 @@ class InMemoryBusinessDataAdapter:
 
 
 def ticket_summary(item: dict[str, Any]) -> dict[str, Any]:
+    """将办件记录转换为列表摘要。"""
     return {
         "ticket_id": str(item.get("apply_id") or ""),
         "biz_type": str(item.get("biz_type") or ""),
@@ -146,6 +161,7 @@ def ticket_summary(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def ticket_title(item: dict[str, Any]) -> str:
+    """根据业务类型生成办件标题。"""
     names = {
         "health_certificate": "健康证办理",
         "residence_permit": "居住证办理",
@@ -155,6 +171,7 @@ def ticket_title(item: dict[str, Any]) -> str:
 
 
 def region_code_variants(value: Any) -> list[str]:
+    """生成行政区划编码的等价匹配形式。"""
     code = str(value or "").strip()
     if not code:
         return []
@@ -168,6 +185,7 @@ def region_code_variants(value: Any) -> list[str]:
 
 
 def region_code_matches(candidate: Any, requested: Any) -> bool:
+    """判断候选行政区划是否匹配请求编码。"""
     requested_variants = set(region_code_variants(requested))
     if not requested_variants:
         return True
