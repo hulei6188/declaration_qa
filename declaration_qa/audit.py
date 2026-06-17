@@ -111,6 +111,17 @@ class InMemoryAuditStore:
             "messages": messages,
         }
 
+    def delete_session(self, *, user_id: int, session_id: str) -> bool:
+        """按用户删除指定历史会话。"""
+        keys = [
+            audit_id
+            for audit_id, item in self._items.items()
+            if int(item.get("user_id") or 0) == int(user_id) and str(item.get("session_id") or "") == session_id
+        ]
+        for audit_id in keys:
+            del self._items[audit_id]
+        return bool(keys)
+
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""
         dataset_id = f"eval-ds-{uuid4().hex}"

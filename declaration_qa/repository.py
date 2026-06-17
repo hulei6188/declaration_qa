@@ -1122,6 +1122,21 @@ class PostgresDeclarationQAStore:
         payload["messages"] = [dict(message) for message in messages]
         return payload
 
+    def delete_session(self, *, user_id: int, session_id: str) -> bool:
+        """按用户删除指定历史会话。"""
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    DELETE FROM declaration_qa.sessions
+                    WHERE session_uid = :session_id AND user_id = :user_id
+                    RETURNING id
+                    """
+                ),
+                {"session_id": session_id, "user_id": user_id},
+            ).mappings().first()
+        return bool(row)
+
     def _ensure_session(self, connection, payload: dict[str, Any]) -> int:
         """确保会话记录存在并返回会话 ID。"""
         row = connection.execute(

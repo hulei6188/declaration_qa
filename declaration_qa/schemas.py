@@ -267,6 +267,12 @@ class SessionDetail(SessionSummary):
     messages: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class DeleteSessionResponse(BaseModel):
+    """历史会话删除响应模型。"""
+    session_id: str
+    deleted: bool
+
+
 class FeedbackRequest(BaseModel):
     """回答反馈提交请求模型。"""
     audit_id: str

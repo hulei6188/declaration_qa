@@ -38,6 +38,7 @@ from declaration_qa.schemas import (
     DocumentStatusResponse,
     DocumentVersionRequest,
     DocumentVersionResponse,
+    DeleteSessionResponse,
     EvaluationAnnotationRequest,
     EvaluationCaseRequest,
     EvaluationCaseResponse,
@@ -449,6 +450,19 @@ def create_app() -> FastAPI:
         if not item:
             raise HTTPException(status_code=404, detail="Session not found")
         return item
+
+    @app.delete("/api/declaration-qa/sessions/{session_id}", response_model=DeleteSessionResponse)
+    def delete_session(session_id: str, user_id: int = 1, context: RequestContext = Depends(auth_context)):
+        """按用户删除指定历史会话。"""
+        effective_user_id = context.user_id or user_id
+        if settings.effective_auth_required and not effective_user_id:
+            raise HTTPException(status_code=401, detail="Authenticated user_id is required")
+        if not hasattr(workflow.audit_store, "delete_session"):
+            raise HTTPException(status_code=501, detail="Session deletion is not supported")
+        deleted = workflow.audit_store.delete_session(user_id=int(effective_user_id), session_id=session_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return DeleteSessionResponse(session_id=session_id, deleted=True)
 
     @app.get("/api/declaration-qa/audit/{audit_id}")
     def get_audit(audit_id: str, context: RequestContext = Depends(auth_context)):

@@ -11,6 +11,7 @@ import {
   readSSE,
   fetchSessions,
   fetchSession,
+  deleteSession,
   fetchTickets,
   fetchDocuments,
   uploadTextDocument,
@@ -116,7 +117,7 @@ export default function App() {
   }
 
   // ---- Chat ----
-  async function sendMessage(query, displayText, meta) {
+  async function sendMessage(query, displayText, meta, ctxOverride) {
     const userMsg = { role: 'user', content: displayText || query, meta: meta || '用户问题' };
     setMessages((prev) => [...prev, userMsg]);
     const assistantMsg = { role: 'assistant', content: '', meta: '申报辅助' };
@@ -128,7 +129,7 @@ export default function App() {
     setTimeline([]);
 
     try {
-      const body = buildChatRequest(query, sessionId, ctx);
+      const body = buildChatRequest(query, sessionId, ctxOverride || ctx);
       const response = await startChatStream(body);
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
@@ -243,7 +244,12 @@ export default function App() {
     const query = pendingTicketQuery;
     setPendingTicketQuery('');
     if (query) {
-      await sendMessage(query, `${query}\n已选择工单：${ticketLabel(t)}`, '用户选择');
+      setMessages((prev) =>
+        prev.map((message) => (
+          message.ticketSelection ? { ...message, ticketSelection: null } : message
+        ))
+      );
+      await sendMessage(query, `${query}\n已选择工单：${ticketLabel(t)}`, '用户选择', newCtx);
     }
   }
 
@@ -300,6 +306,22 @@ export default function App() {
       addTimeline('session_loaded', { session_id: session.session_id, message_count: session.message_count });
     } catch (e) {
       addTimeline('session_error', { message: `HTTP ${e.message}` });
+    }
+  }
+
+  async function removeSession(sid) {
+    const target = sessions.find((item) => item.session_id === sid);
+    const label = target?.title || '该会话';
+    if (!window.confirm(`确定删除「${label}」？`)) return;
+    try {
+      await deleteSession(sid, ctx.userId);
+      setSessions((prev) => prev.filter((item) => item.session_id !== sid));
+      if (sid === sessionId) {
+        clearChat();
+      }
+      addTimeline('session_deleted', { session_id: sid });
+    } catch (e) {
+      addTimeline('session_delete_error', { session_id: sid, message: e.message });
     }
   }
 
@@ -574,6 +596,7 @@ export default function App() {
           docManageResult={docManageResult}
           onRefreshSessions={loadSessions}
           onLoadSession={loadSession}
+          onDeleteSession={removeSession}
           onUpload={doUpload}
           onSelectDocument={selectDocument}
           onRefreshDocuments={loadDocuments}

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { RefreshCw, Upload, FileText, Layers } from 'lucide-react';
+import { RefreshCw, Trash2, Upload } from 'lucide-react';
 import { escapeHtml, formatBytes } from '../utils.js';
 
 export default function Sidebar({
   sessions, documents, selectedDocId, uploadItems, uploadResult, uploadInFlight,
   docManageResult, onRefreshSessions, onLoadSession, onUpload, onSelectDocument,
-  onRefreshDocuments, onSetDocumentStatus, onUpdateRollout, onCreateVersion,
+  onDeleteSession, onRefreshDocuments, onSetDocumentStatus, onUpdateRollout, onCreateVersion,
   onCompareVersion, onRollback,
 }) {
   const [docTitle, setDocTitle] = useState('');
@@ -28,7 +28,7 @@ export default function Sidebar({
   return (
     <aside className="context-pane">
       {/* Sessions */}
-      <section className="panel">
+      <section className="panel panel-compact session-panel">
         <div className="panel-title">
           <span>会话历史</span>
           <button className="icon-button" onClick={onRefreshSessions} title="刷新">
@@ -40,17 +40,75 @@ export default function Sidebar({
             <p className="hint">暂无会话</p>
           ) : (
             sessions.slice(0, 8).map((s) => (
-              <button key={s.session_id} className="session-item" onClick={() => onLoadSession(s.session_id)}>
-                <strong>{escapeHtml(s.title || '申报智能问答')}</strong>
-                <code>{escapeHtml(s.biz_type || '-')} · {escapeHtml(s.region_code || '-')} · {s.message_count || 0} 条</code>
-              </button>
+              <div key={s.session_id} className="session-item">
+                <button className="session-open" onClick={() => onLoadSession(s.session_id)} title="打开会话">
+                  <strong>{escapeHtml(s.title || '申报智能问答')}</strong>
+                  <code>{escapeHtml(s.biz_type || '-')} · {escapeHtml(s.region_code || '-')} · {s.message_count || 0} 条</code>
+                </button>
+                <button className="session-delete" onClick={() => onDeleteSession(s.session_id)} title="删除会话">
+                  <Trash2 size={13} />
+                </button>
+              </div>
             ))
           )}
         </div>
       </section>
 
+      {/* Version Management */}
+      <section className="panel version-panel">
+        <div className="panel-title">
+          <span>版本管理</span>
+          <span className="count-badge">{documents.length} 个</span>
+          <button className="icon-button" onClick={onRefreshDocuments} title="刷新">
+            <RefreshCw size={14} />
+          </button>
+        </div>
+        <div className="document-list">
+          {documents.length === 0 ? (
+            <p className="hint">暂无知识文档</p>
+          ) : (
+            documents.map((doc) => (
+              <button
+                key={doc.document_id}
+                className={`document-item ${doc.document_id === selectedDocId ? 'active' : ''}`}
+                onClick={() => onSelectDocument(doc.document_id)}
+              >
+                <strong>{escapeHtml(doc.title || '未命名文档')}</strong>
+                <code>
+                  <span>{escapeHtml(doc.status)}</span>
+                  <span>v{doc.version_no}</span>
+                  <span>{doc.rollout_percent}%</span>
+                  <span>{escapeHtml(doc.policy_version || '-')}</span>
+                </code>
+              </button>
+            ))
+          )}
+        </div>
+        <div className="field-grid">
+          <button onClick={() => onSetDocumentStatus('publish')}>发布</button>
+          <button onClick={() => onSetDocumentStatus('unpublish')}>下线</button>
+        </div>
+        <div className="field-grid align-end">
+          <label>
+            灰度比例
+            <input id="rolloutPercent" type="number" min="0" max="100" defaultValue="100" />
+          </label>
+          <button onClick={onUpdateRollout}>更新灰度</button>
+        </div>
+        <label>
+          新版本内容
+          <textarea rows="3" value={versionContent} onChange={(e) => setVersionContent(e.target.value)} placeholder="基于选中文档创建 draft 版本" />
+        </label>
+        <div className="field-grid">
+          <button onClick={() => { onCreateVersion(versionContent); setVersionContent(''); }}>创建版本</button>
+          <button onClick={onCompareVersion}>对比版本</button>
+        </div>
+        <button className="ghost full" onClick={onRollback}>回滚到选中版本</button>
+        <p className="hint">{docManageResult}</p>
+      </section>
+
       {/* Upload */}
-      <section className="panel">
+      <section className="panel upload-panel">
         <div className="panel-title">
           <span>知识入库</span>
         </div>
@@ -97,53 +155,6 @@ export default function Sidebar({
           上传并索引
         </button>
         <p className="hint">{uploadResult}</p>
-      </section>
-
-      {/* Version Management */}
-      <section className="panel">
-        <div className="panel-title">
-          <span>版本管理</span>
-          <button className="icon-button" onClick={onRefreshDocuments} title="刷新">
-            <RefreshCw size={14} />
-          </button>
-        </div>
-        <div className="document-list">
-          {documents.length === 0 ? (
-            <p className="hint">暂无知识文档</p>
-          ) : (
-            documents.slice(0, 10).map((doc) => (
-              <button
-                key={doc.document_id}
-                className={`document-item ${doc.document_id === selectedDocId ? 'active' : ''}`}
-                onClick={() => onSelectDocument(doc.document_id)}
-              >
-                <strong>{escapeHtml(doc.title || '未命名文档')}</strong>
-                <code>{escapeHtml(doc.status)} · v{doc.version_no} · {doc.rollout_percent}% · {escapeHtml(doc.policy_version)}</code>
-              </button>
-            ))
-          )}
-        </div>
-        <div className="field-grid">
-          <button onClick={() => onSetDocumentStatus('publish')}>发布</button>
-          <button onClick={() => onSetDocumentStatus('unpublish')}>下线</button>
-        </div>
-        <div className="field-grid">
-          <label>
-            灰度比例
-            <input id="rolloutPercent" type="number" min="0" max="100" defaultValue="100" />
-          </label>
-          <button onClick={onUpdateRollout}>更新灰度</button>
-        </div>
-        <label>
-          新版本内容
-          <textarea rows="4" value={versionContent} onChange={(e) => setVersionContent(e.target.value)} placeholder="基于选中文档创建 draft 版本" />
-        </label>
-        <div className="field-grid">
-          <button onClick={() => { onCreateVersion(versionContent); setVersionContent(''); }}>创建版本</button>
-          <button onClick={onCompareVersion}>对比版本</button>
-        </div>
-        <button className="ghost full" onClick={onRollback}>回滚到选中版本</button>
-        <p className="hint">{docManageResult}</p>
       </section>
     </aside>
   );

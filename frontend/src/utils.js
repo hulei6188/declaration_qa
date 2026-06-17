@@ -116,6 +116,12 @@ export function fetchSession(sessionId, userId) {
   return requestJson(`/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId || 1)}`);
 }
 
+export function deleteSession(sessionId, userId) {
+  return requestJson(`/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId || 1)}`, {
+    method: 'DELETE',
+  });
+}
+
 // Tickets
 export function fetchTickets(userId, regionCode, bizType) {
   return requestJson(

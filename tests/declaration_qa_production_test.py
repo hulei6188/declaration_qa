@@ -277,6 +277,23 @@ def test_session_list_and_detail_endpoints_return_chat_history():
     assert detail.json()["messages"][0]["role"] == "user"
 
 
+def test_delete_session_endpoint_removes_chat_history():
+    client = TestClient(create_app())
+    chat = client.post(
+        "/api/declaration-qa/chat",
+        json={"query": "删除会话测试", "user_id": 1, "region_code": "340000"},
+    ).json()
+
+    deleted = client.delete(f"/api/declaration-qa/sessions/{chat['session_id']}", params={"user_id": 1})
+    sessions = client.get("/api/declaration-qa/sessions", params={"user_id": 1})
+    detail = client.get(f"/api/declaration-qa/sessions/{chat['session_id']}", params={"user_id": 1})
+
+    assert deleted.status_code == 200
+    assert deleted.json() == {"session_id": chat["session_id"], "deleted": True}
+    assert all(item["session_id"] != chat["session_id"] for item in sessions.json())
+    assert detail.status_code == 404
+
+
 def test_policy_version_is_retained_but_not_used_as_retrieval_filter():
     workflow = DeclarationQAWorkflow()
 
