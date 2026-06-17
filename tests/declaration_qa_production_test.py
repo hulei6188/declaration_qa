@@ -353,13 +353,46 @@ def test_hierarchical_chunking_preserves_markdown_heading_path():
     document = KnowledgeDocument(
         id="doc-hierarchical",
         title="层级分块测试",
-        content="# 办事指南\n\n## 申请材料\n\n身份证件和申请表。\n\n## 办理流程\n\n提交、审核、办结。",
+        content="# 办事指南\n\n## 申请材料\n\n### 1. 身份证件\n| 字段 | 内容 |\n| --- | --- |\n| 材料必要性 | 告知承诺 |\n\n### 2. 申请表\n| 字段 | 内容 |\n| --- | --- |\n| 材料必要性 | 必要 |\n\n## 办理流程\n\n### 办理环节\n\n#### 受理\n| 字段 | 内容 |\n| --- | --- |\n| 办理时限 | 1个工作日 |",
         metadata={"chunking_strategy": "hierarchical"},
     )
 
     chunks = split_document(document)
 
     assert chunks
-    assert {chunk.chunk_type for chunk in chunks} == {"parent", "child"}
-    assert any(chunk.metadata.get("heading_path") == "办事指南 > 申请材料" for chunk in chunks)
+    assert all(chunk.chunk_type == "child" for chunk in chunks)
+    assert not any(chunk.content == "办事指南 > 申请材料" for chunk in chunks)
+    assert not any(chunk.content == "办事指南 > 办理流程" for chunk in chunks)
+    assert len({chunk.content for chunk in chunks}) == len(chunks)
+    material = next(chunk for chunk in chunks if chunk.metadata.get("node_title") == "1. 身份证件")
+    assert material.metadata["heading_path"] == "办事指南 > 申请材料 > 1. 身份证件"
+    assert material.metadata["section_title"] == "申请材料"
+    assert material.metadata["parent_section_id"] == "doc-hierarchical#申请材料"
+    assert material.metadata["node_order"] == 1
+    assert material.metadata["chunk_type"] == "material_item"
+    assert material.metadata["indexable"] is True
+    assert "| 字段 | 内容 |\n| --- | --- |\n| 材料必要性 | 告知承诺 |" in material.content
+    process = next(chunk for chunk in chunks if chunk.metadata.get("node_title") == "受理")
+    assert process.metadata["section_title"] == "办理流程"
+    assert process.metadata["chunk_type"] == "process_step"
     assert all(chunk.metadata.get("chunking_strategy") == "hierarchical" for chunk in chunks)
+
+
+def test_hierarchical_chunking_uses_context_parent_only_for_long_sections():
+    document = KnowledgeDocument(
+        id="doc-hierarchical-long",
+        title="长层级分块测试",
+        content="# 办事指南\n\n## 申请材料\n\n### 1. 申请表\n" + "\n".join(f"| 字段{i} | 内容{i}需要保持表格换行 |" for i in range(40)),
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    chunks = split_document(document)
+    parents = [chunk for chunk in chunks if chunk.chunk_type == "parent"]
+    children = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+
+    assert parents
+    assert children
+    assert all(parent.metadata.get("context_only") is True for parent in parents)
+    assert all(parent.metadata.get("indexable") is False for parent in parents)
+    assert not any(parent.content == child.content for parent in parents for child in children)
+    assert all("\n" in child.content for child in children)

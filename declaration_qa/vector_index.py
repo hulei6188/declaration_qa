@@ -205,8 +205,9 @@ class MilvusVectorIndex:
             return False
         for field in description.get("fields", []):
             if field.get("name") == "id" and field.get("is_primary"):
-                field_type = str(field.get("type") or "").upper()
-                return field_type in {"VARCHAR", "STRING"} or field_type.endswith(".VARCHAR")
+                field_type = field.get("type")
+                field_type_name = str(getattr(field_type, "name", "") or field_type or "").upper()
+                return field_type_name in {"VARCHAR", "STRING"} or field_type_name.endswith(".VARCHAR")
         return False
 
 

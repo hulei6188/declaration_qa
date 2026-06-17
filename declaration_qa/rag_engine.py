@@ -60,9 +60,9 @@ class InMemoryRAGEngine:
         self.delete_document(document.id)
         self._documents[document.id] = document
         chunks = split_document(document)
-        for chunk in chunks:
+        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        for chunk, vector in zip(chunks, vectors):
             self._chunks[chunk.id] = chunk
-            vector = self.embedding_provider.embed_query(chunk.content)
             self._vectors[chunk.embedding_id] = vector
             if chunk.chunk_type == "child":
                 self.vector_index.upsert(chunk, vector)
@@ -243,6 +243,13 @@ def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
     return split_parent_child(document)
 
 
+def embed_chunk_batch(embedding_provider: EmbeddingProvider, texts: list[str], *, batch_size: int = 10) -> list[list[float]]:
+    vectors: list[list[float]] = []
+    for index in range(0, len(texts), batch_size):
+        vectors.extend(embedding_provider.embed_documents(texts[index : index + batch_size]))
+    return vectors
+
+
 def normalize_chunking_strategy(value: Any) -> str:
     strategy = str(value or CHUNKING_PARENT_CHILD).strip().lower().replace("-", "_")
     return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_PARENT_CHILD
@@ -285,26 +292,64 @@ def split_hierarchical(document: KnowledgeDocument, *, parent_size: int = 1200, 
         return []
     chunks: list[KnowledgeChunk] = []
     for section_index, section in enumerate(markdown_sections(content)):
-        parent_texts = split_windows(section["content"], parent_size, max(0, min(overlap, parent_size // 2)))
+        base_metadata = hierarchical_section_metadata(document, section, section_index)
+        section_content = section["content"].strip()
+        if len(section_content) <= child_size:
+            child_id = f"{document.id}:h:{section_index}:c:0"
+            chunks.append(
+                knowledge_chunk_from_document(
+                    document,
+                    chunk_id=child_id,
+                    parent_id="",
+                    chunk_type="child",
+                    content=section_content,
+                    extra_metadata={
+                        **base_metadata,
+                        "child_window_index": 0,
+                        "indexable": True,
+                    },
+                )
+            )
+            continue
+
+        parent_texts = split_windows(section_content, parent_size, max(0, min(overlap, parent_size // 2)))
         for parent_index, parent_text in enumerate(parent_texts):
             parent_id = f"{document.id}:h:{section_index}:p:{parent_index}"
-            extra_metadata = {
-                "chunking_strategy": CHUNKING_HIERARCHICAL,
-                "heading_path": section["path"],
-                "heading_level": section["level"],
-                "section_index": section_index,
-                "parent_window_index": parent_index,
-            }
+            child_texts = split_windows(parent_text, child_size, max(0, min(overlap, child_size // 2)))
+            if len(child_texts) == 1 and child_texts[0].strip() == parent_text.strip():
+                child_id = f"{document.id}:h:{section_index}:p:{parent_index}:c:0"
+                chunks.append(
+                    knowledge_chunk_from_document(
+                        document,
+                        chunk_id=child_id,
+                        parent_id="",
+                        chunk_type="child",
+                        content=parent_text,
+                        extra_metadata={
+                            **base_metadata,
+                            "parent_window_index": parent_index,
+                            "child_window_index": 0,
+                            "indexable": True,
+                        },
+                    )
+                )
+                continue
+
             parent_chunk = knowledge_chunk_from_document(
                 document,
                 chunk_id=parent_id,
                 parent_id=parent_id,
                 chunk_type="parent",
                 content=parent_text,
-                extra_metadata=extra_metadata,
+                extra_metadata={
+                    **base_metadata,
+                    "parent_window_index": parent_index,
+                    "context_role": "section_context",
+                    "indexable": False,
+                    "context_only": True,
+                },
             )
             chunks.append(parent_chunk)
-            child_texts = split_windows(parent_text, child_size, max(0, min(overlap, child_size // 2)))
             for child_index, child_text in enumerate(child_texts):
                 child_id = f"{parent_id}:c:{child_index}"
                 chunks.append(
@@ -314,10 +359,55 @@ def split_hierarchical(document: KnowledgeDocument, *, parent_size: int = 1200, 
                         parent_id=parent_id,
                         chunk_type="child",
                         content=child_text,
-                        extra_metadata={**extra_metadata, "child_window_index": child_index},
+                        extra_metadata={
+                            **base_metadata,
+                            "parent_window_index": parent_index,
+                            "child_window_index": child_index,
+                            "indexable": True,
+                        },
                     )
                 )
     return chunks
+
+
+def hierarchical_section_metadata(document: KnowledgeDocument, section: dict[str, Any], section_index: int) -> dict[str, Any]:
+    section_title = str(section.get("section_title") or section.get("title") or "Document")
+    node_title = str(section.get("node_title") or section.get("title") or section_title)
+    node_order = parse_heading_order(node_title)
+    if node_order is None:
+        node_order = section_index
+    semantic_chunk_type = classify_hierarchical_chunk_type(section_title, node_title)
+    return {
+        "chunking_strategy": CHUNKING_HIERARCHICAL,
+        "heading_path": section["path"],
+        "heading_level": section["level"],
+        "section_index": section_index,
+        "section_title": section_title,
+        "node_title": node_title,
+        "parent_section_id": f"{document.id}#{section_title}",
+        "node_order": node_order,
+        "chunk_type": semantic_chunk_type,
+    }
+
+
+def classify_hierarchical_chunk_type(section_title: str, node_title: str) -> str:
+    if section_title == "申请材料" and parse_heading_order(node_title) is not None:
+        return "material_item"
+    normalized_node_title = strip_heading_order(node_title)
+    if section_title == "办理流程" and normalized_node_title in {"受理", "审查", "决定", "办结", "送达"}:
+        return "process_step"
+    return "section_leaf"
+
+
+def parse_heading_order(title: str) -> int | None:
+    match = re.match(r"^\s*(\d+)(?:[\.、．\)]\s*|\s+)", str(title or ""))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def strip_heading_order(title: str) -> str:
+    return re.sub(r"^\s*\d+(?:[\.、．\)]\s*|\s+)", "", str(title or "")).strip()
 
 
 def markdown_sections(text: str) -> list[dict[str, Any]]:
@@ -326,15 +416,28 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
     current_lines: list[str] = []
     current_path: list[str] = []
     current_level = 0
+    current_title = ""
     heading_pattern = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
     def flush_current() -> None:
         body = "\n".join(current_lines).strip()
-        if not body and not current_path:
+        if not body:
             return
         path = " > ".join(current_path) if current_path else "Document"
-        section_text = f"{path}\n{body}".strip() if body else path
-        sections.append({"path": path, "level": current_level, "content": section_text})
+        section_text = f"{path}\n\n{body}".strip() if current_path else body
+        section_title = markdown_section_title(stack, current_title)
+        node_title = current_title or section_title
+        sections.append(
+            {
+                "path": path,
+                "level": current_level,
+                "title": current_title,
+                "section_title": section_title,
+                "node_title": node_title,
+                "body": body,
+                "content": section_text,
+            }
+        )
 
     for line in text.splitlines():
         heading = heading_pattern.match(line.strip())
@@ -347,6 +450,7 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
             stack.append((level, title))
             current_path = [item[1] for item in stack]
             current_level = level
+            current_title = title
             current_lines = []
             continue
         current_lines.append(line)
@@ -357,17 +461,84 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
     return [{"path": "Document", "level": 0, "content": text.strip()}]
 
 
+def markdown_section_title(stack: list[tuple[int, str]], current_title: str) -> str:
+    for level, title in stack:
+        if level == 2:
+            return title
+    if current_title:
+        return current_title
+    if stack:
+        return stack[-1][1]
+    return "Document"
+
+
 def split_windows(text: str, size: int, overlap: int) -> list[str]:
-    compact = re.sub(r"\s+", " ", text).strip()
-    if len(compact) <= size:
-        return [compact]
+    content = str(text or "").strip()
+    if len(content) <= size:
+        return [content]
+    units = split_window_units(content, max(1, size))
     output = []
-    start = 0
-    step = max(1, size - overlap)
-    while start < len(compact):
-        output.append(compact[start : start + size].strip())
-        start += step
+    current: list[str] = []
+    for unit in units:
+        candidate = join_window_units([*current, unit])
+        if current and len(candidate) > size:
+            output.append(join_window_units(current))
+            current = trailing_overlap_units(current, overlap)
+        current.append(unit)
+    if current:
+        output.append(join_window_units(current))
     return [item for item in output if item]
+
+
+def split_window_units(text: str, size: int) -> list[str]:
+    units: list[str] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        units.extend(split_long_line(line.rstrip(), size))
+    return units
+
+
+def split_long_line(line: str, size: int) -> list[str]:
+    if len(line) <= size:
+        return [line]
+    if "http://" in line or "https://" in line:
+        return [line]
+    parts: list[str] = []
+    remaining = line.strip()
+    while len(remaining) > size:
+        split_at = best_soft_split(remaining, size)
+        parts.append(remaining[:split_at].strip())
+        remaining = remaining[split_at:].strip()
+    if remaining:
+        parts.append(remaining)
+    return parts
+
+
+def best_soft_split(text: str, size: int) -> int:
+    search_start = max(1, size // 2)
+    candidates = [text.rfind(separator, search_start, size) for separator in ["。", "；", "，", "、", " ", "\t"]]
+    split_at = max(candidates)
+    if split_at <= 0:
+        return size
+    return split_at + 1
+
+
+def trailing_overlap_units(units: list[str], overlap: int) -> list[str]:
+    if overlap <= 0:
+        return []
+    retained: list[str] = []
+    total = 0
+    for unit in reversed(units):
+        total += len(unit)
+        if retained and total > overlap:
+            break
+        retained.insert(0, unit)
+    return retained
+
+
+def join_window_units(units: list[str]) -> str:
+    return "\n".join(unit for unit in units if unit.strip()).strip()
 
 
 def knowledge_chunk_from_document(
