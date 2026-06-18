@@ -26,6 +26,8 @@ class DeclarationQAState(TypedDict, total=False):
     route_decision: dict[str, Any]
     question_plan: dict[str, Any]
     requires_ticket_context: bool
+    ticket_fact_type: str
+    retrieval_focus: str
     multi_question: bool
     sub_tasks: list[dict[str, Any]]
     retrieval_chain: str
@@ -34,6 +36,8 @@ class DeclarationQAState(TypedDict, total=False):
     tickets: list[dict[str, Any]]
     ticket_context: dict[str, Any] | None
     rag_query: str
+    query_rewrite: dict[str, Any]
+    retrieval_queries: list[dict[str, Any]]
 
     business_status: dict[str, Any] | None
     reject_info: dict[str, Any] | None

@@ -80,5 +80,13 @@ def test_milvus_metadata_row_truncates_long_text_fields():
     assert len(row["item_name"]) == MILVUS_TEXT_METADATA_FIELDS["item_name"]
 
 
-def test_milvus_metadata_fields_do_not_enable_vector_filtering():
-    assert milvus_filter_expr({"biz_type": "residence_permit", "region_code": "340000"}) == ""
+def test_milvus_filter_expr_uses_supported_metadata_fields_only():
+    expr = milvus_filter_expr(
+        {
+            "biz_type": "residence_permit",
+            "item_code": "ITEM001",
+            "region_code": ["340000", "340000000000"],
+        }
+    )
+
+    assert expr == 'item_code == "ITEM001" and region_code in ["340000", "340000000000"]'

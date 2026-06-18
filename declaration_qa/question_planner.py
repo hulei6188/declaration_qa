@@ -1,4 +1,4 @@
-"""问题理解、语义补全和多问题拆解 planner。"""
+"""问题宏观路由、意图拆解和控制流打标 planner。"""
 
 from __future__ import annotations
 
@@ -10,30 +10,22 @@ from typing import Any
 from declaration_qa.router import parse_json_object, ticket_context_related
 
 
-QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器，只能返回 JSON 对象，不回答业务问题。
+QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图拆解器】，只能返回 JSON 对象，不回答业务问题，不负责对内容进行语义补全或改写。
 
-任务：
-1. 先理解用户真实问题。用户输入可能是完整问题，也可能只是搜索式关键词短语，例如“示例事项甲办事流程”“要什么证 怎么投诉”“多少天”。
-2. 对关键词短语做语义补全，把它改写成适合政务知识库检索的标准、完整问题。
-3. 再判断用户是否在一次输入中询问了多个相对独立、需要分别处理的问题。
-4. 如果是多问题，按用户原始表达顺序拆成可以独立处理的子问题。
-5. 如果不是多问题，也要返回 questions 数组，里面只放一个问题。
-6. 只负责理解、补全和拆解，不判断业务意图，不输出 intent，不输出 route，不输出答案。
-7. 不要新增用户没问的问题，不要补充隐藏意图，不要把背景陈述扩展成独立问题。
-8. 每个子问题保留必要指代词；如果用户使用“这个、该事项、当前申请、我这单”等指代，不要擅自替换成具体事项。
-9. requires_ticket_context 只表示该子问题看起来是否需要当前/个人工单上下文。
-10. 用户询问“我这单、当前申请、为什么被驳回、进度到哪了、还要补什么、能不能继续办理”等，通常 requires_ticket_context=true。
-11. 用户询问“办理条件、申请材料、办理流程、收费标准、办理时限、政策依据”等通用知识，通常 requires_ticket_context=false，除非明显依赖当前申请。
-12. 只输出合法 JSON，不要输出 markdown，不要输出解释文字。
+【核心任务】
+1. 理解用户原始输入的复合意图。用户提问可能包含多个相对独立、需要前往不同数据源或关注不同知识维度的子问题。
+2. 如果包含多意图，请按照用户的原始表达顺序，将提问拆解为可以独立处理的子问题数组（questions）。
+3. 如果只有一个意图，同样返回 questions 数组，里面只放一个对象。
+4. 【铁律】保持克制！直接提取用户原始片段赋予 query 字段。绝对不要擅自替换、脑补、扩展事项名称，保留一切指代词（如“这个、我这单、该事项”）。
 
-补全原则：
-* 完整自然语言问题尽量保持原意，只做必要清理。
-* 搜索式关键词短语可以补全为标准问句，例如“示例事项甲办事流程”可补全为“示例事项甲的办理流程是什么？”
-* “要什么证”“需要哪些证”“要交什么材料”可补全为“办理该事项需要准备哪些证件和申请材料？”
-* “多少天”“多久拿结果”可补全为“该事项的法定办结时限和承诺办结时限是多少天？”
-* 如果上下文中有 current_ticket 或明确事项名称，可使用该事项名称补全短语；不要猜测无依据的具体事项。
+【字段打标规范】
+- requires_ticket_context: 布尔值。判断该子问题是否看起来绝对依赖当前/个人的具体工单流水上下文。
+  * 询问“我这单、为什么被驳回、进度到哪了、还要补什么、能不能继续办理”等个体状态 --> true
+  * 询问通用的“办理条件、材料、流程、收费、时限、办事地点”等标准政策指南 --> false
+- ticket_fact_type: 字符串。表示需要读取哪类工单事实。只能取: ["status", "rejection", "correction", "none"]。
+- retrieval_focus: 字符串。指导下游检索的 Hint 标签。只能取: ["material_requirements", "process_steps", "eligibility", "fee_time_limit", "office_location", "contact", "online_apply", "policy_basis", "form_template", "knowledge_qa", "other"]。如果找不到合适标签，必须使用 "other"。
 
-拆分原则：
+【拆分原则】
 * 多个独立问句应拆分。
 * 用“以及、还有、另外、顺便问下、再问一个”等连接的多个问题，通常应拆分。
 * 同一个业务问题中的限定条件、修饰语、事项名称、地区、办理对象，不要拆分。
@@ -42,101 +34,43 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的问题理解与拆解器
 * 不要把一句话改写成更宽泛的问题。
 * 用户的事实陈述、时间背景、已提交、已上传、刚办理等信息，如果没有明确询问进度、状态、结果、退回原因，不要单独生成子问题；只把它作为其他子问题的上下文。
 
-返回 JSON 格式：
+【返回 JSON 格式】
 {
   "is_multi_question": true,
   "questions": [
     {
       "original_query": "用户原始片段",
-      "query": "理解和必要补全后的标准独立问题",
+      "query": "用户原始片段",
       "requires_ticket_context": false,
-      "is_expanded": false,
-      "expansion_reason": ""
+      "ticket_fact_type": "none",
+      "retrieval_focus": "retrieval_focus_tag"
     }
   ],
   "reason": "short_english_reason"
 }
 
-示例 1：
-用户：示例事项甲办事流程，还有要交什么材料
+【标准示例】
+用户输入：示例事项A办事流程，还有我那单怎么被退回了
 输出：
 {
   "is_multi_question": true,
   "questions": [
     {
-      "original_query": "示例事项甲办事流程",
-      "query": "示例事项甲的办理流程是什么？",
+      "original_query": "示例事项A办事流程",
+      "query": "示例事项A办事流程",
       "requires_ticket_context": false,
-      "is_expanded": true,
-      "expansion_reason": "keyword_query_to_process_question"
+      "ticket_fact_type": "none",
+      "retrieval_focus": "process_steps"
     },
     {
-      "original_query": "还有要交什么材料",
-      "query": "示例事项甲需要提交哪些申请材料？",
-      "requires_ticket_context": false,
-      "is_expanded": true,
-      "expansion_reason": "keyword_query_to_material_question"
-    }
-  ],
-  "reason": "User asks two searchable knowledge questions."
-}
-
-示例 2：
-用户：我这单为什么被驳回，还要补什么材料？
-输出：
-{
-  "is_multi_question": true,
-  "questions": [
-    {
-      "original_query": "我这单为什么被驳回",
-      "query": "我这单为什么被驳回？",
+      "original_query": "还有我那单怎么被退回了",
+      "query": "还有我那单怎么被退回了",
       "requires_ticket_context": true,
-      "is_expanded": false,
-      "expansion_reason": ""
-    },
-    {
-      "original_query": "还要补什么材料",
-      "query": "还要补什么材料？",
-      "requires_ticket_context": true,
-      "is_expanded": false,
-      "expansion_reason": ""
+      "ticket_fact_type": "rejection",
+      "retrieval_focus": "knowledge_qa"
     }
   ],
-  "reason": "User asks two ticket-related questions."
-}
-
-示例 3：
-用户：办理示例证照乙需要哪些材料？
-输出：
-{
-  "is_multi_question": false,
-  "questions": [
-    {
-      "original_query": "办理示例证照乙需要哪些材料？",
-      "query": "办理示例证照乙需要哪些材料？",
-      "requires_ticket_context": false,
-      "is_expanded": false,
-      "expansion_reason": ""
-    }
-  ],
-  "reason": "User asks one knowledge question."
-}
-
-示例 4：
-用户：我今天材料交上去了，最快几天能拿到结果？
-输出：
-{
-  "is_multi_question": false,
-  "questions": [
-    {
-      "original_query": "最快几天能拿到结果",
-      "query": "该事项提交申请后最快几天能拿到审批结果，法定办结时限和承诺办结时限是多少天？",
-      "requires_ticket_context": false,
-      "is_expanded": true,
-      "expansion_reason": "background_statement_plus_time_limit_question"
-    }
-  ],
-  "reason": "Submission statement is background, user asks one time-limit question."
+  "reason": "User asks for general process steps and an individual ticket rejection reason sequentially."
 }"""
 
 
@@ -254,25 +188,31 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
             continue
         seen.add(query)
         original_query = normalize_question_text(str(item.get("original_query") or item.get("original_intent_segment") or query)) if isinstance(item, dict) else query
+        query = original_query
         requires_ticket_context = (
             bool(item.get("requires_ticket_context"))
             if isinstance(item, dict) and "requires_ticket_context" in item
             else ticket_context_related(query, {**state, "query": query, "normalized_query": query})
         )
-        is_expanded = bool(item.get("is_expanded")) if isinstance(item, dict) else original_query != query
-        expansion_reason = str(item.get("expansion_reason") or "").strip()[:120] if isinstance(item, dict) else ""
-        if requires_ticket_context and original_query:
-            query = original_query
-            is_expanded = False
-            expansion_reason = "ticket_related_query_kept_unexpanded"
+        ticket_fact_type = normalize_ticket_fact_type(
+            str(item.get("ticket_fact_type") or "") if isinstance(item, dict) else "",
+            query,
+            requires_ticket_context=requires_ticket_context,
+        )
+        retrieval_focus = normalize_retrieval_focus(
+            str(item.get("retrieval_focus") or "") if isinstance(item, dict) else "",
+            query,
+        )
         questions.append(
             {
                 "id": f"q{len(questions) + 1}",
                 "original_query": original_query,
                 "query": query,
                 "requires_ticket_context": requires_ticket_context,
-                "is_expanded": is_expanded,
-                "expansion_reason": expansion_reason,
+                "ticket_fact_type": ticket_fact_type,
+                "retrieval_focus": retrieval_focus,
+                "is_expanded": False,
+                "expansion_reason": "",
             }
         )
     fallback_query = str(state.get("normalized_query") or state.get("query") or "").strip()
@@ -290,14 +230,75 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
 def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
     """构造子问题项。"""
     normalized = normalize_question_text(query)
+    requires_ticket_context = ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized})
     return {
         "id": "",
         "original_query": normalized,
         "query": normalized,
-        "requires_ticket_context": ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized}),
+        "requires_ticket_context": requires_ticket_context,
+        "ticket_fact_type": normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context),
+        "retrieval_focus": normalize_retrieval_focus("", normalized),
         "is_expanded": False,
         "expansion_reason": "",
     }
+
+
+def normalize_ticket_fact_type(value: str, query: str, *, requires_ticket_context: bool) -> str:
+    """标准化工单事实类型。"""
+    allowed = {"status", "rejection", "correction", "none"}
+    normalized = str(value or "").strip().lower()
+    if normalized in allowed:
+        return normalized if requires_ticket_context else "none"
+    if not requires_ticket_context:
+        return "none"
+    text = str(query or "")
+    if any(keyword in text for keyword in ["退回", "驳回", "不通过", "被拒", "被退", "为什么"]):
+        return "rejection"
+    if any(keyword in text for keyword in ["补正", "补什么", "还要补", "修改", "重新提交"]):
+        return "correction"
+    if any(keyword in text for keyword in ["进度", "到哪", "状态", "审核到", "办到哪", "什么情况", "怎么样"]):
+        return "status"
+    return "none"
+
+
+def normalize_retrieval_focus(value: str, query: str) -> str:
+    """标准化知识检索重点。"""
+    allowed = {
+        "material_requirements",
+        "process_steps",
+        "eligibility",
+        "fee_time_limit",
+        "office_location",
+        "contact",
+        "online_apply",
+        "policy_basis",
+        "form_template",
+        "knowledge_qa",
+        "other",
+    }
+    normalized = str(value or "").strip().lower()
+    if normalized in allowed:
+        return normalized
+    text = str(query or "")
+    if any(keyword in text for keyword in ["材料", "要带", "提交什么", "需要什么", "清单", "补什么"]):
+        return "material_requirements"
+    if any(keyword in text for keyword in ["流程", "步骤", "怎么办", "如何办理", "怎么申请"]):
+        return "process_steps"
+    if any(keyword in text for keyword in ["条件", "资格", "能不能办", "是否可以"]):
+        return "eligibility"
+    if any(keyword in text for keyword in ["费用", "收费", "多少钱", "时限", "多久", "几天", "多少天", "拿结果", "办结"]):
+        return "fee_time_limit"
+    if any(keyword in text for keyword in ["地点", "窗口", "地址", "哪里办"]):
+        return "office_location"
+    if any(keyword in text for keyword in ["电话", "咨询", "投诉"]):
+        return "contact"
+    if any(keyword in text for keyword in ["网上办", "入口", "链接", "在线"]):
+        return "online_apply"
+    if any(keyword in text for keyword in ["依据", "政策", "法规", "文件"]):
+        return "policy_basis"
+    if any(keyword in text for keyword in ["表格", "模板", "样表", "申请表"]):
+        return "form_template"
+    return "other"
 
 
 def split_questions(query: str) -> list[str]:

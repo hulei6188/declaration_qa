@@ -289,4 +289,21 @@ def milvus_json_value(value: Any) -> Any:
 
 def milvus_filter_expr(filters: dict[str, Any]) -> str:
     """将检索过滤条件转换为 Milvus 表达式。"""
-    return ""
+    expressions = []
+    for key, value in (filters or {}).items():
+        if key not in MILVUS_TEXT_METADATA_FIELDS or value in ("", None, []):
+            continue
+        if isinstance(value, list):
+            values = [milvus_escape_string(item) for item in value if str(item or "").strip()]
+            if not values:
+                continue
+            expressions.append(f"{key} in [{', '.join(values)}]")
+        else:
+            expressions.append(f"{key} == {milvus_escape_string(value)}")
+    return " and ".join(expressions)
+
+
+def milvus_escape_string(value: Any) -> str:
+    """转义 Milvus 过滤表达式字符串。"""
+    text = str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{text}"'

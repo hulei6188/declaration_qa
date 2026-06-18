@@ -12,12 +12,15 @@ from collections.abc import Callable, Iterable
 
 from declaration_qa.audit import InMemoryAuditStore
 from declaration_qa.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
+from declaration_qa.domain import RetrievalResult, RetrievedSource
 from declaration_qa.evidence import decide_evidence
 from declaration_qa.prompting import DeterministicAnswerGenerator
 from declaration_qa.question_planner import RuleQuestionPlanner
+from declaration_qa.query_rewriter import RuleQueryRewriter
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine, normalize_text
-from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
+from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN, normalize_retrieval_filter
 from declaration_qa.router import (
+    INTENT_CORRECTION_GUIDANCE,
     INTENT_REJECTION_REASON,
     INTENT_TICKET_STATUS,
     ROUTE_CLARIFICATION,
@@ -39,6 +42,7 @@ class DeclarationQAWorkflow:
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         question_planner: RuleQuestionPlanner | None = None,
+        query_rewriter: RuleQueryRewriter | None = None,
     ) -> None:
         """初始化申报问答工作流。"""
         self.rag_engine = rag_engine or build_seed_rag_engine()
@@ -46,6 +50,7 @@ class DeclarationQAWorkflow:
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.question_planner = question_planner or RuleQuestionPlanner()
+        self.query_rewriter = query_rewriter or RuleQueryRewriter()
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -148,7 +153,7 @@ class DeclarationQAWorkflow:
             return
 
         for name, handler in [
-            ("intent_route", self.intent_route),
+            ("prepare_task", self.prepare_task),
         ]:
             run_node(name, handler)
             yield from drain()
@@ -160,6 +165,8 @@ class DeclarationQAWorkflow:
                 ("ticket_selection", self.ticket_selection),
                 ("ticket_detail_query", self.ticket_detail_query),
                 ("ticket_context_build", self.ticket_context_build),
+                ("knowledge_filter_build", self.knowledge_filter_build),
+                ("query_rewrite", self.query_rewrite),
                 ("ticket_knowledge_rag", self.ticket_knowledge_rag),
                 ("evidence_check", self.evidence_check),
             ]:
@@ -182,6 +189,7 @@ class DeclarationQAWorkflow:
         elif route == ROUTE_TICKET_CONTEXT_UNRELATED:
             for name, handler in [
                 ("knowledge_filter_build", self.knowledge_filter_build),
+                ("query_rewrite", self.query_rewrite),
                 ("hybrid_retrieve", self.hybrid_retrieve),
                 ("evidence_check", self.evidence_check),
             ]:
@@ -278,6 +286,8 @@ class DeclarationQAWorkflow:
             "route_decision": {},
             "question_plan": {},
             "requires_ticket_context": False,
+            "ticket_fact_type": "none",
+            "retrieval_focus": "knowledge_qa",
             "multi_question": False,
             "sub_tasks": [],
             "retrieval_chain": "",
@@ -286,6 +296,8 @@ class DeclarationQAWorkflow:
             "tickets": [],
             "ticket_context": None,
             "rag_query": "",
+            "query_rewrite": {},
+            "retrieval_queries": [],
             "business_snapshot": None,
             "retrieval_filter": {},
             "retrieved_sources": [],
@@ -307,11 +319,12 @@ class DeclarationQAWorkflow:
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("question_plan", self.question_plan)
         builder.add_node("multi_question_collect", self.multi_question_collect)
-        builder.add_node("intent_route", self.intent_route)
+        builder.add_node("prepare_task", self.prepare_task)
         builder.add_node("ticket_list_query", self.ticket_list_query)
         builder.add_node("ticket_selection", self.ticket_selection)
         builder.add_node("ticket_detail_query", self.ticket_detail_query)
         builder.add_node("ticket_context_build", self.ticket_context_build)
+        builder.add_node("query_rewrite", self.query_rewrite)
         builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
         builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
         builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
@@ -327,7 +340,7 @@ class DeclarationQAWorkflow:
         builder.add_conditional_edges(
             "question_plan",
             lambda state: "multi" if state.get("multi_question") else "single",
-            {"multi": "multi_question_collect", "single": "intent_route"},
+            {"multi": "multi_question_collect", "single": "prepare_task"},
         )
         builder.add_conditional_edges(
             "multi_question_collect",
@@ -335,7 +348,7 @@ class DeclarationQAWorkflow:
             {"needs_selection": "refuse_or_human", "ready": "llm_generate"},
         )
         builder.add_conditional_edges(
-            "intent_route",
+            "prepare_task",
             lambda state: state.get("route") or "refuse",
             {
                 ROUTE_TICKET_CONTEXT_RELATED: "ticket_list_query",
@@ -359,9 +372,14 @@ class DeclarationQAWorkflow:
             lambda state: "missing" if state.get("refuse_reason") else "ok",
             {"ok": "ticket_context_build", "missing": "refuse_or_human"},
         )
-        builder.add_edge("ticket_context_build", "ticket_knowledge_rag")
+        builder.add_edge("ticket_context_build", "knowledge_filter_build")
+        builder.add_edge("knowledge_filter_build", "query_rewrite")
+        builder.add_conditional_edges(
+            "query_rewrite",
+            lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
+            {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
+        )
         builder.add_edge("ticket_knowledge_rag", "evidence_check")
-        builder.add_edge("knowledge_filter_build", "hybrid_retrieve")
         builder.add_edge("hybrid_retrieve", "evidence_check")
         builder.add_conditional_edges(
             "evidence_check",
@@ -502,7 +520,7 @@ class DeclarationQAWorkflow:
 
     def state_for_sub_question(self, state: DeclarationQAState, question: dict[str, Any]) -> DeclarationQAState:
         """构造子问题状态，复用原始请求上下文。"""
-        query = normalize_text(str(question.get("query") or ""))
+        query = normalize_text(str(question.get("original_query") or question.get("query") or ""))
         inherited_apply_context = state.get("apply_context")
         inherited_biz_type = (
             (inherited_apply_context or {}).get("biz_type")
@@ -522,12 +540,16 @@ class DeclarationQAWorkflow:
             "sub_intent": "",
             "route": "",
             "route_decision": {},
+            "ticket_fact_type": question.get("ticket_fact_type") or "none",
+            "retrieval_focus": question.get("retrieval_focus") or "knowledge_qa",
             "retrieval_chain": "",
             "need_ticket_selection": False,
             "ticket_selection_reason": "",
             "tickets": [],
             "ticket_context": None,
             "rag_query": "",
+            "query_rewrite": {},
+            "retrieval_queries": [],
             "business_status": None,
             "reject_info": None,
             "business_snapshot": None,
@@ -547,7 +569,7 @@ class DeclarationQAWorkflow:
 
     def collect_sub_question(self, state: DeclarationQAState, question: dict[str, Any], index: int) -> dict[str, Any]:
         """收集单个子问题的路由、业务上下文和证据。"""
-        state = self.intent_route(state)
+        state = self.prepare_task(state)
         if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED:
             state = self.ticket_list_query(state)
             if not state.get("refuse_reason"):
@@ -556,10 +578,13 @@ class DeclarationQAWorkflow:
                 state = self.ticket_detail_query(state)
             if not state.get("refuse_reason"):
                 state = self.ticket_context_build(state)
+                state = self.knowledge_filter_build(state)
+                state = self.query_rewrite(state)
                 state = self.ticket_knowledge_rag(state)
                 state = self.evidence_check(state)
         elif state.get("route") == ROUTE_TICKET_CONTEXT_UNRELATED:
             state = self.knowledge_filter_build(state)
+            state = self.query_rewrite(state)
             state = self.hybrid_retrieve(state)
             state = self.evidence_check(state)
         if state.get("refuse_reason") and not state.get("answer"):
@@ -572,6 +597,8 @@ class DeclarationQAWorkflow:
             "original_query": question.get("original_query") or question.get("query") or "",
             "query": state.get("query") or question.get("query") or "",
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
+            "ticket_fact_type": state.get("ticket_fact_type") or question.get("ticket_fact_type") or "none",
+            "retrieval_focus": state.get("retrieval_focus") or question.get("retrieval_focus") or "knowledge_qa",
             "is_expanded": bool(question.get("is_expanded")),
             "expansion_reason": question.get("expansion_reason") or "",
             "route": state.get("route") or "",
@@ -587,6 +614,8 @@ class DeclarationQAWorkflow:
             "business_snapshot": state.get("business_snapshot") or {},
             "retrieval_filter": state.get("retrieval_filter") or {},
             "rag_query": state.get("rag_query") or state.get("normalized_query") or "",
+            "query_rewrite": state.get("query_rewrite") or {},
+            "retrieval_queries": state.get("retrieval_queries") or [],
             "sources": state.get("retrieved_sources") or [],
             "rag_status": state.get("rag_status") or {},
             "evidence_decision": state.get("evidence_decision") or {},
@@ -595,23 +624,27 @@ class DeclarationQAWorkflow:
             "answer": state.get("answer") or "",
         }
 
-    def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
-        """根据 question planner 输出映射路由并派生内部意图。"""
+    def prepare_task(self, state: DeclarationQAState) -> DeclarationQAState:
+        """根据 Planner 任务字段准备兼容展示字段和链路开关。"""
         next_state = dict(state)
         if next_state.get("refuse_reason"):
             next_state["route"] = ROUTE_REFUSE
             next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
-            add_event(next_state, "intent", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
+            add_event(next_state, "task_prepared", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
             return next_state
         query = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        intent = classify_intent(query)
-        if intent == "unsafe":
+        retrieval_focus = str(next_state.get("retrieval_focus") or "").strip() or classify_intent(query)
+        ticket_fact_type = str(next_state.get("ticket_fact_type") or "none").strip() or "none"
+        if is_unsafe_query(query):
             route = ROUTE_REFUSE
+            intent = "unsafe"
             next_state["refuse_reason"] = "unsafe_or_out_of_scope"
-        elif intent == "clarification":
+        elif len(query.strip()) < 3:
             route = ROUTE_CLARIFICATION
+            intent = "clarification"
             next_state["refuse_reason"] = "clarification_required"
         else:
+            intent = task_intent(retrieval_focus, ticket_fact_type, bool(next_state.get("requires_ticket_context")), query)
             route = ROUTE_TICKET_CONTEXT_RELATED if bool(next_state.get("requires_ticket_context")) else ROUTE_TICKET_CONTEXT_UNRELATED
         route_decision = {
             "route": route,
@@ -619,18 +652,27 @@ class DeclarationQAWorkflow:
             "sub_intent": intent,
             "confidence": 1.0,
             "requires_ticket_context": route == ROUTE_TICKET_CONTEXT_RELATED,
+            "ticket_fact_type": ticket_fact_type,
+            "retrieval_focus": retrieval_focus,
             "can_answer_from_knowledge": route == ROUTE_TICKET_CONTEXT_UNRELATED or intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON},
-            "reason": "question_planner_requires_ticket_context",
+            "reason": "question_planner_task_fields",
             "risk_level": "block" if route == ROUTE_REFUSE else "pass",
-            "entities": {"router_provider": "question_planner"},
+            "entities": {"task_provider": "question_planner", "router_provider": "question_planner"},
         }
         next_state["route_decision"] = route_decision
         next_state["route"] = route
         next_state["intent"] = intent
         next_state["sub_intent"] = intent
+        next_state["retrieval_focus"] = retrieval_focus
+        next_state["ticket_fact_type"] = ticket_fact_type
         next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN
         add_event(next_state, "intent", route_decision)
+        add_event(next_state, "task_prepared", route_decision)
         return next_state
+
+    def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
+        """兼容旧测试和外部调用，核心链路不再使用该节点。"""
+        return self.prepare_task(state)
 
     def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
         """查询用户办件列表并写入状态。"""
@@ -750,9 +792,7 @@ class DeclarationQAWorkflow:
         """围绕办件问题执行知识检索。"""
         next_state = dict(state)
         filters = base_policy_filter(next_state, allow_request_filter=False)
-        query = ticket_rag_query(next_state)
-        result = self.rag_engine.retrieve(query, filters, top_k=4)
-        next_state["rag_query"] = query
+        result = self.multi_retrieve(next_state, filters)
         next_state["retrieval_filter"] = filters
         next_state["retrieved_sources"] = [source.payload() for source in result.sources]
         next_state["rag_status"] = result.status
@@ -764,7 +804,7 @@ class DeclarationQAWorkflow:
                 "business_snapshot_present": bool(next_state.get("business_snapshot")),
                 "source_count": len(result.sources),
             }
-        add_event(next_state, "rag_status", {**result.status, "rag_query": query})
+        add_event(next_state, "rag_status", {**result.status, "rag_query": next_state.get("rag_query") or ""})
         return next_state
 
     def status_apply_context_check(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -893,26 +933,86 @@ class DeclarationQAWorkflow:
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造普通知识检索过滤条件。"""
         next_state = dict(state)
-        if not next_state.get("biz_type"):
+        if not next_state.get("biz_type") and not next_state.get("apply_context"):
             next_state["biz_type"] = infer_biz_type(next_state.get("normalized_query") or "")
         filters = base_policy_filter(next_state, allow_request_filter=True)
         next_state["retrieval_filter"] = filters
         add_event(next_state, "knowledge_filter", filters)
         return next_state
 
+    def query_rewrite(self, state: DeclarationQAState) -> DeclarationQAState:
+        """生成多路检索 query。"""
+        next_state = dict(state)
+        rewrite = self.query_rewriter.rewrite(next_state)
+        payload = rewrite.payload()
+        next_state["query_rewrite"] = payload
+        next_state["retrieval_queries"] = payload.get("queries") or []
+        next_state["rag_query"] = "\n".join(str(query.get("text") or "") for query in next_state["retrieval_queries"])
+        add_event(
+            next_state,
+            "query_rewrite",
+            {
+                "count": len(next_state["retrieval_queries"]),
+                "retrieval_focus": payload.get("retrieval_focus"),
+                "ticket_fact_type": payload.get("ticket_fact_type"),
+                "scope_text": payload.get("scope_text") or "",
+                "queries": next_state["retrieval_queries"],
+            },
+        )
+        return next_state
+
+    def multi_retrieve(self, state: DeclarationQAState, filters: dict[str, Any]) -> RetrievalResult:
+        """按 rewrite 结果执行多路检索并去重合并。"""
+        retrieval_queries = state.get("retrieval_queries") or []
+        if not retrieval_queries:
+            fallback_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
+            retrieval_queries = [{"id": "rq1", "text": fallback_query, "strategy": "fallback", "top_k": 4}]
+        merged: dict[str, RetrievedSource] = {}
+        query_statuses = []
+        for retrieval_query in retrieval_queries:
+            text = str(retrieval_query.get("text") or "").strip()
+            if not text:
+                continue
+            top_k = int(retrieval_query.get("top_k") or 3)
+            result = self.rag_engine.retrieve(text, filters, top_k=top_k)
+            query_statuses.append(
+                {
+                    "id": retrieval_query.get("id") or "",
+                    "strategy": retrieval_query.get("strategy") or "",
+                    "query": text,
+                    "top_k": top_k,
+                    "source_count": len(result.sources),
+                    "cache": (result.status or {}).get("cache") or {},
+                    "channels": (result.status or {}).get("channels") or {},
+                }
+            )
+            for source in result.sources:
+                existing = merged.get(source.chunk.id)
+                if existing is None or float(source.score or 0.0) > float(existing.score or 0.0):
+                    merged[source.chunk.id] = source
+        sources = sorted(
+            merged.values(),
+            key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
+            reverse=True,
+        )[:6]
+        status = {
+            "query": "\n".join(str(query.get("text") or "") for query in retrieval_queries if query.get("text")),
+            "query_count": len([query for query in retrieval_queries if query.get("text")]),
+            "queries": query_statuses,
+            "source_count": len(sources),
+            "filter": filters,
+            "metadata_filtering": bool(filters),
+            "retrieval_mode": "multi_query_rewrite",
+        }
+        return RetrievalResult(sources=sources, filter=filters, status=status)
+
     def hybrid_retrieve(self, state: DeclarationQAState) -> DeclarationQAState:
         """执行普通知识问答混合检索。"""
         next_state = dict(state)
-        query = knowledge_rag_query(next_state)
-        result = self.rag_engine.retrieve(
-            query,
-            next_state.get("retrieval_filter") or {},
-            top_k=4,
-        )
-        next_state["rag_query"] = query
+        result = self.multi_retrieve(next_state, next_state.get("retrieval_filter") or {})
         next_state["retrieved_sources"] = [source.payload() for source in result.sources]
         next_state["rag_status"] = result.status
-        add_event(next_state, "rag_status", {**result.status, "rag_query": query})
+        add_event(next_state, "rag_status", {**result.status, "rag_query": next_state.get("rag_query") or ""})
         return next_state
 
     def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -995,6 +1095,8 @@ class DeclarationQAWorkflow:
             "sub_intent": next_state.get("sub_intent"),
             "route": next_state.get("route"),
             "route_decision": next_state.get("route_decision") or {},
+            "ticket_fact_type": next_state.get("ticket_fact_type") or "none",
+            "retrieval_focus": next_state.get("retrieval_focus") or "",
             "question_plan": next_state.get("question_plan") or {},
             "multi_question": next_state.get("multi_question"),
             "sub_tasks": next_state.get("sub_tasks") or [],
@@ -1012,6 +1114,8 @@ class DeclarationQAWorkflow:
             "material_mapping": next_state.get("material_mapping"),
             "retrieval_filter": next_state.get("retrieval_filter"),
             "rag_query": next_state.get("rag_query") or "",
+            "query_rewrite": next_state.get("query_rewrite") or {},
+            "retrieval_queries": next_state.get("retrieval_queries") or [],
             "retrieved_sources": next_state.get("retrieved_sources") or [],
             "rag_status": next_state.get("rag_status"),
             "evidence_ok": next_state.get("evidence_ok"),
@@ -1074,6 +1178,8 @@ def ticket_rag_query(state: DeclarationQAState) -> str:
 def knowledge_rag_query(state: DeclarationQAState) -> str:
     """构造普通知识检索查询，已选办件时继承事项范围。"""
     query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
+    if metadata_filter_has_item_scope(state.get("retrieval_filter") or {}):
+        return query
     scope = selected_ticket_scope_text(state)
     if not scope:
         return query
@@ -1097,6 +1203,11 @@ def selected_ticket_scope_text(state: DeclarationQAState) -> str:
         apply_context.get("biz_type"),
     ]
     return normalize_text(" ".join(unique_strings([str(item) for item in parts if item])))
+
+
+def metadata_filter_has_item_scope(filters: dict[str, Any]) -> bool:
+    """判断检索条件是否已具备事项级约束。"""
+    return any(filters.get(key) for key in ("item_code", "ssqd_code", "ssqd_id", "item_name"))
 
 
 def business_title(*sources: dict[str, Any]) -> str:
@@ -1123,7 +1234,49 @@ def business_title(*sources: dict[str, Any]) -> str:
 
 def base_policy_filter(state: DeclarationQAState, *, allow_request_filter: bool = True) -> dict[str, Any]:
     """构造基础政策检索过滤条件。"""
+    filters: dict[str, Any] = {}
+    if allow_request_filter:
+        filters.update(normalize_retrieval_filter(state.get("metadata_filter") or {}))
+    filters.update(ticket_metadata_filter(state))
+    return normalize_retrieval_filter(filters)
+
+
+def ticket_metadata_filter(state: DeclarationQAState) -> dict[str, Any]:
+    """从当前办件上下文生成知识库可执行的事项过滤条件。"""
+    apply_context = state.get("apply_context") or {}
+    if not isinstance(apply_context, dict) or not apply_context:
+        return {}
+    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
+    for key in ("item_code", "ssqd_code", "ssqd_id"):
+        value = first_non_empty(apply_context.get(key), payload.get(key), payload.get(camelize_metadata_key(key)))
+        if value:
+            return {key: value}
+    item_name = first_non_empty(
+        apply_context.get("item_name"),
+        payload.get("official_item_name"),
+        payload.get("item_name"),
+        payload.get("itemName"),
+        apply_context.get("title"),
+        payload.get("title"),
+    )
+    if item_name:
+        return {"item_name": item_name}
     return {}
+
+
+def first_non_empty(*values: Any) -> str:
+    """返回第一个非空字符串值。"""
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def camelize_metadata_key(key: str) -> str:
+    """将 snake_case 元数据键转为常见 camelCase 别名。"""
+    parts = key.split("_")
+    return parts[0] + "".join(part.capitalize() for part in parts[1:])
 
 
 def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1158,7 +1311,11 @@ def redact_business_payload(payload: dict[str, Any]) -> dict[str, Any]:
     redacted = {}
     for key, value in (payload or {}).items():
         lowered = str(key).lower()
-        if any(token in lowered for token in ["id_card", "idcard", "phone", "mobile", "name", "address"]):
+        if (
+            any(token in lowered for token in ["id_card", "idcard", "phone", "mobile"])
+            or lowered in {"name", "applicant_name", "contact_name", "person_name"}
+            or lowered.endswith("_address")
+        ):
             redacted[key] = "[redacted]"
         else:
             redacted[key] = value
@@ -1174,12 +1331,14 @@ def add_event(state: dict[str, Any], event: str, data: dict[str, Any]) -> None:
 
 def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> None:
     """将 planner 理解后的单问题写回状态，保留原始问题在 question_plan 中。"""
-    planned_query = normalize_text(str(question.get("query") or ""))
+    planned_query = normalize_text(str(question.get("original_query") or question.get("query") or ""))
     if not planned_query:
         return
     state["query"] = planned_query
     state["normalized_query"] = planned_query
     state["requires_ticket_context"] = bool(question.get("requires_ticket_context"))
+    state["ticket_fact_type"] = question.get("ticket_fact_type") or "none"
+    state["retrieval_focus"] = question.get("retrieval_focus") or classify_intent(planned_query)
     state["biz_type"] = state.get("biz_type") or infer_biz_type(planned_query)
 
 
@@ -1251,6 +1410,25 @@ def mask_sensitive_text(value: str) -> str:
     text = re.sub(r"\b\d{17}[\dXx]\b", "[id_card]", text)
     text = re.sub(r"\b1[3-9]\d{9}\b", "[phone]", text)
     return text
+
+
+def is_unsafe_query(query: str) -> bool:
+    """判断是否为不应回答的高风险问题。"""
+    return any(keyword in str(query or "") for keyword in ["伪造", "造假", "假材料", "绕过审核"])
+
+
+def task_intent(retrieval_focus: str, ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
+    """从 Planner 任务字段派生兼容的 intent 展示值。"""
+    if requires_ticket_context:
+        if ticket_fact_type == "status":
+            return INTENT_TICKET_STATUS
+        if ticket_fact_type == "rejection":
+            return INTENT_REJECTION_REASON
+        if ticket_fact_type == "correction":
+            return INTENT_CORRECTION_GUIDANCE
+    if retrieval_focus == "other":
+        return classify_intent(query) if query else "knowledge_qa"
+    return str(retrieval_focus or "knowledge_qa")
 
 
 def classify_intent(query: str) -> str:

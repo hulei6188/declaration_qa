@@ -14,7 +14,7 @@ from typing import Any, Iterable
 from declaration_qa.cache import CacheStore, InMemoryCacheStore
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
-from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, sanitize_metadata
+from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter, sanitize_metadata
 from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
 
 
@@ -116,7 +116,7 @@ class InMemoryRAGEngine:
     def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
         """按查询和过滤条件执行混合检索。"""
         normalized_query = normalize_text(query)
-        effective_filter: dict[str, Any] = {}
+        effective_filter = normalize_retrieval_filter(filters)
         cache_key = json.dumps(
             {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
             ensure_ascii=False,
@@ -141,10 +141,13 @@ class InMemoryRAGEngine:
             return RetrievalResult(
                 sources=cached_sources,
                 filter=cached_payload.get("filter") or effective_filter,
-                status={**(cached_payload.get("status") or {}), "cache": {"hit": True, "backend": self.cache_store.backend}},
+                status={
+                    **(cached_payload.get("status") or {}),
+                    "cache": {**((cached_payload.get("status") or {}).get("cache") or {}), "hit": True, "backend": self.cache_store.backend},
+                },
             )
 
-        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child"]
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
         prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         if not candidates:
@@ -159,7 +162,7 @@ class InMemoryRAGEngine:
                     "cache": {"hit": False, "backend": self.cache_store.backend},
                     "embedding_provider": self.embedding_provider.name,
                     "rerank_provider": self.reranker.name,
-                    "metadata_filtering": False,
+                    "metadata_filtering": bool(effective_filter),
                     "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                     "filter": effective_filter,
                 },
@@ -198,7 +201,7 @@ class InMemoryRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
-                "metadata_filtering": False,
+                "metadata_filtering": bool(effective_filter),
                 "channels": {
                     "dense": len(dense_hits),
                     "bm25": len(bm25_hits),
@@ -935,12 +938,44 @@ def rerank(query: str, hits: list[RetrievedSource], filters: dict[str, Any], *, 
 
 def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> float:
     """计算片段元数据与过滤条件的加权提升。"""
-    return 0.0
+    if not filters:
+        return 0.0
+    metadata = chunk.metadata or {}
+    matched = sum(
+        1
+        for key, value in filters.items()
+        if key not in {"as_of", "rollout_key"}
+        and metadata_value_matches(chunk.status if key == "status" else metadata.get(key), value)
+    )
+    return min(0.2, matched * 0.05)
 
 
 def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
     """判断知识片段是否满足检索过滤条件。"""
+    if not filters:
+        return True
+    metadata = chunk.metadata or {}
+    for key, value in filters.items():
+        if key in {"as_of", "rollout_key"}:
+            continue
+        candidate = chunk.status if key == "status" else metadata.get(key)
+        if not metadata_value_matches(candidate, value):
+            return False
     return True
+
+
+def metadata_value_matches(candidate: Any, expected: Any) -> bool:
+    """按字符串或列表语义匹配元数据值。"""
+    if isinstance(expected, list):
+        return any(metadata_value_matches(candidate, item) for item in expected)
+    if isinstance(candidate, list):
+        return any(metadata_value_matches(item, expected) for item in candidate)
+    return normalize_filter_text(candidate) == normalize_filter_text(expected)
+
+
+def normalize_filter_text(value: Any) -> str:
+    """标准化元数据过滤比较文本。"""
+    return normalize_text(str(value or ""))
 
 
 def parse_filter_date(value: Any) -> date | None:

@@ -4,7 +4,8 @@ from pathlib import Path
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner
+from declaration_qa.query_rewriter import RuleQueryRewriter
+from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import parse_json_object
@@ -153,6 +154,81 @@ def test_ticket_rag_query_prefers_ticket_chinese_title():
     assert "办这个需要哪些材料" in query
 
 
+def test_query_rewriter_scopes_unrelated_query_without_ticket_facts():
+    rewriter = RuleQueryRewriter()
+
+    rewrite = rewriter.rewrite(
+        {
+            "query": "这个事情最快几天能拿结果",
+            "normalized_query": "这个事情最快几天能拿结果",
+            "requires_ticket_context": False,
+            "ticket_fact_type": "none",
+            "retrieval_focus": "fee_time_limit",
+            "apply_context": {
+                "biz_type": "grassland_fire_blasting_approval",
+                "reject_reason": "申请表缺少防火措施说明",
+                "payload": {
+                    "official_item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批",
+                },
+            },
+        }
+    )
+
+    assert len(rewrite.queries) == 3
+    assert all("草原防火期内在草原上进行爆破、勘察和施工等活动审批" in item.text for item in rewrite.queries)
+    assert all("申请表缺少防火措施说明" not in item.text for item in rewrite.queries)
+    assert any("法定办结时限" in item.text for item in rewrite.queries)
+
+
+def test_query_rewriter_allows_ticket_facts_for_rejection_query():
+    rewriter = RuleQueryRewriter()
+
+    rewrite = rewriter.rewrite(
+        {
+            "query": "为什么被退回了",
+            "normalized_query": "为什么被退回了",
+            "requires_ticket_context": True,
+            "ticket_fact_type": "rejection",
+            "retrieval_focus": "knowledge_qa",
+            "apply_context": {
+                "biz_type": "grassland_fire_blasting_approval",
+                "payload": {
+                    "official_item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批",
+                },
+            },
+            "reject_info": {
+                "reject_reason": "申请表缺少防火措施说明",
+                "material_name": "申请表",
+            },
+        }
+    )
+
+    assert rewrite.fact_text == "申请表缺少防火措施说明 申请表"
+    assert all("申请表缺少防火措施说明" in item.text for item in rewrite.queries)
+
+
+def test_unknown_retrieval_focus_falls_back_to_other_without_extra_terms():
+    assert normalize_retrieval_focus("random_model_tag", "这是什么意思") == "other"
+
+    rewrite = RuleQueryRewriter().rewrite(
+        {
+            "query": "这是什么意思",
+            "normalized_query": "这是什么意思",
+            "requires_ticket_context": False,
+            "ticket_fact_type": "none",
+            "retrieval_focus": "other",
+            "apply_context": {
+                "payload": {"official_item_name": "示例事项A"},
+            },
+        }
+    )
+
+    assert rewrite.retrieval_focus == "other"
+    assert len(rewrite.queries) == 1
+    assert rewrite.queries[0].strategy == "scoped_original"
+    assert rewrite.queries[0].text == "示例事项A 这是什么意思"
+
+
 def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
     workflow = DeclarationQAWorkflow()
 
@@ -212,19 +288,27 @@ def test_rule_question_planner_keeps_single_question_in_questions():
 
 
 def test_question_planner_prompt_limits_over_splitting_and_markdown():
-    assert "如果不是多问题，也要返回 questions 数组" in QUESTION_PLANNER_PROMPT
-    assert "只输出合法 JSON，不要输出 markdown" in QUESTION_PLANNER_PROMPT
+    assert "如果只有一个意图，同样返回 questions 数组" in QUESTION_PLANNER_PROMPT
+    assert "只能返回 JSON 对象" in QUESTION_PLANNER_PROMPT
     assert "同一个业务问题中的限定条件" in QUESTION_PLANNER_PROMPT
-    assert "不输出 intent" in QUESTION_PLANNER_PROMPT
-    assert "不输出 route" in QUESTION_PLANNER_PROMPT
-    assert "示例事项甲" in QUESTION_PLANNER_PROMPT
-    assert "示例证照乙" in QUESTION_PLANNER_PROMPT
+    assert "requires_ticket_context" in QUESTION_PLANNER_PROMPT
+    assert "ticket_fact_type" in QUESTION_PLANNER_PROMPT
+    assert "retrieval_focus" in QUESTION_PLANNER_PROMPT
+    assert '"other"' in QUESTION_PLANNER_PROMPT
+    assert '必须使用 "other"' in QUESTION_PLANNER_PROMPT
+    assert "不负责对内容进行语义补全或改写" in QUESTION_PLANNER_PROMPT
+    assert "直接提取用户原始片段赋予 query 字段" in QUESTION_PLANNER_PROMPT
+    assert "补全原则" not in QUESTION_PLANNER_PROMPT
+    assert "示例事项甲" not in QUESTION_PLANNER_PROMPT
+    assert "示例证照乙" not in QUESTION_PLANNER_PROMPT
+    assert "示例事项A" in QUESTION_PLANNER_PROMPT
+    assert "草原" not in QUESTION_PLANNER_PROMPT
+    assert "施工" not in QUESTION_PLANNER_PROMPT
     assert "防火办事流程" not in QUESTION_PLANNER_PROMPT
-    assert "草原防火期" not in QUESTION_PLANNER_PROMPT
     assert "健康证" not in QUESTION_PLANNER_PROMPT
 
 
-def test_llm_question_planner_keeps_only_understanding_fields():
+def test_llm_question_planner_keeps_raw_query_when_model_expands():
     class FakeLLM:
         def invoke(self, prompt):
             return """
@@ -235,6 +319,8 @@ def test_llm_question_planner_keeps_only_understanding_fields():
                   "original_query": "防火办事流程",
                   "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
                   "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_focus": "process_steps",
                   "is_expanded": true,
                   "expansion_reason": "keyword_query_to_process_question",
                   "intent": "process_and_time",
@@ -249,8 +335,10 @@ def test_llm_question_planner_keeps_only_understanding_fields():
 
     assert plan.is_multi_question is False
     assert plan.questions[0]["original_query"] == "防火办事流程"
-    assert plan.questions[0]["query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
-    assert plan.questions[0]["is_expanded"] is True
+    assert plan.questions[0]["query"] == "防火办事流程"
+    assert plan.questions[0]["retrieval_focus"] == "process_steps"
+    assert plan.questions[0]["is_expanded"] is False
+    assert plan.questions[0]["expansion_reason"] == ""
     assert "intent" not in plan.questions[0]
     assert "route" not in plan.questions[0]
 
@@ -290,10 +378,10 @@ def test_llm_question_planner_keeps_ticket_related_query_unexpanded():
     assert plan.questions[0]["query"] == "这个要哪些材料"
     assert plan.questions[0]["requires_ticket_context"] is True
     assert plan.questions[0]["is_expanded"] is False
-    assert plan.questions[0]["expansion_reason"] == "ticket_related_query_kept_unexpanded"
+    assert plan.questions[0]["expansion_reason"] == ""
 
 
-def test_single_question_workflow_uses_planner_expanded_query_without_planner_route():
+def test_single_question_workflow_keeps_planner_raw_query_without_planner_route():
     class ExpandingPlanner:
         def plan(self, state):
             return type(
@@ -327,6 +415,8 @@ def test_single_question_workflow_uses_planner_expanded_query_without_planner_ro
 
     assert response.multi_question is False
     assert response.question_plan["questions"][0]["original_query"] == "防火办事流程"
+    assert response.question_plan["questions"][0]["query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
+    assert response.events[1]["data"]["normalized_query"] == "防火办事流程"
     assert response.question_plan["questions"][0]["is_expanded"] is True
     assert response.route in {"ticket_context_unrelated", "clarification", "refuse"}
     assert response.route_decision.get("route") == response.route
@@ -616,9 +706,11 @@ def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context()
     assert response.retrieval_chain == "knowledge_retrieval"
     assert response.business_snapshot == {}
     assert engine.queries
-    assert "草原防火期内在草原上进行爆破、勘察和施工等活动审批" in engine.queries[-1]
     assert "这个事情最快几天能拿结果" in engine.queries[-1]
-    assert audit["rag_query"] == engine.queries[-1]
+    assert len(audit["retrieval_queries"]) == 3
+    assert audit["retrieval_filter"] == {"item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批"}
+    assert all("草原防火期内在草原上进行爆破、勘察和施工等活动审批" not in item["text"] for item in audit["retrieval_queries"])
+    assert audit["rag_query"] == "\n".join(item["text"] for item in audit["retrieval_queries"])
     assert "10个工作日" in response.answer
 
 
@@ -834,7 +926,7 @@ def test_declaration_qa_schema_file_defines_isolated_tables():
     assert "app_version" not in sql.lower()
 
 
-def test_knowledge_chain_uses_full_corpus_without_metadata_filtering():
+def test_knowledge_chain_uses_full_corpus_without_ticket_context():
     workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(
@@ -853,6 +945,40 @@ def test_knowledge_chain_uses_full_corpus_without_metadata_filtering():
     assert audit["rag_status"]["metadata_filtering"] is False
     assert audit["retrieved_sources"]
     assert "居住证" in response.answer
+
+
+def test_selected_ticket_scopes_general_question_with_item_metadata_filter():
+    adapter = InMemoryBusinessDataAdapter()
+    adapter._applications["A1001"]["payload"] = {
+        "official_item_name": "示例事项A",
+        "item_code": "ITEM001",
+    }
+    engine = InMemoryRAGEngine()
+    engine.index_document(
+        KnowledgeDocument(
+            id="doc-example-item",
+            title="示例事项A办事指南",
+            content="示例事项A的承诺办结时限为3个工作日。",
+            metadata={"item_code": "ITEM001", "item_name": "示例事项A"},
+        )
+    )
+    workflow = DeclarationQAWorkflow(rag_engine=engine, business_adapter=adapter)
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="这个事情最快几天能拿结果",
+            user_id=1,
+            region_code="340000",
+            apply_id="A1001",
+        )
+    )
+    audit = workflow.audit_store.get(response.audit_id)
+
+    assert response.route == "ticket_context_related"
+    assert audit["retrieval_filter"] == {"item_code": "ITEM001"}
+    assert audit["rag_status"]["metadata_filtering"] is True
+    assert all("示例事项A" not in query["query"] for query in audit["rag_status"]["queries"])
+    assert "3个工作日" in response.answer
 
 
 def test_rag_cache_reports_hit_on_repeated_query():
