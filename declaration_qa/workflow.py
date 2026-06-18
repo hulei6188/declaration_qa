@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from uuid import uuid4
 
@@ -43,6 +44,8 @@ class DeclarationQAWorkflow:
         answer_generator: DeterministicAnswerGenerator | None = None,
         question_planner: RuleQuestionPlanner | None = None,
         query_rewriter: RuleQueryRewriter | None = None,
+        max_sub_question_workers: int = 4,
+        max_retrieval_workers: int = 4,
     ) -> None:
         """初始化申报问答工作流。"""
         self.rag_engine = rag_engine or build_seed_rag_engine()
@@ -51,6 +54,8 @@ class DeclarationQAWorkflow:
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.question_planner = question_planner or RuleQuestionPlanner()
         self.query_rewriter = query_rewriter or RuleQueryRewriter()
+        self.max_sub_question_workers = max(1, int(max_sub_question_workers))
+        self.max_retrieval_workers = max(1, int(max_retrieval_workers))
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -461,10 +466,31 @@ class DeclarationQAWorkflow:
         intent_values = []
         rag_queries = []
         need_ticket_selection = False
-        for index, question in enumerate(next_state.get("sub_tasks") or [], start=1):
-            task_state = self.state_for_sub_question(next_state, question)
-            task = self.collect_sub_question(task_state, question, index)
-            sub_tasks.append(task)
+        planned_questions = list(next_state.get("sub_tasks") or [])
+        if len(planned_questions) > 1 and self.max_sub_question_workers > 1:
+            task_results: list[dict[str, Any] | None] = [None] * len(planned_questions)
+            with ThreadPoolExecutor(max_workers=min(self.max_sub_question_workers, len(planned_questions))) as executor:
+                futures = {
+                    executor.submit(
+                        self.collect_sub_question,
+                        self.state_for_sub_question(next_state, question),
+                        question,
+                        index,
+                    ): index - 1
+                    for index, question in enumerate(planned_questions, start=1)
+                }
+                for future in as_completed(futures):
+                    task_results[futures[future]] = future.result()
+            sub_tasks = [task for task in task_results if task is not None]
+            collection_mode = "parallel"
+        else:
+            collection_mode = "serial"
+            for index, question in enumerate(planned_questions, start=1):
+                task_state = self.state_for_sub_question(next_state, question)
+                task = self.collect_sub_question(task_state, question, index)
+                sub_tasks.append(task)
+
+        for task in sub_tasks:
             all_sources.extend(task.get("sources") or [])
             if task.get("need_ticket_selection"):
                 need_ticket_selection = True
@@ -514,6 +540,8 @@ class DeclarationQAWorkflow:
                 "count": len(sub_tasks),
                 "need_ticket_selection": need_ticket_selection,
                 "source_count": len(next_state["retrieved_sources"]),
+                "collection_mode": collection_mode,
+                "sub_question_parallelism": min(self.max_sub_question_workers, max(1, len(planned_questions))),
             },
         )
         return next_state
@@ -969,15 +997,14 @@ class DeclarationQAWorkflow:
         if not retrieval_queries:
             fallback_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
             retrieval_queries = [{"id": "rq1", "text": fallback_query, "strategy": "fallback", "top_k": 4}]
-        merged: dict[str, RetrievedSource] = {}
-        query_statuses = []
-        for retrieval_query in retrieval_queries:
+        executable_queries = dedupe_retrieval_queries(retrieval_queries)
+        query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
+
+        def retrieve_one(retrieval_query: dict[str, Any]) -> tuple[dict[str, Any], RetrievalResult]:
             text = str(retrieval_query.get("text") or "").strip()
-            if not text:
-                continue
             top_k = int(retrieval_query.get("top_k") or 3)
             result = self.rag_engine.retrieve(text, filters, top_k=top_k)
-            query_statuses.append(
+            return (
                 {
                     "id": retrieval_query.get("id") or "",
                     "strategy": retrieval_query.get("strategy") or "",
@@ -986,25 +1013,61 @@ class DeclarationQAWorkflow:
                     "source_count": len(result.sources),
                     "cache": (result.status or {}).get("cache") or {},
                     "channels": (result.status or {}).get("channels") or {},
-                }
+                },
+                result,
             )
-            for source in result.sources:
-                existing = merged.get(source.chunk.id)
-                if existing is None or float(source.score or 0.0) > float(existing.score or 0.0):
-                    merged[source.chunk.id] = source
+
+        batch_degraded = ""
+        if len(executable_queries) > 1 and hasattr(self.rag_engine, "retrieve_many"):
+            try:
+                retrieval_mode = "batch_multi_query_rewrite"
+                results = self.rag_engine.retrieve_many(executable_queries, filters)
+                for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
+                    query_statuses[index] = query_status_from_result(retrieval_query, result)
+            except Exception as exc:
+                batch_degraded = type(exc).__name__
+                query_statuses = [None] * len(executable_queries)
+                results = []
+        else:
+            results = []
+
+        if not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
+            retrieval_mode = "parallel_multi_query_rewrite"
+            results_by_index: list[RetrievalResult | None] = [None] * len(executable_queries)
+            with ThreadPoolExecutor(max_workers=min(self.max_retrieval_workers, len(executable_queries))) as executor:
+                futures = {executor.submit(retrieve_one, retrieval_query): index for index, retrieval_query in enumerate(executable_queries)}
+                for future in as_completed(futures):
+                    index = futures[future]
+                    query_status, result = future.result()
+                    query_statuses[index] = query_status
+                    results_by_index[index] = result
+            results = [result for result in results_by_index if result is not None]
+        elif not results:
+            retrieval_mode = "multi_query_rewrite"
+            results = []
+            for index, retrieval_query in enumerate(executable_queries):
+                query_status, result = retrieve_one(retrieval_query)
+                query_statuses[index] = query_status
+                results.append(result)
+        merged = merge_retrieval_sources(results)
         sources = sorted(
             merged.values(),
             key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
             reverse=True,
         )[:6]
+        ordered_statuses = [status for status in query_statuses if status is not None]
         status = {
-            "query": "\n".join(str(query.get("text") or "") for query in retrieval_queries if query.get("text")),
-            "query_count": len([query for query in retrieval_queries if query.get("text")]),
-            "queries": query_statuses,
+            "query": "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text")),
+            "query_count": len([query for query in executable_queries if query.get("text")]),
+            "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
+            "deduped_query_count": len(executable_queries),
+            "queries": ordered_statuses,
             "source_count": len(sources),
             "filter": filters,
             "metadata_filtering": bool(filters),
-            "retrieval_mode": "multi_query_rewrite",
+            "retrieval_mode": retrieval_mode,
+            "retrieval_parallelism": min(self.max_retrieval_workers, max(1, len(executable_queries))),
+            "batch_degraded": batch_degraded,
         }
         return RetrievalResult(sources=sources, filter=filters, status=status)
 
@@ -1355,6 +1418,46 @@ def unique_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         output.append(source)
     return output
+
+
+def dedupe_retrieval_queries(retrieval_queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按检索文本去重，保留 rewrite 原始顺序。"""
+    output: list[dict[str, Any]] = []
+    seen = set()
+    for query in retrieval_queries:
+        text = normalize_text(str(query.get("text") or ""))
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        item = dict(query)
+        item["text"] = text
+        output.append(item)
+    return output
+
+
+def query_status_from_result(retrieval_query: dict[str, Any], result: RetrievalResult) -> dict[str, Any]:
+    """构造单条 rewrite query 的检索状态。"""
+    return {
+        "id": retrieval_query.get("id") or "",
+        "strategy": retrieval_query.get("strategy") or "",
+        "query": str(retrieval_query.get("text") or "").strip(),
+        "top_k": int(retrieval_query.get("top_k") or 3),
+        "source_count": len(result.sources),
+        "cache": (result.status or {}).get("cache") or {},
+        "channels": (result.status or {}).get("channels") or {},
+        "batch_mode": bool((result.status or {}).get("batch_mode")),
+    }
+
+
+def merge_retrieval_sources(results: list[RetrievalResult]) -> dict[str, RetrievedSource]:
+    """合并多路检索来源，同一 chunk 保留最高分命中。"""
+    merged: dict[str, RetrievedSource] = {}
+    for result in results:
+        for source in result.sources:
+            existing = merged.get(source.chunk.id)
+            if existing is None or float(source.score or 0.0) > float(existing.score or 0.0):
+                merged[source.chunk.id] = source
+    return merged
 
 
 def unique_tickets(tickets: list[dict[str, Any]]) -> list[dict[str, Any]]:

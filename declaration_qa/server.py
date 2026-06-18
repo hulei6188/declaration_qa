@@ -133,6 +133,8 @@ def create_app() -> FastAPI:
             "question_planner": getattr(workflow.question_planner, "name", workflow.question_planner.__class__.__name__),
             "query_rewriter": getattr(workflow.query_rewriter, "name", workflow.query_rewriter.__class__.__name__),
             "answer_generator": workflow.answer_generator.__class__.__name__,
+            "max_sub_question_workers": workflow.max_sub_question_workers,
+            "max_retrieval_workers": workflow.max_retrieval_workers,
             "auth_required": settings.effective_auth_required,
             "production_ready": not production_readiness_errors(settings),
             "production_readiness_errors": production_readiness_errors(settings),

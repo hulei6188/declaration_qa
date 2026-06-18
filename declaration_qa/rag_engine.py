@@ -117,35 +117,10 @@ class InMemoryRAGEngine:
         """按查询和过滤条件执行混合检索。"""
         normalized_query = normalize_text(query)
         effective_filter = normalize_retrieval_filter(filters)
-        cache_key = json.dumps(
-            {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
-            ensure_ascii=False,
-            sort_keys=True,
-            default=str,
-        )
-        cache_key = f"declaration_qa:rag:{hashlib.sha256(cache_key.encode('utf-8')).hexdigest()}"
+        cache_key = self._cache_key(normalized_query, effective_filter, top_k)
         cached_payload = self.cache_store.get_json(cache_key)
         if cached_payload:
-            cached_sources = [
-                RetrievedSource(
-                    chunk=self._chunks[item["chunk_id"]],
-                    score=float(item.get("score") or 0.0),
-                    dense_score=float(item.get("dense_score") or 0.0),
-                    bm25_score=float(item.get("bm25_score") or 0.0),
-                    rerank_score=float(item.get("rerank_score") or 0.0),
-                    retrieval_channel=str(item.get("retrieval_channel") or "cache"),
-                )
-                for item in cached_payload.get("sources", [])
-                if item.get("chunk_id") in self._chunks
-            ]
-            return RetrievalResult(
-                sources=cached_sources,
-                filter=cached_payload.get("filter") or effective_filter,
-                status={
-                    **(cached_payload.get("status") or {}),
-                    "cache": {**((cached_payload.get("status") or {}).get("cache") or {}), "hit": True, "backend": self.cache_store.backend},
-                },
-            )
+            return self._result_from_cache(cached_payload, effective_filter)
 
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
         prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
@@ -216,6 +191,143 @@ class InMemoryRAGEngine:
         self._cache_result(cache_key, result)
         return result
 
+    def retrieve_many(self, queries: list[dict[str, Any]], filters: dict[str, Any]) -> list[RetrievalResult]:
+        """批量执行多路检索，合并 embedding 和向量库请求。"""
+        effective_filter = normalize_retrieval_filter(filters)
+        query_specs = []
+        results: list[RetrievalResult | None] = [None] * len(queries)
+        for index, query in enumerate(queries):
+            text = normalize_text(str(query.get("text") or ""))
+            if not text:
+                results[index] = self._empty_result("", effective_filter, top_k=int(query.get("top_k") or 3))
+                continue
+            top_k = int(query.get("top_k") or 3)
+            cache_key = self._cache_key(text, effective_filter, top_k)
+            cached_payload = self.cache_store.get_json(cache_key)
+            if cached_payload:
+                results[index] = self._result_from_cache(cached_payload, effective_filter)
+            else:
+                query_specs.append({"index": index, "query": text, "top_k": top_k, "cache_key": cache_key})
+
+        if not query_specs:
+            return [result for result in results if result is not None]
+
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        if not candidates:
+            for spec in query_specs:
+                result = self._empty_result(
+                    str(spec["query"]),
+                    effective_filter,
+                    top_k=int(spec["top_k"]),
+                    prefilter_child_count=prefilter_child_count,
+                    coverage=coverage,
+                )
+                self._cache_result(str(spec["cache_key"]), result)
+                results[int(spec["index"])] = result
+            return [result for result in results if result is not None]
+
+        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        dense_by_index: dict[int, list[RetrievedSource]] = {}
+        degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
+        try:
+            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
+            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            by_id = {chunk.id: chunk for chunk in candidates}
+            for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
+                dense_by_index[int(spec["index"])] = [
+                    RetrievedSource(
+                        chunk=by_id[chunk_id],
+                        score=score,
+                        dense_score=score,
+                        retrieval_channel="dense_batch",
+                    )
+                    for chunk_id, score in vector_hits[:limit]
+                    if chunk_id in by_id and score > 0
+                ]
+        except Exception as exc:
+            for spec in query_specs:
+                degraded_by_index[int(spec["index"])].append({"stage": "dense_retrieve_batch", "error": type(exc).__name__})
+
+        for spec, limit in zip(query_specs, limits):
+            index = int(spec["index"])
+            query = str(spec["query"])
+            top_k = int(spec["top_k"])
+            dense_hits = dense_by_index.get(index) or []
+            if not dense_hits and self._vectors:
+                dense_hits = dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
+            bm25_hits = bm25_retrieve(query, candidates, limit=limit)
+            result = self._build_result_from_hits(
+                query,
+                effective_filter,
+                candidates,
+                prefilter_child_count,
+                coverage,
+                dense_hits,
+                bm25_hits,
+                top_k=top_k,
+                degraded=degraded_by_index.get(index) or [],
+                batch_mode=True,
+            )
+            self._cache_result(str(spec["cache_key"]), result)
+            results[index] = result
+        return [result for result in results if result is not None]
+
+    def _build_result_from_hits(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        candidates: list[KnowledgeChunk],
+        prefilter_child_count: int,
+        coverage: dict[str, Any],
+        dense_hits: list[RetrievedSource],
+        bm25_hits: list[RetrievedSource],
+        *,
+        top_k: int,
+        degraded: list[dict[str, str]] | None = None,
+        batch_mode: bool = False,
+    ) -> RetrievalResult:
+        """基于 dense/BM25 命中构造标准检索结果。"""
+        degraded = list(degraded or [])
+        fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
+        try:
+            reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+        except Exception as exc:
+            reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+            degraded.append({"stage": "rerank", "error": type(exc).__name__})
+        expanded_sources = expand_parent_context(reranked, self._chunks)
+        expanded_sources, structured_backfill_status = expand_structured_section_context(
+            normalized_query,
+            expanded_sources,
+            self._chunks,
+        )
+        return RetrievalResult(
+            sources=expanded_sources,
+            filter=effective_filter,
+            status={
+                "query": normalized_query,
+                "prefilter_child_count": prefilter_child_count,
+                "candidate_count": len(candidates),
+                "metadata_coverage": coverage,
+                "cache": {"hit": False, "backend": self.cache_store.backend},
+                "vector_backend": self.vector_index.backend,
+                "embedding_provider": self.embedding_provider.name,
+                "rerank_provider": self.reranker.name,
+                "metadata_filtering": bool(effective_filter),
+                "channels": {
+                    "dense": len(dense_hits),
+                    "bm25": len(bm25_hits),
+                    "rrf": len(fused_hits),
+                    "rerank": len(reranked),
+                },
+                "structured_backfill": structured_backfill_status,
+                "degraded": degraded,
+                "filter": effective_filter,
+                "batch_mode": batch_mode,
+            },
+        )
+
     def _dense_retrieve(
         self,
         query: str,
@@ -243,6 +355,68 @@ class InMemoryRAGEngine:
         if not self._vectors:
             return []
         return dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
+
+    def _cache_key(self, normalized_query: str, effective_filter: dict[str, Any], top_k: int) -> str:
+        """构造单次检索缓存 key。"""
+        payload = json.dumps(
+            {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        return f"declaration_qa:rag:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+    def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
+        """从缓存载荷恢复检索结果。"""
+        cached_sources = [
+            RetrievedSource(
+                chunk=self._chunks[item["chunk_id"]],
+                score=float(item.get("score") or 0.0),
+                dense_score=float(item.get("dense_score") or 0.0),
+                bm25_score=float(item.get("bm25_score") or 0.0),
+                rerank_score=float(item.get("rerank_score") or 0.0),
+                retrieval_channel=str(item.get("retrieval_channel") or "cache"),
+            )
+            for item in cached_payload.get("sources", [])
+            if item.get("chunk_id") in self._chunks
+        ]
+        status = cached_payload.get("status") or {}
+        return RetrievalResult(
+            sources=cached_sources,
+            filter=cached_payload.get("filter") or effective_filter,
+            status={**status, "cache": {**(status.get("cache") or {}), "hit": True, "backend": self.cache_store.backend}},
+        )
+
+    def _empty_result(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        prefilter_child_count: int | None = None,
+        coverage: dict[str, Any] | None = None,
+    ) -> RetrievalResult:
+        """构造空检索结果。"""
+        if prefilter_child_count is None:
+            prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
+        coverage = coverage or metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        return RetrievalResult(
+            sources=[],
+            filter=effective_filter,
+            status={
+                "query": normalized_query,
+                "top_k": top_k,
+                "prefilter_child_count": prefilter_child_count,
+                "candidate_count": 0,
+                "metadata_coverage": coverage,
+                "cache": {"hit": False, "backend": self.cache_store.backend},
+                "embedding_provider": self.embedding_provider.name,
+                "rerank_provider": self.reranker.name,
+                "metadata_filtering": bool(effective_filter),
+                "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
+                "filter": effective_filter,
+            },
+        )
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
         """将检索结果写入缓存。"""

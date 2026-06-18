@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
 from pathlib import Path
+import time
 
 from declaration_qa.business import InMemoryBusinessDataAdapter
-from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
 from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
 from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
@@ -711,6 +712,10 @@ def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context()
             self.queries.append(query)
             return super().retrieve(query, filters, top_k=top_k)
 
+        def retrieve_many(self, queries, filters):
+            self.queries.extend(query["text"] for query in queries)
+            return super().retrieve_many(queries, filters)
+
     engine = CapturingRAGEngine()
     engine.index_document(
         KnowledgeDocument(
@@ -775,12 +780,191 @@ def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context()
     assert response.retrieval_chain == "knowledge_retrieval"
     assert response.business_snapshot == {}
     assert engine.queries
-    assert "这个事情最快几天能拿结果" in engine.queries[-1]
+    assert any("这个事情最快几天能拿结果" in query for query in engine.queries)
     assert len(audit["retrieval_queries"]) == 3
     assert audit["retrieval_filter"] == {"item_name": "草原防火期内在草原上进行爆破、勘察和施工等活动审批"}
     assert all("草原防火期内在草原上进行爆破、勘察和施工等活动审批" not in item["text"] for item in audit["retrieval_queries"])
     assert audit["rag_query"] == "\n".join(item["text"] for item in audit["retrieval_queries"])
     assert "10个工作日" in response.answer
+
+
+def test_multi_retrieve_uses_batch_retrieval_and_dedupes():
+    class SlowRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.batch_queries = []
+
+        def retrieve_many(self, queries, filters):
+            time.sleep(0.12)
+            self.batch_queries = [query["text"] for query in queries]
+            return [
+                RetrievalResult(
+                    sources=[],
+                    filter=filters,
+                    status={"cache": {"hit": False}, "channels": {}, "batch_mode": True},
+                )
+                for _ in queries
+            ]
+
+    workflow = DeclarationQAWorkflow(rag_engine=SlowRAGEngine(), max_retrieval_workers=3)
+    state = {
+        "retrieval_queries": [
+            {"id": "rq1", "text": "办理时限", "strategy": "a", "top_k": 3},
+            {"id": "rq2", "text": "办理时限", "strategy": "duplicate", "top_k": 3},
+            {"id": "rq3", "text": "承诺办结时限", "strategy": "b", "top_k": 3},
+            {"id": "rq4", "text": "法定办结时限", "strategy": "c", "top_k": 3},
+        ],
+    }
+
+    started = time.perf_counter()
+    result = workflow.multi_retrieve(state, {"item_code": "ITEM-001"})
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.28
+    assert result.status["retrieval_mode"] == "batch_multi_query_rewrite"
+    assert result.status["original_query_count"] == 4
+    assert result.status["deduped_query_count"] == 3
+    assert result.status["retrieval_parallelism"] == 3
+    assert result.status["queries"][0]["batch_mode"] is True
+    assert [item["query"] for item in result.status["queries"]] == ["办理时限", "承诺办结时限", "法定办结时限"]
+
+
+def test_multi_retrieve_falls_back_to_parallel_when_batch_fails():
+    class SlowRAGEngine(InMemoryRAGEngine):
+        def retrieve_many(self, queries, filters):
+            raise RuntimeError("batch unavailable")
+
+        def retrieve(self, query, filters, *, top_k=4):
+            time.sleep(0.12)
+            return RetrievalResult(sources=[], filter=filters, status={"cache": {"hit": False}, "channels": {}})
+
+    workflow = DeclarationQAWorkflow(rag_engine=SlowRAGEngine(), max_retrieval_workers=3)
+    state = {
+        "retrieval_queries": [
+            {"id": "rq1", "text": "办理时限", "strategy": "a", "top_k": 3},
+            {"id": "rq2", "text": "承诺办结时限", "strategy": "b", "top_k": 3},
+            {"id": "rq3", "text": "法定办结时限", "strategy": "c", "top_k": 3},
+        ],
+    }
+
+    started = time.perf_counter()
+    result = workflow.multi_retrieve(state, {"item_code": "ITEM-001"})
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.28
+    assert result.status["retrieval_mode"] == "parallel_multi_query_rewrite"
+    assert result.status["batch_degraded"] == "RuntimeError"
+
+
+def test_rag_retrieve_many_batches_embedding_and_vector_search():
+    class BatchEmbedding:
+        name = "batch-test"
+        dimension = 96
+
+        def __init__(self):
+            self.document_batches = []
+
+        def embed_query(self, text):
+            return [1.0] + [0.0] * 95
+
+        def embed_documents(self, texts):
+            self.document_batches.append(list(texts))
+            return [[1.0] + [0.0] * 95 for _ in texts]
+
+    class BatchVectorIndex:
+        backend = "batch-test"
+
+        def __init__(self):
+            self.batch_calls = []
+
+        def upsert(self, chunk, vector):
+            pass
+
+        def delete_by_doc(self, doc_id):
+            pass
+
+        def search(self, vector, filters, *, limit):
+            raise AssertionError("single search should not be used")
+
+        def search_batch(self, vectors, filters, *, limit):
+            self.batch_calls.append((len(vectors), filters, limit))
+            return [[("chunk-batch", 0.99)] for _ in vectors]
+
+        def clear(self):
+            pass
+
+    embedding = BatchEmbedding()
+    vector_index = BatchVectorIndex()
+    engine = InMemoryRAGEngine(embedding_provider=embedding, vector_index=vector_index)
+    engine.load_indexed_data(
+        [
+            KnowledgeDocument(
+                id="doc-batch",
+                title="批量检索测试指南",
+                content="办理时限为10个工作日，承诺办结时限为5个工作日。",
+            )
+        ],
+        [
+            KnowledgeChunk(
+                id="chunk-batch",
+                doc_id="doc-batch",
+                parent_id="",
+                chunk_type="child",
+                title="批量检索测试指南",
+                content="办理时限为10个工作日，承诺办结时限为5个工作日。",
+            )
+        ],
+    )
+
+    results = engine.retrieve_many(
+        [
+            {"text": "办理时限", "top_k": 2},
+            {"text": "承诺办结时限", "top_k": 2},
+        ],
+        {},
+    )
+
+    assert embedding.document_batches == [["办理时限", "承诺办结时限"]]
+    assert vector_index.batch_calls == [(2, {}, 8)]
+    assert len(results) == 2
+    assert all(result.status["batch_mode"] is True for result in results)
+
+
+def test_multi_question_collect_runs_sub_questions_in_parallel():
+    class SlowWorkflow(DeclarationQAWorkflow):
+        def state_for_sub_question(self, state, question):
+            return {**state, "query": question["query"], "normalized_query": question["query"]}
+
+        def collect_sub_question(self, state, question, index):
+            time.sleep(0.12)
+            return {
+                "id": question.get("id") or f"q{index}",
+                "query": question["query"],
+                "route": "ticket_context_unrelated",
+                "intent": "knowledge_qa",
+                "status": "ready",
+                "sources": [],
+                "rag_query": question["query"],
+            }
+
+    workflow = SlowWorkflow(max_sub_question_workers=2)
+    state = {
+        "sub_tasks": [
+            {"id": "q1", "query": "问题一", "requires_ticket_context": False},
+            {"id": "q2", "query": "问题二", "requires_ticket_context": False},
+        ],
+        "events": [],
+    }
+
+    started = time.perf_counter()
+    result = workflow.multi_question_collect(state)
+    elapsed = time.perf_counter() - started
+
+    event = next(item for item in result["events"] if item["event"] == "multi_question_collected")
+    assert elapsed < 0.22
+    assert [task["id"] for task in result["sub_tasks"]] == ["q1", "q2"]
+    assert event["data"]["collection_mode"] == "parallel"
+    assert event["data"]["sub_question_parallelism"] == 2
 
 
 def test_status_question_uses_business_status_then_rag_explanation():

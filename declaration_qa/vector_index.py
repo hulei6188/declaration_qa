@@ -49,6 +49,10 @@ class VectorIndex(Protocol):
         """按向量和过滤条件搜索相似片段。"""
         ...
 
+    def search_batch(self, vectors: list[list[float]], filters: dict[str, Any], *, limit: int) -> list[list[tuple[str, float]]]:
+        """按多条向量和过滤条件批量搜索相似片段。"""
+        ...
+
     def clear(self) -> None:
         """清空当前存储中的全部数据。"""
         ...
@@ -84,6 +88,10 @@ class MemoryVectorIndex:
             if score > 0:
                 hits.append((chunk_id, float(score)))
         return sorted(hits, key=lambda item: item[1], reverse=True)[:limit]
+
+    def search_batch(self, vectors: list[list[float]], filters: dict[str, Any], *, limit: int) -> list[list[tuple[str, float]]]:
+        """按多条向量批量搜索相似片段。"""
+        return [self.search(vector, filters, limit=limit) for vector in vectors]
 
     def clear(self) -> None:
         """清空当前存储中的全部数据。"""
@@ -178,6 +186,40 @@ class MilvusVectorIndex:
             if chunk_id:
                 hits.append((chunk_id, score))
         return hits
+
+    def search_batch(self, vectors: list[list[float]], filters: dict[str, Any], *, limit: int) -> list[list[tuple[str, float]]]:
+        """按多条向量和过滤条件批量搜索相似片段。"""
+        if not vectors:
+            return []
+        if not self._available:
+            return self._fallback.search_batch(vectors, filters, limit=limit)
+        expr = milvus_filter_expr(filters)
+        try:
+            results = self._client.search(
+                collection_name=self.collection_name,
+                data=[list(vector) for vector in vectors],
+                limit=limit,
+                filter=expr or "",
+                output_fields=["id"],
+            )
+        except Exception:
+            if not hasattr(self, "_fallback"):
+                raise
+            self._available = False
+            return self._fallback.search_batch(vectors, filters, limit=limit)
+        output: list[list[tuple[str, float]]] = []
+        for result in results or []:
+            hits = []
+            for hit in result:
+                entity = hit.get("entity") or {}
+                chunk_id = str(entity.get("id") or hit.get("id") or "")
+                score = float(hit.get("distance") or hit.get("score") or 0.0)
+                if chunk_id:
+                    hits.append((chunk_id, score))
+            output.append(hits)
+        while len(output) < len(vectors):
+            output.append([])
+        return output
 
     def clear(self) -> None:
         """清空当前存储中的全部数据。"""

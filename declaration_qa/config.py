@@ -44,6 +44,8 @@ class DeclarationQASettings(BaseSettings):
     question_planner_model: str = Field(default="", alias="DECLARATION_QA_QUESTION_PLANNER_MODEL")
     query_rewriter_model: str = Field(default="", alias="DECLARATION_QA_QUERY_REWRITER_MODEL")
     legacy_intent_router_model: str = Field(default="", alias="DECLARATION_QA_INTENT_ROUTER_MODEL")
+    max_sub_question_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_SUB_QUESTION_WORKERS")
+    max_retrieval_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_RETRIEVAL_WORKERS")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")

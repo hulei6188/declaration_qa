@@ -72,6 +72,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         answer_generator=answer_generator,
         question_planner=question_planner,
         query_rewriter=query_rewriter,
+        max_sub_question_workers=settings.max_sub_question_workers,
+        max_retrieval_workers=settings.max_retrieval_workers,
     )
 
 

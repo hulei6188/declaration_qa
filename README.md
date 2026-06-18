@@ -92,12 +92,14 @@ python -m declaration_qa.worker
 | `DECLARATION_QA_DATABASE_URL` | PostgreSQL 连接地址 |
 | `DECLARATION_QA_REDIS_URL` | Redis 连接地址 |
 | `DECLARATION_QA_VECTOR_BACKEND` | `memory` 或 `milvus` |
-| `DECLARATION_QA_MILVUS_HOST` | Milvus 地址 |
+| `DECLARATION_QA_MILVUS_URI` | Milvus 地址 |
 | `DECLARATION_QA_MILVUS_COLLECTION` | Milvus collection |
 | `DECLARATION_QA_LLM_PROVIDER` | LLM provider |
 | `DECLARATION_QA_LLM_MODEL` | 回答生成模型 |
 | `DECLARATION_QA_QUESTION_PLANNER_MODEL` | Planner 模型，不填时走默认 LLM 配置或规则兜底 |
 | `DECLARATION_QA_QUERY_REWRITER_MODEL` | Query Rewrite 模型 |
+| `DECLARATION_QA_MAX_SUB_QUESTION_WORKERS` | 多子问题并发数 |
+| `DECLARATION_QA_MAX_RETRIEVAL_WORKERS` | 多路检索并发兜底数 |
 | `DECLARATION_QA_EMBEDDING_PROVIDER` | Embedding provider |
 | `DECLARATION_QA_RERANK_PROVIDER` | Rerank provider |
 
@@ -143,6 +145,11 @@ flowchart TD
 4. Query Rewrite 只改写检索 query，不生成 metadata filter。
 5. RAG 检索必须遵守 metadata filter，避免跨事项召回。
 6. 最终回答必须基于检索证据和工单事实，不允许模型自行猜测业务状态。
+
+性能上，当前实现有两层并发：
+
+- 多问题场景下，多个子问题会在 `multi_question_collect` 中并发处理。
+- 单个子问题内部，多路 rewrite query 会优先走 `retrieve_many()`，合并为批量 Embedding 和批量向量检索；如果 batch 失败，再退回线程池并发检索。
 
 ## Question Planner
 
@@ -248,7 +255,7 @@ RAG 检索流程：
 
 1. 标准化 metadata filter。
 2. 在 PostgreSQL / Milvus 中按事项范围过滤候选 chunk。
-3. 执行向量检索和 BM25 召回。
+3. 对多路 query 优先执行批量 Embedding 和 Milvus batch search。
 4. 使用 RRF 融合多路召回结果。
 5. 使用 Rerank 重排。
 6. 扩展父子分块或结构化段落。
