@@ -37,6 +37,31 @@ def test_jwt_context_overrides_request_body_user_id():
     assert request.user_id == 7
 
 
+def test_build_query_rewriter_uses_dedicated_llm_model(monkeypatch):
+    import declaration_qa.model_providers as providers
+
+    captured = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setitem(__import__("sys").modules, "langchain_openai", type("M", (), {"ChatOpenAI": FakeChatOpenAI}))
+
+    rewriter = providers.build_query_rewriter(
+        DeclarationQASettings(
+            _env_file=None,
+            DECLARATION_QA_LLM_PROVIDER="openai",
+            DECLARATION_QA_OPENAI_API_KEY="key",
+            DECLARATION_QA_LLM_MODEL="general-model",
+            DECLARATION_QA_QUERY_REWRITER_MODEL="rewrite-model",
+        )
+    )
+
+    assert rewriter.name == "llm"
+    assert captured["model"] == "rewrite-model"
+
+
 def test_upload_endpoint_parses_text_file_and_tracks_index_job(tmp_path, monkeypatch):
     monkeypatch.setattr(server_settings, "upload_dir", str(tmp_path))
     client = TestClient(create_app())

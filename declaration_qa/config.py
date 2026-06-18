@@ -42,6 +42,7 @@ class DeclarationQASettings(BaseSettings):
     llm_temperature: float = Field(default=0.1, alias="DECLARATION_QA_LLM_TEMPERATURE")
     external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
     question_planner_model: str = Field(default="", alias="DECLARATION_QA_QUESTION_PLANNER_MODEL")
+    query_rewriter_model: str = Field(default="", alias="DECLARATION_QA_QUERY_REWRITER_MODEL")
     legacy_intent_router_model: str = Field(default="", alias="DECLARATION_QA_INTENT_ROUTER_MODEL")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")

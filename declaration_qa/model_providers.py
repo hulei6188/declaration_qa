@@ -11,6 +11,7 @@ import requests
 from declaration_qa.config import DeclarationQASettings
 from declaration_qa.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
 from declaration_qa.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
+from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter
 
 
 class EmbeddingProvider(Protocol):
@@ -332,6 +333,24 @@ def build_question_planner(settings: DeclarationQASettings):
             kwargs["base_url"] = settings.openai_api_base
         return LLMQuestionPlanner(ChatOpenAI(**kwargs), fallback_planner=RuleQuestionPlanner())
     return RuleQuestionPlanner()
+
+
+def build_query_rewriter(settings: DeclarationQASettings):
+    """按配置创建多路 Query Rewrite。"""
+    if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
+        from langchain_openai import ChatOpenAI
+
+        kwargs: dict[str, Any] = {
+            "api_key": settings.openai_api_key,
+            "model": settings.query_rewriter_model or settings.llm_model,
+            "temperature": 0.0,
+            "timeout": settings.external_request_timeout_seconds,
+            "max_retries": 1,
+        }
+        if settings.openai_api_base:
+            kwargs["base_url"] = settings.openai_api_base
+        return LLMQueryRewriter(ChatOpenAI(**kwargs), fallback_rewriter=RuleQueryRewriter())
+    return RuleQueryRewriter()
 
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:

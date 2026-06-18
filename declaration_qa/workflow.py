@@ -955,6 +955,8 @@ class DeclarationQAWorkflow:
                 "count": len(next_state["retrieval_queries"]),
                 "retrieval_focus": payload.get("retrieval_focus"),
                 "ticket_fact_type": payload.get("ticket_fact_type"),
+                "provider": payload.get("provider"),
+                "reason": payload.get("reason"),
                 "scope_text": payload.get("scope_text") or "",
                 "queries": next_state["retrieval_queries"],
             },

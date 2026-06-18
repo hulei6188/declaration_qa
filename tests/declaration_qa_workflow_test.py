@@ -4,7 +4,7 @@ from pathlib import Path
 from declaration_qa.business import InMemoryBusinessDataAdapter
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.query_rewriter import RuleQueryRewriter
+from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
 from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
 from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
 from declaration_qa.repository import PostgresDeclarationQAStore
@@ -227,6 +227,75 @@ def test_unknown_retrieval_focus_falls_back_to_other_without_extra_terms():
     assert len(rewrite.queries) == 1
     assert rewrite.queries[0].strategy == "scoped_original"
     assert rewrite.queries[0].text == "示例事项A 这是什么意思"
+
+
+def test_llm_query_rewriter_uses_model_queries():
+    class FakeLLM:
+        def invoke(self, prompt):
+            self.prompt = prompt
+            return """
+            {
+              "queries": [
+                {"text": "申请材料 材料清单 示例事项A", "strategy": "semantic_rewrite", "top_k": 4},
+                {"text": "必要材料 原件 复印件 示例事项A", "strategy": "focus_terms", "top_k": 3}
+              ],
+              "reason": "material_query_rewrite"
+            }
+            """
+
+    llm = FakeLLM()
+    rewrite = LLMQueryRewriter(llm).rewrite(
+        {
+            "query": "要哪些材料",
+            "normalized_query": "要哪些材料",
+            "retrieval_focus": "material_requirements",
+            "requires_ticket_context": False,
+            "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+        }
+    )
+
+    assert rewrite.provider == "llm"
+    assert rewrite.reason == "material_query_rewrite"
+    assert [item.text for item in rewrite.queries] == ["申请材料 材料清单 示例事项A", "必要材料 原件 复印件 示例事项A"]
+    assert rewrite.queries[0].top_k == 4
+    assert "metadata_filter_has_item_scope" in llm.prompt
+
+
+def test_llm_query_rewriter_falls_back_to_rule_on_invalid_json():
+    class BadLLM:
+        def invoke(self, prompt):
+            return "not-json"
+
+    rewrite = LLMQueryRewriter(BadLLM()).rewrite(
+        {
+            "query": "要哪些材料",
+            "normalized_query": "要哪些材料",
+            "retrieval_focus": "material_requirements",
+            "requires_ticket_context": False,
+            "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+        }
+    )
+
+    assert rewrite.provider == "rule_fallback"
+    assert rewrite.queries
+    assert rewrite.reason.startswith("llm_query_rewriter_fallback")
+
+
+def test_query_rewriter_prompt_hides_scope_when_item_metadata_filter_exists():
+    prompt = build_query_rewriter_prompt(
+        {
+            "query": "这个事情最快几天能拿结果",
+            "normalized_query": "这个事情最快几天能拿结果",
+            "retrieval_focus": "fee_time_limit",
+            "requires_ticket_context": False,
+            "retrieval_filter": {"item_code": "ITEM001"},
+            "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+        }
+    )
+
+    assert '"metadata_filter_has_item_scope": true' in prompt
+    assert '"scope_text": ""' in prompt
+    assert "示例事项A" not in prompt
 
 
 def test_knowledge_chain_ignores_removed_metadata_filter_aliases():

@@ -131,6 +131,7 @@ def create_app() -> FastAPI:
             "embedding_provider": workflow.rag_engine.embedding_provider.name,
             "rerank_provider": workflow.rag_engine.reranker.name,
             "question_planner": getattr(workflow.question_planner, "name", workflow.question_planner.__class__.__name__),
+            "query_rewriter": getattr(workflow.query_rewriter, "name", workflow.query_rewriter.__class__.__name__),
             "answer_generator": workflow.answer_generator.__class__.__name__,
             "auth_required": settings.effective_auth_required,
             "production_ready": not production_readiness_errors(settings),
