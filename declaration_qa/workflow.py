@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from uuid import uuid4
 
+from langgraph.config import get_config, get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
 from collections.abc import Callable, Iterable
@@ -89,158 +90,40 @@ class DeclarationQAWorkflow:
         )
 
     def stream(self, request: ChatRequest) -> Iterable[dict[str, Any]]:
-        """流式执行问答工作流并产出事件。"""
+        """通过 LangGraph 流式执行问答工作流并产出 SSE 事件。"""
         state: DeclarationQAState = self._initial_state(request)
         yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
 
-        def run_node(name: str, handler) -> None:
-            """执行工作流节点并记录节点事件。"""
-            nonlocal state
-            before = len(state.get("events") or [])
-            state = handler(state)
-            for event in (state.get("events") or [])[before:]:
-                yield_event = {"event": event.get("event") or name, "data": event.get("data") or {}}
-                emitted.append(yield_event)
-
-        emitted: list[dict[str, Any]] = []
-
-        def drain() -> Iterable[dict[str, Any]]:
-            """收集流式文本片段并返回完整文本。"""
-            while emitted:
-                yield emitted.pop(0)
-
-        for name, handler in [
-            ("context_build", self.context_build),
-            ("query_preprocess", self.query_preprocess),
-            ("question_plan", self.question_plan),
-        ]:
-            run_node(name, handler)
-            yield from drain()
-
-        if state.get("multi_question"):
-            run_node("multi_question_collect", self.multi_question_collect)
-            yield from drain()
-            if state.get("need_ticket_selection"):
-                run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
-            else:
-                if state.get("retrieved_sources"):
+        emitted_event_count = 0
+        streamed_answer = False
+        config = {"configurable": {"declaration_qa_stream": True}}
+        for chunk in self.graph.stream(state, config=config, stream_mode=["updates", "custom"]):
+            mode, payload = graph_stream_part(chunk)
+            if mode == "custom":
+                event = normalize_stream_event(payload)
+                if event:
+                    if event["event"] == "token":
+                        streamed_answer = True
+                    yield event
+                continue
+            if mode != "updates" or not isinstance(payload, dict):
+                continue
+            for node_name, node_state in payload.items():
+                if not isinstance(node_state, dict):
+                    continue
+                state.update(node_state)
+                events = state.get("events") or []
+                for event in events[emitted_event_count:]:
+                    yield {"event": event.get("event") or node_name, "data": event.get("data") or {}}
+                emitted_event_count = len(events)
+                if should_emit_sources(node_name, state):
                     yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-                yield from self.llm_generate_stream_events(state)
-            for name, handler in [
-                ("answer_postprocess", self.answer_postprocess),
-                ("audit_log", self.audit_log),
-            ]:
-                run_node(name, handler)
-                yield from drain()
-            yield {
-                "event": "done",
-                "data": {
-                    "session_id": state.get("session_id"),
-                    "audit_id": state.get("audit_id"),
-                    "intent": state.get("intent"),
-                    "route": state.get("route"),
-                    "sub_intent": state.get("sub_intent"),
-                    "multi_question": bool(state.get("multi_question")),
-                    "question_plan": state.get("question_plan") or {},
-                    "sub_tasks": state.get("sub_tasks") or [],
-                    "need_ticket_selection": bool(state.get("need_ticket_selection")),
-                    "ticket_selection_reason": state.get("ticket_selection_reason"),
-                    "tickets": state.get("tickets") or [],
-                    "ticket_context": state.get("ticket_context") or {},
-                    "retrieval_chain": state.get("retrieval_chain"),
-                    "refused": bool(state.get("refused")),
-                    "refuse_reason": state.get("refuse_reason"),
-                    "suggested_actions": state.get("suggested_actions") or [],
-                },
-            }
-            return
+                if node_name == "refuse_or_human":
+                    yield from token_events(str(state.get("answer") or ""))
+                elif node_name == "llm_generate" and not streamed_answer:
+                    yield from token_events(str(state.get("answer") or ""))
 
-        for name, handler in [
-            ("prepare_task", self.prepare_task),
-        ]:
-            run_node(name, handler)
-            yield from drain()
-
-        route = state.get("route") or ROUTE_REFUSE
-        if route == ROUTE_TICKET_CONTEXT_RELATED:
-            for name, handler in [
-                ("ticket_list_query", self.ticket_list_query),
-                ("ticket_selection", self.ticket_selection),
-                ("ticket_detail_query", self.ticket_detail_query),
-                ("ticket_context_build", self.ticket_context_build),
-                ("knowledge_filter_build", self.knowledge_filter_build),
-                ("query_rewrite", self.query_rewrite),
-                ("ticket_knowledge_rag", self.ticket_knowledge_rag),
-                ("evidence_check", self.evidence_check),
-            ]:
-                run_node(name, handler)
-                yield from drain()
-                if state.get("refuse_reason") and name in {"ticket_list_query", "ticket_selection", "ticket_detail_query"}:
-                    break
-                if name == "ticket_knowledge_rag" and state.get("retrieved_sources"):
-                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-            if state.get("refuse_reason"):
-                run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
-            elif state.get("evidence_ok"):
-                yield from self.llm_generate_stream_events(state)
-            else:
-                run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
-        elif route == ROUTE_TICKET_CONTEXT_UNRELATED:
-            for name, handler in [
-                ("knowledge_filter_build", self.knowledge_filter_build),
-                ("query_rewrite", self.query_rewrite),
-                ("hybrid_retrieve", self.hybrid_retrieve),
-                ("evidence_check", self.evidence_check),
-            ]:
-                run_node(name, handler)
-                yield from drain()
-                if name == "hybrid_retrieve" and state.get("retrieved_sources"):
-                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-            if state.get("evidence_ok"):
-                yield from self.llm_generate_stream_events(state)
-            else:
-                run_node("refuse_or_human", self.refuse_or_human)
-                yield from drain()
-                yield from token_events(str(state.get("answer") or ""))
-        else:
-            run_node("refuse_or_human", self.refuse_or_human)
-            yield from drain()
-            yield from token_events(str(state.get("answer") or ""))
-
-        for name, handler in [
-            ("answer_postprocess", self.answer_postprocess),
-            ("audit_log", self.audit_log),
-        ]:
-            run_node(name, handler)
-            yield from drain()
-
-        yield {
-            "event": "done",
-            "data": {
-                "session_id": state.get("session_id"),
-                "audit_id": state.get("audit_id"),
-                "intent": state.get("intent"),
-                "route": state.get("route"),
-                "sub_intent": state.get("sub_intent"),
-                "multi_question": bool(state.get("multi_question")),
-                "question_plan": state.get("question_plan") or {},
-                "sub_tasks": state.get("sub_tasks") or [],
-                "need_ticket_selection": bool(state.get("need_ticket_selection")),
-                "ticket_selection_reason": state.get("ticket_selection_reason"),
-                "tickets": state.get("tickets") or [],
-                "ticket_context": state.get("ticket_context") or {},
-                "retrieval_chain": state.get("retrieval_chain"),
-                "refused": bool(state.get("refused")),
-                "refuse_reason": state.get("refuse_reason"),
-                "suggested_actions": state.get("suggested_actions") or [],
-            },
-        }
+        yield done_event(state)
 
     def llm_generate_stream_events(self, state: DeclarationQAState) -> Iterable[dict[str, Any]]:
         """流式调用回答生成器并产出文本事件。"""
@@ -1133,12 +1016,29 @@ class DeclarationQAWorkflow:
     def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
         """调用回答生成器生成最终回答。"""
         next_state = dict(state)
-        answer, prompt = self.answer_generator.generate(next_state)
+        if is_declaration_qa_stream_run():
+            stream_generate = getattr(self.answer_generator, "stream_generate", None)
+        else:
+            stream_generate = None
+        if callable(stream_generate):
+            token_stream, prompt = stream_generate(dict(next_state))
+            writer = get_stream_writer()
+            answer_parts = []
+            for token in token_stream:
+                text = str(token or "")
+                if not text:
+                    continue
+                answer_parts.append(text)
+                writer({"event": "token", "data": {"content": text}})
+            answer = "".join(answer_parts)
+            add_event(next_state, "answer_generated", {"intent": next_state.get("intent"), "streamed": True})
+        else:
+            answer, prompt = self.answer_generator.generate(next_state)
+            add_event(next_state, "answer_generated", {"intent": next_state.get("intent")})
         next_state["answer"] = answer
         audit_payload = dict(next_state.get("audit_payload") or {})
         audit_payload["final_prompt"] = prompt
         next_state["audit_payload"] = audit_payload
-        add_event(next_state, "answer_generated", {"intent": next_state.get("intent")})
         return next_state
 
     def answer_postprocess(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -1507,6 +1407,64 @@ def token_events(
         if index > 0 and delay_seconds > 0:
             sleep(delay_seconds)
         yield {"event": "token", "data": {"content": value[index : index + size]}}
+
+
+def graph_stream_part(chunk: Any) -> tuple[str, Any]:
+    """归一化 LangGraph 多模式 stream chunk。"""
+    if isinstance(chunk, tuple) and len(chunk) == 2:
+        return str(chunk[0]), chunk[1]
+    return "updates", chunk
+
+
+def normalize_stream_event(payload: Any) -> dict[str, Any] | None:
+    """将 LangGraph custom stream payload 转为前端 SSE 事件。"""
+    if not isinstance(payload, dict):
+        return None
+    return {"event": str(payload.get("event") or "event"), "data": payload.get("data") or {}}
+
+
+def should_emit_sources(node_name: str, state: DeclarationQAState) -> bool:
+    """判断节点完成后是否需要补发检索来源事件。"""
+    if not state.get("retrieved_sources"):
+        return False
+    if node_name in {"ticket_knowledge_rag", "hybrid_retrieve"}:
+        return True
+    return node_name == "multi_question_collect" and not state.get("need_ticket_selection")
+
+
+def done_event(state: DeclarationQAState) -> dict[str, Any]:
+    """构造流式响应结束事件。"""
+    return {
+        "event": "done",
+        "data": {
+            "session_id": state.get("session_id"),
+            "audit_id": state.get("audit_id"),
+            "intent": state.get("intent"),
+            "route": state.get("route"),
+            "sub_intent": state.get("sub_intent"),
+            "multi_question": bool(state.get("multi_question")),
+            "question_plan": state.get("question_plan") or {},
+            "sub_tasks": state.get("sub_tasks") or [],
+            "need_ticket_selection": bool(state.get("need_ticket_selection")),
+            "ticket_selection_reason": state.get("ticket_selection_reason"),
+            "tickets": state.get("tickets") or [],
+            "ticket_context": state.get("ticket_context") or {},
+            "retrieval_chain": state.get("retrieval_chain"),
+            "refused": bool(state.get("refused")),
+            "refuse_reason": state.get("refuse_reason"),
+            "suggested_actions": state.get("suggested_actions") or [],
+        },
+    }
+
+
+def is_declaration_qa_stream_run() -> bool:
+    """判断当前节点是否由 DeclarationQAWorkflow.stream 启动。"""
+    try:
+        config = get_config()
+    except RuntimeError:
+        return False
+    configurable = config.get("configurable") or {}
+    return bool(configurable.get("declaration_qa_stream"))
 
 
 def mask_sensitive_text(value: str) -> str:

@@ -8,16 +8,32 @@ export default function ChatPane({
   onSelectTicket, onClearTicket, ctx, setCtx,
 }) {
   const [input, setInput] = useState('');
+  const [autoFollow, setAutoFollow] = useState(true);
+  const messagesRef = useRef(null);
   const messagesEnd = useRef(null);
+  const previousCount = useRef(messages.length);
 
   useEffect(() => {
-    messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const hasNewMessage = messages.length > previousCount.current;
+    previousCount.current = messages.length;
+    if (hasNewMessage) {
+      setAutoFollow(true);
+    }
+    if (!autoFollow && !hasNewMessage) return;
+    messagesEnd.current?.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth' });
+  }, [messages, autoFollow, streaming]);
+
+  function handleMessagesScroll(e) {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setAutoFollow(distanceFromBottom < 48);
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
     const q = input.trim();
     if (!q || streaming) return;
+    setAutoFollow(true);
     onSend(q);
     setInput('');
   }
@@ -68,7 +84,7 @@ export default function ChatPane({
       </div>
 
       {/* Messages */}
-      <div className="messages">
+      <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
             <span className="message-meta">{m.meta}</span>

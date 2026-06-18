@@ -135,6 +135,31 @@ def test_llm_stream_generator_emits_model_tokens_and_records_answer():
     assert state["audit_payload"]["final_prompt"] == "prompt-text"
 
 
+def test_workflow_stream_uses_langgraph_custom_tokens_for_llm_node():
+    class FakeStreamingGenerator:
+        def stream_generate(self, state):
+            return iter(["图", "流", "式"]), "prompt-text"
+
+    workflow = DeclarationQAWorkflow(answer_generator=FakeStreamingGenerator())
+
+    events = list(
+        workflow.stream(
+            ChatRequest(
+                query="办理居住证需要哪些材料",
+                user_id=1,
+                region_code="340000",
+            )
+        )
+    )
+
+    assert [event["data"]["content"] for event in events if event["event"] == "token"] == ["图", "流", "式"]
+    assert {"event": "answer_generated", "data": {"intent": "material_requirements", "streamed": True}} in events
+    assert events[-1]["event"] == "done"
+    audit = workflow.audit_store.get(events[-1]["data"]["audit_id"])
+    assert audit["answer"] == "图流式"
+    assert audit["final_prompt"] == "prompt-text"
+
+
 def test_ticket_rag_query_prefers_ticket_chinese_title():
     query = ticket_rag_query(
         {
