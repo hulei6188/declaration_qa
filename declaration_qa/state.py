@@ -16,6 +16,7 @@ class DeclarationQAState(TypedDict, total=False):
     app_version: str
     policy_version: str
     biz_type: str | None
+    request_biz_type: str | None
     apply_id: str | None
     apply_context: dict[str, Any] | None
     metadata_filter: dict[str, Any]
@@ -35,6 +36,7 @@ class DeclarationQAState(TypedDict, total=False):
     ticket_selection_reason: str
     tickets: list[dict[str, Any]]
     ticket_context: dict[str, Any] | None
+    retrieval_query: str
     rag_query: str
     query_rewrite: dict[str, Any]
     retrieval_queries: list[dict[str, Any]]

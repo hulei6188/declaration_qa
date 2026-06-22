@@ -10,13 +10,14 @@ from typing import Any
 from declaration_qa.router import parse_json_object, ticket_context_related
 
 
-QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图拆解器】，只能返回 JSON 对象，不回答业务问题，不负责对内容进行语义补全或改写。
+QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图拆解器】，只能返回 JSON 对象，不回答业务问题。
 
 【核心任务】
 1. 理解用户原始输入的复合意图。用户提问可能包含多个相对独立、需要前往不同数据源或关注不同知识维度的子问题。
 2. 如果包含多意图，请按照用户的原始表达顺序，将提问拆解为可以独立处理的子问题数组（questions）。
 3. 如果只有一个意图，同样返回 questions 数组，里面只放一个对象。
-4. 【铁律】保持克制！直接提取用户原始片段赋予 query 字段。绝对不要擅自替换、脑补、扩展事项名称，保留一切指代词（如“这个、我这单、该事项”）。
+4. 【铁律】保持克制！直接提取用户原始片段赋予 query 字段。query 字段不负责对内容进行语义补全或改写，绝对不要擅自替换、脑补、扩展事项名称，保留一切指代词（如“这个、我这单、该事项”）。
+5. retrieval_query 字段只用于 RAG 检索，可以在不改变 query 的前提下，为省略上下文的子问题补上用户原始输入、当前工单标题或请求上下文里已经明确出现的事项/证照/业务名称。
 
 【字段打标规范】
 - requires_ticket_context: 布尔值。判断该子问题是否看起来绝对依赖当前/个人的具体工单流水上下文。
@@ -24,6 +25,11 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图
   * 询问通用的“办理条件、材料、流程、收费、时限、办事地点”等标准政策指南 --> false
 - ticket_fact_type: 字符串。表示需要读取哪类工单事实。只能取: ["status", "rejection", "correction", "none"]。
 - retrieval_focus: 字符串。指导下游检索的 Hint 标签。只能取: ["material_requirements", "process_steps", "eligibility", "fee_time_limit", "office_location", "contact", "online_apply", "policy_basis", "form_template", "knowledge_qa", "other"]。如果找不到合适标签，必须使用 "other"。
+- retrieval_query: 字符串。下游检索使用的文本。
+  * 如果子问题已经包含清楚的事项/业务上下文，retrieval_query 可以等于 query。
+  * 如果子问题是“收费吗、多久、要哪些材料、去哪办”等省略问法，但同一原始问题前文已有明确事项/业务名称，应把该上下文补入 retrieval_query。
+  * 只能使用请求上下文 JSON 或用户原始输入中明确出现的上下文；不能凭空补事项名称，不能把工单退回原因、办理状态当作通用政策上下文。
+  * query 必须保留用户原始片段，retrieval_query 才允许为了检索而补上下文。
 
 【拆分原则】
 * 多个独立问句应拆分。
@@ -41,6 +47,7 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图
     {
       "original_query": "用户原始片段",
       "query": "用户原始片段",
+      "retrieval_query": "用于检索的子问题文本",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
       "retrieval_focus": "retrieval_focus_tag"
@@ -58,6 +65,7 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图
     {
       "original_query": "示例事项A办事流程",
       "query": "示例事项A办事流程",
+      "retrieval_query": "示例事项A办事流程",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
       "retrieval_focus": "process_steps"
@@ -65,12 +73,38 @@ QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图
     {
       "original_query": "还有我那单怎么被退回了",
       "query": "还有我那单怎么被退回了",
+      "retrieval_query": "还有我那单怎么被退回了",
       "requires_ticket_context": true,
       "ticket_fact_type": "rejection",
       "retrieval_focus": "knowledge_qa"
     }
   ],
   "reason": "User asks for general process steps and an individual ticket rejection reason sequentially."
+}
+
+用户输入：示例事项A多久能办完？收费吗？
+输出：
+{
+  "is_multi_question": true,
+  "questions": [
+    {
+      "original_query": "示例事项A多久能办完",
+      "query": "示例事项A多久能办完",
+      "retrieval_query": "示例事项A多久能办完",
+      "requires_ticket_context": false,
+      "ticket_fact_type": "none",
+      "retrieval_focus": "fee_time_limit"
+    },
+    {
+      "original_query": "收费吗",
+      "query": "收费吗",
+      "retrieval_query": "示例事项A 收费吗",
+      "requires_ticket_context": false,
+      "ticket_fact_type": "none",
+      "retrieval_focus": "fee_time_limit"
+    }
+  ],
+  "reason": "The second short fee question inherits the explicit service context from the first question only for retrieval."
 }"""
 
 
@@ -184,11 +218,14 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
     for item in raw_questions:
         raw_query = item.get("query") if isinstance(item, dict) else item
         query = normalize_question_text(str(raw_query or ""))
-        if not query or query in seen:
-            continue
-        seen.add(query)
         original_query = normalize_question_text(str(item.get("original_query") or item.get("original_intent_segment") or query)) if isinstance(item, dict) else query
+        if not original_query or original_query in seen:
+            continue
+        seen.add(original_query)
         query = original_query
+        retrieval_query = normalize_question_text(
+            str(item.get("retrieval_query") or item.get("search_query") or item.get("rag_query") or query)
+        ) if isinstance(item, dict) else query
         requires_ticket_context = (
             bool(item.get("requires_ticket_context"))
             if isinstance(item, dict) and "requires_ticket_context" in item
@@ -208,6 +245,7 @@ def normalize_question_plan(payload: dict[str, Any], state: dict[str, Any]) -> Q
                 "id": f"q{len(questions) + 1}",
                 "original_query": original_query,
                 "query": query,
+                "retrieval_query": retrieval_query or query,
                 "requires_ticket_context": requires_ticket_context,
                 "ticket_fact_type": ticket_fact_type,
                 "retrieval_focus": retrieval_focus,
@@ -235,6 +273,7 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
         "id": "",
         "original_query": normalized,
         "query": normalized,
+        "retrieval_query": normalized,
         "requires_ticket_context": requires_ticket_context,
         "ticket_fact_type": normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context),
         "retrieval_focus": normalize_retrieval_focus("", normalized),

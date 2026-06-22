@@ -389,6 +389,9 @@ def test_question_planner_prompt_limits_over_splitting_and_markdown():
     assert "requires_ticket_context" in QUESTION_PLANNER_PROMPT
     assert "ticket_fact_type" in QUESTION_PLANNER_PROMPT
     assert "retrieval_focus" in QUESTION_PLANNER_PROMPT
+    assert "retrieval_query" in QUESTION_PLANNER_PROMPT
+    assert "query 字段不负责对内容进行语义补全或改写" in QUESTION_PLANNER_PROMPT
+    assert "retrieval_query 才允许为了检索而补上下文" in QUESTION_PLANNER_PROMPT
     assert '"other"' in QUESTION_PLANNER_PROMPT
     assert '必须使用 "other"' in QUESTION_PLANNER_PROMPT
     assert "不负责对内容进行语义补全或改写" in QUESTION_PLANNER_PROMPT
@@ -436,6 +439,46 @@ def test_llm_question_planner_keeps_raw_query_when_model_expands():
     assert plan.questions[0]["expansion_reason"] == ""
     assert "intent" not in plan.questions[0]
     assert "route" not in plan.questions[0]
+
+
+def test_llm_question_planner_allows_retrieval_query_context_without_changing_query():
+    class FakeLLM:
+        def invoke(self, prompt):
+            self.prompt = prompt
+            return """
+            {
+              "is_multi_question": true,
+              "questions": [
+                {
+                  "original_query": "华侨回国定居审批多久能办完",
+                  "query": "华侨回国定居审批多久能办完",
+                  "retrieval_query": "华侨回国定居审批多久能办完",
+                  "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_focus": "fee_time_limit"
+                },
+                {
+                  "original_query": "收费吗",
+                  "query": "收费吗",
+                  "retrieval_query": "华侨回国定居审批 收费吗",
+                  "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_focus": "fee_time_limit"
+                }
+              ],
+              "reason": "short_followup_inherits_context_for_retrieval"
+            }
+            """
+
+    llm = FakeLLM()
+    plan = LLMQuestionPlanner(llm).plan(
+        {"query": "华侨回国定居审批多久能办完？收费吗？", "normalized_query": "华侨回国定居审批多久能办完？收费吗？"}
+    )
+
+    assert plan.is_multi_question is True
+    assert plan.questions[1]["query"] == "收费吗"
+    assert plan.questions[1]["retrieval_query"] == "华侨回国定居审批 收费吗"
+    assert "retrieval_query" in llm.prompt
 
 
 def test_llm_question_planner_keeps_ticket_related_query_unexpanded():
@@ -581,6 +624,77 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
     assert "办理居住证需要哪些材料" in audit["final_prompt"]
     assert audit["multi_question"] is True
     assert len(audit["sub_tasks"]) == 2
+
+
+def test_multi_question_uses_planner_retrieval_query_for_short_followup():
+    class FakeLLM:
+        def invoke(self, prompt):
+            return """
+            {
+              "is_multi_question": true,
+              "questions": [
+                {
+                  "original_query": "华侨回国定居审批多久能办完",
+                  "query": "华侨回国定居审批多久能办完",
+                  "retrieval_query": "华侨回国定居审批多久能办完",
+                  "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_focus": "fee_time_limit"
+                },
+                {
+                  "original_query": "收费吗",
+                  "query": "收费吗",
+                  "retrieval_query": "华侨回国定居审批 收费吗",
+                  "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_focus": "fee_time_limit"
+                }
+              ],
+              "reason": "short_followup_inherits_context_for_retrieval"
+            }
+            """
+
+    class CapturingRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.queries = []
+
+        def retrieve_many(self, queries, filters):
+            self.queries.extend(query["text"] for query in queries)
+            return super().retrieve_many(queries, filters)
+
+    engine = CapturingRAGEngine()
+    engine.index_document(
+        KnowledgeDocument(
+            id="doc-overseas-chinese-settlement",
+            title="华侨回国定居审批办事指南",
+            content="华侨回国定居审批的法定办结时限为15个工作日，承诺办结时限为8个工作日。是否收费：否。",
+            region_code="340000",
+            policy_version="2025",
+            metadata={"item_name": "华侨回国定居审批"},
+        )
+    )
+    workflow = DeclarationQAWorkflow(
+        rag_engine=engine,
+        question_planner=LLMQuestionPlanner(FakeLLM()),
+        max_sub_question_workers=1,
+    )
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="华侨回国定居审批多久能办完？收费吗？",
+            user_id=1,
+            region_code="340000",
+            policy_version="2025",
+        )
+    )
+
+    assert response.multi_question is True
+    assert response.question_plan["questions"][1]["query"] == "收费吗"
+    assert response.question_plan["questions"][1]["retrieval_query"] == "华侨回国定居审批 收费吗"
+    assert response.sub_tasks[1]["query"] == "收费吗"
+    assert response.sub_tasks[1]["retrieval_query"] == "华侨回国定居审批 收费吗"
+    assert any("华侨回国定居审批 收费吗" in query for query in engine.queries)
 
 
 def test_multi_question_requires_ticket_selection_before_answer_generation():

@@ -1050,10 +1050,13 @@ def bm25_scores(query_tokens: list[str], corpus: list[list[str]]) -> list[float]
     try:
         from rank_bm25 import BM25Okapi
 
-        return [float(score) for score in BM25Okapi(corpus).get_scores(query_tokens)]
+        scores = [float(score) for score in BM25Okapi(corpus).get_scores(query_tokens)]
+        if any(score > 0 for score in scores):
+            return scores
     except Exception:
-        query_set = set(query_tokens)
-        return [float(len(query_set.intersection(tokens))) for tokens in corpus]
+        pass
+    query_set = set(query_tokens)
+    return [float(len(query_set.intersection(tokens))) for tokens in corpus]
 
 
 def rrf_fuse(hit_lists: list[list[RetrievedSource]], *, rrf_k: int) -> list[RetrievedSource]:

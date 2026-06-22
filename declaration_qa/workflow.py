@@ -165,6 +165,7 @@ class DeclarationQAWorkflow:
             "app_version": request.app_version,
             "policy_version": request.policy_version,
             "biz_type": request.biz_type,
+            "request_biz_type": request.biz_type,
             "apply_id": request.apply_id,
             "apply_context": apply_context,
             "metadata_filter": request.metadata_filter,
@@ -183,6 +184,7 @@ class DeclarationQAWorkflow:
             "ticket_selection_reason": "",
             "tickets": [],
             "ticket_context": None,
+            "retrieval_query": "",
             "rag_query": "",
             "query_rewrite": {},
             "retrieval_queries": [],
@@ -320,6 +322,9 @@ class DeclarationQAWorkflow:
         for index, item in enumerate(plan.questions, start=1):
             question = dict(item)
             question["id"] = question.get("id") or f"q{index}"
+            question["retrieval_query"] = normalize_text(
+                str(question.get("retrieval_query") or question.get("query") or question.get("original_query") or "")
+            )
             questions.append(question)
         next_state["question_plan"] = {**plan.payload(), "questions": questions}
         next_state["multi_question"] = bool(plan.is_multi_question and len(questions) > 1)
@@ -432,16 +437,18 @@ class DeclarationQAWorkflow:
     def state_for_sub_question(self, state: DeclarationQAState, question: dict[str, Any]) -> DeclarationQAState:
         """构造子问题状态，复用原始请求上下文。"""
         query = normalize_text(str(question.get("original_query") or question.get("query") or ""))
+        retrieval_query = normalize_text(str(question.get("retrieval_query") or query))
         inherited_apply_context = state.get("apply_context")
         inherited_biz_type = (
             (inherited_apply_context or {}).get("biz_type")
             if inherited_apply_context
-            else infer_biz_type(query)
+            else infer_biz_type(retrieval_query) or infer_biz_type(query) or state.get("request_biz_type")
         )
         return {
             **state,
             "query": query,
-            "normalized_query": query,
+            "normalized_query": retrieval_query,
+            "retrieval_query": retrieval_query,
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
             "biz_type": inherited_biz_type,
             "multi_question": False,
@@ -458,6 +465,7 @@ class DeclarationQAWorkflow:
             "ticket_selection_reason": "",
             "tickets": [],
             "ticket_context": None,
+            "retrieval_query": retrieval_query,
             "rag_query": "",
             "query_rewrite": {},
             "retrieval_queries": [],
@@ -507,6 +515,7 @@ class DeclarationQAWorkflow:
             "id": question.get("id") or f"q{index}",
             "original_query": question.get("original_query") or question.get("query") or "",
             "query": state.get("query") or question.get("query") or "",
+            "retrieval_query": state.get("retrieval_query") or question.get("retrieval_query") or "",
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
             "ticket_fact_type": state.get("ticket_fact_type") or question.get("ticket_fact_type") or "none",
             "retrieval_focus": state.get("retrieval_focus") or question.get("retrieval_focus") or "knowledge_qa",
@@ -1078,6 +1087,7 @@ class DeclarationQAWorkflow:
             "reject_info": next_state.get("reject_info"),
             "material_mapping": next_state.get("material_mapping"),
             "retrieval_filter": next_state.get("retrieval_filter"),
+            "retrieval_query": next_state.get("retrieval_query") or "",
             "rag_query": next_state.get("rag_query") or "",
             "query_rewrite": next_state.get("query_rewrite") or {},
             "retrieval_queries": next_state.get("retrieval_queries") or [],
@@ -1300,11 +1310,13 @@ def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> N
     if not planned_query:
         return
     state["query"] = planned_query
-    state["normalized_query"] = planned_query
+    retrieval_query = normalize_text(str(question.get("retrieval_query") or planned_query))
+    state["normalized_query"] = retrieval_query
+    state["retrieval_query"] = retrieval_query
     state["requires_ticket_context"] = bool(question.get("requires_ticket_context"))
     state["ticket_fact_type"] = question.get("ticket_fact_type") or "none"
     state["retrieval_focus"] = question.get("retrieval_focus") or classify_intent(planned_query)
-    state["biz_type"] = state.get("biz_type") or infer_biz_type(planned_query)
+    state["biz_type"] = state.get("biz_type") or infer_biz_type(retrieval_query) or infer_biz_type(planned_query)
 
 
 def unique_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
