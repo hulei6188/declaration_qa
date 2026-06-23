@@ -43,6 +43,10 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     class RemoteVectorIndex:
         backend = "milvus"
 
+        def __init__(self):
+            self.search_calls = []
+            self.batch_calls = []
+
         def upsert(self, chunk, vector):
             raise AssertionError("remote retrieval should not upsert")
 
@@ -50,9 +54,11 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
             pass
 
         def search(self, vector, filters, *, limit):
+            self.search_calls.append({"filters": dict(filters), "limit": limit})
             return [(child.id, 0.95)]
 
         def search_batch(self, vectors, filters, *, limit):
+            self.batch_calls.append({"count": len(vectors), "filters": dict(filters), "limit": limit})
             return [[(child.id, 0.95)] for _ in vectors]
 
         def clear(self):
@@ -61,6 +67,9 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     class RemoteKeywordIndex:
         backend = "elasticsearch"
 
+        def __init__(self):
+            self.search_calls = []
+
         def upsert_chunks(self, chunks):
             raise AssertionError("remote retrieval should not index")
 
@@ -68,6 +77,7 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
             pass
 
         def search(self, query, filters, *, limit):
+            self.search_calls.append({"query": query, "filters": dict(filters), "limit": limit})
             return [(sibling.id, 0.8)]
 
         def clear(self):
@@ -93,9 +103,11 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
             return [sibling, child]
 
     store = RemoteChunkStore()
+    vector_index = RemoteVectorIndex()
+    keyword_index = RemoteKeywordIndex()
     engine = InMemoryRAGEngine(
-        vector_index=RemoteVectorIndex(),
-        keyword_index=RemoteKeywordIndex(),
+        vector_index=vector_index,
+        keyword_index=keyword_index,
         chunk_store=store,
         load_chunks_into_memory=False,
     )
@@ -112,3 +124,18 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     assert store.parent_calls == [[parent.id]]
     assert store.section_calls == [(["doc-remote#申请材料"], "material_item")]
     assert any(source.chunk.id == sibling.id for source in result.sources)
+
+    many_results = engine.retrieve_many(
+        [
+            {"text": "申请表材料", "top_k": 1},
+            {"text": "身份证材料", "top_k": 1},
+        ],
+        {"regionCode": "340000"},
+    )
+
+    assert len(many_results) == 2
+    assert engine.chunk_count == 0
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000"}, "limit": 8}]
+    assert [call["filters"] for call in keyword_index.search_calls[-2:]] == [{"region_code": "340000"}, {"region_code": "340000"}]
+    assert all(result.status["candidate_source"] == "external_indexes" for result in many_results)
+    assert all(result.status["batch_mode"] is True for result in many_results)

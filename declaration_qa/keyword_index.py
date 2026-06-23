@@ -64,8 +64,8 @@ class ElasticsearchKeywordIndex:
             payload_lines.append(json.dumps({"index": {"_index": self.index_name, "_id": chunk.id}}, ensure_ascii=False))
             payload_lines.append(json.dumps(elasticsearch_chunk_document(chunk), ensure_ascii=False, default=str))
         response = requests.post(
-            f"{self.url}/_bulk",
-            data="\n".join(payload_lines) + "\n",
+            f"{self.url}/_bulk?refresh=true",
+            data=("\n".join(payload_lines) + "\n").encode("utf-8"),
             headers={**self._headers(), "Content-Type": "application/x-ndjson"},
             timeout=self.timeout_seconds,
         )
@@ -76,7 +76,7 @@ class ElasticsearchKeywordIndex:
         requests = import_requests()
         payload = {"query": {"term": {"doc_id": str(doc_id)}}}
         response = requests.post(
-            f"{self.url}/{self.index_name}/_delete_by_query",
+            f"{self.url}/{self.index_name}/_delete_by_query?refresh=true",
             json=payload,
             headers=self._headers(),
             timeout=self.timeout_seconds,
@@ -170,6 +170,7 @@ class ElasticsearchKeywordIndex:
                     "service_object": {"type": "keyword"},
                     "audit_node": {"type": "keyword"},
                     "status": {"type": "keyword"},
+                    "doc_status": {"type": "keyword"},
                     "metadata": {"type": "object", "enabled": False},
                 }
             }
@@ -212,6 +213,7 @@ def elasticsearch_chunk_document(chunk: KnowledgeChunk) -> dict[str, Any]:
         "service_object": metadata.get("service_object") or "",
         "audit_node": chunk.audit_node or metadata.get("audit_node") or "",
         "status": chunk.status or metadata.get("status") or "published",
+        "doc_status": metadata.get("doc_status") or chunk.status or metadata.get("status") or "published",
         "metadata": metadata,
     }
 
@@ -238,6 +240,8 @@ def elasticsearch_filter_field(key: str) -> str:
     """Return the exact-match field used for a retrieval filter."""
     if key in {"catalog_name", "catalog_subitem_name", "item_name"}:
         return f"{key}.keyword"
+    if key == "doc_status":
+        return "status"
     return key
 
 

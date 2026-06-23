@@ -26,6 +26,9 @@ MILVUS_TEXT_METADATA_FIELDS: dict[str, int] = {
     "agency_name": 240,
     "ssqd_code": 120,
     "ssqd_id": 120,
+    "audit_node": 120,
+    "status": 40,
+    "doc_status": 40,
     "chunking_strategy": 40,
     "effective_start_time": 32,
     "effective_end_time": 32,
@@ -57,6 +60,10 @@ class VectorIndex(Protocol):
         """清空当前存储中的全部数据。"""
         ...
 
+    def flush(self) -> None:
+        """Flush pending writes when supported by the backend."""
+        ...
+
 
 class MemoryVectorIndex:
     """进程内向量索引实现。"""
@@ -78,11 +85,11 @@ class MemoryVectorIndex:
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
         """按向量和过滤条件搜索相似片段。"""
-        from declaration_qa.rag_engine import cosine
+        from declaration_qa.rag_engine import cosine, matches_filter
 
         hits = []
         for chunk_id, (item_vector, chunk) in self._items.items():
-            if chunk.chunk_type != "child":
+            if chunk.chunk_type != "child" or not matches_filter(chunk, filters):
                 continue
             score = cosine(vector, item_vector)
             if score > 0:
@@ -96,6 +103,10 @@ class MemoryVectorIndex:
     def clear(self) -> None:
         """清空当前存储中的全部数据。"""
         self._items.clear()
+
+    def flush(self) -> None:
+        """内存索引写入立即可见。"""
+        return None
 
 
 class MilvusVectorIndex:
@@ -120,18 +131,20 @@ class MilvusVectorIndex:
         self._client = MilvusClient(**kwargs)
         self.collection_name = collection_name
         self.dimension = dimension
-        self._fallback = MemoryVectorIndex()
+        self.allow_fallback = bool(allow_fallback)
+        self._fallback = MemoryVectorIndex() if self.allow_fallback else None
         self._available = True
         try:
             self._ensure_collection()
         except Exception:
-            if not allow_fallback:
+            if not self.allow_fallback:
                 raise
             self._available = False
 
     def upsert(self, chunk: KnowledgeChunk, vector: list[float]) -> None:
         """写入或更新向量索引记录。"""
-        self._fallback.upsert(chunk, vector)
+        if self._fallback is not None:
+            self._fallback.upsert(chunk, vector)
         if not self._available:
             return
         row = {
@@ -143,26 +156,29 @@ class MilvusVectorIndex:
         try:
             self._client.upsert(collection_name=self.collection_name, data=[row])
         except Exception:
-            if not hasattr(self, "_fallback"):
+            if self._fallback is None:
                 raise
             self._available = False
 
     def delete_by_doc(self, doc_id: str) -> None:
         """按文档 ID 删除向量索引记录。"""
-        self._fallback.delete_by_doc(doc_id)
+        if self._fallback is not None:
+            self._fallback.delete_by_doc(doc_id)
         if not self._available:
             return
         safe = str(doc_id).replace('"', '\\"')
         try:
             self._client.delete(collection_name=self.collection_name, filter=f'doc_id == "{safe}"')
         except Exception:
-            if not hasattr(self, "_fallback"):
+            if self._fallback is None:
                 raise
             self._available = False
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
         """按向量和过滤条件搜索相似片段。"""
         if not self._available:
+            if self._fallback is None:
+                raise RuntimeError("Milvus vector index is unavailable and in-memory fallback is disabled")
             return self._fallback.search(vector, filters, limit=limit)
         expr = milvus_filter_expr(filters)
         try:
@@ -174,7 +190,7 @@ class MilvusVectorIndex:
                 output_fields=["id"],
             )
         except Exception:
-            if not hasattr(self, "_fallback"):
+            if self._fallback is None:
                 raise
             self._available = False
             return self._fallback.search(vector, filters, limit=limit)
@@ -192,6 +208,8 @@ class MilvusVectorIndex:
         if not vectors:
             return []
         if not self._available:
+            if self._fallback is None:
+                raise RuntimeError("Milvus vector index is unavailable and in-memory fallback is disabled")
             return self._fallback.search_batch(vectors, filters, limit=limit)
         expr = milvus_filter_expr(filters)
         try:
@@ -203,7 +221,7 @@ class MilvusVectorIndex:
                 output_fields=["id"],
             )
         except Exception:
-            if not hasattr(self, "_fallback"):
+            if self._fallback is None:
                 raise
             self._available = False
             return self._fallback.search_batch(vectors, filters, limit=limit)
@@ -223,7 +241,8 @@ class MilvusVectorIndex:
 
     def clear(self) -> None:
         """清空当前存储中的全部数据。"""
-        self._fallback.clear()
+        if self._fallback is not None:
+            self._fallback.clear()
         if not self._available:
             return
         try:
@@ -231,7 +250,24 @@ class MilvusVectorIndex:
                 self._client.drop_collection(self.collection_name)
             self._ensure_collection()
         except Exception:
-            if not hasattr(self, "_fallback"):
+            if self._fallback is None:
+                raise
+            self._available = False
+
+    def flush(self) -> None:
+        """Flush Milvus writes so immediately-following searches can see them."""
+        if self._fallback is not None:
+            self._fallback.flush()
+        if not self._available:
+            return
+        try:
+            flush = getattr(self._client, "flush", None)
+            if callable(flush):
+                flush(collection_name=self.collection_name)
+        except TypeError:
+            self._client.flush(self.collection_name)
+        except Exception:
+            if self._fallback is None:
                 raise
             self._available = False
 
@@ -295,6 +331,9 @@ def milvus_metadata_row(chunk: KnowledgeChunk) -> dict[str, Any]:
         "agency_name": metadata.get("agency_name") or "",
         "ssqd_code": metadata.get("ssqd_code") or "",
         "ssqd_id": metadata.get("ssqd_id") or "",
+        "audit_node": chunk.audit_node or metadata.get("audit_node") or "",
+        "status": chunk.status or metadata.get("status") or "published",
+        "doc_status": metadata.get("doc_status") or chunk.status or metadata.get("status") or "published",
         "chunking_strategy": metadata.get("chunking_strategy") or "",
         "effective_start_time": metadata.get("effective_start_time") or "",
         "effective_end_time": metadata.get("effective_end_time") or "",

@@ -6,7 +6,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 from declaration_qa.config import DeclarationQASettings
@@ -15,14 +15,17 @@ from declaration_qa.domain import KnowledgeDocument
 from declaration_qa.indexing import IndexJobStore
 from declaration_qa.rag_engine import normalize_chunking_strategy
 from declaration_qa.retrieval import sanitize_metadata
-from declaration_qa.workflow import DeclarationQAWorkflow
+
+if TYPE_CHECKING:
+    from declaration_qa.workflow import DeclarationQAWorkflow
 
 
 def index_document_for_workflow(workflow: DeclarationQAWorkflow, document: KnowledgeDocument) -> int:
     """将知识文档写入工作流索引和持久化存储。"""
-    chunks_indexed = workflow.rag_engine.index_document(document)
+    chunks = workflow.rag_engine.document_chunks(document)
     if hasattr(workflow.audit_store, "persist_document"):
-        workflow.audit_store.persist_document(document, workflow.rag_engine.document_chunks(document))
+        workflow.audit_store.persist_document(document, chunks)
+    chunks_indexed = workflow.rag_engine.index_chunks(document, chunks)
     return chunks_indexed
 
 
@@ -141,12 +144,16 @@ def process_document_index(
 
 def process_reindex(workflow: DeclarationQAWorkflow) -> dict[str, Any]:
     """重建当前知识库索引。"""
-    documents = (
-        workflow.audit_store.list_documents()
-        if hasattr(workflow.audit_store, "list_documents")
-        else workflow.rag_engine.documents()
-    )
-    chunks_indexed = workflow.rag_engine.rebuild(documents)
+    if hasattr(workflow.audit_store, "list_indexed_knowledge"):
+        documents, chunks = workflow.audit_store.list_indexed_knowledge()
+        chunks_indexed = workflow.rag_engine.rebuild_indexed_data(documents, chunks)
+    else:
+        documents = (
+            workflow.audit_store.list_documents()
+            if hasattr(workflow.audit_store, "list_documents")
+            else workflow.rag_engine.documents()
+        )
+        chunks_indexed = workflow.rag_engine.rebuild(documents)
     return {
         "documents_indexed": len(documents),
         "chunks_indexed": chunks_indexed,

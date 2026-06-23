@@ -86,9 +86,12 @@ class InMemoryRAGEngine:
 
     def index_document(self, document: KnowledgeDocument) -> int:
         """索引单篇知识文档并返回片段数。"""
+        return self.index_chunks(document, split_document(document))
+
+    def index_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
+        """Index precomputed document chunks into vector and keyword indexes."""
         self.delete_document(document.id)
         self._documents[document.id] = document
-        chunks = split_document(document)
         vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
         for chunk, vector in zip(chunks, vectors):
             if self.load_chunks_into_memory:
@@ -98,6 +101,7 @@ class InMemoryRAGEngine:
                 self.vector_index.upsert(chunk, vector)
         if self.keyword_index:
             self.keyword_index.upsert_chunks(chunks)
+        self._flush_vector_index()
         self.cache_store.clear()
         return len(chunks)
 
@@ -115,17 +119,32 @@ class InMemoryRAGEngine:
 
     def rebuild(self, documents: list[KnowledgeDocument]) -> int:
         """使用文档集合重建知识索引。"""
+        return self.rebuild_indexed_data(
+            documents,
+            [chunk for document in documents for chunk in split_document(document)],
+        )
+
+    def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
+        """Rebuild vector and keyword indexes from already persisted chunks."""
         self._documents.clear()
         self._chunks.clear()
         self._vectors.clear()
         self.vector_index.clear()
         if self.keyword_index:
             self.keyword_index.clear()
-        count = 0
-        for document in documents:
-            count += self.index_document(document)
+        self._documents = {document.id: document for document in documents}
+        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        for chunk, vector in zip(chunks, vectors):
+            if self.load_chunks_into_memory:
+                self._chunks[chunk.id] = chunk
+                self._vectors[chunk.embedding_id] = vector
+            if chunk.chunk_type == "child":
+                self.vector_index.upsert(chunk, vector)
+        if self.keyword_index:
+            self.keyword_index.upsert_chunks(chunks)
+        self._flush_vector_index()
         self.cache_store.clear()
-        return count
+        return len(chunks)
 
     def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
         """Load persisted document/chunk metadata without re-embedding.
@@ -138,6 +157,12 @@ class InMemoryRAGEngine:
         self._vectors.clear()
         self.cache_store.clear()
         return len(chunks)
+
+    def _flush_vector_index(self) -> None:
+        """Make newly indexed vector rows visible when the backend supports it."""
+        flush = getattr(self.vector_index, "flush", None)
+        if callable(flush):
+            flush()
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         """返回文档切分后的片段列表。"""
@@ -1364,7 +1389,7 @@ def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> floa
         1
         for key, value in filters.items()
         if key not in {"as_of", "rollout_key"}
-        and metadata_value_matches(chunk.status if key == "status" else metadata.get(key), value)
+        and metadata_value_matches(chunk_filter_value(chunk, metadata, key), value)
     )
     return min(0.2, matched * 0.05)
 
@@ -1377,10 +1402,21 @@ def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
     for key, value in filters.items():
         if key in {"as_of", "rollout_key"}:
             continue
-        candidate = chunk.status if key == "status" else metadata.get(key)
+        candidate = chunk_filter_value(chunk, metadata, key)
         if not metadata_value_matches(candidate, value):
             return False
     return True
+
+
+def chunk_filter_value(chunk: KnowledgeChunk, metadata: dict[str, Any], key: str) -> Any:
+    """Return the effective value used for metadata filter matching."""
+    if key == "status":
+        return chunk.status
+    if key == "doc_status":
+        return metadata.get("doc_status") or chunk.status
+    if key == "audit_node":
+        return chunk.audit_node or metadata.get("audit_node")
+    return metadata.get(key)
 
 
 def metadata_value_matches(candidate: Any, expected: Any) -> bool:
