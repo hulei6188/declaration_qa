@@ -73,7 +73,7 @@ class DeterministicAnswerGenerator:
         if state.get("multi_question"):
             return multi_question_answer(state)
         sources = state.get("retrieved_sources") or []
-        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:3])
+        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources)
         business_payload = state.get("business_status") or state.get("reject_info") or {}
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
@@ -186,7 +186,7 @@ def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:
         )
         ref_text = "\n".join(
             f"      <Ref>{evidence_lookup[evidence_key(source)]}</Ref>"
-            for source in sources[:6]
+            for source in sources
             if evidence_key(source) in evidence_lookup
         )
         sections.append(
@@ -226,7 +226,7 @@ def build_shared_evidence_pool(sub_tasks: list[dict[str, Any]]) -> list[dict[str
     pool = []
     seen = set()
     for task in sub_tasks:
-        for source in (task.get("sources") or [])[:6]:
+        for source in task.get("sources") or []:
             key = evidence_key(source)
             if not key or key in seen:
                 continue

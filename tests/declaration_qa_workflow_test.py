@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 
 from declaration_qa.business import InMemoryBusinessDataAdapter
-from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult
+from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
 from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
 from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
@@ -12,7 +12,7 @@ from declaration_qa.repository import PostgresDeclarationQAStore
 from declaration_qa.router import parse_json_object
 from declaration_qa.schemas import ChatRequest
 from declaration_qa.server import create_app
-from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, ticket_rag_query, token_events
+from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, select_answer_sources, ticket_rag_query, token_events
 
 
 def test_declaration_qa_entrypoint_isolated_from_existing_main():
@@ -1067,6 +1067,56 @@ def test_rag_retrieve_many_batches_embedding_and_vector_search():
     assert vector_index.batch_calls == [(2, {}, 8)]
     assert len(results) == 2
     assert all(result.status["batch_mode"] is True for result in results)
+
+
+def test_select_answer_sources_preserves_complete_process_steps():
+    section_id = "doc-flow#办理流程"
+
+    def source(
+        chunk_id: str,
+        node_title: str,
+        metadata_chunk_type: str,
+        node_order: int,
+        *,
+        score: float,
+        rerank: float,
+    ) -> RetrievedSource:
+        return RetrievedSource(
+            chunk=KnowledgeChunk(
+                id=chunk_id,
+                doc_id="doc-flow",
+                parent_id="",
+                chunk_type="child",
+                title="取水许可办事指南",
+                content=f"{node_title}内容",
+                metadata={
+                    "chunk_type": metadata_chunk_type,
+                    "section_title": "办理流程" if metadata_chunk_type != "material_item" else "申请材料",
+                    "parent_section_id": section_id if metadata_chunk_type != "material_item" else "doc-flow#申请材料",
+                    "node_title": node_title,
+                    "node_order": node_order,
+                    "indexable": True,
+                },
+            ),
+            score=score,
+            rerank_score=rerank,
+            retrieval_channel="test",
+        )
+
+    sources = [
+        source("flow-summary", "办理流程说明", "section_leaf", 9, score=0.97, rerank=0.97),
+        source("material-1", "取水许可申请书", "material_item", 1, score=0.92, rerank=0.92),
+        source("material-2", "营业执照或身份证", "material_item", 2, score=0.91, rerank=0.91),
+        source("step-1", "受理", "process_step", 10, score=0.97, rerank=0.0),
+        source("step-2", "审查", "process_step", 11, score=0.97, rerank=0.0),
+        source("step-3", "决定", "process_step", 12, score=0.97, rerank=0.0),
+        source("step-4", "办结", "process_step", 13, score=0.97, rerank=0.0),
+        source("step-5", "送达", "process_step", 14, score=0.97, rerank=0.0),
+    ]
+
+    selected = select_answer_sources({item.chunk.id: item for item in sources}, "取水许可办理流程", limit=6)
+
+    assert [item.chunk.metadata["node_title"] for item in selected] == ["办理流程说明", "受理", "审查", "决定", "办结", "送达"]
 
 
 def test_multi_question_collect_runs_sub_questions_in_parallel():

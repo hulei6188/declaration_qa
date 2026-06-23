@@ -19,7 +19,14 @@ from declaration_qa.evidence import decide_evidence
 from declaration_qa.prompting import DeterministicAnswerGenerator
 from declaration_qa.question_planner import RuleQuestionPlanner
 from declaration_qa.query_rewriter import RuleQueryRewriter
-from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine, normalize_text
+from declaration_qa.rag_engine import (
+    InMemoryRAGEngine,
+    build_seed_rag_engine,
+    normalize_text,
+    safe_int,
+    structured_backfill_chunk_type,
+    structured_source_matches,
+)
 from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN, normalize_retrieval_filter
 from declaration_qa.router import (
     INTENT_CORRECTION_GUIDANCE,
@@ -942,14 +949,11 @@ class DeclarationQAWorkflow:
                 query_statuses[index] = query_status
                 results.append(result)
         merged = merge_retrieval_sources(results)
-        sources = sorted(
-            merged.values(),
-            key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
-            reverse=True,
-        )[:6]
+        combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
+        sources = select_answer_sources(merged, combined_query, limit=6)
         ordered_statuses = [status for status in query_statuses if status is not None]
         status = {
-            "query": "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text")),
+            "query": combined_query,
             "query_count": len([query for query in executable_queries if query.get("text")]),
             "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
             "deduped_query_count": len(executable_queries),
@@ -1370,6 +1374,93 @@ def merge_retrieval_sources(results: list[RetrievalResult]) -> dict[str, Retriev
             if existing is None or float(source.score or 0.0) > float(existing.score or 0.0):
                 merged[source.chunk.id] = source
     return merged
+
+
+def select_answer_sources(merged: dict[str, RetrievedSource], query: str, *, limit: int = 6) -> list[RetrievedSource]:
+    """选择进入答案生成的来源，优先保全结构化章节节点。"""
+    ranked = sorted(
+        merged.values(),
+        key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
+        reverse=True,
+    )
+    target_chunk_type = structured_backfill_chunk_type(query)
+    primary_section_id = primary_structured_section_id(ranked, target_chunk_type)
+    if not primary_section_id:
+        return ranked[:limit]
+
+    selected: list[RetrievedSource] = []
+    seen_chunk_ids: set[str] = set()
+    section_intro = [
+        source
+        for source in ranked
+        if source_parent_section_id(source) == primary_section_id
+        and source_chunk_type(source) == "section_leaf"
+        and "说明" in source_node_title(source)
+    ]
+    for source in section_intro[:1]:
+        append_source_once(selected, source, seen_chunk_ids)
+
+    structured_sources = [
+        source
+        for source in ranked
+        if source_parent_section_id(source) == primary_section_id
+        and source_chunk_type(source) == target_chunk_type
+    ]
+    for source in sorted(structured_sources, key=structured_source_sort_key):
+        append_source_once(selected, source, seen_chunk_ids)
+
+    target_limit = max(limit, len(selected))
+    for source in ranked:
+        if len(selected) >= target_limit:
+            break
+        append_source_once(selected, source, seen_chunk_ids)
+    return selected
+
+
+def primary_structured_section_id(sources: list[RetrievedSource], target_chunk_type: str) -> str:
+    """按排序后的命中结果选择最相关的结构化章节。"""
+    if not target_chunk_type:
+        return ""
+    for source in sources:
+        parent_section_id = source_parent_section_id(source)
+        if parent_section_id and structured_source_matches(source, target_chunk_type):
+            return parent_section_id
+    return ""
+
+
+def append_source_once(output: list[RetrievedSource], source: RetrievedSource, seen_chunk_ids: set[str]) -> bool:
+    """按 chunk id 追加来源。"""
+    if source.chunk.id in seen_chunk_ids:
+        return False
+    seen_chunk_ids.add(source.chunk.id)
+    output.append(source)
+    return True
+
+
+def structured_source_sort_key(source: RetrievedSource) -> tuple[int, int, int, str]:
+    """按结构化节点在原指南中的顺序排序。"""
+    metadata = source.chunk.metadata or {}
+    return (
+        safe_int(metadata.get("node_order")),
+        safe_int(metadata.get("parent_window_index")),
+        safe_int(metadata.get("child_window_index")),
+        source.chunk.id,
+    )
+
+
+def source_parent_section_id(source: RetrievedSource) -> str:
+    """读取来源所属结构化章节 ID。"""
+    return str((source.chunk.metadata or {}).get("parent_section_id") or "")
+
+
+def source_chunk_type(source: RetrievedSource) -> str:
+    """读取来源的结构化片段类型。"""
+    return str((source.chunk.metadata or {}).get("chunk_type") or "")
+
+
+def source_node_title(source: RetrievedSource) -> str:
+    """读取来源的结构化节点标题。"""
+    return str((source.chunk.metadata or {}).get("node_title") or "")
 
 
 def unique_tickets(tickets: list[dict[str, Any]]) -> list[dict[str, Any]]:

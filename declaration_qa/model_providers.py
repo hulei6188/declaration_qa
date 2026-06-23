@@ -222,7 +222,7 @@ class OpenAIAnswerGenerator:
                 sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
             )
         sources = state.get("retrieved_sources") or []
-        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources[:6])
+        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources)
         business_payload = state.get("business_status") or state.get("reject_info") or {}
         return ANSWER_PROMPT.format(
             query=state.get("query") or "",
