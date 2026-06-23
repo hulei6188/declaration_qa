@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Copy, Play, ThumbsUp, ThumbsDown, Package, FileText, Activity } from 'lucide-react';
+import { Copy, Play, ThumbsUp, ThumbsDown, Package } from 'lucide-react';
 import { escapeHtml } from '../utils.js';
 
 export default function Inspector({
   timeline, sources, audit, feedbackResult, evalDatasetId, evalRecall, evalRefusal,
-  evalItems, evalResult, onFeedback, onCreateDataset, onRunEval, onAnnotate, onCopyAudit,
+  evalItems, evalResult, onFeedback, onCreateDataset, onRunEval, onAnnotate, onCopyTimeline,
 }) {
   const [evalName, setEvalName] = useState('申报问答回归集');
 
@@ -14,7 +14,7 @@ export default function Inspector({
       <section className="panel">
         <div className="panel-title">
           <span>Workflow 事件</span>
-          <button className="icon-button" onClick={onCopyAudit} title="复制审计 ID">
+          <button className="icon-button" onClick={onCopyTimeline} title="复制 Workflow 事件">
             <Copy size={14} />
           </button>
         </div>

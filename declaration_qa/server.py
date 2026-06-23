@@ -126,6 +126,8 @@ def create_app() -> FastAPI:
             "chunks": workflow.rag_engine.chunk_count,
             "cache_backend": workflow.rag_engine.cache_store.backend,
             "vector_backend": workflow.rag_engine.vector_index.backend,
+            "keyword_backend": getattr(workflow.rag_engine.keyword_index, "backend", "memory"),
+            "external_chunk_store": bool(workflow.rag_engine.chunk_store),
             "business_adapter": workflow.business_adapter.__class__.__name__,
             "audit_store": workflow.audit_store.__class__.__name__,
             "embedding_provider": workflow.rag_engine.embedding_provider.name,

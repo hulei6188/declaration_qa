@@ -757,30 +757,46 @@ class PostgresDeclarationQAStore:
             ).mappings().all()
         chunks = []
         for row in rows:
-            metadata = sanitize_metadata(dict(row["metadata"] or {}))
             doc_id = str(row["document_uid"] or "")
             if document_ids and doc_id not in document_ids:
                 continue
-            chunks.append(
-                KnowledgeChunk(
-                    id=str(row["chunk_uid"] or ""),
-                    doc_id=doc_id,
-                    parent_id=str(row["parent_chunk_uid"] or ""),
-                    chunk_type=str(row["chunk_type"] or ""),
-                    title=str(row["title"] or ""),
-                    content=str(row["content"] or ""),
-                    region_code=str(metadata.get("region_code") or metadata.get("region_key") or ""),
-                    policy_version=str(metadata.get("policy_version") or metadata.get("source_version") or ""),
-                    source_url=str(row["source_url"] or ""),
-                    audit_node=str(row["audit_node"] or ""),
-                    status=str(row["status"] or "published"),
-                    effective_start_time=parse_metadata_date(metadata.get("effective_start_time")),
-                    effective_end_time=parse_metadata_date(metadata.get("effective_end_time")),
-                    embedding_id=str(row["embedding_id"] or row["chunk_uid"] or ""),
-                    metadata=metadata,
-                )
-            )
+            chunks.append(knowledge_chunk_from_row(row))
         return documents, chunks
+
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+        """按公开 chunk_uid 批量查询知识片段。"""
+        ids = unique_ordered_strings(chunk_ids)
+        if not ids:
+            return []
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                chunk_select_sql("c.chunk_uid = ANY(:chunk_ids)"),
+                {"chunk_ids": ids},
+            ).mappings().all()
+        return ordered_chunks(rows, ids)
+
+    def get_parent_chunks(self, parent_ids: list[str]) -> list[KnowledgeChunk]:
+        """按公开 parent chunk_uid 批量查询父级片段。"""
+        return self.get_chunks_by_ids(parent_ids)
+
+    def get_structured_section_chunks(self, parent_section_ids: list[str], target_chunk_type: str) -> list[KnowledgeChunk]:
+        """按结构化章节批量查询同级材料/流程片段。"""
+        section_ids = unique_ordered_strings(parent_section_ids)
+        if not section_ids or not str(target_chunk_type or "").strip():
+            return []
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                chunk_select_sql(
+                    """
+                    c.chunk_type = 'child'
+                    AND COALESCE(c.metadata ->> 'indexable', 'true') <> 'false'
+                    AND c.metadata ->> 'parent_section_id' = ANY(:parent_section_ids)
+                    AND c.metadata ->> 'chunk_type' = :target_chunk_type
+                    """
+                ),
+                {"parent_section_ids": section_ids, "target_chunk_type": str(target_chunk_type)},
+            ).mappings().all()
+        return [knowledge_chunk_from_row(row) for row in rows]
 
     def knowledge_base_revision(self) -> str:
         """返回知识库当前修订标识。"""
@@ -1455,3 +1471,72 @@ def normalize_eval_run_item(row) -> dict[str, Any]:
         "annotation_label": str(row["annotation_label"] or ""),
         "annotation_comment": str(row["annotation_comment"] or ""),
     }
+
+
+def chunk_select_sql(where_clause: str):
+    """Build a published chunk select statement with document and parent metadata."""
+    return text(
+        f"""
+        SELECT
+            c.chunk_uid,
+            COALESCE(d.document_uid, d.id::text) AS document_uid,
+            COALESCE(p.chunk_uid, '') AS parent_chunk_uid,
+            c.chunk_type,
+            d.title,
+            c.content,
+            c.embedding_id,
+            COALESCE(c.source_url, d.source_url, '') AS source_url,
+            COALESCE(c.audit_node, d.audit_node, '') AS audit_node,
+            c.status,
+            c.metadata
+        FROM declaration_qa.chunks c
+        JOIN declaration_qa.documents d ON d.id = c.document_id
+        LEFT JOIN declaration_qa.chunks p ON p.id = c.parent_chunk_id
+        WHERE d.status = 'published'
+          AND c.status = 'published'
+          AND ({where_clause})
+        ORDER BY d.id ASC, c.chunk_index ASC, c.id ASC
+        """
+    )
+
+
+def knowledge_chunk_from_row(row) -> KnowledgeChunk:
+    """Convert a persisted chunk row into a KnowledgeChunk."""
+    metadata = sanitize_metadata(dict(row["metadata"] or {}))
+    return KnowledgeChunk(
+        id=str(row["chunk_uid"] or ""),
+        doc_id=str(row["document_uid"] or ""),
+        parent_id=str(row["parent_chunk_uid"] or ""),
+        chunk_type=str(row["chunk_type"] or ""),
+        title=str(row["title"] or ""),
+        content=str(row["content"] or ""),
+        region_code=str(metadata.get("region_code") or metadata.get("region_key") or ""),
+        policy_version=str(metadata.get("policy_version") or metadata.get("source_version") or ""),
+        source_url=str(row["source_url"] or ""),
+        audit_node=str(row["audit_node"] or ""),
+        status=str(row["status"] or "published"),
+        effective_start_time=parse_metadata_date(metadata.get("effective_start_time")),
+        effective_end_time=parse_metadata_date(metadata.get("effective_end_time")),
+        embedding_id=str(row["embedding_id"] or row["chunk_uid"] or ""),
+        metadata=metadata,
+    )
+
+
+def ordered_chunks(rows, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+    """Return chunks in the requested chunk id order."""
+    chunks = [knowledge_chunk_from_row(row) for row in rows]
+    by_id = {chunk.id: chunk for chunk in chunks}
+    return [by_id[chunk_id] for chunk_id in chunk_ids if chunk_id in by_id]
+
+
+def unique_ordered_strings(values: list[str]) -> list[str]:
+    """Return non-empty strings in first-seen order."""
+    seen = set()
+    output = []
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output

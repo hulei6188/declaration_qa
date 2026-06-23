@@ -94,6 +94,9 @@ python -m declaration_qa.worker
 | `DECLARATION_QA_VECTOR_BACKEND` | `memory` 或 `milvus` |
 | `DECLARATION_QA_MILVUS_URI` | Milvus 地址 |
 | `DECLARATION_QA_MILVUS_COLLECTION` | Milvus collection |
+| `DECLARATION_QA_KEYWORD_BACKEND` | `memory` 或 `elasticsearch` |
+| `DECLARATION_QA_ELASTICSEARCH_URL` | Elasticsearch 地址 |
+| `DECLARATION_QA_ELASTICSEARCH_INDEX` | Elasticsearch chunk 索引 |
 | `DECLARATION_QA_LLM_PROVIDER` | LLM provider |
 | `DECLARATION_QA_LLM_MODEL` | 回答生成模型 |
 | `DECLARATION_QA_QUESTION_PLANNER_MODEL` | Planner 模型，不填时走默认 LLM 配置或规则兜底 |
@@ -254,12 +257,13 @@ Query Rewrite 当前是 LLM 优先、规则兜底。
 RAG 检索流程：
 
 1. 标准化 metadata filter。
-2. 在 PostgreSQL / Milvus 中按事项范围过滤候选 chunk。
-3. 对多路 query 优先执行批量 Embedding 和 Milvus batch search。
-4. 使用 RRF 融合多路召回结果。
-5. 使用 Rerank 重排。
-6. 扩展父子分块或结构化段落。
-7. 返回证据来源和检索诊断信息。
+2. 本地模式从内存 chunk 池检索；生产外部模式将 metadata filter 下推给 Milvus 和 Elasticsearch。
+3. Milvus 返回向量候选 `chunk_id + score`，Elasticsearch 返回 BM25 候选 `chunk_id + score`。
+4. PostgreSQL 按 `chunk_id` 批量回表加载 chunk 内容和 metadata。
+5. 使用 RRF 融合多路召回结果。
+6. 使用 Rerank 重排。
+7. 命中 child 后按需从 PostgreSQL 加载 parent 或同一结构化章节 sibling。
+8. 返回证据来源和检索诊断信息。
 
 多问题场景下，每个子问题独立检索，最终会构造共享证据池：
 
@@ -392,4 +396,4 @@ python -m pytest tests/declaration_qa_production_test.py -q
 - `biz_type` 不参与知识库过滤。
 - 工单状态、退回原因、补正信息必须来自业务数据。
 - 多问题最终回答可以由一个模型汇总，但证据必须按子问题隔离。
-- 生产环境需要真实 PostgreSQL、Redis、Milvus、Embedding、Rerank、LLM 和 worker。
+- 生产环境需要真实 PostgreSQL、Redis、Milvus、Elasticsearch、Embedding、Rerank、LLM 和 worker。

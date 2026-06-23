@@ -26,6 +26,11 @@ class DeclarationQASettings(BaseSettings):
     milvus_token: str = Field(default="", alias="DECLARATION_QA_MILVUS_TOKEN")
     milvus_collection: str = Field(default="declaration_qa_chunks", alias="DECLARATION_QA_MILVUS_COLLECTION")
 
+    keyword_backend: str = Field(default="memory", alias="DECLARATION_QA_KEYWORD_BACKEND")
+    elasticsearch_url: str = Field(default="", alias="DECLARATION_QA_ELASTICSEARCH_URL")
+    elasticsearch_api_key: str = Field(default="", alias="DECLARATION_QA_ELASTICSEARCH_API_KEY")
+    elasticsearch_index: str = Field(default="declaration_qa_chunks", alias="DECLARATION_QA_ELASTICSEARCH_INDEX")
+
     embedding_provider: str = Field(default="hashing", alias="DECLARATION_QA_EMBEDDING_PROVIDER")
     embedding_model: str = Field(default="text-embedding-3-large", alias="DECLARATION_QA_EMBEDDING_MODEL")
     embedding_dimensions: int = Field(default=96, alias="DECLARATION_QA_EMBEDDING_DIMENSIONS")

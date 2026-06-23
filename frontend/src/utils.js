@@ -37,6 +37,35 @@ export function compactJson(value) {
   return JSON.stringify(value || {}, null, 2).slice(0, 900);
 }
 
+export async function copyText(value) {
+  const text = String(value ?? '');
+  if (!text) return false;
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the textarea fallback for non-secure contexts.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.inset = '0 auto auto 0';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 export function ticketLabel(ticket) {
   return [
     ticket.title || ticket.biz_type || '申报工单',

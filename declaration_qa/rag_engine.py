@@ -9,10 +9,11 @@ import re
 from collections import defaultdict
 from dataclasses import replace
 from datetime import date
-from typing import Any, Iterable
+from typing import Any, Iterable, Protocol
 
 from declaration_qa.cache import CacheStore, InMemoryCacheStore
 from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
+from declaration_qa.keyword_index import KeywordIndex
 from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
 from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter, sanitize_metadata
 from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
@@ -22,6 +23,22 @@ EMBEDDING_DIMS = 96
 CHUNKING_PARENT_CHILD = "parent_child"
 CHUNKING_HIERARCHICAL = "hierarchical"
 SUPPORTED_CHUNKING_STRATEGIES = {CHUNKING_PARENT_CHILD, CHUNKING_HIERARCHICAL}
+
+
+class ChunkStore(Protocol):
+    """Persistent chunk store used for on-demand retrieval hydration."""
+
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+        """Load chunks by public chunk ids."""
+        ...
+
+    def get_parent_chunks(self, parent_ids: list[str]) -> list[KnowledgeChunk]:
+        """Load parent chunks by public chunk ids."""
+        ...
+
+    def get_structured_section_chunks(self, parent_section_ids: list[str], target_chunk_type: str) -> list[KnowledgeChunk]:
+        """Load structured sibling chunks for section backfill."""
+        ...
 
 
 class InMemoryRAGEngine:
@@ -40,6 +57,9 @@ class InMemoryRAGEngine:
         vector_index: VectorIndex | None = None,
         embedding_provider: EmbeddingProvider | None = None,
         reranker: Reranker | None = None,
+        keyword_index: KeywordIndex | None = None,
+        chunk_store: ChunkStore | None = None,
+        load_chunks_into_memory: bool = True,
         cache_ttl_seconds: int = 600,
     ) -> None:
         """初始化InMemoryRAGEngine。"""
@@ -50,6 +70,9 @@ class InMemoryRAGEngine:
         self.vector_index = vector_index or MemoryVectorIndex()
         self.embedding_provider = embedding_provider or HashEmbeddingProvider(dimension=EMBEDDING_DIMS)
         self.reranker = reranker or HeuristicReranker()
+        self.keyword_index = keyword_index
+        self.chunk_store = chunk_store
+        self.load_chunks_into_memory = bool(load_chunks_into_memory)
         self.cache_ttl_seconds = max(1, int(cache_ttl_seconds))
 
     @property
@@ -68,10 +91,13 @@ class InMemoryRAGEngine:
         chunks = split_document(document)
         vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
         for chunk, vector in zip(chunks, vectors):
-            self._chunks[chunk.id] = chunk
-            self._vectors[chunk.embedding_id] = vector
+            if self.load_chunks_into_memory:
+                self._chunks[chunk.id] = chunk
+                self._vectors[chunk.embedding_id] = vector
             if chunk.chunk_type == "child":
                 self.vector_index.upsert(chunk, vector)
+        if self.keyword_index:
+            self.keyword_index.upsert_chunks(chunks)
         self.cache_store.clear()
         return len(chunks)
 
@@ -83,6 +109,8 @@ class InMemoryRAGEngine:
                 self._chunks.pop(chunk_id, None)
                 self._vectors.pop(chunk.embedding_id, None)
         self.vector_index.delete_by_doc(doc_id)
+        if self.keyword_index:
+            self.keyword_index.delete_by_doc(doc_id)
         self.cache_store.clear()
 
     def rebuild(self, documents: list[KnowledgeDocument]) -> int:
@@ -91,6 +119,8 @@ class InMemoryRAGEngine:
         self._chunks.clear()
         self._vectors.clear()
         self.vector_index.clear()
+        if self.keyword_index:
+            self.keyword_index.clear()
         count = 0
         for document in documents:
             count += self.index_document(document)
@@ -104,10 +134,10 @@ class InMemoryRAGEngine:
         Indexing endpoints and workers are responsible for creating vectors.
         """
         self._documents = {document.id: document for document in documents}
-        self._chunks = {chunk.id: chunk for chunk in chunks}
+        self._chunks = {chunk.id: chunk for chunk in chunks} if self.load_chunks_into_memory else {}
         self._vectors.clear()
         self.cache_store.clear()
-        return len(self._chunks)
+        return len(chunks)
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         """返回文档切分后的片段列表。"""
@@ -121,6 +151,10 @@ class InMemoryRAGEngine:
         cached_payload = self.cache_store.get_json(cache_key)
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
+        if self._remote_retrieval_enabled():
+            result = self._retrieve_remote(normalized_query, effective_filter, top_k=top_k)
+            self._cache_result(cache_key, result)
+            return result
 
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
         prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
@@ -211,6 +245,8 @@ class InMemoryRAGEngine:
 
         if not query_specs:
             return [result for result in results if result is not None]
+        if self._remote_retrieval_enabled():
+            return self._retrieve_many_remote(query_specs, results, effective_filter)
 
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
         prefilter_child_count = sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
@@ -274,6 +310,91 @@ class InMemoryRAGEngine:
             results[index] = result
         return [result for result in results if result is not None]
 
+    def _remote_retrieval_enabled(self) -> bool:
+        """Return whether retrieval should hydrate chunks from an external store."""
+        return self.chunk_store is not None and self.keyword_index is not None and not self.load_chunks_into_memory
+
+    def _retrieve_remote(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
+        """Retrieve through external vector/keyword indexes and hydrate chunks on demand."""
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        limit = max(top_k * 3, 8)
+        degraded: list[dict[str, str]] = []
+        try:
+            dense_hits = self._remote_dense_retrieve(normalized_query, effective_filter, limit=limit, channel="dense")
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
+        try:
+            bm25_hits = self._keyword_retrieve(normalized_query, effective_filter, limit=limit)
+        except Exception as exc:
+            bm25_hits = []
+            degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
+        hit_chunks = self._unique_hit_chunks(dense_hits, bm25_hits)
+        return self._build_result_from_hits(
+            normalized_query,
+            effective_filter,
+            hit_chunks,
+            len(hit_chunks),
+            coverage,
+            dense_hits,
+            bm25_hits,
+            top_k=top_k,
+            degraded=degraded,
+            candidate_source="external_indexes",
+        )
+
+    def _retrieve_many_remote(
+        self,
+        query_specs: list[dict[str, Any]],
+        results: list[RetrievalResult | None],
+        effective_filter: dict[str, Any],
+    ) -> list[RetrievalResult]:
+        """Batch remote dense retrieval, then hydrate and rerank each query independently."""
+        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        dense_by_index: dict[int, list[RetrievedSource]] = {}
+        degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
+        try:
+            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
+            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
+                dense_by_index[int(spec["index"])] = self._sources_from_scored_ids(
+                    vector_hits[:limit],
+                    score_kind="dense",
+                    channel="dense_batch",
+                )
+        except Exception as exc:
+            for spec in query_specs:
+                degraded_by_index[int(spec["index"])].append({"stage": "dense_retrieve_batch", "error": type(exc).__name__})
+
+        for spec, limit in zip(query_specs, limits):
+            index = int(spec["index"])
+            query = str(spec["query"])
+            top_k = int(spec["top_k"])
+            dense_hits = dense_by_index.get(index) or []
+            try:
+                bm25_hits = self._keyword_retrieve(query, effective_filter, limit=limit)
+            except Exception as exc:
+                bm25_hits = []
+                degraded_by_index[index].append({"stage": "bm25_retrieve", "error": type(exc).__name__})
+            hit_chunks = self._unique_hit_chunks(dense_hits, bm25_hits)
+            result = self._build_result_from_hits(
+                query,
+                effective_filter,
+                hit_chunks,
+                len(hit_chunks),
+                coverage,
+                dense_hits,
+                bm25_hits,
+                top_k=top_k,
+                degraded=degraded_by_index.get(index) or [],
+                batch_mode=True,
+                candidate_source="external_indexes",
+            )
+            self._cache_result(str(spec["cache_key"]), result)
+            results[index] = result
+        return [result for result in results if result is not None]
+
     def _build_result_from_hits(
         self,
         normalized_query: str,
@@ -287,6 +408,7 @@ class InMemoryRAGEngine:
         top_k: int,
         degraded: list[dict[str, str]] | None = None,
         batch_mode: bool = False,
+        candidate_source: str = "memory",
     ) -> RetrievalResult:
         """基于 dense/BM25 命中构造标准检索结果。"""
         degraded = list(degraded or [])
@@ -296,11 +418,10 @@ class InMemoryRAGEngine:
         except Exception as exc:
             reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
-        expanded_sources = expand_parent_context(reranked, self._chunks)
-        expanded_sources, structured_backfill_status = expand_structured_section_context(
+        expanded_sources = self._expand_parent_context(reranked)
+        expanded_sources, structured_backfill_status = self._expand_structured_section_context(
             normalized_query,
             expanded_sources,
-            self._chunks,
         )
         return RetrievalResult(
             sources=expanded_sources,
@@ -325,8 +446,123 @@ class InMemoryRAGEngine:
                 "degraded": degraded,
                 "filter": effective_filter,
                 "batch_mode": batch_mode,
+                "candidate_source": candidate_source,
             },
         )
+
+    def _remote_dense_retrieve(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        *,
+        limit: int,
+        channel: str,
+    ) -> list[RetrievedSource]:
+        """Run vector retrieval against the configured vector index and hydrate chunks."""
+        query_vector = self.embedding_provider.embed_query(query)
+        return self._sources_from_scored_ids(
+            self.vector_index.search(query_vector, filters, limit=limit),
+            score_kind="dense",
+            channel=channel,
+        )
+
+    def _keyword_retrieve(self, query: str, filters: dict[str, Any], *, limit: int) -> list[RetrievedSource]:
+        """Run keyword retrieval against Elasticsearch or the in-memory fallback."""
+        if self.keyword_index:
+            return self._sources_from_scored_ids(
+                self.keyword_index.search(query, filters, limit=limit),
+                score_kind="bm25",
+                channel=f"{self.keyword_index.backend}_bm25",
+            )
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, filters)]
+        return bm25_retrieve(query, candidates, limit=limit)
+
+    def _sources_from_scored_ids(
+        self,
+        scored_ids: list[tuple[str, float]],
+        *,
+        score_kind: str,
+        channel: str,
+    ) -> list[RetrievedSource]:
+        """Hydrate scored chunk ids into RetrievedSource objects."""
+        if not scored_ids:
+            return []
+        chunks = self._load_chunks_by_ids([chunk_id for chunk_id, _ in scored_ids])
+        by_id = {chunk.id: chunk for chunk in chunks}
+        sources = []
+        for chunk_id, score in scored_ids:
+            chunk = by_id.get(str(chunk_id))
+            if chunk is None or score <= 0:
+                continue
+            sources.append(
+                RetrievedSource(
+                    chunk=chunk,
+                    score=float(score),
+                    dense_score=float(score) if score_kind == "dense" else 0.0,
+                    bm25_score=float(score) if score_kind == "bm25" else 0.0,
+                    retrieval_channel=channel,
+                )
+            )
+        return sources
+
+    def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+        """Load chunks from memory or the configured persistent chunk store."""
+        unique_ids = unique_ordered_strings(chunk_ids)
+        if not unique_ids:
+            return []
+        if self._remote_retrieval_enabled() and self.chunk_store is not None:
+            chunks = self.chunk_store.get_chunks_by_ids(unique_ids)
+        else:
+            chunks = [self._chunks[chunk_id] for chunk_id in unique_ids if chunk_id in self._chunks]
+        by_id = {chunk.id: chunk for chunk in chunks}
+        return [by_id[chunk_id] for chunk_id in unique_ids if chunk_id in by_id]
+
+    def _unique_hit_chunks(self, *hit_lists: list[RetrievedSource]) -> list[KnowledgeChunk]:
+        """Return unique chunks from retrieval hits in hit order."""
+        seen = set()
+        chunks = []
+        for hits in hit_lists:
+            for hit in hits:
+                if hit.chunk.id in seen:
+                    continue
+                seen.add(hit.chunk.id)
+                chunks.append(hit.chunk)
+        return chunks
+
+    def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
+        """Expand child hits with parent chunks from memory or persistent storage."""
+        if not self._remote_retrieval_enabled() or self.chunk_store is None:
+            return expand_parent_context(sources, self._chunks)
+        parent_ids = [
+            source.chunk.parent_id
+            for source in sources
+            if source.chunk.chunk_type == "child" and source.chunk.parent_id
+        ]
+        parents = {chunk.id: chunk for chunk in self.chunk_store.get_parent_chunks(unique_ordered_strings(parent_ids))}
+        return expand_parent_context(sources, parents)
+
+    def _expand_structured_section_context(
+        self,
+        query: str,
+        sources: list[RetrievedSource],
+    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
+        """Backfill structured section siblings from memory or persistent storage."""
+        if not self._remote_retrieval_enabled() or self.chunk_store is None:
+            return expand_structured_section_context(query, sources, self._chunks)
+        target_chunk_type = structured_backfill_chunk_type(query)
+        if not target_chunk_type:
+            return sources, {"applied": False}
+        parent_section_ids = [
+            str(source.chunk.metadata.get("parent_section_id") or "")
+            for source in sources
+            if structured_source_matches(source, target_chunk_type)
+        ]
+        sibling_chunks = self.chunk_store.get_structured_section_chunks(
+            unique_ordered_strings(parent_section_ids),
+            target_chunk_type,
+        )
+        sibling_lookup = {chunk.id: chunk for chunk in sibling_chunks}
+        return expand_structured_section_context(query, sources, sibling_lookup)
 
     def _dense_retrieve(
         self,
@@ -368,17 +604,23 @@ class InMemoryRAGEngine:
 
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
         """从缓存载荷恢复检索结果。"""
+        cached_items = list(cached_payload.get("sources") or [])
+        if self._remote_retrieval_enabled():
+            chunks = self._load_chunks_by_ids([str(item.get("chunk_id") or "") for item in cached_items])
+            by_id = {chunk.id: chunk for chunk in chunks}
+        else:
+            by_id = self._chunks
         cached_sources = [
             RetrievedSource(
-                chunk=self._chunks[item["chunk_id"]],
+                chunk=by_id[item["chunk_id"]],
                 score=float(item.get("score") or 0.0),
                 dense_score=float(item.get("dense_score") or 0.0),
                 bm25_score=float(item.get("bm25_score") or 0.0),
                 rerank_score=float(item.get("rerank_score") or 0.0),
                 retrieval_channel=str(item.get("retrieval_channel") or "cache"),
             )
-            for item in cached_payload.get("sources", [])
-            if item.get("chunk_id") in self._chunks
+            for item in cached_items
+            if item.get("chunk_id") in by_id
         ]
         status = cached_payload.get("status") or {}
         return RetrievalResult(
@@ -1155,6 +1397,19 @@ def normalize_filter_text(value: Any) -> str:
     return normalize_text(str(value or ""))
 
 
+def unique_ordered_strings(values: list[str]) -> list[str]:
+    """Return non-empty strings in first-seen order."""
+    seen = set()
+    output = []
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output
+
+
 def parse_filter_date(value: Any) -> date | None:
     """解析检索过滤中的日期值。"""
     if isinstance(value, date):
@@ -1214,6 +1469,9 @@ def build_seed_rag_engine(
     vector_index: VectorIndex | None = None,
     embedding_provider: EmbeddingProvider | None = None,
     reranker: Reranker | None = None,
+    keyword_index: KeywordIndex | None = None,
+    chunk_store: ChunkStore | None = None,
+    load_chunks_into_memory: bool = True,
     cache_ttl_seconds: int = 600,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
@@ -1223,6 +1481,9 @@ def build_seed_rag_engine(
         vector_index=vector_index,
         embedding_provider=embedding_provider,
         reranker=reranker,
+        keyword_index=keyword_index,
+        chunk_store=chunk_store,
+        load_chunks_into_memory=load_chunks_into_memory,
         cache_ttl_seconds=cache_ttl_seconds,
     )
     if include_seed:

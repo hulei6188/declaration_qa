@@ -23,6 +23,10 @@ def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
         errors.append("DECLARATION_QA_REDIS_URL is required in production")
     if settings.vector_backend.lower() != "milvus":
         errors.append("DECLARATION_QA_VECTOR_BACKEND=milvus is required in production")
+    if settings.keyword_backend.lower() != "elasticsearch":
+        errors.append("DECLARATION_QA_KEYWORD_BACKEND=elasticsearch is required in production")
+    if settings.keyword_backend.lower() == "elasticsearch" and not settings.elasticsearch_url:
+        errors.append("DECLARATION_QA_ELASTICSEARCH_URL is required when keyword backend is elasticsearch")
     if not settings.jwt_secret and not settings.internal_api_key:
         errors.append("DECLARATION_QA_JWT_SECRET or DECLARATION_QA_INTERNAL_API_KEY is required in production")
     if settings.llm_provider.lower() == "deterministic":

@@ -32,6 +32,7 @@ import {
   formatBytes,
   ticketLabel,
   compactJson,
+  copyText,
   INDEX_JOB_MAX_ATTEMPTS,
   sleep,
 } from './utils.js';
@@ -188,6 +189,22 @@ export default function App() {
 
   function addTimeline(event, data) {
     setTimeline((prev) => [{ event, data: compactJson(data) }, ...prev]);
+  }
+
+  async function copyTimeline() {
+    if (!timeline.length) {
+      setFeedbackResult('暂无 Workflow 事件可复制。');
+      return;
+    }
+    const content = timeline
+      .map((item) => `${item.event}\n${item.data}`)
+      .join('\n\n');
+    try {
+      await copyText(content);
+      setFeedbackResult('Workflow 事件已复制。');
+    } catch (e) {
+      setFeedbackResult(`复制失败：${e.message}`);
+    }
   }
 
   function clearChat() {
@@ -638,12 +655,7 @@ export default function App() {
           onCreateDataset={doCreateDataset}
           onRunEval={doRunEval}
           onAnnotate={doAnnotate}
-          onCopyAudit={() => {
-            if (audit.auditId && audit.auditId !== '-') {
-              navigator.clipboard.writeText(audit.auditId);
-              setFeedbackResult('审计 ID 已复制。');
-            }
-          }}
+          onCopyTimeline={copyTimeline}
         />
       </main>
     </div>
