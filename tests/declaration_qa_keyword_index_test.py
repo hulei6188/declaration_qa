@@ -52,25 +52,33 @@ def test_elasticsearch_filter_clauses_push_down_supported_filters():
     ]
 
 
-def test_elasticsearch_bulk_payload_is_utf8_encoded(monkeypatch):
+def test_elasticsearch_bulk_payload_uses_sdk_client(monkeypatch):
     captured = {}
 
-    class FakeResponse:
-        status_code = 200
+    class FakeIndices:
+        def exists(self, *, index):
+            captured["exists_index"] = index
+            return True
 
-        def raise_for_status(self):
-            pass
+    class FakeElasticsearch:
+        def __init__(self, url, **kwargs):
+            captured["client_url"] = url
+            captured["client_kwargs"] = kwargs
+            self.indices = FakeIndices()
 
-    class FakeRequests:
-        def head(self, *args, **kwargs):
-            return FakeResponse()
+    class FakeNotFoundError(Exception):
+        pass
 
-        def post(self, *args, **kwargs):
-            captured["args"] = args
-            captured.update(kwargs)
-            return FakeResponse()
+    def fake_bulk(client, actions, **kwargs):
+        captured["bulk_client"] = client
+        captured["bulk_actions"] = actions
+        captured["bulk_kwargs"] = kwargs
+        return 1, []
 
-    monkeypatch.setattr("declaration_qa.keyword_index.import_requests", lambda: FakeRequests())
+    monkeypatch.setattr(
+        "declaration_qa.keyword_index.import_elasticsearch",
+        lambda: (FakeElasticsearch, FakeNotFoundError, fake_bulk),
+    )
     index = ElasticsearchKeywordIndex(url="http://es.test", index_name="chunks")
     chunk = KnowledgeChunk(
         id="chunk-1",
@@ -83,6 +91,38 @@ def test_elasticsearch_bulk_payload_is_utf8_encoded(monkeypatch):
 
     index.upsert_chunks([chunk])
 
-    assert captured["args"][0] == "http://es.test/_bulk?refresh=true"
-    assert isinstance(captured["data"], bytes)
-    assert "远程测试".encode("utf-8") in captured["data"]
+    assert captured["client_url"] == "http://es.test"
+    assert captured["client_kwargs"] == {"request_timeout": 10.0}
+    assert captured["exists_index"] == "chunks"
+    assert captured["bulk_client"] is index._client
+    assert captured["bulk_kwargs"] == {"refresh": True}
+    assert captured["bulk_actions"] == [
+        {
+            "_op_type": "index",
+            "_index": "chunks",
+            "_id": "chunk-1",
+            "_source": {
+                "doc_id": "doc-1",
+                "chunk_type": "child",
+                "title": "远程测试",
+                "content": "申请表需要申请人自备。",
+                "region_code": "",
+                "region_key": "",
+                "policy_version": "",
+                "source_version": "",
+                "catalog_name": "",
+                "catalog_subitem_name": "",
+                "item_code": "",
+                "item_name": "",
+                "item_type": "",
+                "ssqd_code": "",
+                "ssqd_id": "",
+                "theme_code": "",
+                "service_object": "",
+                "audit_node": "",
+                "status": "published",
+                "doc_status": "published",
+                "metadata": {},
+            },
+        }
+    ]

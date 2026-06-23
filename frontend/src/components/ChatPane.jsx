@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Trash2 } from 'lucide-react';
+import { Maximize2, Minimize2, Send, Trash2 } from 'lucide-react';
 import { escapeHtml, ticketLabel } from '../utils.js';
 
 export default function ChatPane({
   messages, streaming, sendState, currentTicket, ticketPickerOpen, ticketList,
   pendingTicketQuery, onSend, onClear, onOpenTicketPicker, onCloseTicketPicker,
-  onSelectTicket, onClearTicket, ctx, setCtx,
+  onSelectTicket, onClearTicket, ctx, setCtx, expanded = false, onToggleExpanded,
 }) {
   const [input, setInput] = useState('');
   const [autoFollow, setAutoFollow] = useState(true);
@@ -49,7 +49,7 @@ export default function ChatPane({
   const ticketDisplay = ticketId ? ticketLabel(currentTicket || { ticket_id: ticketId }) : null;
 
   return (
-    <section className="chat-pane">
+    <section className={`chat-pane${expanded ? ' is-expanded' : ''}`}>
       {/* Header */}
       <div className="chat-header">
         <div>
@@ -77,10 +77,21 @@ export default function ChatPane({
             </div>
           )}
         </div>
-        <button className="ghost" onClick={onClear}>
-          <Trash2 size={15} />
-          清空
-        </button>
+        <div className="chat-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onToggleExpanded}
+            title={expanded ? '还原会话窗口' : '放大会话窗口'}
+            aria-label={expanded ? '还原会话窗口' : '放大会话窗口'}
+          >
+            {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+          <button type="button" className="ghost" onClick={onClear}>
+            <Trash2 size={15} />
+            清空
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

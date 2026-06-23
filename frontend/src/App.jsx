@@ -50,6 +50,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [sendState, setSendState] = useState('等待输入');
+  const [chatExpanded, setChatExpanded] = useState(false);
   const assistantRef = useRef(null);
 
   // ---- Ticket ----
@@ -602,7 +603,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <TopBar healthStatus={healthStatus} healthLabel={healthLabel} />
-      <main className="workspace">
+      <main className={`workspace${chatExpanded ? ' chat-expanded' : ''}`}>
         <Sidebar
           sessions={sessions}
           documents={documents}
@@ -640,6 +641,8 @@ export default function App() {
           onClearTicket={clearCurrentTicket}
           ctx={ctx}
           setCtx={setCtx}
+          expanded={chatExpanded}
+          onToggleExpanded={() => setChatExpanded((value) => !value)}
         />
         <Inspector
           timeline={timeline}

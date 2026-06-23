@@ -170,6 +170,15 @@ h2 {
   min-width: 0;
 }
 
+.workspace.chat-expanded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.chat-expanded .context-pane,
+.workspace.chat-expanded .inspect-pane {
+  display: none;
+}
+
 /* ============================================================
    Panel / Card
    ============================================================ */
@@ -265,6 +274,13 @@ h2 {
   letter-spacing: 0.04em;
   color: var(--accent);
   text-transform: uppercase;
+}
+
+.chat-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 /* Current Ticket */

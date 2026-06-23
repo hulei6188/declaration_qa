@@ -14,6 +14,7 @@ pymilvus==2.6.15
 redis==5.2.1
 rq==2.1.0
 requests==2.34.2
+elasticsearch==8.19.2
 
 langchain-core==1.4.6
 langchain-openai==1.2.1
