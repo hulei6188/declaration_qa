@@ -13,7 +13,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import (
 from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STATUS
 
 
-class WorkflowTicketMixin:
+class WorkflowTicketNodes:
     """Ticket selection and business-data enrichment nodes."""
     def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
         """查询用户办件列表并写入状态。"""

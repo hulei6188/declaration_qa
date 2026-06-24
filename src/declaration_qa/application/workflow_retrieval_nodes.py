@@ -25,7 +25,7 @@ from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
 from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED
 
 
-class WorkflowRetrievalMixin:
+class WorkflowRetrievalNodes:
     """Knowledge retrieval and evidence-gating nodes."""
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造普通知识检索过滤条件。"""

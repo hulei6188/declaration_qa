@@ -10,7 +10,7 @@ from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
 
 
-class WorkflowResponseMixin:
+class WorkflowResponseNodes:
     """Refusal, answer generation, postprocess, and audit nodes."""
     def refuse_or_human(self, state: DeclarationQAState) -> DeclarationQAState:
         """在证据不足时生成拒答和人工建议。"""

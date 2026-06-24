@@ -22,7 +22,7 @@ from declaration_qa.application.workflow_helpers.streaming import (
     token_events,
 )
 from declaration_qa.application.workflow_helpers.ticket_context import ticket_rag_query
-from declaration_qa.application.workflow_nodes import WorkflowNodeMixin
+from declaration_qa.application.workflow_nodes import WorkflowNodes
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
@@ -48,7 +48,7 @@ __all__ = [
 ]
 
 
-class DeclarationQAWorkflow(WorkflowNodeMixin):
+class DeclarationQAWorkflow(WorkflowNodes):
     """申报问答的图工作流编排器。"""
     def __init__(
         self,

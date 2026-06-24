@@ -29,7 +29,7 @@ from declaration_qa.rag.router import (
 )
 
 
-class WorkflowPlanningMixin:
+class WorkflowPlanningNodes:
     """Context, planner, and route preparation nodes."""
     def context_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造基础请求上下文。"""
