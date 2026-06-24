@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
-from declaration_qa.rag.model_providers import EmbeddingProvider, Reranker
+from declaration_qa.rag.model_providers.embeddings import EmbeddingProvider
+from declaration_qa.rag.model_providers.rerankers import Reranker
 from declaration_qa.search.keyword import KeywordIndex
-from declaration_qa.search.vector import VectorIndex
+from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.storage.cache import CacheStore
 
 

@@ -6,15 +6,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers import (
-    add_event,
-    base_policy_filter,
+from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.intent import infer_biz_type
+from declaration_qa.application.workflow_helpers.retrieval_sources import (
     dedupe_retrieval_queries,
-    infer_biz_type,
-    knowledge_rag_query,
     merge_retrieval_sources,
     query_status_from_result,
     select_answer_sources,
+)
+from declaration_qa.application.workflow_helpers.ticket_context import (
+    base_policy_filter,
+    knowledge_rag_query,
     ticket_rag_query,
 )
 from declaration_qa.core.domain import RetrievalResult

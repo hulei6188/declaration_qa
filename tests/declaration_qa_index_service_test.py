@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
-from declaration_qa.indexing.service import process_reindex
+from declaration_qa.indexing.service.reindex import process_reindex
 
 
 def test_process_reindex_reuses_persisted_chunks_when_available():

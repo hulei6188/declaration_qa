@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers import (
-    add_event,
+from declaration_qa.application.workflow_helpers.actions import material_tags
+from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.ticket_context import (
     base_policy_filter,
     build_business_snapshot,
-    material_tags,
     ticket_summary_from_context,
 )
 from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STATUS

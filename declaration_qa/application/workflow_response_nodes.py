@@ -5,7 +5,9 @@ from __future__ import annotations
 from langgraph.config import get_stream_writer
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers import add_event, is_declaration_qa_stream_run, suggested_actions
+from declaration_qa.application.workflow_helpers.actions import suggested_actions
+from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
 
 
 class WorkflowResponseMixin:

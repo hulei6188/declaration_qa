@@ -6,19 +6,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers import (
-    add_event,
-    apply_planned_question,
+from declaration_qa.application.workflow_helpers.collections import unique_strings, unique_tickets
+from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.intent import (
     classify_intent,
     infer_biz_type,
     is_unsafe_query,
     mask_sensitive_text,
     task_intent,
-    unique_sources,
-    unique_strings,
-    unique_tickets,
 )
-from declaration_qa.rag.engine.common import normalize_text
+from declaration_qa.application.workflow_helpers.planning import apply_planned_question
+from declaration_qa.application.workflow_helpers.retrieval_sources import unique_sources
+from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
 from declaration_qa.rag.router import (
     INTENT_REJECTION_REASON,

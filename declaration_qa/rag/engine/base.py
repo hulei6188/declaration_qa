@@ -7,16 +7,15 @@ import json
 from typing import Any, Protocol
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.rag.engine.common import (
-    EMBEDDING_DIMS,
-    normalize_text,
-    rrf_fuse,
-    split_document,
-)
-from declaration_qa.rag.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
+from declaration_qa.rag.engine.chunking import split_document
+from declaration_qa.rag.engine.constants import EMBEDDING_DIMS
+from declaration_qa.rag.engine.scoring import rrf_fuse
+from declaration_qa.rag.engine.text import normalize_text
+from declaration_qa.rag.model_providers.embeddings import EmbeddingProvider, HashEmbeddingProvider
+from declaration_qa.rag.model_providers.rerankers import HeuristicReranker, Reranker
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter
 from declaration_qa.search.keyword import KeywordIndex
-from declaration_qa.search.vector import VectorIndex
+from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.storage.cache import CacheStore, InMemoryCacheStore
 
 

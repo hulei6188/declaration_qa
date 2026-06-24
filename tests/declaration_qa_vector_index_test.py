@@ -5,7 +5,8 @@ import sys
 from types import SimpleNamespace
 
 from declaration_qa.core.domain import KnowledgeChunk
-from declaration_qa.search.vector import MILVUS_TEXT_METADATA_FIELDS, MilvusVectorIndex, milvus_filter_expr, milvus_metadata_row
+from declaration_qa.search.vector.metadata import MILVUS_TEXT_METADATA_FIELDS, milvus_filter_expr, milvus_metadata_row
+from declaration_qa.search.vector.milvus import MilvusVectorIndex
 
 
 def test_milvus_metadata_row_keeps_observable_metadata_fields():

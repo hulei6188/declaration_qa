@@ -10,18 +10,18 @@ from langgraph.graph import END, START, StateGraph
 
 from declaration_qa.api.schemas import ChatRequest, ChatResponse
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers import (
+from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
+from declaration_qa.application.workflow_helpers.streaming import (
     STREAM_TOKEN_DELAY_SECONDS,
     STREAM_TOKEN_SIZE,
-    add_event,
     done_event,
     graph_stream_part,
     normalize_stream_event,
-    select_answer_sources,
     should_emit_sources,
-    ticket_rag_query,
     token_events,
 )
+from declaration_qa.application.workflow_helpers.ticket_context import ticket_rag_query
 from declaration_qa.application.workflow_nodes import WorkflowNodeMixin
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.rag.engine.base import RAGEngine

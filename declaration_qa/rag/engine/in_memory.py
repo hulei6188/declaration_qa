@@ -6,19 +6,16 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.rag.engine.base import BaseRAGEngine
-from declaration_qa.rag.engine.common import (
-    bm25_retrieve,
-    dense_retrieve,
-    embed_chunk_batch,
-    expand_parent_context,
-    expand_structured_section_context,
-    matches_filter,
-    unique_ordered_strings,
-)
-from declaration_qa.rag.model_providers import EmbeddingProvider, Reranker
+from declaration_qa.rag.engine.embeddings import embed_chunk_batch
+from declaration_qa.rag.engine.scoring import bm25_retrieve, dense_retrieve, matches_filter
+from declaration_qa.rag.engine.structured_context import expand_parent_context, expand_structured_section_context
+from declaration_qa.rag.engine.text import unique_ordered_strings
+from declaration_qa.rag.model_providers.embeddings import EmbeddingProvider
+from declaration_qa.rag.model_providers.rerankers import Reranker
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage
 from declaration_qa.search.keyword import KeywordIndex
-from declaration_qa.search.vector import MemoryVectorIndex, VectorIndex
+from declaration_qa.search.vector.base import VectorIndex
+from declaration_qa.search.vector.memory import MemoryVectorIndex
 from declaration_qa.storage.cache import CacheStore
 
 

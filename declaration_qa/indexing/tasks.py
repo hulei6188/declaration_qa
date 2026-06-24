@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from declaration_qa.core.config import get_settings
 from declaration_qa.application.factory import create_index_job_store, create_workflow
-from declaration_qa.indexing.service import process_index_job
+from declaration_qa.indexing.service.processor import process_index_job
 
 
 def process_index_job_task(job_uid: str) -> dict:

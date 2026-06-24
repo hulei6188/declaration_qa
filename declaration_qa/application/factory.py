@@ -7,12 +7,19 @@ from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.storage.cache import InMemoryCacheStore, RedisCacheStore
 from declaration_qa.core.config import DeclarationQASettings, get_settings
 from declaration_qa.search.keyword import ElasticsearchKeywordIndex
-from declaration_qa.rag.model_providers import build_answer_generator, build_embedding_provider, build_query_rewriter, build_question_planner, build_reranker
+from declaration_qa.rag.model_providers.factories import (
+    build_answer_generator,
+    build_embedding_provider,
+    build_query_rewriter,
+    build_question_planner,
+    build_reranker,
+)
 from declaration_qa.storage.repository import PostgresDeclarationQAStore
 from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.core.runtime import assert_production_ready
-from declaration_qa.search.vector import MemoryVectorIndex, MilvusVectorIndex
+from declaration_qa.search.vector.memory import MemoryVectorIndex
+from declaration_qa.search.vector.milvus import MilvusVectorIndex
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 

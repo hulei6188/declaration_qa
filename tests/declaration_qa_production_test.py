@@ -5,8 +5,8 @@ from declaration_qa.api.auth import apply_chat_auth, decode_jwt_context
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.rag.evidence import decide_evidence
-from declaration_qa.indexing.service import extract_document_metadata
-from declaration_qa.rag.engine.common import split_document
+from declaration_qa.indexing.service.metadata import extract_document_metadata
+from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.core.runtime import production_readiness_errors
 from declaration_qa.api.schemas import ChatRequest
@@ -39,7 +39,7 @@ def test_jwt_context_overrides_request_body_user_id():
 
 
 def test_build_query_rewriter_uses_dedicated_llm_model(monkeypatch):
-    import declaration_qa.rag.model_providers as providers
+    import declaration_qa.rag.model_providers.factories as providers
 
     captured = {}
 

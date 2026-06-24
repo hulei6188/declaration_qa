@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from declaration_qa.rag.model_providers import stream_chat_model_content
+from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 
 
 def test_stream_chat_model_content_yields_langchain_chunk_text():
