@@ -5,8 +5,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY declaration_qa ./declaration_qa
+COPY src ./src
 COPY sql ./sql
 
+ENV PYTHONPATH=/app/src
+
 EXPOSE 8010
-CMD ["uvicorn", "declaration_qa.server:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["uvicorn", "declaration_qa.api.server.app:app", "--host", "0.0.0.0", "--port", "8010"]

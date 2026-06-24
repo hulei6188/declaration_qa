@@ -1,7 +1,7 @@
 -- Isolated schema for the Declaration QA Workflow service.
 --
 -- This file is intentionally separate from AgentBase's main schema. The
--- declaration QA service starts from declaration_qa.server:app and stores its
+-- declaration QA service starts from declaration_qa.api.server.app:app and stores its
 -- own knowledge, chat, audit, and feedback data under the declaration_qa schema.
 
 BEGIN;

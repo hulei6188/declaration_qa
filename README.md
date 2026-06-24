@@ -16,14 +16,15 @@
 
 ```text
 .
-├── declaration_qa/
-│   ├── api/                  # FastAPI 路由、鉴权、请求响应模型
-│   ├── application/          # LangGraph 工作流、节点和 workflow_helpers 包
-│   ├── core/                 # 配置、领域模型、业务适配和运行时检查
-│   ├── indexing/             # 知识入库、任务队列、worker 和 service 包
-│   ├── rag/                  # RAG 引擎、Planner、Query Rewrite、模型适配器
-│   ├── search/               # 关键词索引和 vector 包
-│   └── storage/              # 审计、缓存和 PostgreSQL 存储
+├── src/
+│   └── declaration_qa/
+│       ├── api/              # FastAPI 路由、鉴权、请求响应模型
+│       ├── application/      # LangGraph 工作流、节点和 workflow_helpers 包
+│       ├── core/             # 配置、领域模型、业务适配和运行时检查
+│       ├── indexing/         # 知识入库、任务队列、worker 和 service 包
+│       ├── rag/              # RAG 引擎、Planner、Query Rewrite、模型适配器
+│       ├── search/           # 关键词索引和 vector 包
+│       └── storage/          # 审计、缓存和 PostgreSQL 存储
 ├── frontend/                 # 前端页面
 ├── sql/postgresql/           # PostgreSQL schema 和种子数据
 ├── materials/                # 知识材料
@@ -45,6 +46,7 @@
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 准备配置：
