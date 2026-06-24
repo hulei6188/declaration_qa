@@ -62,7 +62,7 @@ docker compose up -d
 启动 API：
 
 ```powershell
-python -m uvicorn declaration_qa.api.server:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn declaration_qa.api.server.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 启动前端：

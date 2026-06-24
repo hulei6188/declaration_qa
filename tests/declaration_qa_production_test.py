@@ -10,7 +10,9 @@ from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.core.runtime import production_readiness_errors
 from declaration_qa.api.schemas import ChatRequest
-from declaration_qa.api.server import create_app, settings as server_settings, stable_upload_document_id
+from declaration_qa.api.server.app import create_app
+from declaration_qa.api.server.runtime import settings as server_settings
+from declaration_qa.api.server.uploads import stable_upload_document_id
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 

@@ -14,10 +14,10 @@ from declaration_qa.rag.question_planner.prompts import QUESTION_PLANNER_PROMPT
 from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
-from declaration_qa.storage.repository import PostgresDeclarationQAStore
+from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
 from declaration_qa.rag.router import parse_json_object
 from declaration_qa.api.schemas import ChatRequest
-from declaration_qa.api.server import create_app
+from declaration_qa.api.server.app import create_app
 from declaration_qa.application.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, select_answer_sources, ticket_rag_query, token_events
 
 
@@ -28,7 +28,7 @@ def test_declaration_qa_entrypoint_isolated_from_existing_main():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["entrypoint"] == "declaration_qa.api.server:app"
+    assert payload["entrypoint"] == "declaration_qa.api.server.app:app"
     assert payload["service"] == "declaration-qa"
     assert payload["audit_store"] == "InMemoryAuditStore"
     assert client.get("/api/agents").status_code == 404

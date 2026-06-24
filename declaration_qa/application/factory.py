@@ -14,7 +14,7 @@ from declaration_qa.rag.model_providers.factories import (
     build_question_planner,
     build_reranker,
 )
-from declaration_qa.storage.repository import PostgresDeclarationQAStore
+from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
 from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.core.runtime import assert_production_ready
