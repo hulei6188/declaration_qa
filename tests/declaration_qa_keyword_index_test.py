@@ -76,7 +76,7 @@ def test_elasticsearch_bulk_payload_uses_sdk_client(monkeypatch):
         return 1, []
 
     monkeypatch.setattr(
-        "declaration_qa.search.keyword.import_elasticsearch",
+        "declaration_qa.search.keyword.elasticsearch_keyword_index.import_elasticsearch",
         lambda: (FakeElasticsearch, FakeNotFoundError, fake_bulk),
     )
     index = ElasticsearchKeywordIndex(url="http://es.test", index_name="chunks")
@@ -152,7 +152,7 @@ def test_elasticsearch_search_many_uses_msearch(monkeypatch):
         pass
 
     monkeypatch.setattr(
-        "declaration_qa.search.keyword.import_elasticsearch",
+        "declaration_qa.search.keyword.elasticsearch_keyword_index.import_elasticsearch",
         lambda: (FakeElasticsearch, FakeNotFoundError, lambda client, actions, **kwargs: (0, [])),
     )
     index = ElasticsearchKeywordIndex(url="http://es.test", index_name="chunks")
