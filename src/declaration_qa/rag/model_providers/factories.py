@@ -6,12 +6,12 @@ from typing import Any
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.rag.model_providers.answers import OpenAIAnswerGenerator
-from declaration_qa.rag.model_providers.embeddings import (
-    EmbeddingProvider,
-    HashEmbeddingProvider,
-    OpenAIEmbeddingProvider,
-)
-from declaration_qa.rag.model_providers.rerankers import DashScopeReranker, HeuristicReranker, Reranker
+from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
+from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
+from declaration_qa.rag.model_providers.embeddings.openai_embedding_provider import OpenAIEmbeddingProvider
+from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker
+from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
+from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
 from declaration_qa.rag.question_planner.llm import LLMQuestionPlanner
 from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
 from declaration_qa.rag.model_providers.factories import build_reranker
-from declaration_qa.rag.model_providers.rerankers import DashScopeReranker
+from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 
 

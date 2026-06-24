@@ -14,8 +14,8 @@ from declaration_qa.rag.engine.structured_context import (
     structured_source_matches,
 )
 from declaration_qa.rag.engine.text import unique_ordered_strings
-from declaration_qa.rag.model_providers.embeddings import EmbeddingProvider
-from declaration_qa.rag.model_providers.rerankers import Reranker
+from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
+from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage
 from declaration_qa.search.keyword import KeywordIndex
 from declaration_qa.search.vector.base import VectorIndex
