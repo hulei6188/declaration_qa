@@ -7,9 +7,11 @@ from uuid import uuid4
 
 from sqlalchemy import JSON, bindparam, text
 
+from declaration_qa.storage.repository.base import EngineBackedRepository
 
-class IndexJobStoreMixin:
-    """索引任务创建、更新和查询能力。"""
+
+class IndexJobRepository(EngineBackedRepository):
+    """索引任务创建、更新和查询仓储。"""
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         """创建索引任务记录。"""
         from uuid import uuid4

@@ -14,6 +14,7 @@ from declaration_qa.rag.question_planner.prompts import QUESTION_PLANNER_PROMPT
 from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
+from declaration_qa.storage.repository.business import BusinessRepository
 from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
 from declaration_qa.rag.router import parse_json_object
 from declaration_qa.api.schemas import ChatRequest
@@ -1548,8 +1549,7 @@ def test_postgres_business_adapter_reads_application_status_and_reject_tables():
             "audit_node": "人工初审",
         },
     ]
-    store = PostgresDeclarationQAStore.__new__(PostgresDeclarationQAStore)
-    store.engine = FakeBusinessEngine(rows)
+    store = BusinessRepository(FakeBusinessEngine(rows))
 
     context = store.get_apply_context(user_id=7, apply_id="A9001")
     has_access = store.verify_apply_access(user_id=7, apply_id="A9001")

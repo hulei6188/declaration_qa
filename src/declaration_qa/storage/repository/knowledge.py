@@ -9,6 +9,7 @@ from sqlalchemy import JSON, bindparam, text
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.rag.retrieval import sanitize_metadata
+from declaration_qa.storage.repository.base import EngineBackedRepository
 from declaration_qa.storage.repository.normalizers import (
     chunk_select_sql,
     knowledge_chunk_from_row,
@@ -19,8 +20,8 @@ from declaration_qa.storage.repository.normalizers import (
 )
 
 
-class KnowledgeStoreMixin:
-    """知识文档持久化、chunk 读取和版本管理能力。"""
+class KnowledgeRepository(EngineBackedRepository):
+    """知识文档持久化、chunk 读取和版本管理仓储。"""
     def persist_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
         """持久化知识文档及其片段。"""
         with self.engine.begin() as connection:

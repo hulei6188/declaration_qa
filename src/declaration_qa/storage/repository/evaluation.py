@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy import JSON, bindparam, text
 
+from declaration_qa.storage.repository.base import EngineBackedRepository
 from declaration_qa.storage.repository.normalizers import (
     normalize_eval_case,
     normalize_eval_dataset,
@@ -15,8 +16,8 @@ from declaration_qa.storage.repository.normalizers import (
 )
 
 
-class EvaluationStoreMixin:
-    """评测数据集、用例、运行和标注能力。"""
+class EvaluationRepository(EngineBackedRepository):
+    """评测数据集、用例、运行和标注仓储。"""
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""
         dataset_uid = f"eval-ds-{uuid4().hex}"

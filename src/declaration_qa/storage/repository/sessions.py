@@ -6,11 +6,12 @@ from typing import Any
 
 from sqlalchemy import text
 
+from declaration_qa.storage.repository.base import EngineBackedRepository
 from declaration_qa.storage.repository.normalizers import normalize_session_row
 
 
-class SessionStoreMixin:
-    """会话摘要、详情和删除能力。"""
+class SessionRepository(EngineBackedRepository):
+    """会话摘要、详情和删除仓储。"""
     def list_sessions(self, *, user_id: int) -> list[dict[str, Any]]:
         """按用户查询历史会话摘要列表。"""
         with self.engine.begin() as connection:

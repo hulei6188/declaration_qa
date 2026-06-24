@@ -7,11 +7,12 @@ from typing import Any
 from sqlalchemy import text
 
 from declaration_qa.core.business import region_code_variants
+from declaration_qa.storage.repository.base import EngineBackedRepository
 from declaration_qa.storage.repository.normalizers import business_ticket_summary, normalize_business_row
 
 
-class BusinessStoreMixin:
-    """办件上下文、进度和退回信息查询能力。"""
+class BusinessRepository(EngineBackedRepository):
+    """办件上下文、进度和退回信息仓储。"""
     def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
         """查询指定办件的业务上下文。"""
         with self.engine.begin() as connection:

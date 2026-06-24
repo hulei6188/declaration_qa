@@ -20,3 +20,11 @@ class PostgresStoreBase:
         schema_path = Path(__file__).resolve().parents[3] / "sql" / "postgresql" / "003_declaration_qa_schema.sql"
         with self.engine.begin() as connection:
             connection.exec_driver_sql(schema_path.read_text(encoding="utf-8"))
+
+
+class EngineBackedRepository:
+    """共享 SQLAlchemy Engine 的仓储基类。"""
+
+    def __init__(self, engine: Engine) -> None:
+        """初始化仓储。"""
+        self.engine = engine

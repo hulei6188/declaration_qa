@@ -6,9 +6,11 @@ from typing import Any
 
 from sqlalchemy import JSON, bindparam, text
 
+from declaration_qa.storage.repository.base import EngineBackedRepository
 
-class AuditStoreMixin:
-    """审计日志和反馈写入能力。"""
+
+class AuditRepository(EngineBackedRepository):
+    """审计日志和反馈写入仓储。"""
     def append(self, payload: dict[str, Any]) -> str:
         """追加一条审计记录并返回记录 ID。"""
         audit_uid = str(payload.get("audit_id") or "")
