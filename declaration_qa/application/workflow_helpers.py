@@ -10,7 +10,7 @@ from langgraph.config import get_config
 
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.core.domain import RetrievalResult, RetrievedSource
-from declaration_qa.rag.engine import (
+from declaration_qa.rag.engine.common import (
     normalize_text,
     safe_int,
     structured_backfill_chunk_type,
@@ -106,12 +106,12 @@ def business_title(*sources: dict[str, Any]) -> str:
     for source in sources:
         if not isinstance(source, dict):
             continue
-        for key in ("title", "item_name", "itemName", "catalog_name", "catalogName"):
+        for key in ("title", "item_name", "catalog_name"):
             title = str(source.get(key) or "").strip()
             if title:
                 return title
         payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
-        for key in ("item_name", "title", "itemName", "catalog_name", "catalogName"):
+        for key in ("item_name", "title", "catalog_name"):
             title = str(payload.get(key) or "").strip()
             if title:
                 return title
@@ -139,14 +139,13 @@ def ticket_metadata_filter(state: DeclarationQAState) -> dict[str, Any]:
         return {}
     payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
     for key in ("item_code", "ssqd_code", "ssqd_id"):
-        value = first_non_empty(apply_context.get(key), payload.get(key), payload.get(camelize_metadata_key(key)))
+        value = first_non_empty(apply_context.get(key), payload.get(key))
         if value:
             return {key: value}
     item_name = first_non_empty(
         apply_context.get("item_name"),
         payload.get("official_item_name"),
         payload.get("item_name"),
-        payload.get("itemName"),
         apply_context.get("title"),
         payload.get("title"),
     )
@@ -162,12 +161,6 @@ def first_non_empty(*values: Any) -> str:
         if text:
             return text
     return ""
-
-
-def camelize_metadata_key(key: str) -> str:
-    """将 snake_case 元数据键转为常见 camelCase 别名。"""
-    parts = key.split("_")
-    return parts[0] + "".join(part.capitalize() for part in parts[1:])
 
 
 def build_business_snapshot(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -496,7 +489,7 @@ def is_unsafe_query(query: str) -> bool:
 
 
 def task_intent(retrieval_focus: str, ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
-    """从 Planner 任务字段派生兼容的 intent 展示值。"""
+    """从 Planner 任务字段派生 intent 展示值。"""
     if requires_ticket_context:
         if ticket_fact_type == "status":
             return INTENT_TICKET_STATUS

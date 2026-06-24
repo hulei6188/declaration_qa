@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from declaration_qa.rag.question_planner import RuleQuestionPlanner
+from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
 from declaration_qa.rag.router import classify_knowledge_intent, classify_ticket_intent
 
 

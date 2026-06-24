@@ -85,7 +85,7 @@ class WorkflowRetrievalMixin:
             )
 
         batch_degraded = ""
-        if len(executable_queries) > 1 and hasattr(self.rag_engine, "retrieve_many"):
+        if len(executable_queries) > 1:
             try:
                 retrieval_mode = "batch_multi_query_rewrite"
                 results = self.rag_engine.retrieve_many(executable_queries, filters)

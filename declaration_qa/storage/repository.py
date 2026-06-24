@@ -1371,7 +1371,7 @@ def business_ticket_title(values: dict[str, Any]) -> str:
     payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
     if not payload and isinstance(values.get("application_payload"), dict):
         payload = values["application_payload"]
-    for key in ("item_name", "title", "itemName", "catalog_name", "catalogName"):
+    for key in ("item_name", "title", "catalog_name"):
         title = str(payload.get(key) or "").strip()
         if title:
             return title

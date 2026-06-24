@@ -9,7 +9,8 @@ from declaration_qa.core.config import DeclarationQASettings, get_settings
 from declaration_qa.search.keyword import ElasticsearchKeywordIndex
 from declaration_qa.rag.model_providers import build_answer_generator, build_embedding_provider, build_query_rewriter, build_question_planner, build_reranker
 from declaration_qa.storage.repository import PostgresDeclarationQAStore
-from declaration_qa.rag.engine import build_seed_rag_engine
+from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
+from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.core.runtime import assert_production_ready
 from declaration_qa.search.vector import MemoryVectorIndex, MilvusVectorIndex
 from declaration_qa.application.workflow import DeclarationQAWorkflow
@@ -64,17 +65,28 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         and settings.vector_backend.strip().lower() == "milvus"
         and settings.keyword_backend.strip().lower() == "elasticsearch"
     )
-    rag_engine = build_seed_rag_engine(
-        cache_store=cache_store,
-        vector_index=vector_index,
-        embedding_provider=embedding_provider,
-        reranker=reranker,
-        keyword_index=keyword_index,
-        chunk_store=audit_store if use_external_chunk_store else None,
-        load_chunks_into_memory=not use_external_chunk_store,
-        cache_ttl_seconds=settings.redis_ttl_seconds,
-        include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
-    )
+    if use_external_chunk_store:
+        if keyword_index is None:
+            raise RuntimeError("External index RAG requires an Elasticsearch keyword index")
+        rag_engine = ExternalIndexRAGEngine(
+            cache_store=cache_store,
+            vector_index=vector_index,
+            keyword_index=keyword_index,
+            chunk_store=audit_store,
+            embedding_provider=embedding_provider,
+            reranker=reranker,
+            cache_ttl_seconds=settings.redis_ttl_seconds,
+        )
+    else:
+        rag_engine = build_seed_rag_engine(
+            cache_store=cache_store,
+            vector_index=vector_index,
+            embedding_provider=embedding_provider,
+            reranker=reranker,
+            keyword_index=keyword_index,
+            cache_ttl_seconds=settings.redis_ttl_seconds,
+            include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
+        )
     if hasattr(audit_store, "list_indexed_knowledge"):
         if use_external_chunk_store:
             rag_engine.load_indexed_data(audit_store.list_documents(), [])

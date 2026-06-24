@@ -18,7 +18,7 @@ from declaration_qa.application.workflow_helpers import (
     unique_strings,
     unique_tickets,
 )
-from declaration_qa.rag.engine import normalize_text
+from declaration_qa.rag.engine.common import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
 from declaration_qa.rag.router import (
     INTENT_REJECTION_REASON,
@@ -277,7 +277,7 @@ class WorkflowPlanningMixin:
         }
 
     def prepare_task(self, state: DeclarationQAState) -> DeclarationQAState:
-        """根据 Planner 任务字段准备兼容展示字段和链路开关。"""
+        """根据 Planner 任务字段准备展示字段和链路开关。"""
         next_state = dict(state)
         if next_state.get("refuse_reason"):
             next_state["route"] = ROUTE_REFUSE
@@ -321,7 +321,3 @@ class WorkflowPlanningMixin:
         add_event(next_state, "intent", route_decision)
         add_event(next_state, "task_prepared", route_decision)
         return next_state
-
-    def intent_route(self, state: DeclarationQAState) -> DeclarationQAState:
-        """兼容旧测试和外部调用，核心链路不再使用该节点。"""
-        return self.prepare_task(state)

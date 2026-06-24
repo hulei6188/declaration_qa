@@ -24,10 +24,11 @@ from declaration_qa.application.workflow_helpers import (
 )
 from declaration_qa.application.workflow_nodes import WorkflowNodeMixin
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
-from declaration_qa.rag.engine import InMemoryRAGEngine, build_seed_rag_engine
+from declaration_qa.rag.engine.base import RAGEngine
+from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.question_planner import RuleQuestionPlanner
-from declaration_qa.rag.query_rewriter import RuleQueryRewriter
+from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 from declaration_qa.rag.router import (
     ROUTE_CLARIFICATION,
     ROUTE_REFUSE,
@@ -52,7 +53,7 @@ class DeclarationQAWorkflow(WorkflowNodeMixin):
     def __init__(
         self,
         *,
-        rag_engine: InMemoryRAGEngine | None = None,
+        rag_engine: RAGEngine | None = None,
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,

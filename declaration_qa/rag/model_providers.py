@@ -10,8 +10,11 @@ import requests
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.rag.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
-from declaration_qa.rag.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
-from declaration_qa.rag.query_rewriter import LLMQueryRewriter, RuleQueryRewriter
+from declaration_qa.core.domain import RetrievedSource
+from declaration_qa.rag.question_planner.llm import LLMQuestionPlanner
+from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
+from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 
 
 class EmbeddingProvider(Protocol):
@@ -46,7 +49,7 @@ class HashEmbeddingProvider:
 
 
 class OpenAIEmbeddingProvider:
-    """兼容 OpenAI Embeddings API 的向量化实现。"""
+    """基于 OpenAI Embeddings API 的向量化实现。"""
     name = "openai"
 
     def __init__(
@@ -104,7 +107,7 @@ class HeuristicReranker:
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
-        from declaration_qa.rag.engine import RetrievedSource, metadata_match_boost, tokenize
+        from declaration_qa.rag.engine.common import metadata_match_boost, tokenize
 
         query_tokens = set(tokenize(query))
         reranked = []
@@ -148,8 +151,6 @@ class HttpReranker:
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
-        from declaration_qa.rag.engine import RetrievedSource
-
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -186,7 +187,7 @@ class HttpReranker:
 
 
 class OpenAIAnswerGenerator:
-    """兼容 OpenAI Chat API 的回答生成器。"""
+    """基于 OpenAI Chat API 的回答生成器。"""
     name = "openai"
 
     def __init__(
@@ -273,7 +274,7 @@ def chat_content_part_text(value: Any) -> str:
 def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvider:
     """按配置创建向量化提供方。"""
     provider = settings.embedding_provider.strip().lower()
-    if provider in {"openai", "compatible-openai", "dashscope"}:
+    if provider in {"openai", "dashscope"}:
         return OpenAIEmbeddingProvider(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
@@ -304,7 +305,7 @@ def build_reranker(settings: DeclarationQASettings) -> Reranker:
 def build_answer_generator(settings: DeclarationQASettings):
     """按配置创建回答生成器。"""
     provider = settings.llm_provider.strip().lower()
-    if provider in {"openai", "compatible-openai", "dashscope"}:
+    if provider in {"openai", "dashscope"}:
         return OpenAIAnswerGenerator(
             api_key=settings.openai_api_key,
             model=settings.llm_model,
@@ -319,12 +320,12 @@ def build_answer_generator(settings: DeclarationQASettings):
 
 def build_question_planner(settings: DeclarationQASettings):
     """按配置创建多问题拆解 planner。"""
-    if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
+    if settings.llm_provider.strip().lower() in {"openai", "dashscope"} and settings.openai_api_key:
         from langchain_openai import ChatOpenAI
 
         kwargs: dict[str, Any] = {
             "api_key": settings.openai_api_key,
-            "model": settings.question_planner_model or settings.legacy_intent_router_model or settings.llm_model,
+            "model": settings.question_planner_model or settings.llm_model,
             "temperature": 0.0,
             "timeout": settings.external_request_timeout_seconds,
             "max_retries": 1,
@@ -337,7 +338,7 @@ def build_question_planner(settings: DeclarationQASettings):
 
 def build_query_rewriter(settings: DeclarationQASettings):
     """按配置创建多路 Query Rewrite。"""
-    if settings.llm_provider.strip().lower() in {"openai", "compatible-openai", "dashscope"} and settings.openai_api_key:
+    if settings.llm_provider.strip().lower() in {"openai", "dashscope"} and settings.openai_api_key:
         from langchain_openai import ChatOpenAI
 
         kwargs: dict[str, Any] = {
@@ -355,7 +356,7 @@ def build_query_rewriter(settings: DeclarationQASettings):
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:
     """使用哈希技巧生成归一化文本向量。"""
-    from declaration_qa.rag.engine import tokenize
+    from declaration_qa.rag.engine.common import tokenize
 
     values = [0.0 for _ in range(dimension)]
     for token in tokenize(text):

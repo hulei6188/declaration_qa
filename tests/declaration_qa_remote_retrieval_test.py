@@ -1,5 +1,5 @@
 from declaration_qa.core.domain import KnowledgeChunk
-from declaration_qa.rag.engine import InMemoryRAGEngine
+from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 
 
 def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
@@ -105,11 +105,10 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     store = RemoteChunkStore()
     vector_index = RemoteVectorIndex()
     keyword_index = RemoteKeywordIndex()
-    engine = InMemoryRAGEngine(
+    engine = ExternalIndexRAGEngine(
         vector_index=vector_index,
         keyword_index=keyword_index,
         chunk_store=store,
-        load_chunks_into_memory=False,
     )
 
     result = engine.retrieve("申请表需要哪些材料", {}, top_k=1)
@@ -130,7 +129,7 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
             {"text": "申请表材料", "top_k": 1},
             {"text": "身份证材料", "top_k": 1},
         ],
-        {"regionCode": "340000"},
+        {"region_code": "340000"},
     )
 
     assert len(many_results) == 2

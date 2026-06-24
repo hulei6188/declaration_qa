@@ -5,9 +5,15 @@ import time
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.rag.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.rag.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
-from declaration_qa.rag.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
-from declaration_qa.rag.engine import InMemoryRAGEngine, build_seed_rag_engine
+from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
+from declaration_qa.rag.query_rewriter.prompts import build_query_rewriter_prompt
+from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
+from declaration_qa.rag.question_planner.helpers import normalize_retrieval_focus
+from declaration_qa.rag.question_planner.llm import LLMQuestionPlanner
+from declaration_qa.rag.question_planner.prompts import QUESTION_PLANNER_PROMPT
+from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
+from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.repository import PostgresDeclarationQAStore
 from declaration_qa.rag.router import parse_json_object
 from declaration_qa.api.schemas import ChatRequest
@@ -324,7 +330,7 @@ def test_query_rewriter_prompt_hides_scope_when_item_metadata_filter_exists():
     assert "示例事项A" not in prompt
 
 
-def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
+def test_knowledge_chain_ignores_removed_metadata_filter_keys():
     workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(
@@ -334,9 +340,9 @@ def test_knowledge_chain_ignores_removed_metadata_filter_aliases():
             region_code="340000",
             biz_type="id_card_replace",
             metadata_filter={
-                "sourceType": "material_rule",
-                "materialCode": "ID_CARD_FRONT",
-                "rejectCode": "PHOTO_BLUR",
+                "source_type": "material_rule",
+                "material_code": "ID_CARD_FRONT",
+                "reject_code": "PHOTO_BLUR",
             },
         )
     )
@@ -1253,9 +1259,9 @@ def test_reject_chain_ignores_conflicting_request_metadata_filter():
             region_code="340000",
             apply_id="A3003",
             metadata_filter={
-                "bizType": "residence_permit",
-                "materialCode": "RESIDENCE_PROOF",
-                "rejectCode": "MISSING_RESIDENCE_PROOF",
+                "biz_type": "residence_permit",
+                "material_code": "RESIDENCE_PROOF",
+                "reject_code": "MISSING_RESIDENCE_PROOF",
             },
         )
     )

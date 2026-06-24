@@ -13,7 +13,7 @@ from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.indexing.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.indexing.jobs import IndexJobStore
-from declaration_qa.rag.engine import normalize_chunking_strategy
+from declaration_qa.rag.engine.common import normalize_chunking_strategy
 from declaration_qa.rag.retrieval import sanitize_metadata
 
 if TYPE_CHECKING:
@@ -180,20 +180,21 @@ def parse_optional_date(value) -> date | None:
     return date.fromisoformat(str(value)[:10])
 
 
-FIELD_ALIASES = {
-    "region_key": ["region_key", "regionCode", "Region Code", "ssqdZoneCode", "行政区划编码", "区域编码", "实施区域编码"],
-    "region_name": ["region_name", "regionName", "Region Name", "ssqdZoneName", "行政区划名称", "区域名称", "实施区域", "实施区域名称"],
-    "catalog_name": ["catalog_name", "catalogName", "mlqdName", "目录清单名称"],
-    "catalog_subitem_name": ["catalog_subitem_name", "catalogSubitemName", "catalog_sub_item_name", "catalogSubItemName", "mlqdSubName", "目录子项名称"],
-    "item_code": ["item_code", "itemCode", "ssqdCode", "事项编码", "实施清单编码"],
-    "item_name": ["item_name", "itemName", "ssqdName", "事项名称"],
-    "item_type": ["item_type", "itemType", "ssqdType", "事项类型"],
-    "theme_code": ["theme_code", "themeCode", "infoClassPtheme", "主题编码"],
-    "service_object": ["service_object", "serviceObject", "serviceObjectName", "服务对象"],
-    "source_version": ["source_version", "sourceVersion", "Policy Version", "updateTime", "更新时间", "ssqdVersion", "mlqdVersion"],
-    "official_source_url": ["official_source_url", "Official Source URL", "source_url", "url", "final_url"],
-    "basic_code": ["baseCode", "basic_code", "基本编码"],
-    "agency_name": ["ssqdDeptName", "implementOrgName", "实施主体"],
+METADATA_FIELDS = {
+    "region_key",
+    "region_name",
+    "catalog_name",
+    "catalog_subitem_name",
+    "item_code",
+    "item_name",
+    "item_type",
+    "theme_code",
+    "service_object",
+    "source_version",
+    "official_source_url",
+    "source_url",
+    "basic_code",
+    "agency_name",
 }
 
 
@@ -252,26 +253,13 @@ def extract_json_key_values(content: str) -> dict[str, Any]:
 
 
 def normalize_metadata_values(values: dict[str, Any]) -> dict[str, Any]:
-    """将不同字段别名归一到标准元数据键。"""
+    """保留标准元数据键。"""
     normalized: dict[str, Any] = {}
-    for target_key, aliases in FIELD_ALIASES.items():
-        value = first_value(values, aliases)
+    for target_key in METADATA_FIELDS:
+        value = values.get(target_key)
         if value not in ("", None):
             normalized[target_key] = str(value).strip()
     return normalized
-
-
-def first_value(values: dict[str, Any], aliases: list[str]) -> Any:
-    """按别名顺序读取第一个有效字段值。"""
-    for alias in aliases:
-        if alias in values and values[alias] not in ("", None):
-            return values[alias]
-    lowered = {str(key).lower(): value for key, value in values.items()}
-    for alias in aliases:
-        value = lowered.get(alias.lower())
-        if value not in ("", None):
-            return value
-    return None
 
 
 def extract_source_url_metadata(source_url: str) -> dict[str, str]:

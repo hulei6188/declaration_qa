@@ -6,7 +6,8 @@ from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.indexing.service import extract_document_metadata
-from declaration_qa.rag.engine import InMemoryRAGEngine, split_document
+from declaration_qa.rag.engine.common import split_document
+from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.core.runtime import production_readiness_errors
 from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.api.server import create_app, settings as server_settings, stable_upload_document_id
@@ -100,24 +101,23 @@ def test_upload_metadata_extractor_reads_real_government_document_fields():
     content = """
 # 涉外收养登记流程文档
 
-- Region Code: 340000000000
-- Region Name: 安徽省
-- Policy Version: ahzwfw-2026-06-15
-- Official Source URL: https://www.ahzwfw.gov.cn/bog-bsdt/static/workProcess.html?ssqdId=abc123&ssqdCode=113400000000001234&typeSipe=nameSkip
+- region_key: 340000000000
+- region_name: 安徽省
+- source_version: ahzwfw-2026-06-15
+- official_source_url: https://www.ahzwfw.gov.cn/bog-bsdt/static/workProcess.html?ssqdId=abc123&ssqdCode=113400000000001234&typeSipe=nameSkip
 
 ## 基本信息
 
 | 字段 | 内容 |
 | --- | --- |
-| 主题分类 | 生育收养 |
-| 主题编码 | A12 |
-| 目录清单名称 | 涉外收养登记 |
-| 目录子项名称 | 无 |
-| 事项名称 | 涉外收养登记 |
-| 事项编码 | 113400000000009999 |
-| 事项类型 | 行政确认 |
-| 服务对象 | 自然人 |
-| 实施主体 | 安徽省民政厅 |
+| theme_code | A12 |
+| catalog_name | 涉外收养登记 |
+| catalog_subitem_name | 无 |
+| item_name | 涉外收养登记 |
+| item_code | 113400000000009999 |
+| item_type | 行政确认 |
+| service_object | 自然人 |
+| agency_name | 安徽省民政厅 |
 
 ## 申请材料
 居民户口簿、身份证件、收养登记申请书。

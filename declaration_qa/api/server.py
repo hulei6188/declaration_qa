@@ -24,7 +24,7 @@ from declaration_qa.application.evaluation import run_evaluation
 from declaration_qa.application.factory import create_index_job_store, create_workflow
 from declaration_qa.indexing.service import process_index_job
 from declaration_qa.indexing.queue import build_index_queue
-from declaration_qa.rag.engine import normalize_chunking_strategy
+from declaration_qa.rag.engine.common import normalize_chunking_strategy
 from declaration_qa.rag.retrieval import sanitize_metadata
 from declaration_qa.core.runtime import assert_production_ready, production_readiness_errors
 from declaration_qa.api.schemas import (
@@ -123,6 +123,7 @@ def create_app() -> FastAPI:
             "ok": True,
             "service": "declaration-qa",
             "entrypoint": "declaration_qa.api.server:app",
+            "rag_engine": workflow.rag_engine.__class__.__name__,
             "chunks": workflow.rag_engine.chunk_count,
             "cache_backend": workflow.rag_engine.cache_store.backend,
             "vector_backend": workflow.rag_engine.vector_index.backend,
@@ -580,7 +581,7 @@ def ensure_knowledge_base_fresh(*, force: bool = False) -> None:
         revision = workflow.audit_store.knowledge_base_revision()
         if not force and revision == _knowledge_base_revision:
             return
-        if hasattr(workflow.audit_store, "list_indexed_knowledge") and hasattr(workflow.rag_engine, "load_indexed_data"):
+        if hasattr(workflow.audit_store, "list_indexed_knowledge"):
             documents, chunks = workflow.audit_store.list_indexed_knowledge()
             workflow.rag_engine.load_indexed_data(documents, chunks)
         elif hasattr(workflow.audit_store, "list_documents"):

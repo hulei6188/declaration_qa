@@ -85,7 +85,7 @@ class MemoryVectorIndex:
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
         """按向量和过滤条件搜索相似片段。"""
-        from declaration_qa.rag.engine import cosine, matches_filter
+        from declaration_qa.rag.engine.common import cosine, matches_filter
 
         hits = []
         for chunk_id, (item_vector, chunk) in self._items.items():

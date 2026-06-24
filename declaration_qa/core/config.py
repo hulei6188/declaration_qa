@@ -48,7 +48,6 @@ class DeclarationQASettings(BaseSettings):
     external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
     question_planner_model: str = Field(default="", alias="DECLARATION_QA_QUESTION_PLANNER_MODEL")
     query_rewriter_model: str = Field(default="", alias="DECLARATION_QA_QUERY_REWRITER_MODEL")
-    legacy_intent_router_model: str = Field(default="", alias="DECLARATION_QA_INTENT_ROUTER_MODEL")
     max_sub_question_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_SUB_QUESTION_WORKERS")
     max_retrieval_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_RETRIEVAL_WORKERS")
 

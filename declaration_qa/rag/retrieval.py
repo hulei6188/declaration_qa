@@ -9,27 +9,6 @@ KNOWLEDGE_RETRIEVAL_CHAIN = "knowledge_retrieval"
 TICKET_AUGMENTED_CHAIN = "ticket_augmented"
 
 
-FILTER_ALIASES = {
-    "regionCode": "region_code",
-    "regionKey": "region_key",
-    "policyVersion": "policy_version",
-    "sourceVersion": "source_version",
-    "catalogName": "catalog_name",
-    "catalogSubitemName": "catalog_subitem_name",
-    "catalogSubItemName": "catalog_subitem_name",
-    "itemCode": "item_code",
-    "itemName": "item_name",
-    "itemType": "item_type",
-    "ssqdCode": "ssqd_code",
-    "ssqdId": "ssqd_id",
-    "themeCode": "theme_code",
-    "serviceObject": "service_object",
-    "docStatus": "doc_status",
-    "auditNode": "audit_node",
-    "asOf": "as_of",
-    "rolloutKey": "rollout_key",
-}
-
 SUPPORTED_FILTER_KEYS = {
     "region_code",
     "region_key",
@@ -53,15 +32,10 @@ SUPPORTED_FILTER_KEYS = {
 
 REMOVED_METADATA_KEYS = {
     "biz_type",
-    "bizType",
     "source_type",
-    "sourceType",
     "material_code",
-    "materialCode",
     "reject_code",
-    "rejectCode",
     "theme_name",
-    "themeName",
     "主题分类",
     "主题名称",
 }
@@ -76,7 +50,7 @@ def normalize_retrieval_filter(filters: dict[str, Any] | None) -> dict[str, Any]
     """标准化外部传入的检索过滤条件。"""
     normalized: dict[str, Any] = {}
     for raw_key, raw_value in (filters or {}).items():
-        key = FILTER_ALIASES.get(str(raw_key), str(raw_key))
+        key = str(raw_key)
         if key not in SUPPORTED_FILTER_KEYS:
             continue
         value = normalize_filter_value(raw_value)

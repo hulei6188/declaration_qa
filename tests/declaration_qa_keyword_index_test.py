@@ -36,7 +36,7 @@ def test_elasticsearch_filter_clauses_push_down_supported_filters():
         {
             "biz_type": "residence_permit",
             "region_code": ["340000", "340000000000"],
-            "itemName": "居住证办理",
+            "item_name": "居住证办理",
             "audit_node": "材料初审",
             "doc_status": "published",
             "as_of": "2026-01-01",
