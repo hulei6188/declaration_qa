@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import Any, Protocol
-
-import requests
 
 from declaration_qa.core.domain import RetrievedSource
 
@@ -47,47 +46,42 @@ class HeuristicReranker:
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
 
 
-class HttpReranker:
-    """HTTP reranker adapter for production rerank services.
+class DashScopeReranker:
+    """DashScope SDK reranker adapter."""
 
-    Expected response:
-    {
-      "results": [{"index": 0, "score": 0.92}, ...]
-    }
-    """
+    name = "dashscope"
+    default_instruct = "Given a web search query, retrieve relevant passages that answer the query."
 
-    name = "http"
-
-    def __init__(self, *, url: str, api_key: str = "", model: str = "", timeout_seconds: int = 10) -> None:
-        """初始化HttpReranker。"""
-        if not url:
-            raise ValueError("HTTP reranker requires DECLARATION_QA_RERANK_API_URL")
-        self.url = url
+    def __init__(self, *, api_key: str = "", model: str = "", instruct: str = "") -> None:
+        """初始化DashScopeReranker。"""
         self.api_key = api_key
-        self.model = model
-        self.timeout_seconds = timeout_seconds
+        self.model = model or "qwen3-rerank"
+        self.instruct = instruct or self.default_instruct
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        if not sources:
+            return []
+        dashscope = import_dashscope()
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        payload = {
-            "model": self.model,
-            "query": query,
-            "documents": [source.chunk.content for source in sources],
-            "top_n": top_n,
-        }
-        response = requests.post(self.url, json=payload, headers=headers, timeout=self.timeout_seconds)
-        response.raise_for_status()
-        data = response.json()
-        results = data.get("results") if isinstance(data, dict) else []
-        if isinstance(data, dict) and not results and isinstance(data.get("output"), dict):
-            results = data["output"].get("results") or []
+            dashscope.api_key = self.api_key
+        response = dashscope.TextReRank.call(
+            model=self.model,
+            query=query,
+            documents=[source.chunk.content for source in sources],
+            top_n=max(1, int(top_n)),
+            instruct=self.instruct,
+        )
+        if response_value(response, "status_code") != HTTPStatus.OK:
+            code = response_value(response, "code", "")
+            message = response_value(response, "message", "")
+            raise RuntimeError(f"DashScope rerank failed: {code} {message}".strip())
+        output = response_value(response, "output", {}) or {}
+        results = response_value(output, "results", []) or response_value(response, "results", [])
         reranked = []
         for item in results or []:
-            index = int(item.get("index"))
-            score = float(item.get("score") or item.get("relevance_score") or 0.0)
+            index = int(response_value(item, "index", -1))
+            score = float(response_value(item, "score", None) or response_value(item, "relevance_score", 0.0) or 0.0)
             if index < 0 or index >= len(sources):
                 continue
             source = sources[index]
@@ -102,3 +96,17 @@ class HttpReranker:
                 )
             )
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
+
+
+def response_value(payload: Any, key: str, default: Any = None) -> Any:
+    """Read a value from DashScope SDK response objects or dictionaries."""
+    if isinstance(payload, dict):
+        return payload.get(key, default)
+    return getattr(payload, key, default)
+
+
+def import_dashscope():
+    """延迟导入 DashScope SDK。"""
+    import dashscope
+
+    return dashscope

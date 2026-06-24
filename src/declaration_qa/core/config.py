@@ -36,9 +36,8 @@ class DeclarationQASettings(BaseSettings):
     embedding_dimensions: int = Field(default=96, alias="DECLARATION_QA_EMBEDDING_DIMENSIONS")
 
     rerank_provider: str = Field(default="heuristic", alias="DECLARATION_QA_RERANK_PROVIDER")
-    rerank_api_url: str = Field(default="", alias="DECLARATION_QA_RERANK_API_URL")
     rerank_api_key: str = Field(default="", alias="DECLARATION_QA_RERANK_API_KEY")
-    rerank_model: str = Field(default="", alias="DECLARATION_QA_RERANK_MODEL")
+    rerank_model: str = Field(default="qwen3-rerank", alias="DECLARATION_QA_RERANK_MODEL")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
     llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")

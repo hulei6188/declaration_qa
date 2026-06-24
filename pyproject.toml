@@ -7,7 +7,9 @@ name = "declaration-qa"
 version = "0.1.0"
 description = "Declaration QA workflow service"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "dashscope",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -107,7 +107,9 @@ python -m declaration_qa.indexing.worker
 | `DECLARATION_QA_MAX_SUB_QUESTION_WORKERS` | 多子问题并发数 |
 | `DECLARATION_QA_MAX_RETRIEVAL_WORKERS` | 多路检索并发兜底数 |
 | `DECLARATION_QA_EMBEDDING_PROVIDER` | Embedding provider |
-| `DECLARATION_QA_RERANK_PROVIDER` | Rerank provider |
+| `DECLARATION_QA_RERANK_PROVIDER` | Rerank provider，生产建议 `dashscope` |
+| `DECLARATION_QA_RERANK_API_KEY` | DashScope Rerank API Key；也可使用 `DASHSCOPE_API_KEY` 环境变量 |
+| `DECLARATION_QA_RERANK_MODEL` | Rerank 模型，默认 `qwen3-rerank` |
 
 未配置真实服务时，系统可以使用内存存储、Hash Embedding、规则 Planner、规则 Query Rewrite 和确定性回答生成器，方便本地开发。
 

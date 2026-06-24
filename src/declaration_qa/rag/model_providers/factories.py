@@ -11,7 +11,7 @@ from declaration_qa.rag.model_providers.embeddings import (
     HashEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
-from declaration_qa.rag.model_providers.rerankers import HeuristicReranker, HttpReranker, Reranker
+from declaration_qa.rag.model_providers.rerankers import DashScopeReranker, HeuristicReranker, Reranker
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
 from declaration_qa.rag.question_planner.llm import LLMQuestionPlanner
 from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
@@ -38,12 +38,10 @@ def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvid
 def build_reranker(settings: DeclarationQASettings) -> Reranker:
     """按配置创建重排器。"""
     provider = settings.rerank_provider.strip().lower()
-    if provider == "http":
-        return HttpReranker(
-            url=settings.rerank_api_url,
+    if provider in {"dashscope", "sdk"}:
+        return DashScopeReranker(
             api_key=settings.rerank_api_key,
             model=settings.rerank_model,
-            timeout_seconds=settings.external_request_timeout_seconds,
         )
     if provider == "heuristic":
         return HeuristicReranker()
@@ -100,4 +98,3 @@ def build_query_rewriter(settings: DeclarationQASettings):
             kwargs["base_url"] = settings.openai_api_base
         return LLMQueryRewriter(ChatOpenAI(**kwargs), fallback_rewriter=RuleQueryRewriter())
     return RuleQueryRewriter()
-
