@@ -183,6 +183,116 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             results[index] = result
         return [result for result in results if result is not None]
 
+    def _retrieve_rewrites_uncached(
+        self,
+        original_query: str,
+        query_specs: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+    ) -> RetrievalResult:
+        """Batch recall rewrite queries, globally fuse, and rerank once."""
+        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        degraded: list[dict[str, str]] = []
+        dense_scores_by_index: dict[int, list[tuple[str, float]]] = {int(spec["index"]): [] for spec in query_specs}
+        bm25_scores_by_index: dict[int, list[tuple[str, float]]] = {int(spec["index"]): [] for spec in query_specs}
+
+        try:
+            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
+            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
+                dense_scores_by_index[int(spec["index"])] = [
+                    (str(chunk_id), float(score))
+                    for chunk_id, score in vector_hits[:limit]
+                    if str(chunk_id) and score > 0
+                ]
+        except Exception as exc:
+            degraded.append({"stage": "dense_retrieve_batch", "error": type(exc).__name__})
+
+        keyword_search_many = getattr(self.keyword_index, "search_many", None)
+        if callable(keyword_search_many):
+            try:
+                many_results = keyword_search_many(query_specs, effective_filter, limits)
+                bm25_scores_by_index.update({int(index): list(scores) for index, scores in many_results.items()})
+            except Exception as exc:
+                degraded.append({"stage": "bm25_retrieve_batch", "error": type(exc).__name__})
+                bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, effective_filter, limits, degraded))
+        else:
+            bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, effective_filter, limits, degraded))
+
+        all_chunk_ids = [
+            chunk_id
+            for score_lists in (dense_scores_by_index, bm25_scores_by_index)
+            for scores in score_lists.values()
+            for chunk_id, _ in scores
+        ]
+        chunks_by_id = {chunk.id: chunk for chunk in self._load_chunks_by_ids(all_chunk_ids)}
+
+        hit_lists: list[list[RetrievedSource]] = []
+        query_statuses: list[dict[str, Any]] = []
+        for spec in query_specs:
+            index = int(spec["index"])
+            dense_hits = self._sources_from_scored_ids_lookup(
+                dense_scores_by_index.get(index) or [],
+                chunks_by_id,
+                score_kind="dense",
+                channel=f"dense_batch:q{index}",
+            )
+            bm25_hits = self._sources_from_scored_ids_lookup(
+                bm25_scores_by_index.get(index) or [],
+                chunks_by_id,
+                score_kind="bm25",
+                channel=f"{self.keyword_index.backend}_bm25_batch:q{index}",
+            )
+            if dense_hits:
+                hit_lists.append(dense_hits)
+            if bm25_hits:
+                hit_lists.append(bm25_hits)
+            unique_chunk_ids = {source.chunk.id for source in [*dense_hits, *bm25_hits]}
+            query_statuses.append(
+                {
+                    "id": spec.get("id") or "",
+                    "strategy": spec.get("strategy") or "",
+                    "query": spec.get("query") or "",
+                    "top_k": int(spec.get("top_k") or 3),
+                    "source_count": len(unique_chunk_ids),
+                    "channels": {"dense": len(dense_hits), "bm25": len(bm25_hits)},
+                }
+            )
+
+        return self._build_rewrite_result_from_hit_lists(
+            original_query,
+            effective_filter,
+            query_specs,
+            query_statuses,
+            hit_lists,
+            coverage,
+            top_k=top_k,
+            degraded=degraded,
+            candidate_count=len(chunks_by_id),
+            prefilter_child_count=len(chunks_by_id),
+            candidate_source="external_indexes",
+        )
+
+    def _keyword_retrieve_many_fallback(
+        self,
+        query_specs: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        limits: list[int],
+        degraded: list[dict[str, str]],
+    ) -> dict[int, list[tuple[str, float]]]:
+        """Run keyword retrieval one query at a time when batch search is unavailable."""
+        results: dict[int, list[tuple[str, float]]] = {}
+        for spec, limit in zip(query_specs, limits):
+            index = int(spec["index"])
+            try:
+                results[index] = self.keyword_index.search(str(spec["query"]), effective_filter, limit=limit)
+            except Exception as exc:
+                results[index] = []
+                degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
+        return results
+
     def _remote_dense_retrieve(
         self,
         query: str,

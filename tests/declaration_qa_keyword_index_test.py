@@ -126,3 +126,93 @@ def test_elasticsearch_bulk_payload_uses_sdk_client(monkeypatch):
             },
         }
     ]
+
+
+def test_elasticsearch_search_many_uses_msearch(monkeypatch):
+    captured = {}
+
+    class FakeIndices:
+        def exists(self, *, index):
+            return True
+
+    class FakeElasticsearch:
+        def __init__(self, url, **kwargs):
+            self.indices = FakeIndices()
+
+        def msearch(self, **kwargs):
+            captured["msearch_kwargs"] = kwargs
+            return {
+                "responses": [
+                    {"hits": {"hits": [{"_id": "chunk-a", "_score": 4.0}, {"_id": "chunk-b", "_score": 2.0}]}},
+                    {"hits": {"hits": [{"_id": "chunk-c", "_score": 3.0}]}},
+                ]
+            }
+
+    class FakeNotFoundError(Exception):
+        pass
+
+    monkeypatch.setattr(
+        "declaration_qa.search.keyword.import_elasticsearch",
+        lambda: (FakeElasticsearch, FakeNotFoundError, lambda client, actions, **kwargs: (0, [])),
+    )
+    index = ElasticsearchKeywordIndex(url="http://es.test", index_name="chunks")
+
+    results = index.search_many(
+        [
+            {"index": 3, "query": "办理时限"},
+            {"index": 5, "query": "申请材料"},
+        ],
+        {"item_name": "居住证办理"},
+        [8, 4],
+    )
+
+    assert results == {
+        3: [("chunk-a", 1.0), ("chunk-b", 0.5)],
+        5: [("chunk-c", 1.0)],
+    }
+    assert captured["msearch_kwargs"]["searches"] == [
+        {"index": "chunks"},
+        {
+            "size": 8,
+            "_source": False,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "multi_match": {
+                                "query": "办理时限",
+                                "fields": ["content^3", "title^2", "item_name^2", "catalog_name"],
+                                "type": "best_fields",
+                            }
+                        }
+                    ],
+                    "filter": [
+                        {"term": {"chunk_type": "child"}},
+                        {"term": {"item_name.keyword": "居住证办理"}},
+                    ],
+                }
+            },
+        },
+        {"index": "chunks"},
+        {
+            "size": 4,
+            "_source": False,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "multi_match": {
+                                "query": "申请材料",
+                                "fields": ["content^3", "title^2", "item_name^2", "catalog_name"],
+                                "type": "best_fields",
+                            }
+                        }
+                    ],
+                    "filter": [
+                        {"term": {"chunk_type": "child"}},
+                        {"term": {"item_name.keyword": "居住证办理"}},
+                    ],
+                }
+            },
+        },
+    ]

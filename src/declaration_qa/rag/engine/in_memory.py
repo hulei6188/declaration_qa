@@ -207,6 +207,88 @@ class InMemoryRAGEngine(BaseRAGEngine):
             results[index] = result
         return [result for result in results if result is not None]
 
+    def _retrieve_rewrites_uncached(
+        self,
+        original_query: str,
+        query_specs: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+    ) -> RetrievalResult:
+        """Fuse in-memory rewrite recall lists and rerank once."""
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        prefilter_child_count = self._prefilter_child_count()
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        query_statuses = [
+            {
+                "id": spec.get("id") or "",
+                "strategy": spec.get("strategy") or "",
+                "query": spec.get("query") or "",
+                "top_k": int(spec.get("top_k") or 3),
+                "source_count": 0,
+                "channels": {"dense": 0, "bm25": 0},
+            }
+            for spec in query_specs
+        ]
+        if not candidates:
+            return self._empty_rewrite_result(
+                original_query,
+                query_statuses,
+                effective_filter,
+                top_k=top_k,
+                coverage=coverage,
+                prefilter_child_count=prefilter_child_count,
+            )
+
+        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        dense_by_index: dict[int, list[RetrievedSource]] = {}
+        degraded: list[dict[str, str]] = []
+        try:
+            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
+            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            by_id = {chunk.id: chunk for chunk in candidates}
+            for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
+                dense_by_index[int(spec["index"])] = [
+                    RetrievedSource(
+                        chunk=by_id[chunk_id],
+                        score=score,
+                        dense_score=score,
+                        retrieval_channel=f"dense_batch:q{int(spec['index'])}",
+                    )
+                    for chunk_id, score in vector_hits[:limit]
+                    if chunk_id in by_id and score > 0
+                ]
+        except Exception as exc:
+            degraded.append({"stage": "dense_retrieve_batch", "error": type(exc).__name__})
+
+        hit_lists: list[list[RetrievedSource]] = []
+        for status, spec, limit in zip(query_statuses, query_specs, limits):
+            index = int(spec["index"])
+            query = str(spec["query"])
+            dense_hits = dense_by_index.get(index) or []
+            if not dense_hits and self._vectors:
+                dense_hits = dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
+            bm25_hits = bm25_retrieve(query, candidates, limit=limit)
+            if dense_hits:
+                hit_lists.append(dense_hits)
+            if bm25_hits:
+                hit_lists.append(bm25_hits)
+            unique_chunk_ids = {source.chunk.id for source in [*dense_hits, *bm25_hits]}
+            status["source_count"] = len(unique_chunk_ids)
+            status["channels"] = {"dense": len(dense_hits), "bm25": len(bm25_hits)}
+        return self._build_rewrite_result_from_hit_lists(
+            original_query,
+            effective_filter,
+            query_specs,
+            query_statuses,
+            hit_lists,
+            coverage,
+            top_k=top_k,
+            degraded=degraded,
+            candidate_count=len(candidates),
+            prefilter_child_count=prefilter_child_count,
+        )
+
     def _prefilter_child_count(self) -> int:
         """Return loaded child count."""
         return sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")

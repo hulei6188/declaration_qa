@@ -25,6 +25,15 @@ class KeywordIndex(Protocol):
         """按关键词相关性检索，返回 chunk id 及归一化分数。"""
         ...
 
+    def search_many(
+        self,
+        query_specs: list[dict[str, Any]],
+        filters: dict[str, Any],
+        limits: list[int],
+    ) -> dict[int, list[tuple[str, float]]]:
+        """批量关键词检索，返回每个 query index 对应的 chunk id 和分数。"""
+        ...
+
     def clear(self) -> None:
         """清空全部关键词索引数据。"""
         ...
@@ -88,36 +97,72 @@ class ElasticsearchKeywordIndex:
 
     def search(self, query: str, filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
         """在 Elasticsearch 中执行 BM25 关键词检索。"""
-        text = str(query or "").strip()
-        if not text:
-            return []
-        response = self._client.search(
-            index=self.index_name,
-            size=max(1, int(limit)),
-            source=False,
-            query={
-                "bool": {
-                    "must": [
-                        {
-                            "multi_match": {
-                                "query": text,
-                                "fields": ["content^3", "title^2", "item_name^2", "catalog_name"],
-                                "type": "best_fields",
-                            }
+        results = self.search_many([{"index": 0, "query": query}], filters, [limit])
+        return results.get(0, [])
+
+    def search_many(
+        self,
+        query_specs: list[dict[str, Any]],
+        filters: dict[str, Any],
+        limits: list[int],
+    ) -> dict[int, list[tuple[str, float]]]:
+        """使用 Elasticsearch msearch 批量执行 BM25 关键词检索。"""
+        results: dict[int, list[tuple[str, float]]] = {
+            int(spec.get("index") or 0): []
+            for spec in query_specs
+        }
+        if not query_specs:
+            return results
+        filter_clauses = elasticsearch_filter_clauses(filters)
+        searches: list[dict[str, Any]] = []
+        request_indexes: list[int] = []
+        for spec, limit in zip(query_specs, limits):
+            index = int(spec.get("index") or 0)
+            text = str(spec.get("query") or spec.get("text") or "").strip()
+            if not text:
+                continue
+            searches.append({"index": self.index_name})
+            searches.append(
+                {
+                    "size": max(1, int(limit)),
+                    "_source": False,
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "multi_match": {
+                                        "query": text,
+                                        "fields": ["content^3", "title^2", "item_name^2", "catalog_name"],
+                                        "type": "best_fields",
+                                    }
+                                }
+                            ],
+                            "filter": filter_clauses,
                         }
-                    ],
-                    "filter": elasticsearch_filter_clauses(filters),
+                    },
                 }
-            },
-        )
-        hits = response.get("hits", {}).get("hits", [])
-        raw_scores = [float(item.get("_score") or 0.0) for item in hits if item.get("_id")]
-        max_score = max(raw_scores or [0.0]) or 1.0
-        return [
-            (str(item.get("_id") or ""), float(item.get("_score") or 0.0) / max_score)
-            for item in hits
-            if item.get("_id")
-        ]
+            )
+            request_indexes.append(index)
+        if not searches:
+            return results
+        try:
+            response = self._client.msearch(searches=searches)
+        except TypeError:
+            response = self._client.msearch(body=searches)
+        responses = response.get("responses", [])
+        for index, item in zip(request_indexes, responses):
+            if item.get("error"):
+                results[index] = []
+                continue
+            hits = item.get("hits", {}).get("hits", [])
+            raw_scores = [float(hit.get("_score") or 0.0) for hit in hits if hit.get("_id")]
+            max_score = max(raw_scores or [0.0]) or 1.0
+            results[index] = [
+                (str(hit.get("_id") or ""), float(hit.get("_score") or 0.0) / max_score)
+                for hit in hits
+                if hit.get("_id")
+            ]
+        return results
 
     def clear(self) -> None:
         """删除并重新创建 Elasticsearch 索引。"""

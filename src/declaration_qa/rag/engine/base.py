@@ -90,6 +90,17 @@ class RAGEngine(Protocol):
         """Retrieve sources for multiple rewritten queries."""
         ...
 
+    def retrieve_rewrites(
+        self,
+        original_query: str,
+        retrieval_queries: list[dict[str, Any]],
+        filters: dict[str, Any],
+        *,
+        top_k: int = 6,
+    ) -> RetrievalResult:
+        """Retrieve for multiple rewrite queries belonging to one user question."""
+        ...
+
 
 class BaseRAGEngine:
     """Shared RAG orchestration for concrete retrieval backends."""
@@ -161,6 +172,42 @@ class BaseRAGEngine:
             return [result for result in results if result is not None]
         return self._retrieve_many_uncached(query_specs, results, effective_filter)
 
+    def retrieve_rewrites(
+        self,
+        original_query: str,
+        retrieval_queries: list[dict[str, Any]],
+        filters: dict[str, Any],
+        *,
+        top_k: int = 6,
+    ) -> RetrievalResult:
+        """Retrieve rewrite queries as recall lists, then fuse and rerank once."""
+        effective_filter = normalize_retrieval_filter(filters)
+        query_specs = []
+        for index, query in enumerate(retrieval_queries):
+            text = normalize_text(str(query.get("text") or query.get("query") or ""))
+            if not text:
+                continue
+            query_specs.append(
+                {
+                    "index": index,
+                    "query": text,
+                    "top_k": int(query.get("top_k") or 3),
+                    "id": query.get("id") or "",
+                    "strategy": query.get("strategy") or "",
+                }
+            )
+        normalized_query = normalize_text(original_query) or "\n".join(str(spec["query"]) for spec in query_specs)
+        top_k = max(1, int(top_k or 6))
+        if not query_specs:
+            return self._empty_rewrite_result(normalized_query, [], effective_filter, top_k=top_k)
+        cache_key = self._rewrite_cache_key(normalized_query, query_specs, effective_filter, top_k)
+        cached_payload = self.cache_store.get_json(cache_key)
+        if cached_payload:
+            return self._result_from_cache(cached_payload, effective_filter)
+        result = self._retrieve_rewrites_uncached(normalized_query, query_specs, effective_filter, top_k=top_k)
+        self._cache_result(cache_key, result)
+        return result
+
     def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
         """Retrieve without cache."""
         raise NotImplementedError
@@ -172,6 +219,17 @@ class BaseRAGEngine:
         effective_filter: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch retrieve without cache."""
+        raise NotImplementedError
+
+    def _retrieve_rewrites_uncached(
+        self,
+        original_query: str,
+        query_specs: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+    ) -> RetrievalResult:
+        """Retrieve rewrite recall lists without cache."""
         raise NotImplementedError
 
     def _flush_vector_index(self) -> None:
@@ -240,6 +298,83 @@ class BaseRAGEngine:
             },
         )
 
+    def _build_rewrite_result_from_hit_lists(
+        self,
+        original_query: str,
+        effective_filter: dict[str, Any],
+        query_specs: list[dict[str, Any]],
+        query_statuses: list[dict[str, Any]],
+        hit_lists: list[list[RetrievedSource]],
+        coverage: dict[str, Any],
+        *,
+        top_k: int,
+        degraded: list[dict[str, str]] | None = None,
+        candidate_count: int | None = None,
+        prefilter_child_count: int | None = None,
+        candidate_source: str | None = None,
+    ) -> RetrievalResult:
+        """Build one fused retrieval result for related rewrite queries."""
+        degraded = list(degraded or [])
+        if not hit_lists:
+            return self._empty_rewrite_result(
+                original_query,
+                query_statuses,
+                effective_filter,
+                top_k=top_k,
+                coverage=coverage,
+                degraded=degraded,
+                candidate_source=candidate_source,
+                prefilter_child_count=prefilter_child_count,
+            )
+        fused_hits = rrf_fuse(hit_lists, rrf_k=60)
+        rerank_candidate_limit = min(len(fused_hits), max(top_k * 10, 40), 100)
+        rerank_candidates = fused_hits[:rerank_candidate_limit]
+        try:
+            reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=max(top_k, 1))
+        except Exception as exc:
+            reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=max(top_k, 1))
+            degraded.append({"stage": "rerank", "error": type(exc).__name__})
+        expanded_sources = self._expand_parent_context(reranked)
+        expanded_sources, structured_backfill_status = self._expand_structured_section_context(original_query, expanded_sources)
+        unique_hit_ids = {
+            source.chunk.id
+            for hit_list in hit_lists
+            for source in hit_list
+        }
+        return RetrievalResult(
+            sources=expanded_sources,
+            filter=effective_filter,
+            status={
+                "query": original_query,
+                "query_count": len(query_specs),
+                "queries": query_statuses,
+                "top_k": top_k,
+                "source_count": len(expanded_sources),
+                "prefilter_child_count": prefilter_child_count if prefilter_child_count is not None else candidate_count or len(unique_hit_ids),
+                "candidate_count": candidate_count if candidate_count is not None else len(unique_hit_ids),
+                "metadata_coverage": coverage,
+                "cache": {"hit": False, "backend": self.cache_store.backend},
+                "vector_backend": self.vector_index.backend,
+                "embedding_provider": self.embedding_provider.name,
+                "rerank_provider": self.reranker.name,
+                "metadata_filtering": bool(effective_filter),
+                "channels": {
+                    "hit_lists": len(hit_lists),
+                    "rrf": len(fused_hits),
+                    "rerank_candidates": len(rerank_candidates),
+                    "rerank": len(reranked),
+                    "dense": sum(int((status.get("channels") or {}).get("dense") or 0) for status in query_statuses),
+                    "bm25": sum(int((status.get("channels") or {}).get("bm25") or 0) for status in query_statuses),
+                },
+                "structured_backfill": structured_backfill_status,
+                "degraded": degraded,
+                "filter": effective_filter,
+                "batch_mode": True,
+                "retrieval_mode": "batch_multi_query_rewrite_fused",
+                "candidate_source": candidate_source or self._candidate_source(),
+            },
+        )
+
     def _sources_from_scored_ids(
         self,
         scored_ids: list[tuple[str, float]],
@@ -255,6 +390,31 @@ class BaseRAGEngine:
         sources = []
         for chunk_id, score in scored_ids:
             chunk = by_id.get(str(chunk_id))
+            if chunk is None or score <= 0:
+                continue
+            sources.append(
+                RetrievedSource(
+                    chunk=chunk,
+                    score=float(score),
+                    dense_score=float(score) if score_kind == "dense" else 0.0,
+                    bm25_score=float(score) if score_kind == "bm25" else 0.0,
+                    retrieval_channel=channel,
+                )
+            )
+        return sources
+
+    def _sources_from_scored_ids_lookup(
+        self,
+        scored_ids: list[tuple[str, float]],
+        chunks_by_id: dict[str, KnowledgeChunk],
+        *,
+        score_kind: str,
+        channel: str,
+    ) -> list[RetrievedSource]:
+        """Hydrate scored ids from a preloaded chunk lookup."""
+        sources = []
+        for chunk_id, score in scored_ids:
+            chunk = chunks_by_id.get(str(chunk_id))
             if chunk is None or score <= 0:
                 continue
             sources.append(
@@ -305,6 +465,35 @@ class BaseRAGEngine:
             default=str,
         )
         return f"declaration_qa:rag:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+    def _rewrite_cache_key(
+        self,
+        normalized_query: str,
+        query_specs: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        top_k: int,
+    ) -> str:
+        """Build a fused rewrite retrieval cache key."""
+        payload = json.dumps(
+            {
+                "query": normalized_query,
+                "rewrite_queries": [
+                    {
+                        "query": spec.get("query") or "",
+                        "top_k": int(spec.get("top_k") or 3),
+                        "id": spec.get("id") or "",
+                        "strategy": spec.get("strategy") or "",
+                    }
+                    for spec in query_specs
+                ],
+                "filters": effective_filter,
+                "top_k": top_k,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        return f"declaration_qa:rag:rewrites:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
         """Hydrate a cached retrieval result."""
@@ -360,6 +549,49 @@ class BaseRAGEngine:
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                 "filter": effective_filter,
+                "candidate_source": candidate_source or self._candidate_source(),
+            },
+        )
+
+    def _empty_rewrite_result(
+        self,
+        original_query: str,
+        query_statuses: list[dict[str, Any]],
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        coverage: dict[str, Any] | None = None,
+        degraded: list[dict[str, str]] | None = None,
+        candidate_source: str | None = None,
+        prefilter_child_count: int | None = None,
+    ) -> RetrievalResult:
+        """Build an empty fused rewrite retrieval result."""
+        if prefilter_child_count is None:
+            prefilter_child_count = self._prefilter_child_count()
+        coverage = coverage or metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        return RetrievalResult(
+            sources=[],
+            filter=effective_filter,
+            status={
+                "query": original_query,
+                "query_count": len(query_statuses),
+                "queries": query_statuses,
+                "top_k": top_k,
+                "source_count": 0,
+                "prefilter_child_count": prefilter_child_count,
+                "candidate_count": 0,
+                "metadata_coverage": coverage,
+                "cache": {"hit": False, "backend": self.cache_store.backend},
+                "vector_backend": self.vector_index.backend,
+                "embedding_provider": self.embedding_provider.name,
+                "rerank_provider": self.reranker.name,
+                "metadata_filtering": bool(effective_filter),
+                "channels": {"hit_lists": 0, "rrf": 0, "rerank_candidates": 0, "rerank": 0, "dense": 0, "bm25": 0},
+                "structured_backfill": {"applied": False},
+                "degraded": list(degraded or []),
+                "filter": effective_filter,
+                "batch_mode": True,
+                "retrieval_mode": "batch_multi_query_rewrite_fused",
                 "candidate_source": candidate_source or self._candidate_source(),
             },
         )

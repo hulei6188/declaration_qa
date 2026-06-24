@@ -63,9 +63,9 @@ class WorkflowRetrievalNodes:
     def multi_retrieve(self, state: DeclarationQAState, filters: dict[str, Any]) -> RetrievalResult:
         """按 rewrite 结果执行多路检索并去重合并。"""
         retrieval_queries = state.get("retrieval_queries") or []
+        answer_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
         if not retrieval_queries:
-            fallback_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
-            retrieval_queries = [{"id": "rq1", "text": fallback_query, "strategy": "fallback", "top_k": 4}]
+            retrieval_queries = [{"id": "rq1", "text": answer_query, "strategy": "fallback", "top_k": 4}]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
 
@@ -89,12 +89,29 @@ class WorkflowRetrievalNodes:
         batch_degraded = ""
         if len(executable_queries) > 1:
             try:
+                result = self.rag_engine.retrieve_rewrites(
+                    answer_query,
+                    executable_queries,
+                    filters,
+                    top_k=6,
+                )
+                status = {
+                    **(result.status or {}),
+                    "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
+                    "deduped_query_count": len(executable_queries),
+                    "retrieval_parallelism": 1,
+                    "batch_degraded": "",
+                }
+                return RetrievalResult(sources=result.sources, filter=result.filter, status=status)
+            except Exception as exc:
+                batch_degraded = type(exc).__name__
+            try:
                 retrieval_mode = "batch_multi_query_rewrite"
                 results = self.rag_engine.retrieve_many(executable_queries, filters)
                 for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
                     query_statuses[index] = query_status_from_result(retrieval_query, result)
             except Exception as exc:
-                batch_degraded = type(exc).__name__
+                batch_degraded = batch_degraded or type(exc).__name__
                 query_statuses = [None] * len(executable_queries)
                 results = []
         else:
@@ -120,10 +137,11 @@ class WorkflowRetrievalNodes:
                 results.append(result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
-        sources = select_answer_sources(merged, combined_query, limit=6)
+        sources = select_answer_sources(merged, answer_query, limit=6)
         ordered_statuses = [status for status in query_statuses if status is not None]
         status = {
-            "query": combined_query,
+            "query": answer_query,
+            "rewrite_query": combined_query,
             "query_count": len([query for query in executable_queries if query.get("text")]),
             "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
             "deduped_query_count": len(executable_queries),

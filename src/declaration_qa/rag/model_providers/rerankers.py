@@ -102,4 +102,3 @@ class HttpReranker:
                 )
             )
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
-

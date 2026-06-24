@@ -1,4 +1,4 @@
-from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
 from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 
 
@@ -138,3 +138,151 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     assert [call["filters"] for call in keyword_index.search_calls[-2:]] == [{"region_code": "340000"}, {"region_code": "340000"}]
     assert all(result.status["candidate_source"] == "external_indexes" for result in many_results)
     assert all(result.status["batch_mode"] is True for result in many_results)
+
+
+def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
+    child_a = KnowledgeChunk(
+        id="chunk-rewrite-a",
+        doc_id="doc-rewrite",
+        parent_id="",
+        chunk_type="child",
+        title="改写召回测试",
+        content="办理时限为10个工作日。",
+    )
+    child_b = KnowledgeChunk(
+        id="chunk-rewrite-b",
+        doc_id="doc-rewrite",
+        parent_id="",
+        chunk_type="child",
+        title="改写召回测试",
+        content="承诺办结时限为5个工作日。",
+    )
+
+    class BatchVectorIndex:
+        backend = "milvus"
+
+        def __init__(self):
+            self.batch_calls = []
+
+        def upsert(self, chunk, vector):
+            pass
+
+        def delete_by_doc(self, doc_id):
+            pass
+
+        def search(self, vector, filters, *, limit):
+            raise AssertionError("single dense search should not be used")
+
+        def search_batch(self, vectors, filters, *, limit):
+            self.batch_calls.append({"count": len(vectors), "filters": dict(filters), "limit": limit})
+            return [[(child_a.id, 0.9)], [(child_b.id, 0.88)]]
+
+        def clear(self):
+            pass
+
+    class BatchKeywordIndex:
+        backend = "elasticsearch"
+
+        def __init__(self):
+            self.search_many_calls = []
+            self.search_calls = []
+
+        def upsert_chunks(self, chunks):
+            pass
+
+        def delete_by_doc(self, doc_id):
+            pass
+
+        def search(self, query, filters, *, limit):
+            self.search_calls.append({"query": query, "filters": dict(filters), "limit": limit})
+            raise AssertionError("single BM25 search should not be used")
+
+        def search_many(self, query_specs, filters, limits):
+            self.search_many_calls.append(
+                {
+                    "queries": [spec["query"] for spec in query_specs],
+                    "filters": dict(filters),
+                    "limits": list(limits),
+                }
+            )
+            return {
+                int(query_specs[0]["index"]): [(child_b.id, 0.7)],
+                int(query_specs[1]["index"]): [(child_a.id, 0.6)],
+            }
+
+        def clear(self):
+            pass
+
+    class ChunkStore:
+        def __init__(self):
+            self.chunks = {child_a.id: child_a, child_b.id: child_b}
+            self.chunk_calls = []
+
+        def get_chunks_by_ids(self, chunk_ids):
+            self.chunk_calls.append(list(chunk_ids))
+            return [self.chunks[chunk_id] for chunk_id in chunk_ids if chunk_id in self.chunks]
+
+        def get_parent_chunks(self, parent_ids):
+            return []
+
+        def get_structured_section_chunks(self, parent_section_ids, target_chunk_type):
+            return []
+
+    class CountingReranker:
+        name = "counting"
+
+        def __init__(self):
+            self.calls = []
+
+        def rerank(self, query, sources, filters, *, top_n):
+            self.calls.append({"query": query, "count": len(sources), "top_n": top_n})
+            return [
+                RetrievedSource(
+                    chunk=source.chunk,
+                    score=source.score,
+                    dense_score=source.dense_score,
+                    bm25_score=source.bm25_score,
+                    rerank_score=1.0 - index * 0.1,
+                    retrieval_channel=f"{source.retrieval_channel}+rerank",
+                )
+                for index, source in enumerate(sources[:top_n])
+            ]
+
+    vector_index = BatchVectorIndex()
+    keyword_index = BatchKeywordIndex()
+    chunk_store = ChunkStore()
+    reranker = CountingReranker()
+    engine = ExternalIndexRAGEngine(
+        vector_index=vector_index,
+        keyword_index=keyword_index,
+        chunk_store=chunk_store,
+        reranker=reranker,
+    )
+
+    result = engine.retrieve_rewrites(
+        "用户问办理要多久",
+        [
+            {"id": "rq1", "text": "办理时限", "strategy": "time_limit", "top_k": 2},
+            {"id": "rq2", "text": "承诺办结时限", "strategy": "promise_limit", "top_k": 2},
+        ],
+        {"region_code": "340000"},
+        top_k=2,
+    )
+
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000"}, "limit": 8}]
+    assert keyword_index.search_many_calls == [
+        {
+            "queries": ["办理时限", "承诺办结时限"],
+            "filters": {"region_code": "340000"},
+            "limits": [8, 8],
+        }
+    ]
+    assert keyword_index.search_calls == []
+    assert len(reranker.calls) == 1
+    assert reranker.calls[0]["query"] == "用户问办理要多久"
+    assert result.status["retrieval_mode"] == "batch_multi_query_rewrite_fused"
+    assert result.status["channels"]["hit_lists"] == 4
+    assert result.status["channels"]["rerank"] == 2
+    assert result.status["candidate_source"] == "external_indexes"
+    assert result.status["queries"][0]["channels"] == {"dense": 1, "bm25": 1}
+    assert len(chunk_store.chunk_calls) == 1

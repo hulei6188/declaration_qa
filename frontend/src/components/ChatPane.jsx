@@ -123,7 +123,7 @@ export default function ChatPane({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题，例如：办理居住证需要哪些材料？"
+            placeholder="输入问题"
           disabled={streaming}
         />
         <div className="composer-actions">

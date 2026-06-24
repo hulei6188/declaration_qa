@@ -940,17 +940,31 @@ def test_multi_retrieve_uses_batch_retrieval_and_dedupes():
             super().__init__()
             self.batch_queries = []
 
-        def retrieve_many(self, queries, filters):
+        def retrieve_rewrites(self, original_query, retrieval_queries, filters, *, top_k=6):
             time.sleep(0.12)
-            self.batch_queries = [query["text"] for query in queries]
-            return [
-                RetrievalResult(
-                    sources=[],
-                    filter=filters,
-                    status={"cache": {"hit": False}, "channels": {}, "batch_mode": True},
-                )
-                for _ in queries
-            ]
+            self.batch_queries = [query["text"] for query in retrieval_queries]
+            return RetrievalResult(
+                sources=[],
+                filter=filters,
+                status={
+                    "query": original_query,
+                    "query_count": len(retrieval_queries),
+                    "queries": [
+                        {
+                            "id": query.get("id") or "",
+                            "strategy": query.get("strategy") or "",
+                            "query": query.get("text") or "",
+                            "top_k": int(query.get("top_k") or 3),
+                            "source_count": 0,
+                            "channels": {"dense": 0, "bm25": 0},
+                        }
+                        for query in retrieval_queries
+                    ],
+                    "source_count": 0,
+                    "retrieval_mode": "batch_multi_query_rewrite_fused",
+                    "batch_mode": True,
+                },
+            )
 
     workflow = DeclarationQAWorkflow(rag_engine=SlowRAGEngine(), max_retrieval_workers=3)
     state = {
@@ -967,16 +981,19 @@ def test_multi_retrieve_uses_batch_retrieval_and_dedupes():
     elapsed = time.perf_counter() - started
 
     assert elapsed < 0.28
-    assert result.status["retrieval_mode"] == "batch_multi_query_rewrite"
+    assert result.status["retrieval_mode"] == "batch_multi_query_rewrite_fused"
     assert result.status["original_query_count"] == 4
     assert result.status["deduped_query_count"] == 3
-    assert result.status["retrieval_parallelism"] == 3
-    assert result.status["queries"][0]["batch_mode"] is True
+    assert result.status["retrieval_parallelism"] == 1
+    assert result.status["batch_mode"] is True
     assert [item["query"] for item in result.status["queries"]] == ["办理时限", "承诺办结时限", "法定办结时限"]
 
 
 def test_multi_retrieve_falls_back_to_parallel_when_batch_fails():
     class SlowRAGEngine(InMemoryRAGEngine):
+        def retrieve_rewrites(self, original_query, retrieval_queries, filters, *, top_k=6):
+            raise RuntimeError("fused unavailable")
+
         def retrieve_many(self, queries, filters):
             raise RuntimeError("batch unavailable")
 
