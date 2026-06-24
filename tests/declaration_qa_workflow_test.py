@@ -1119,6 +1119,39 @@ def test_select_answer_sources_preserves_complete_process_steps():
     assert [item.chunk.metadata["node_title"] for item in selected] == ["办理流程说明", "受理", "审查", "决定", "办结", "送达"]
 
 
+def test_collect_sub_question_uses_compiled_sub_question_graph():
+    class FakeSubQuestionGraph:
+        def __init__(self):
+            self.invocations = []
+
+        def invoke(self, state):
+            self.invocations.append(dict(state))
+            return {
+                **state,
+                "route": "ticket_context_unrelated",
+                "intent": "knowledge_qa",
+                "sub_intent": "knowledge_qa",
+                "retrieval_chain": "knowledge_retrieval",
+                "evidence_ok": True,
+                "refused": False,
+                "rag_query": state.get("normalized_query") or "",
+            }
+
+    workflow = DeclarationQAWorkflow()
+    fake_graph = FakeSubQuestionGraph()
+    workflow.sub_question_graph = fake_graph
+    question = {"id": "q1", "query": "问题一", "requires_ticket_context": False}
+    state = workflow.state_for_sub_question({"events": [], "request_biz_type": None}, question)
+
+    task = workflow.collect_sub_question(state, question, 1)
+
+    assert len(fake_graph.invocations) == 1
+    assert fake_graph.invocations[0]["query"] == "问题一"
+    assert task["id"] == "q1"
+    assert task["route"] == "ticket_context_unrelated"
+    assert task["status"] == "ready"
+
+
 def test_multi_question_collect_runs_sub_questions_in_parallel():
     class SlowWorkflow(DeclarationQAWorkflow):
         def state_for_sub_question(self, state, question):
@@ -1153,6 +1186,7 @@ def test_multi_question_collect_runs_sub_questions_in_parallel():
     assert elapsed < 0.22
     assert [task["id"] for task in result["sub_tasks"]] == ["q1", "q2"]
     assert event["data"]["collection_mode"] == "parallel"
+    assert event["data"]["sub_question_runner"] == "langgraph"
     assert event["data"]["sub_question_parallelism"] == 2
 
 

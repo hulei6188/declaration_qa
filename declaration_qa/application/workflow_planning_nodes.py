@@ -179,6 +179,7 @@ class WorkflowPlanningMixin:
                 "need_ticket_selection": need_ticket_selection,
                 "source_count": len(next_state["retrieved_sources"]),
                 "collection_mode": collection_mode,
+                "sub_question_runner": "langgraph",
                 "sub_question_parallelism": min(self.max_sub_question_workers, max(1, len(planned_questions))),
             },
         )
@@ -238,26 +239,7 @@ class WorkflowPlanningMixin:
 
     def collect_sub_question(self, state: DeclarationQAState, question: dict[str, Any], index: int) -> dict[str, Any]:
         """收集单个子问题的路由、业务上下文和证据。"""
-        state = self.prepare_task(state)
-        if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED:
-            state = self.ticket_list_query(state)
-            if not state.get("refuse_reason"):
-                state = self.ticket_selection(state)
-            if not state.get("refuse_reason"):
-                state = self.ticket_detail_query(state)
-            if not state.get("refuse_reason"):
-                state = self.ticket_context_build(state)
-                state = self.knowledge_filter_build(state)
-                state = self.query_rewrite(state)
-                state = self.ticket_knowledge_rag(state)
-                state = self.evidence_check(state)
-        elif state.get("route") == ROUTE_TICKET_CONTEXT_UNRELATED:
-            state = self.knowledge_filter_build(state)
-            state = self.query_rewrite(state)
-            state = self.hybrid_retrieve(state)
-            state = self.evidence_check(state)
-        if state.get("refuse_reason") and not state.get("answer"):
-            state = self.refuse_or_human(state)
+        state = self.sub_question_graph.invoke(state)
         status = "ready" if state.get("evidence_ok") and not state.get("refused") else "refused"
         if state.get("need_ticket_selection"):
             status = "need_ticket_selection"

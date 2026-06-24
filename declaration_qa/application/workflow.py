@@ -70,6 +70,7 @@ class DeclarationQAWorkflow(WorkflowNodeMixin):
         self.query_rewriter = query_rewriter or RuleQueryRewriter()
         self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
+        self.sub_question_graph = self._build_sub_question_graph()
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -293,4 +294,62 @@ class DeclarationQAWorkflow(WorkflowNodeMixin):
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
+        return builder.compile()
+
+    def _build_sub_question_graph(self):
+        """构建多问题拆分后单个子问题的 LangGraph 子图。"""
+        builder = StateGraph(DeclarationQAState)
+        builder.add_node("prepare_task", self.prepare_task)
+        builder.add_node("ticket_list_query", self.ticket_list_query)
+        builder.add_node("ticket_selection", self.ticket_selection)
+        builder.add_node("ticket_detail_query", self.ticket_detail_query)
+        builder.add_node("ticket_context_build", self.ticket_context_build)
+        builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
+        builder.add_node("query_rewrite", self.query_rewrite)
+        builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
+        builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
+        builder.add_node("evidence_check", self.evidence_check)
+        builder.add_node("refuse_or_human", self.refuse_or_human)
+
+        builder.add_edge(START, "prepare_task")
+        builder.add_conditional_edges(
+            "prepare_task",
+            lambda state: state.get("route") or "refuse",
+            {
+                ROUTE_TICKET_CONTEXT_RELATED: "ticket_list_query",
+                ROUTE_TICKET_CONTEXT_UNRELATED: "knowledge_filter_build",
+                ROUTE_CLARIFICATION: "refuse_or_human",
+                ROUTE_REFUSE: "refuse_or_human",
+            },
+        )
+        builder.add_conditional_edges(
+            "ticket_list_query",
+            lambda state: "missing" if state.get("refuse_reason") else "ok",
+            {"ok": "ticket_selection", "missing": "refuse_or_human"},
+        )
+        builder.add_conditional_edges(
+            "ticket_selection",
+            lambda state: "selected" if state.get("apply_context") and not state.get("need_ticket_selection") else "needs_selection",
+            {"selected": "ticket_detail_query", "needs_selection": "refuse_or_human"},
+        )
+        builder.add_conditional_edges(
+            "ticket_detail_query",
+            lambda state: "missing" if state.get("refuse_reason") else "ok",
+            {"ok": "ticket_context_build", "missing": "refuse_or_human"},
+        )
+        builder.add_edge("ticket_context_build", "knowledge_filter_build")
+        builder.add_edge("knowledge_filter_build", "query_rewrite")
+        builder.add_conditional_edges(
+            "query_rewrite",
+            lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
+            {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
+        )
+        builder.add_edge("ticket_knowledge_rag", "evidence_check")
+        builder.add_edge("hybrid_retrieve", "evidence_check")
+        builder.add_conditional_edges(
+            "evidence_check",
+            lambda state: "ok" if state.get("evidence_ok") else "refuse",
+            {"ok": END, "refuse": "refuse_or_human"},
+        )
+        builder.add_edge("refuse_or_human", END)
         return builder.compile()
