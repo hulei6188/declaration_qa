@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from declaration_qa.router import parse_json_object, ticket_context_related
+from declaration_qa.rag.router import parse_json_object, ticket_context_related
 
 
 QUESTION_PLANNER_PROMPT = """你是政务问答系统的【宏观路由与意图拆解器】，只能返回 JSON 对象，不回答业务问题。

@@ -8,10 +8,10 @@ from typing import Any, Iterable, Protocol
 
 import requests
 
-from declaration_qa.config import DeclarationQASettings
-from declaration_qa.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
-from declaration_qa.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
-from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter
+from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.rag.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, DeterministicAnswerGenerator, format_sub_task_payload
+from declaration_qa.rag.question_planner import LLMQuestionPlanner, RuleQuestionPlanner
+from declaration_qa.rag.query_rewriter import LLMQueryRewriter, RuleQueryRewriter
 
 
 class EmbeddingProvider(Protocol):
@@ -104,7 +104,7 @@ class HeuristicReranker:
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
-        from declaration_qa.rag_engine import RetrievedSource, metadata_match_boost, tokenize
+        from declaration_qa.rag.engine import RetrievedSource, metadata_match_boost, tokenize
 
         query_tokens = set(tokenize(query))
         reranked = []
@@ -148,7 +148,7 @@ class HttpReranker:
 
     def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
-        from declaration_qa.rag_engine import RetrievedSource
+        from declaration_qa.rag.engine import RetrievedSource
 
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.api_key:
@@ -355,7 +355,7 @@ def build_query_rewriter(settings: DeclarationQASettings):
 
 def hashing_embedding(text: str, *, dimension: int) -> list[float]:
     """使用哈希技巧生成归一化文本向量。"""
-    from declaration_qa.rag_engine import tokenize
+    from declaration_qa.rag.engine import tokenize
 
     values = [0.0 for _ in range(dimension)]
     for token in tokenize(text):

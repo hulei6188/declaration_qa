@@ -12,14 +12,14 @@ from langgraph.graph import END, START, StateGraph
 
 from collections.abc import Callable, Iterable
 
-from declaration_qa.audit import InMemoryAuditStore
-from declaration_qa.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
-from declaration_qa.domain import RetrievalResult, RetrievedSource
-from declaration_qa.evidence import decide_evidence
-from declaration_qa.prompting import DeterministicAnswerGenerator
-from declaration_qa.question_planner import RuleQuestionPlanner
-from declaration_qa.query_rewriter import RuleQueryRewriter
-from declaration_qa.rag_engine import (
+from declaration_qa.storage.audit import InMemoryAuditStore
+from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
+from declaration_qa.core.domain import RetrievalResult, RetrievedSource
+from declaration_qa.rag.evidence import decide_evidence
+from declaration_qa.rag.prompting import DeterministicAnswerGenerator
+from declaration_qa.rag.question_planner import RuleQuestionPlanner
+from declaration_qa.rag.query_rewriter import RuleQueryRewriter
+from declaration_qa.rag.engine import (
     InMemoryRAGEngine,
     build_seed_rag_engine,
     normalize_text,
@@ -27,8 +27,8 @@ from declaration_qa.rag_engine import (
     structured_backfill_chunk_type,
     structured_source_matches,
 )
-from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN, normalize_retrieval_filter
-from declaration_qa.router import (
+from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN, normalize_retrieval_filter
+from declaration_qa.rag.router import (
     INTENT_CORRECTION_GUIDANCE,
     INTENT_REJECTION_REASON,
     INTENT_TICKET_STATUS,
@@ -37,8 +37,8 @@ from declaration_qa.router import (
     ROUTE_TICKET_CONTEXT_RELATED,
     ROUTE_TICKET_CONTEXT_UNRELATED,
 )
-from declaration_qa.schemas import ChatRequest, ChatResponse
-from declaration_qa.state import DeclarationQAState
+from declaration_qa.api.schemas import ChatRequest, ChatResponse
+from declaration_qa.application.state import DeclarationQAState
 
 
 class DeclarationQAWorkflow:

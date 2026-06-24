@@ -1,16 +1,16 @@
 from jose import jwt
 from fastapi.testclient import TestClient
 
-from declaration_qa.auth import apply_chat_auth, decode_jwt_context
-from declaration_qa.config import DeclarationQASettings
-from declaration_qa.domain import KnowledgeDocument
-from declaration_qa.evidence import decide_evidence
-from declaration_qa.index_service import extract_document_metadata
-from declaration_qa.rag_engine import InMemoryRAGEngine, split_document
-from declaration_qa.runtime import production_readiness_errors
-from declaration_qa.schemas import ChatRequest
-from declaration_qa.server import create_app, settings as server_settings, stable_upload_document_id
-from declaration_qa.workflow import DeclarationQAWorkflow
+from declaration_qa.api.auth import apply_chat_auth, decode_jwt_context
+from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.rag.evidence import decide_evidence
+from declaration_qa.indexing.service import extract_document_metadata
+from declaration_qa.rag.engine import InMemoryRAGEngine, split_document
+from declaration_qa.core.runtime import production_readiness_errors
+from declaration_qa.api.schemas import ChatRequest
+from declaration_qa.api.server import create_app, settings as server_settings, stable_upload_document_id
+from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
 def test_production_mode_reports_missing_real_dependencies():
@@ -38,7 +38,7 @@ def test_jwt_context_overrides_request_body_user_id():
 
 
 def test_build_query_rewriter_uses_dedicated_llm_model(monkeypatch):
-    import declaration_qa.model_providers as providers
+    import declaration_qa.rag.model_providers as providers
 
     captured = {}
 

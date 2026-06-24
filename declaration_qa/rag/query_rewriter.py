@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from declaration_qa.router import parse_json_object
+from declaration_qa.rag.router import parse_json_object
 
 
 DEFAULT_RETRIEVAL_TOP_K = 3

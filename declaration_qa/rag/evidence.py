@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from declaration_qa.domain import EvidenceDecision
-from declaration_qa.retrieval import (
+from declaration_qa.core.domain import EvidenceDecision
+from declaration_qa.rag.retrieval import (
     KNOWLEDGE_RETRIEVAL_CHAIN,
     TICKET_AUGMENTED_CHAIN,
     metadata_coverage,

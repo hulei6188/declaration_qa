@@ -2,17 +2,17 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 import time
 
-from declaration_qa.business import InMemoryBusinessDataAdapter
-from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
-from declaration_qa.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
-from declaration_qa.rag_engine import InMemoryRAGEngine, build_seed_rag_engine
-from declaration_qa.repository import PostgresDeclarationQAStore
-from declaration_qa.router import parse_json_object
-from declaration_qa.schemas import ChatRequest
-from declaration_qa.server import create_app
-from declaration_qa.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, select_answer_sources, ticket_rag_query, token_events
+from declaration_qa.core.business import InMemoryBusinessDataAdapter
+from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
+from declaration_qa.rag.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
+from declaration_qa.rag.query_rewriter import LLMQueryRewriter, RuleQueryRewriter, build_query_rewriter_prompt
+from declaration_qa.rag.question_planner import LLMQuestionPlanner, QUESTION_PLANNER_PROMPT, RuleQuestionPlanner, normalize_retrieval_focus
+from declaration_qa.rag.engine import InMemoryRAGEngine, build_seed_rag_engine
+from declaration_qa.storage.repository import PostgresDeclarationQAStore
+from declaration_qa.rag.router import parse_json_object
+from declaration_qa.api.schemas import ChatRequest
+from declaration_qa.api.server import create_app
+from declaration_qa.application.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, select_answer_sources, ticket_rag_query, token_events
 
 
 def test_declaration_qa_entrypoint_isolated_from_existing_main():
@@ -22,7 +22,7 @@ def test_declaration_qa_entrypoint_isolated_from_existing_main():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["entrypoint"] == "declaration_qa.server:app"
+    assert payload["entrypoint"] == "declaration_qa.api.server:app"
     assert payload["service"] == "declaration-qa"
     assert payload["audit_store"] == "InMemoryAuditStore"
     assert client.get("/api/agents").status_code == 404
@@ -47,7 +47,7 @@ def test_ticket_list_matches_six_digit_region_to_twelve_digit_province_code():
 
 
 def test_knowledge_refresh_loads_persisted_chunks_without_reembedding(monkeypatch):
-    from declaration_qa import server
+    from declaration_qa.api import server
 
     document = KnowledgeDocument(id="doc-refresh", title="刷新测试", content="原文")
     chunk = KnowledgeChunk(id="chunk-refresh", doc_id="doc-refresh", parent_id="", chunk_type="child", title="刷新测试", content="内容")

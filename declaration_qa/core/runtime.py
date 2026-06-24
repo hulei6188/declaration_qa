@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from declaration_qa.config import DeclarationQASettings
+from declaration_qa.core.config import DeclarationQASettings
 
 
 def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Callable, Protocol
 
-from declaration_qa.config import DeclarationQASettings
-from declaration_qa.indexing import IndexJobStore
+from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.indexing.jobs import IndexJobStore
 
 
 class IndexQueue(Protocol):
@@ -52,7 +52,7 @@ class RQIndexQueue:
     def enqueue(self, job_uid: str) -> dict:
         """投递索引任务并返回队列信息。"""
         rq_job = self._queue.enqueue(
-            "declaration_qa.worker_tasks.process_index_job_task",
+            "declaration_qa.indexing.tasks.process_index_job_task",
             job_uid,
             job_timeout=self._job_timeout,
             result_ttl=86400,

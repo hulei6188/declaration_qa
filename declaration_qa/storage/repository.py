@@ -11,9 +11,9 @@ from uuid import uuid4
 from sqlalchemy import JSON, bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 
-from declaration_qa.business import region_code_variants
-from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument
-from declaration_qa.retrieval import sanitize_metadata
+from declaration_qa.core.business import region_code_variants
+from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.rag.retrieval import sanitize_metadata
 
 
 class PostgresDeclarationQAStore:
@@ -24,7 +24,7 @@ class PostgresDeclarationQAStore:
 
     def init_schema(self) -> None:
         """初始化数据库表结构。"""
-        schema_path = Path(__file__).resolve().parents[1] / "sql" / "postgresql" / "003_declaration_qa_schema.sql"
+        schema_path = Path(__file__).resolve().parents[2] / "sql" / "postgresql" / "003_declaration_qa_schema.sql"
         with self.engine.begin() as connection:
             connection.exec_driver_sql(schema_path.read_text(encoding="utf-8"))
 

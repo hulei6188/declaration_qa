@@ -1,5 +1,5 @@
-from declaration_qa.domain import KnowledgeChunk
-from declaration_qa.rag_engine import InMemoryRAGEngine
+from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.rag.engine import InMemoryRAGEngine
 
 
 def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():

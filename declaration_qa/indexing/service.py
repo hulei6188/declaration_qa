@@ -9,15 +9,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
-from declaration_qa.config import DeclarationQASettings
-from declaration_qa.documents import HttpOcrClient, parse_document_bytes
-from declaration_qa.domain import KnowledgeDocument
-from declaration_qa.indexing import IndexJobStore
-from declaration_qa.rag_engine import normalize_chunking_strategy
-from declaration_qa.retrieval import sanitize_metadata
+from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.indexing.documents import HttpOcrClient, parse_document_bytes
+from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.indexing.jobs import IndexJobStore
+from declaration_qa.rag.engine import normalize_chunking_strategy
+from declaration_qa.rag.retrieval import sanitize_metadata
 
 if TYPE_CHECKING:
-    from declaration_qa.workflow import DeclarationQAWorkflow
+    from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
 def index_document_for_workflow(workflow: DeclarationQAWorkflow, document: KnowledgeDocument) -> int:

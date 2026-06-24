@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-from declaration_qa.question_planner import RuleQuestionPlanner
-from declaration_qa.router import classify_knowledge_intent, classify_ticket_intent
+from declaration_qa.rag.question_planner import RuleQuestionPlanner
+from declaration_qa.rag.router import classify_knowledge_intent, classify_ticket_intent
 
 
 DATASET_DIR = (
@@ -61,8 +61,8 @@ def test_configured_question_planner_context_accuracy_on_real_ahzwfw_40_topic_da
     if os.getenv("DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY") != "1":
         pytest.skip("Set DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY=1 to evaluate the configured live planner.")
 
-    from declaration_qa.config import DeclarationQASettings
-    from declaration_qa.model_providers import build_question_planner
+    from declaration_qa.core.config import DeclarationQASettings
+    from declaration_qa.rag.model_providers import build_question_planner
 
     cases = load_json(DATASET_PATH)["cases"]
     planner = build_question_planner(DeclarationQASettings())

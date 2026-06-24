@@ -17,17 +17,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from declaration_qa import __version__
-from declaration_qa.audit import InMemoryAuditStore
-from declaration_qa.auth import RequestContext, apply_chat_auth, require_service_or_user, resolve_request_context
-from declaration_qa.config import get_settings
-from declaration_qa.evaluation import run_evaluation
-from declaration_qa.factory import create_index_job_store, create_workflow
-from declaration_qa.index_service import process_index_job
-from declaration_qa.queue import build_index_queue
-from declaration_qa.rag_engine import normalize_chunking_strategy
-from declaration_qa.retrieval import sanitize_metadata
-from declaration_qa.runtime import assert_production_ready, production_readiness_errors
-from declaration_qa.schemas import (
+from declaration_qa.storage.audit import InMemoryAuditStore
+from declaration_qa.api.auth import RequestContext, apply_chat_auth, require_service_or_user, resolve_request_context
+from declaration_qa.core.config import get_settings
+from declaration_qa.application.evaluation import run_evaluation
+from declaration_qa.application.factory import create_index_job_store, create_workflow
+from declaration_qa.indexing.service import process_index_job
+from declaration_qa.indexing.queue import build_index_queue
+from declaration_qa.rag.engine import normalize_chunking_strategy
+from declaration_qa.rag.retrieval import sanitize_metadata
+from declaration_qa.core.runtime import assert_production_ready, production_readiness_errors
+from declaration_qa.api.schemas import (
     ChatRequest,
     ChatResponse,
     DeleteDocumentResponse,
@@ -60,7 +60,7 @@ from declaration_qa.schemas import (
     SessionSummary,
     TicketSummary,
 )
-from declaration_qa.workflow import DeclarationQAWorkflow
+from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
 SSE_HEADERS = {
@@ -122,7 +122,7 @@ def create_app() -> FastAPI:
         return {
             "ok": True,
             "service": "declaration-qa",
-            "entrypoint": "declaration_qa.server:app",
+            "entrypoint": "declaration_qa.api.server:app",
             "chunks": workflow.rag_engine.chunk_count,
             "cache_backend": workflow.rag_engine.cache_store.backend,
             "vector_backend": workflow.rag_engine.vector_index.backend,

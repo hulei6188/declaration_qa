@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from declaration_qa.schemas import ChatRequest
-from declaration_qa.workflow import DeclarationQAWorkflow
+from declaration_qa.api.schemas import ChatRequest
+from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
 def run_evaluation(

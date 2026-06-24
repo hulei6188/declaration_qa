@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
 
-from declaration_qa.config import DeclarationQASettings
-from declaration_qa.schemas import ChatRequest
+from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.api.schemas import ChatRequest
 
 
 @dataclass(frozen=True)

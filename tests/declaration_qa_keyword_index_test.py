@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from declaration_qa.domain import KnowledgeChunk
-from declaration_qa.keyword_index import ElasticsearchKeywordIndex, elasticsearch_chunk_document, elasticsearch_filter_clauses
+from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.search.keyword import ElasticsearchKeywordIndex, elasticsearch_chunk_document, elasticsearch_filter_clauses
 
 
 def test_elasticsearch_chunk_document_contains_filter_fields():
@@ -76,7 +76,7 @@ def test_elasticsearch_bulk_payload_uses_sdk_client(monkeypatch):
         return 1, []
 
     monkeypatch.setattr(
-        "declaration_qa.keyword_index.import_elasticsearch",
+        "declaration_qa.search.keyword.import_elasticsearch",
         lambda: (FakeElasticsearch, FakeNotFoundError, fake_bulk),
     )
     index = ElasticsearchKeywordIndex(url="http://es.test", index_name="chunks")

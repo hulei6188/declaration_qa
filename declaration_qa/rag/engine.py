@@ -11,12 +11,12 @@ from dataclasses import replace
 from datetime import date
 from typing import Any, Iterable, Protocol
 
-from declaration_qa.cache import CacheStore, InMemoryCacheStore
-from declaration_qa.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.keyword_index import KeywordIndex
-from declaration_qa.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
-from declaration_qa.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter, sanitize_metadata
-from declaration_qa.vector_index import MemoryVectorIndex, VectorIndex
+from declaration_qa.storage.cache import CacheStore, InMemoryCacheStore
+from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
+from declaration_qa.search.keyword import KeywordIndex
+from declaration_qa.rag.model_providers import EmbeddingProvider, HashEmbeddingProvider, HeuristicReranker, Reranker
+from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter, sanitize_metadata
+from declaration_qa.search.vector import MemoryVectorIndex, VectorIndex
 
 
 EMBEDDING_DIMS = 96

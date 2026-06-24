@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from declaration_qa.audit import InMemoryAuditStore
-from declaration_qa.business import InMemoryBusinessDataAdapter
-from declaration_qa.cache import InMemoryCacheStore, RedisCacheStore
-from declaration_qa.config import DeclarationQASettings, get_settings
-from declaration_qa.keyword_index import ElasticsearchKeywordIndex
-from declaration_qa.model_providers import build_answer_generator, build_embedding_provider, build_query_rewriter, build_question_planner, build_reranker
-from declaration_qa.repository import PostgresDeclarationQAStore
-from declaration_qa.rag_engine import build_seed_rag_engine
-from declaration_qa.runtime import assert_production_ready
-from declaration_qa.vector_index import MemoryVectorIndex, MilvusVectorIndex
-from declaration_qa.workflow import DeclarationQAWorkflow
+from declaration_qa.storage.audit import InMemoryAuditStore
+from declaration_qa.core.business import InMemoryBusinessDataAdapter
+from declaration_qa.storage.cache import InMemoryCacheStore, RedisCacheStore
+from declaration_qa.core.config import DeclarationQASettings, get_settings
+from declaration_qa.search.keyword import ElasticsearchKeywordIndex
+from declaration_qa.rag.model_providers import build_answer_generator, build_embedding_provider, build_query_rewriter, build_question_planner, build_reranker
+from declaration_qa.storage.repository import PostgresDeclarationQAStore
+from declaration_qa.rag.engine import build_seed_rag_engine
+from declaration_qa.core.runtime import assert_production_ready
+from declaration_qa.search.vector import MemoryVectorIndex, MilvusVectorIndex
+from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
 def create_workflow(settings: DeclarationQASettings | None = None) -> DeclarationQAWorkflow:
@@ -101,6 +101,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
 
 def create_index_job_store(workflow: DeclarationQAWorkflow):
     """根据工作流存储能力创建索引任务存储。"""
-    from declaration_qa.indexing import InMemoryIndexJobStore
+    from declaration_qa.indexing.jobs import InMemoryIndexJobStore
 
     return workflow.audit_store if hasattr(workflow.audit_store, "create_index_job") else InMemoryIndexJobStore()

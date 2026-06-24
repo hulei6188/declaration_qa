@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Type
 
-from declaration_qa.config import get_settings
+from declaration_qa.core.config import get_settings
 
 
 def select_rq_worker_class(worker_class: Type, simple_worker_class: Type, timer_death_penalty_class: Type) -> Type:

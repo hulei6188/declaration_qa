@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Protocol
 
-from declaration_qa.domain import KnowledgeChunk
+from declaration_qa.core.domain import KnowledgeChunk
 
 
 MILVUS_TEXT_METADATA_FIELDS: dict[str, int] = {
@@ -85,7 +85,7 @@ class MemoryVectorIndex:
 
     def search(self, vector: list[float], filters: dict[str, Any], *, limit: int) -> list[tuple[str, float]]:
         """按向量和过滤条件搜索相似片段。"""
-        from declaration_qa.rag_engine import cosine, matches_filter
+        from declaration_qa.rag.engine import cosine, matches_filter
 
         hits = []
         for chunk_id, (item_vector, chunk) in self._items.items():

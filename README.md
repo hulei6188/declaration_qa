@@ -61,7 +61,7 @@ docker compose up -d
 启动 API：
 
 ```powershell
-python -m uvicorn declaration_qa.server:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn declaration_qa.api.server:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 启动前端：
@@ -80,7 +80,7 @@ http://127.0.0.1:5173
 如果使用异步入库，需要启动 worker：
 
 ```powershell
-python -m declaration_qa.worker
+python -m declaration_qa.indexing.worker
 ```
 
 ## 核心配置

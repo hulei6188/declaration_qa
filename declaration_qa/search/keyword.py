@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from declaration_qa.domain import KnowledgeChunk
-from declaration_qa.retrieval import normalize_retrieval_filter
+from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.rag.retrieval import normalize_retrieval_filter
 
 
 class KeywordIndex(Protocol):
