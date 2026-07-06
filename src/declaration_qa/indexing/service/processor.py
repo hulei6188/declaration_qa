@@ -27,13 +27,49 @@ def process_index_job(
         raise ValueError(f"Index job not found: {job_uid}")
     job_type = str(item.get("job_type") or "")
     payload = dict(item.get("payload") or {})
-    job_store.update_index_job(job_uid=job_uid, status="running", progress=10, message="Index worker started")
+    stage_history = list((payload.get("etl") or {}).get("stages") or [])
+
+    def update_stage(stage: str, progress: int, message: str, details: dict[str, Any] | None = None) -> None:
+        nonlocal payload, stage_history
+        event = {
+            "stage": stage,
+            "progress": max(0, min(100, int(progress))),
+            "message": message,
+            "details": details or {},
+        }
+        stage_history = [*stage_history, event]
+        payload = {
+            **payload,
+            "etl": {
+                "current_stage": stage,
+                "stages": stage_history,
+                "last_message": message,
+                "last_details": details or {},
+            },
+        }
+        job_store.update_index_job(
+            job_uid=job_uid,
+            status="running",
+            progress=progress,
+            message=message,
+            payload=payload,
+        )
+
+    update_stage("accepted", 10, "Index worker accepted ETL task", {"job_type": job_type})
     try:
         if job_type == "document_index":
-            result = process_document_index(payload, workflow=workflow, settings=settings)
+            result = process_document_index(
+                payload,
+                workflow=workflow,
+                settings=settings,
+                job_uid=job_uid,
+                stage_callback=update_stage,
+            )
         elif job_type == "knowledge_base_reindex":
+            update_stage("reindex", 40, "Knowledge base reindex started", {})
             result = process_reindex(workflow)
         elif job_type == "document_delete":
+            update_stage("delete", 40, "Document delete started", {"document_id": payload.get("document_id") or ""})
             result = process_document_delete(payload, workflow=workflow)
         else:
             raise ValueError(f"Unsupported index job type: {job_type}")
@@ -45,6 +81,14 @@ def process_index_job(
             payload={**payload, **result},
         )
     except Exception as exc:
+        payload = {
+            **payload,
+            "etl": {
+                **(payload.get("etl") or {}),
+                "current_stage": "failed",
+                "last_message": str(exc),
+            },
+        }
         return job_store.update_index_job(
             job_uid=job_uid,
             status="failed",
@@ -52,4 +96,3 @@ def process_index_job(
             error_message=str(exc),
             payload=payload,
         )
-

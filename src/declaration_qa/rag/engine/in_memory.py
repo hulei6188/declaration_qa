@@ -12,7 +12,7 @@ from declaration_qa.rag.engine.structured_context import expand_parent_context, 
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
-from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage
+from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, published_visibility_filter
 from declaration_qa.search.keyword import KeywordIndex
 from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.search.vector.memory import MemoryVectorIndex
@@ -113,7 +113,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
 
     def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
         """Retrieve from in-memory chunks."""
-        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        search_filter = published_visibility_filter(effective_filter)
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         if not candidates:
@@ -127,7 +128,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         limit = max(top_k * 3, 8)
         degraded: list[dict[str, str]] = []
         try:
-            dense_hits = self._dense_retrieve(normalized_query, candidates, effective_filter, limit=limit)
+            dense_hits = self._dense_retrieve(normalized_query, candidates, search_filter, limit=limit)
         except Exception as exc:
             dense_hits = []
             degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
@@ -151,7 +152,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
         effective_filter: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch retrieve from in-memory chunks."""
-        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        search_filter = published_visibility_filter(effective_filter)
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         if not candidates:
@@ -172,7 +174,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
         try:
             query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
             by_id = {chunk.id: chunk for chunk in candidates}
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_by_index[int(spec["index"])] = [
@@ -216,7 +218,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
         top_k: int,
     ) -> RetrievalResult:
         """Fuse in-memory rewrite recall lists and rerank once."""
-        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, effective_filter)]
+        search_filter = published_visibility_filter(effective_filter)
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         query_statuses = [
@@ -245,7 +248,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         degraded: list[dict[str, str]] = []
         try:
             query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
             by_id = {chunk.id: chunk for chunk in candidates}
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_by_index[int(spec["index"])] = [

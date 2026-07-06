@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
@@ -23,8 +23,12 @@ def process_document_index(
     *,
     workflow: DeclarationQAWorkflow,
     settings: DeclarationQASettings,
+    job_uid: str = "",
+    stage_callback: Callable[[str, int, str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """处理单篇知识文档的索引入库。"""
+    stage_callback = stage_callback or (lambda *args, **kwargs: None)
+    stage_callback("extract", 20, "Raw document accepted and text extraction started", {})
     input_type = str(payload.get("input_type") or "text")
     if input_type == "file":
         file_path = Path(str(payload.get("file_path") or ""))
@@ -61,6 +65,17 @@ def process_document_index(
         metadata["region_key"] = metadata["region_code"]
     if metadata.get("policy_version") and not metadata.get("source_version"):
         metadata["source_version"] = metadata["policy_version"]
+    stage_callback(
+        "metadata",
+        30,
+        "Government document metadata extracted",
+        {
+            "item_code": metadata.get("item_code") or "",
+            "item_name": metadata.get("item_name") or "",
+            "region_code": metadata.get("region_code") or metadata.get("region_key") or "",
+            "chunking_strategy": metadata["chunking_strategy"],
+        },
+    )
     document = KnowledgeDocument(
         id=str(payload["document_id"]),
         title=title,
@@ -80,7 +95,12 @@ def process_document_index(
         effective_end_time=parse_optional_date(metadata.get("effective_end_time")),
         metadata=metadata,
     )
-    chunks_indexed = index_document_for_workflow(workflow, document)
+    chunks_indexed = index_document_for_workflow(
+        workflow,
+        document,
+        task_id=job_uid,
+        stage_callback=stage_callback,
+    )
     return {
         "document_id": document.id,
         "chunks_indexed": chunks_indexed,
@@ -98,4 +118,3 @@ def parse_optional_date(value) -> date | None:
     if not value:
         return None
     return date.fromisoformat(str(value)[:10])
-

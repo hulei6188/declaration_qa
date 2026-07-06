@@ -412,6 +412,33 @@ def test_hierarchical_chunking_preserves_markdown_heading_path():
     assert process.metadata["section_title"] == "办理流程"
     assert process.metadata["chunk_type"] == "process_step"
     assert all(chunk.metadata.get("chunking_strategy") == "hierarchical" for chunk in chunks)
+    assert material.metadata["sibling_ids"]
+
+
+def test_indexing_documents_are_hidden_until_published():
+    engine = InMemoryRAGEngine()
+    staging = KnowledgeDocument(
+        id="doc-staging-hidden",
+        title="临时版本测试",
+        content="临时版本材料XYZ只有发布后才可以被检索。",
+        status="indexing",
+        metadata={"doc_status": "indexing"},
+    )
+    published = KnowledgeDocument(
+        id="doc-staging-hidden",
+        title="临时版本测试",
+        content="临时版本材料XYZ只有发布后才可以被检索。",
+        status="published",
+        metadata={"doc_status": "published"},
+    )
+
+    engine.index_chunks(staging, engine.document_chunks(staging))
+    hidden = engine.retrieve("临时版本材料XYZ", {})
+    engine.index_chunks(published, engine.document_chunks(published))
+    visible = engine.retrieve("临时版本材料XYZ", {})
+
+    assert hidden.sources == []
+    assert visible.sources
 
 
 def test_hierarchical_chunking_uses_context_parent_only_for_long_sections():

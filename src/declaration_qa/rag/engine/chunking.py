@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import re
 from typing import Any
 
@@ -20,8 +21,8 @@ def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
     """Split a document with the configured strategy."""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
     if strategy == CHUNKING_HIERARCHICAL:
-        return split_hierarchical(document)
-    return split_parent_child(document)
+        return attach_sibling_ids(split_hierarchical(document))
+    return attach_sibling_ids(split_parent_child(document))
 
 
 def split_parent_child(
@@ -364,3 +365,22 @@ def knowledge_chunk_from_document(
         embedding_id=f"vec:{chunk_id}",
         metadata=metadata,
     )
+
+
+def attach_sibling_ids(chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
+    """Attach sibling chunk ids for section-level material backfill."""
+    groups: dict[str, list[str]] = {}
+    for chunk in chunks:
+        if chunk.chunk_type != "child":
+            continue
+        group_key = str(chunk.metadata.get("parent_section_id") or chunk.parent_id or chunk.doc_id)
+        groups.setdefault(group_key, []).append(chunk.id)
+    enriched: list[KnowledgeChunk] = []
+    for chunk in chunks:
+        if chunk.chunk_type != "child":
+            enriched.append(chunk)
+            continue
+        group_key = str(chunk.metadata.get("parent_section_id") or chunk.parent_id or chunk.doc_id)
+        sibling_ids = [item for item in groups.get(group_key, []) if item != chunk.id]
+        enriched.append(replace(chunk, metadata={**chunk.metadata, "sibling_ids": sibling_ids}))
+    return enriched

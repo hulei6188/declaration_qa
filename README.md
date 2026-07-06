@@ -288,6 +288,23 @@ RAG 检索流程：
 
 最终回答模型只能使用子问题授权的证据引用，避免不同问题之间串用材料。
 
+## 异步知识入库 ETL
+
+知识入库按“前台秒级响应、后台异步加工、版本原子刷新”设计。上传接口只负责文件校验、落盘和创建 `index_jobs` 任务；生产环境建议使用 `DECLARATION_QA_INDEX_QUEUE_BACKEND=rq`，由独立 worker 执行解析、切块、Embedding 和索引写入，本地开发可使用 `inline`。
+
+单篇文档任务会在 `payload.etl` 中记录阶段状态：
+
+| 阶段 | 说明 |
+| --- | --- |
+| `accepted` | worker 已领取任务 |
+| `extract` | 原始文件或文本开始解析 |
+| `metadata` | 提取事项编码、事项名称、区域、分块策略等元数据 |
+| `transform` | 生成层级/父子 chunk，并写入兄弟 chunk 关系 |
+| `embedding_load` | 以 `indexing` 临时版本批量向量化并写入索引，普通问答不可见 |
+| `atomic_publish` | 全部 chunk 写入成功后，将同一文档切换为目标状态 |
+
+为了避免“新政策写到一半被用户搜到”，检索链路默认只召回 `doc_status=published` 的知识。后台入库时先写入 `revision_stage=staging` 的临时版本，全部索引动作成功后再切换到正式 `knowledge_revision`，并清理检索缓存。Embedding 采用批量调用，并带指数退避和 jitter，降低批量导入时触发模型服务限流的概率。
+
 ## 回答生成
 
 回答生成分两条链路：

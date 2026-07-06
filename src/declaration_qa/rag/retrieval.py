@@ -60,6 +60,19 @@ def normalize_retrieval_filter(filters: dict[str, Any] | None) -> dict[str, Any]
     return normalized
 
 
+def published_visibility_filter(filters: dict[str, Any] | None) -> dict[str, Any]:
+    """返回检索实际执行时使用的可见性过滤条件。
+
+    普通问答默认只召回已发布知识。后台 ETL 可以把文档先写成
+    ``indexing`` 或 ``draft`` 状态，直到最终发布前都不会被默认问答命中。
+    调试或管理接口如果显式传入 ``status`` / ``doc_status``，则尊重调用方。
+    """
+    normalized = normalize_retrieval_filter(filters)
+    if "status" not in normalized and "doc_status" not in normalized:
+        normalized["doc_status"] = "published"
+    return normalized
+
+
 def normalize_filter_value(value: Any) -> Any:
     """标准化单个检索过滤值。"""
     if isinstance(value, str):

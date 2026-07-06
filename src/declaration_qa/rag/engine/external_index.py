@@ -16,7 +16,7 @@ from declaration_qa.rag.engine.structured_context import (
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
-from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage
+from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, published_visibility_filter
 from declaration_qa.search.keyword import KeywordIndex
 from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.storage.cache import CacheStore
@@ -105,16 +105,17 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
 
     def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
         """Retrieve through external indexes and hydrate chunks on demand."""
+        search_filter = published_visibility_filter(effective_filter)
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         limit = max(top_k * 3, 8)
         degraded: list[dict[str, str]] = []
         try:
-            dense_hits = self._remote_dense_retrieve(normalized_query, effective_filter, limit=limit, channel="dense")
+            dense_hits = self._remote_dense_retrieve(normalized_query, search_filter, limit=limit, channel="dense")
         except Exception as exc:
             dense_hits = []
             degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
         try:
-            bm25_hits = self._keyword_retrieve(normalized_query, effective_filter, limit=limit)
+            bm25_hits = self._keyword_retrieve(normalized_query, search_filter, limit=limit)
         except Exception as exc:
             bm25_hits = []
             degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
@@ -139,13 +140,14 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         effective_filter: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch remote dense retrieval, then hydrate and rerank."""
+        search_filter = published_visibility_filter(effective_filter)
         limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         dense_by_index: dict[int, list[RetrievedSource]] = {}
         degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
         try:
             query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_by_index[int(spec["index"])] = self._sources_from_scored_ids(
                     vector_hits[:limit],
@@ -161,7 +163,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             query = str(spec["query"])
             dense_hits = dense_by_index.get(index) or []
             try:
-                bm25_hits = self._keyword_retrieve(query, effective_filter, limit=limit)
+                bm25_hits = self._keyword_retrieve(query, search_filter, limit=limit)
             except Exception as exc:
                 bm25_hits = []
                 degraded_by_index[index].append({"stage": "bm25_retrieve", "error": type(exc).__name__})
@@ -192,6 +194,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         top_k: int,
     ) -> RetrievalResult:
         """Batch recall rewrite queries, globally fuse, and rerank once."""
+        search_filter = published_visibility_filter(effective_filter)
         limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         degraded: list[dict[str, str]] = []
@@ -200,7 +203,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
 
         try:
             query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, effective_filter, limit=max(limits))
+            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_scores_by_index[int(spec["index"])] = [
                     (str(chunk_id), float(score))
@@ -213,13 +216,13 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         keyword_search_many = getattr(self.keyword_index, "search_many", None)
         if callable(keyword_search_many):
             try:
-                many_results = keyword_search_many(query_specs, effective_filter, limits)
+                many_results = keyword_search_many(query_specs, search_filter, limits)
                 bm25_scores_by_index.update({int(index): list(scores) for index, scores in many_results.items()})
             except Exception as exc:
                 degraded.append({"stage": "bm25_retrieve_batch", "error": type(exc).__name__})
-                bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, effective_filter, limits, degraded))
+                bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, search_filter, limits, degraded))
         else:
-            bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, effective_filter, limits, degraded))
+            bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, search_filter, limits, degraded))
 
         all_chunk_ids = [
             chunk_id
