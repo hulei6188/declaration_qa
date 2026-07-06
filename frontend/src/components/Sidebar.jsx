@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RefreshCw, Trash2, Upload } from 'lucide-react';
-import { escapeHtml, formatBytes } from '../utils.js';
+import { documentRevision, escapeHtml, etlStageLabel, formatBytes } from '../utils.js';
 
 export default function Sidebar({
   sessions, documents, selectedDocId, uploadItems, uploadResult, uploadInFlight,
@@ -17,12 +17,18 @@ export default function Sidebar({
 
   function handleUpload() {
     const files = docFile ? Array.from(docFile) : [];
-    onUpload(docTitle, docContent, files, chunkingStrategy);
+    onUpload(docTitle, docContent, files, chunkingStrategy, policyVersion);
   }
 
   function handleFileChange(e) {
     const files = e.target.files;
     setDocFile(files?.length ? files : null);
+  }
+
+  function handleDocumentKeyDown(e, docId) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    onSelectDocument(docId);
   }
 
   return (
@@ -67,21 +73,32 @@ export default function Sidebar({
           {documents.length === 0 ? (
             <p className="hint">暂无知识文档</p>
           ) : (
-            documents.map((doc) => (
-              <button
-                key={doc.document_id}
-                className={`document-item ${doc.document_id === selectedDocId ? 'active' : ''}`}
-                onClick={() => onSelectDocument(doc.document_id)}
-              >
-                <strong>{escapeHtml(doc.title || '未命名文档')}</strong>
-                <code>
-                  <span>{escapeHtml(doc.status)}</span>
-                  <span>v{doc.version_no}</span>
-                  <span>{doc.rollout_percent}%</span>
-                  <span>{escapeHtml(doc.policy_version || '-')}</span>
-                </code>
-              </button>
-            ))
+            documents.map((doc) => {
+              const revision = documentRevision(doc);
+              return (
+                <div
+                  key={doc.document_id}
+                  role="button"
+                  tabIndex={0}
+                  className={`document-item ${doc.document_id === selectedDocId ? 'active' : ''}`}
+                  onClick={() => onSelectDocument(doc.document_id)}
+                  onKeyDown={(e) => handleDocumentKeyDown(e, doc.document_id)}
+                >
+                  <strong>{escapeHtml(doc.title || '未命名文档')}</strong>
+                  <div className="doc-facts">
+                    <span className={`doc-fact doc-status status-${statusClass(revision.status)}`}>{etlStageLabel(revision.status)}</span>
+                    <span className="doc-fact">v{doc.version_no}</span>
+                    <span className="doc-fact">{doc.rollout_percent}%</span>
+                    <span className="doc-fact">{escapeHtml(doc.policy_version || '-')}</span>
+                    <span className="doc-fact">{doc.chunk_count || 0} 块</span>
+                  </div>
+                  <div className="revision-strip">
+                    <span>{etlStageLabel(revision.stage)}</span>
+                    <em>{escapeHtml(revision.revision)}</em>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
         <div className="field-grid">
@@ -122,7 +139,7 @@ export default function Sidebar({
         </label>
         <label>
           切分方法
-          <select value={chunkingStrategy} onChange={(e) => setChunkingStrategy(e.target.value)}>
+          <select id="chunkingStrategy" value={chunkingStrategy} onChange={(e) => setChunkingStrategy(e.target.value)}>
             <option value="parent_child">父子分块</option>
             <option value="hierarchical">层级分块</option>
           </select>
@@ -137,6 +154,7 @@ export default function Sidebar({
                 <div>
                   <strong>{escapeHtml(item.name)}</strong>
                   <code>{formatBytes(item.size)} · {escapeHtml(item.strategyLabel || '')} · {escapeHtml(item.message || '')}{item.chunksIndexed != null ? ` · ${item.chunksIndexed} 分块` : ''}</code>
+                  <EtlProgress item={item} />
                 </div>
               </div>
             ))
@@ -158,4 +176,37 @@ export default function Sidebar({
       </section>
     </aside>
   );
+}
+
+function EtlProgress({ item }) {
+  const etl = item.etl || {};
+  const stages = Array.isArray(etl.stages) ? etl.stages : [];
+  const current = etl.current_stage || '';
+  const progress = Math.max(0, Math.min(100, Number(item.progress || 0)));
+  const visibleStages = stages.slice(-5);
+  if (!current && visibleStages.length === 0) return null;
+  return (
+    <div className="etl-progress">
+      <div className="etl-bar" aria-hidden="true">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <div className="etl-stage-row">
+        <span>{etlStageLabel(current)}</span>
+        <span>{progress}%</span>
+      </div>
+      {visibleStages.length > 0 && (
+        <div className="etl-stage-list">
+          {visibleStages.map((stage, index) => (
+            <span key={`${stage.stage}-${index}`} className={stage.stage === current ? 'active' : ''}>
+              {etlStageLabel(stage.stage)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function statusClass(status) {
+  return String(status || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 }

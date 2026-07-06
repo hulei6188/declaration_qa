@@ -29,10 +29,13 @@ import {
   loadTicket,
   saveTicket,
   clearTicket,
-  formatBytes,
+  etlStageLabel,
   ticketLabel,
   compactJson,
   copyText,
+  formatJobProgress,
+  jobEtl,
+  documentRevision,
   INDEX_JOB_MAX_ATTEMPTS,
   sleep,
 } from './utils.js';
@@ -355,7 +358,8 @@ export default function App() {
     setSelectedDocId(docId);
     const doc = documents.find((d) => d.document_id === docId);
     if (doc) {
-      setDocManageResult(`已选择：${doc.title} / ${doc.status} / v${doc.version_no}`);
+      const revision = documentRevision(doc);
+      setDocManageResult(`已选择：${doc.title} / ${etlStageLabel(revision.status)} / v${doc.version_no} / ${revision.revision}`);
     }
   }
 
@@ -425,14 +429,14 @@ export default function App() {
   }
 
   // ---- Upload ----
-  async function doUpload(title, content, files, chunkingStrategy) {
+  async function doUpload(title, content, files, chunkingStrategy, policyVersion) {
     if (uploadInFlight) return;
     if (!files.length && !content) {
       setUploadResult('请选择文件，或粘贴文档内容。');
       return;
     }
     if (files.length) {
-      await uploadBatch(files, title, chunkingStrategy);
+      await uploadBatch(files, title, chunkingStrategy, policyVersion);
       return;
     }
     setUploadResult('文本入库中');
@@ -441,7 +445,7 @@ export default function App() {
         title || content.split('\n')[0].trim().slice(0, 80),
         content,
         ctx.regionCode,
-        ctx.policyVersion,
+        policyVersion || ctx.policyVersion,
         chunkingStrategy
       );
       const payload = await res.json();
@@ -449,7 +453,7 @@ export default function App() {
         setUploadResult(`索引任务已提交：${payload.document_id}`);
         const job = await waitForJob(payload.job_id);
         if (job.status === 'succeeded') {
-          setUploadResult(`已索引 ${job.payload?.chunks_indexed || payload.chunks_indexed || 0} 个分块`);
+          setUploadResult(`已索引 ${job.payload?.chunks_indexed || payload.chunks_indexed || 0} 个分块 · ${formatJobProgress(job)}`);
         } else if (job.status === 'failed') {
           throw new Error(job.error_message || '索引任务失败');
         }
@@ -462,7 +466,7 @@ export default function App() {
     }
   }
 
-  async function uploadBatch(files, title, strategy) {
+  async function uploadBatch(files, title, strategy, policyVersion) {
     const label = document.getElementById('chunkingStrategy')?.selectedOptions[0]?.textContent || '父子分块';
     const items = files.map((f, i) => ({
       id: `${f.name}-${f.size}-${f.lastModified}-${i}`,
@@ -472,6 +476,10 @@ export default function App() {
       message: '准备上传',
       strategyLabel: label,
       chunksIndexed: null,
+      progress: 0,
+      etl: null,
+      jobId: '',
+      documentId: '',
     }));
     setUploadItems(items);
     setUploadInFlight(true);
@@ -479,7 +487,7 @@ export default function App() {
 
     try {
       setUploadItems((prev) => prev.map((it) => ({ ...it, status: 'running', message: '上传中' })));
-      const res = await uploadFileDocuments(files, title, ctx.regionCode, ctx.policyVersion, strategy);
+      const res = await uploadFileDocuments(files, title, ctx.regionCode, policyVersion || ctx.policyVersion, strategy);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const batch = await res.json();
       const docs = batch.documents || [];
@@ -488,30 +496,56 @@ export default function App() {
         prev.map((it, i) => {
           const payload = docs[i];
           if (!payload) return it;
-          return { ...it, status: 'indexing', message: payload.job_id ? '索引任务已提交' : '索引完成', documentId: payload.document_id || '' };
+          return {
+            ...it,
+            status: 'indexing',
+            message: payload.job_id ? '索引任务已提交' : '索引完成',
+            jobId: payload.job_id || '',
+            documentId: payload.document_id || '',
+          };
         })
       );
 
+      let failedCount = 0;
       for (let i = 0; i < docs.length; i++) {
         const payload = docs[i];
         if (!payload?.job_id) continue;
         const job = await waitForJob(payload.job_id, i);
+        if (['failed', 'cancelled'].includes(job.status)) failedCount += 1;
         setUploadItems((prev) =>
           prev.map((it, idx) => {
             if (idx !== i) return it;
             if (['failed', 'cancelled'].includes(job.status)) {
-              return { ...it, status: 'failed', message: job.error_message || '索引任务失败' };
+              return {
+                ...it,
+                status: 'failed',
+                message: job.error_message || '索引任务失败',
+                progress: job.progress || it.progress || 0,
+                etl: jobEtl(job),
+              };
             }
             if (job.status === 'succeeded') {
-              return { ...it, status: 'succeeded', message: '已入库', chunksIndexed: job.payload?.chunks_indexed || 0 };
+              return {
+                ...it,
+                status: 'succeeded',
+                message: '已入库',
+                chunksIndexed: job.payload?.chunks_indexed || 0,
+                progress: 100,
+                etl: jobEtl(job),
+              };
             }
-            return { ...it, status: 'pending', message: `索引中 ${job.progress || 0}%` };
+            return {
+              ...it,
+              status: 'pending',
+              message: formatJobProgress(job),
+              progress: job.progress || 0,
+              etl: jobEtl(job),
+            };
           })
         );
       }
 
-      const failed = uploadItems.filter((it) => it.status === 'failed').length;
-      if (failed) throw new Error(`失败 ${failed}/${uploadItems.length}`);
+      if (failedCount) throw new Error(`失败 ${failedCount}/${items.length}`);
       setUploadResult(`批量入库完成`);
       await loadDocuments();
     } catch (e) {
@@ -528,8 +562,18 @@ export default function App() {
     for (let i = 0; i < INDEX_JOB_MAX_ATTEMPTS; i++) {
       try {
         const job = await fetchIndexJob(jobId);
+        const summary = formatJobProgress(job);
+        if (uploadIdx !== undefined && uploadIdx !== null) {
+          setUploadItems((prev) =>
+            prev.map((item, idx) => (
+              idx === uploadIdx
+                ? { ...item, message: summary, progress: job.progress || 0, etl: jobEtl(job) }
+                : item
+            ))
+          );
+        }
         if (['succeeded', 'failed', 'cancelled'].includes(job.status)) return job;
-        setUploadResult(`索引中 ${job.progress || 0}%`);
+        setUploadResult(summary);
       } catch { /* retry */ }
       await sleep(1000);
     }

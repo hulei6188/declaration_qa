@@ -37,6 +37,52 @@ export function compactJson(value) {
   return JSON.stringify(value || {}, null, 2).slice(0, 900);
 }
 
+export const ETL_STAGE_LABELS = {
+  waiting: '等待',
+  pending: '排队中',
+  accepted: '已接收',
+  extract: '解析',
+  metadata: '元数据',
+  transform: '层级切块',
+  embedding_load: '向量入库',
+  atomic_publish: '原子发布',
+  indexing: '入库中',
+  published: '已发布',
+  draft: '草稿',
+  succeeded: '已完成',
+  reindex: '重建索引',
+  delete: '删除索引',
+  cancelled: '已取消',
+  failed: '失败',
+};
+
+export function etlStageLabel(stage) {
+  return ETL_STAGE_LABELS[String(stage || '')] || String(stage || '等待');
+}
+
+export function jobEtl(job) {
+  return job?.payload?.etl || {};
+}
+
+export function formatJobProgress(job) {
+  const etl = jobEtl(job);
+  const stage = etl.current_stage || job?.status || 'pending';
+  const label = etlStageLabel(stage);
+  const progress = Number(job?.progress || 0);
+  const message = etl.last_message || job?.message || '';
+  return `${label} ${progress}%${message ? ` · ${message}` : ''}`;
+}
+
+export function documentRevision(doc) {
+  const metadata = doc?.metadata || {};
+  return {
+    revision: metadata.knowledge_revision || '-',
+    stage: metadata.revision_stage || metadata.doc_status || doc?.status || '-',
+    visible: metadata.revision_visible,
+    status: doc?.status || metadata.doc_status || '-',
+  };
+}
+
 export async function copyText(value) {
   const text = String(value ?? '');
   if (!text) return false;

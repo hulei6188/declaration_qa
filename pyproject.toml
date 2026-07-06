@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "declaration-qa"
 version = "0.1.0"
 description = "Declaration QA workflow service"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "dashscope",
 ]

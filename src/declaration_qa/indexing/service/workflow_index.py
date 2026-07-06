@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
 
 if TYPE_CHECKING:
     from declaration_qa.application.workflow import DeclarationQAWorkflow
@@ -37,7 +37,10 @@ def index_document_for_workflow(
         task_id=task_id,
         visible=False,
     )
-    staging_chunks = workflow.rag_engine.document_chunks(staging_document)
+    staging_chunks = chunks_for_storage(
+        workflow.rag_engine.document_chunks(staging_document),
+        document_status=staging_document.status,
+    )
     stage_callback(
         "transform",
         35,
@@ -61,7 +64,10 @@ def index_document_for_workflow(
         task_id=task_id,
         visible=final_status == "published",
     )
-    final_chunks = workflow.rag_engine.document_chunks(final_document)
+    final_chunks = chunks_for_storage(
+        workflow.rag_engine.document_chunks(final_document),
+        document_status=final_document.status,
+    )
     stage_callback(
         "atomic_publish",
         90,
@@ -92,6 +98,21 @@ def document_variant(
         "revision_visible": visible,
     }
     return replace(document, status=status, metadata=metadata)
+
+
+def chunks_for_storage(chunks: list[KnowledgeChunk], *, document_status: str) -> list[KnowledgeChunk]:
+    """Map business document status to chunk-table-safe storage status."""
+    storage_status = chunk_storage_status(document_status)
+    return [replace(chunk, status=storage_status) for chunk in chunks]
+
+
+def chunk_storage_status(document_status: str) -> str:
+    """Return a chunk status allowed by the database constraint."""
+    if document_status == "published":
+        return "published"
+    if document_status == "deprecated":
+        return "deprecated"
+    return "draft"
 
 
 def build_knowledge_revision(task_id: str) -> str:
