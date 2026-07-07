@@ -10,7 +10,7 @@ from declaration_qa.rag.engine.embeddings import embed_chunk_batch
 from declaration_qa.rag.engine.structured_context import (
     expand_parent_context,
     expand_structured_section_context,
-    structured_backfill_chunk_type,
+    structured_backfill_chunk_types,
     structured_source_matches,
 )
 from declaration_qa.rag.engine.text import unique_ordered_strings
@@ -107,7 +107,14 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         """Return candidate source label."""
         return "external_indexes"
 
-    def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
+    def _retrieve_uncached(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
         """Retrieve through external indexes and hydrate chunks on demand."""
         search_filter = published_visibility_filter(effective_filter)
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
@@ -135,6 +142,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             top_k=top_k,
             degraded=degraded,
             candidate_source="external_indexes",
+            retrieval_plan=retrieval_plan,
         )
 
     def _retrieve_many_uncached(
@@ -142,6 +150,8 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         query_specs: list[dict[str, Any]],
         results: list[RetrievalResult | None],
         effective_filter: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch remote dense retrieval, then hydrate and rerank."""
         search_filter = published_visibility_filter(effective_filter)
@@ -184,6 +194,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 degraded=degraded_by_index.get(index) or [],
                 batch_mode=True,
                 candidate_source="external_indexes",
+                retrieval_plan=retrieval_plan,
             )
             self._cache_result(str(spec["cache_key"]), result)
             results[index] = result
@@ -196,6 +207,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         effective_filter: dict[str, Any],
         *,
         top_k: int,
+        retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
         """Batch recall rewrite queries, globally fuse, and rerank once."""
         search_filter = published_visibility_filter(effective_filter)
@@ -280,6 +292,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             candidate_count=len(chunks_by_id),
             prefilter_child_count=len(chunks_by_id),
             candidate_source="external_indexes",
+            retrieval_plan=retrieval_plan,
         )
 
     def _keyword_retrieve_many_fallback(
@@ -349,21 +362,30 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         self,
         query: str,
         sources: list[RetrievedSource],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
         """Backfill structured section siblings from storage."""
         if self.chunk_store is None:
             return sources, {"applied": False}
-        target_chunk_type = structured_backfill_chunk_type(query)
-        if not target_chunk_type:
+        target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
+        if not target_chunk_types:
             return sources, {"applied": False}
-        parent_section_ids = [
-            str(source.chunk.metadata.get("parent_section_id") or "")
-            for source in sources
-            if structured_source_matches(source, target_chunk_type)
-        ]
-        sibling_chunks = self.chunk_store.get_structured_section_chunks(
-            unique_ordered_strings(parent_section_ids),
-            target_chunk_type,
+        sibling_lookup = {}
+        for target_chunk_type in target_chunk_types:
+            parent_section_ids = [
+                str(source.chunk.metadata.get("parent_section_id") or "")
+                for source in sources
+                if structured_source_matches(source, target_chunk_type)
+            ]
+            sibling_chunks = self.chunk_store.get_structured_section_chunks(
+                unique_ordered_strings(parent_section_ids),
+                target_chunk_type,
+            )
+            sibling_lookup.update({chunk.id: chunk for chunk in sibling_chunks})
+        return expand_structured_section_context(
+            query,
+            sources,
+            sibling_lookup,
+            retrieval_plan=retrieval_plan,
         )
-        sibling_lookup = {chunk.id: chunk for chunk in sibling_chunks}
-        return expand_structured_section_context(query, sources, sibling_lookup)

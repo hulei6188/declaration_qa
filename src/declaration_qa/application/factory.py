@@ -11,7 +11,7 @@ from declaration_qa.rag.model_providers.factories import (
     build_answer_generator,
     build_embedding_provider,
     build_query_rewriter,
-    build_question_planner,
+    build_question_resolver,
     build_reranker,
 )
 from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
@@ -30,7 +30,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
     answer_generator = build_answer_generator(settings)
-    question_planner = build_question_planner(settings)
+    question_resolver = build_question_resolver(settings)
     query_rewriter = build_query_rewriter(settings)
     cache_store = (
         RedisCacheStore(
@@ -115,7 +115,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         business_adapter=business_adapter,
         audit_store=audit_store,
         answer_generator=answer_generator,
-        question_planner=question_planner,
+        question_resolver=question_resolver,
         query_rewriter=query_rewriter,
         max_sub_question_workers=settings.max_sub_question_workers,
         max_retrieval_workers=settings.max_retrieval_workers,

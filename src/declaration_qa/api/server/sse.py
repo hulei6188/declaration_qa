@@ -37,7 +37,7 @@ def sse_response(response: ChatResponse) -> Iterable[str]:
             "route": response.route,
             "sub_intent": response.sub_intent,
             "multi_question": response.multi_question,
-            "question_plan": response.question_plan,
+            "question_resolution": response.question_resolution,
             "sub_tasks": response.sub_tasks,
             "need_ticket_selection": response.need_ticket_selection,
             "ticket_selection_reason": response.ticket_selection_reason,

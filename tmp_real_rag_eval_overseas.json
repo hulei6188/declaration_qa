@@ -8,7 +8,7 @@
     "multi_question": true,
     "refused": false,
     "refuse_reason": null,
-    "question_plan": {
+    "question_resolution": {
       "is_multi_question": true,
       "questions": [
         {

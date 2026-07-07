@@ -16,7 +16,7 @@ from declaration_qa.rag.query_rewriter.helpers import (
 QUERY_REWRITER_PROMPT = """你是政务问答系统的【检索 Query 改写器】，只能返回 JSON 对象，不回答业务问题，不生成最终答案。
 
 【你的任务】
-基于用户子问题、检索焦点、可用工单事实和事项范围，生成 1 到 3 条适合 RAG 检索的中文 query。
+基于用户子问题、retrieval_plan、可用工单事实和事项范围，生成 1 到 3 条适合 RAG 检索的中文 query。
 
 【严格边界】
 1. 你只生成 retrieval queries，不生成 metadata filter；metadata filter 已由 Python 根据工单元数据严格生成。
@@ -25,6 +25,8 @@ QUERY_REWRITER_PROMPT = """你是政务问答系统的【检索 Query 改写器�
 4. 只有 requires_ticket_context 为 true 时，才允许使用 fact_text；fact_text 为空时禁止编造工单状态、退回原因、材料名称。
 5. 不要输出身份证号、手机号、姓名等个人敏感信息；不要输出业务答案。
 6. query 应面向检索，可以补充同义词和官方指南表达，如“申请材料/材料清单”“法定办结时限/承诺办结时限”“办理流程/办理环节”。
+7. retrieval_plan 已由 QuestionResolver 生成；你必须消费它来选择 query 侧重点，但不要修改、扩写或重新输出 retrieval_plan。
+8. 如果 retrieval_plan.evidence_types 包含 material_item，query 应包含“申请材料/材料清单/必要材料”等检索词；如果包含 process_step，query 应包含“办理流程/办理环节”等检索词。
 
 【返回 JSON 格式】
 {
@@ -47,10 +49,10 @@ def build_query_rewriter_prompt(state: dict[str, Any]) -> str:
         "base_query": base_query,
         "requires_ticket_context": bool(state.get("requires_ticket_context")),
         "ticket_fact_type": str(state.get("ticket_fact_type") or "none"),
-        "retrieval_focus": str(state.get("retrieval_focus") or state.get("intent") or "other"),
         "scope_text": scope_text,
         "fact_text": fact_text,
         "metadata_filter": filters,
         "metadata_filter_has_item_scope": has_item_scope_filter(filters),
+        "retrieval_plan": state.get("retrieval_plan") or {},
     }
     return f"{QUERY_REWRITER_PROMPT}\n\n请求上下文 JSON:\n{json.dumps(context, ensure_ascii=False, sort_keys=True)}"

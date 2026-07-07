@@ -7,10 +7,10 @@
 - 后端：FastAPI、LangGraph、SQLAlchemy
 - 存储：PostgreSQL、Redis、Milvus
 - 检索：向量检索、BM25、RRF、Rerank、metadata filter
-- 模型：Question Planner、LLM Query Rewrite、LLM Answer Generator
+- 模型：QuestionResolver、LLM Query Rewrite、LLM Answer Generator
 - 前端：React / 静态页面，支持会话、工单选择、证据来源、Workflow 事件、反馈和评估
 
-当前版本的重点设计是：**Question Planner 负责拆问题和打控制流标签，Query Rewrite 负责检索语义改写，RAG 负责严格按事项范围召回证据，最终回答必须基于可追溯证据生成。**
+当前版本的重点设计是：**QuestionResolver 负责拆问题、判断工单上下文并输出 retrieval_plan，Query Rewrite 只负责基于 retrieval_plan 生成检索 query，RAG 负责严格按事项范围和 retrieval_plan 召回证据，最终回答必须基于可追溯证据生成。**
 
 ## 目录结构
 
@@ -22,7 +22,7 @@
 │       ├── application/      # LangGraph 工作流、节点和 workflow_helpers 包
 │       ├── core/             # 配置、领域模型、业务适配和运行时检查
 │       ├── indexing/         # 知识入库、任务队列、worker 和 service 包
-│       ├── rag/              # RAG 引擎、Planner、Query Rewrite、模型适配器
+│       ├── rag/              # RAG 引擎、QuestionResolver、Query Rewrite、模型适配器
 │       ├── search/           # 关键词索引和 vector 包
 │       └── storage/          # 审计、缓存和 PostgreSQL 存储
 ├── frontend/                 # 前端页面
@@ -102,7 +102,7 @@ python -m declaration_qa.indexing.worker
 | `DECLARATION_QA_ELASTICSEARCH_INDEX` | Elasticsearch chunk 索引 |
 | `DECLARATION_QA_LLM_PROVIDER` | LLM provider |
 | `DECLARATION_QA_LLM_MODEL` | 回答生成模型 |
-| `DECLARATION_QA_QUESTION_PLANNER_MODEL` | Planner 模型，不填时走默认 LLM 配置或规则兜底 |
+| `DECLARATION_QA_QUESTION_RESOLVER_MODEL` | QuestionResolver 模型，不填时走默认 LLM 配置或规则兜底 |
 | `DECLARATION_QA_QUERY_REWRITER_MODEL` | Query Rewrite 模型 |
 | `DECLARATION_QA_MAX_SUB_QUESTION_WORKERS` | 多子问题并发数 |
 | `DECLARATION_QA_MAX_RETRIEVAL_WORKERS` | 多路检索并发兜底数 |
@@ -111,7 +111,7 @@ python -m declaration_qa.indexing.worker
 | `DECLARATION_QA_RERANK_API_KEY` | DashScope Rerank API Key；也可使用 `DASHSCOPE_API_KEY` 环境变量 |
 | `DECLARATION_QA_RERANK_MODEL` | Rerank 模型，默认 `qwen3-rerank` |
 
-未配置真实服务时，系统可以使用内存存储、Hash Embedding、规则 Planner、规则 Query Rewrite 和确定性回答生成器，方便本地开发。
+未配置真实服务时，系统可以使用内存存储、Hash Embedding、规则 QuestionResolver、规则 Query Rewrite 和确定性回答生成器，方便本地开发。
 
 ## 当前问答流程
 
@@ -123,7 +123,7 @@ flowchart TD
     B --> C["_initial_state 初始化状态"]
     C --> D["构建当前工单上下文"]
     D --> E["query_preprocess 规范化问题"]
-    E --> F["Question Planner 拆问题和打标签"]
+    E --> F["QuestionResolver 拆问题并输出 retrieval_plan"]
     F --> G{"是否多问题"}
 
     G -- "否" --> H["prepare_task 生成 route"]
@@ -147,11 +147,11 @@ flowchart TD
 
 关键点：
 
-1. `Question Planner` 只负责拆分问题和打标签，不做语义补全。
-2. `prepare_task` 根据 Planner 输出生成 route，当前不再额外运行独立 Router 层。
+1. `QuestionResolver` 负责拆分问题、判断是否需要工单上下文，并输出 retrieval_plan，不做答案生成。
+2. `prepare_task` 根据 QuestionResolver 输出生成 route，当前不再额外运行独立 Router 层。
 3. 已选工单会成为本轮对话的默认事项范围。
-4. Query Rewrite 只改写检索 query，不生成 metadata filter。
-5. RAG 检索必须遵守 metadata filter，避免跨事项召回。
+4. Query Rewrite 只按 retrieval_plan 改写检索 query，不生成 metadata filter，也不决定回填策略。
+5. RAG 检索必须遵守 metadata filter，并按 retrieval_plan 做 section-aware retrieval / backfill，避免跨事项召回。
 6. 最终回答必须基于检索证据和工单事实，不允许模型自行猜测业务状态。
 
 性能上，当前实现有两层并发：
@@ -159,13 +159,14 @@ flowchart TD
 - 多问题场景下，多个子问题会在 `multi_question_collect` 中并发处理。
 - 单个子问题内部，多路 rewrite query 会优先走 `retrieve_many()`，合并为批量 Embedding 和批量向量检索；如果 batch 失败，再退回线程池并发检索。
 
-## Question Planner
+## QuestionResolver
 
-Planner 的职责很轻：
+QuestionResolver 的职责是：
 
 - 判断用户一句话里是否包含多个子问题。
 - 按原始表达顺序拆成 `questions`。
-- 给每个子问题打控制流标签。
+- 判断每个子问题是否需要工单上下文。
+- 输出下游检索使用的 `retrieval_plan`。
 
 核心输出字段：
 
@@ -176,8 +177,18 @@ Planner 的职责很轻：
 | `requires_ticket_context` | 是否依赖具体工单 |
 | `ticket_fact_type` | 需要读取的工单事实，如 `status`、`rejection`、`correction`、`none` |
 | `retrieval_focus` | 检索关注点，如材料、流程、时限、费用、地点、咨询方式等 |
+| `retrieval_plan` | 检索计划，包含 evidence_types、need_complete_sections、metadata_needs、ticket_fact_type |
 
-Planner 不负责把“这个事情最快几天”扩写成完整事项名。事项范围由工单上下文和 metadata filter 保证，语义补全交给 Query Rewrite。
+`retrieval_plan` 的子字段含义：
+
+| 字段 | 说明 |
+| --- | --- |
+| `evidence_types` | 需要召回的证据类型，如基本信息、受理条件、申请材料、办理流程等 |
+| `need_complete_sections` | 是否需要完整结构化章节，目前支持 `申请材料`、`办理流程` |
+| `metadata_needs` | 检索前需要满足的元数据范围，如事项、区域、政策版本、工单范围 |
+| `ticket_fact_type` | 与子问题外层 `ticket_fact_type` 保持一致，供下游识别工单事实需求 |
+
+QuestionResolver 不负责把“这个事情最快几天”扩写成完整事项名。事项范围由工单上下文和 metadata filter 保证，检索 query 改写交给 Query Rewrite。
 
 ## 工单上下文
 
@@ -232,7 +243,7 @@ Query Rewrite 当前是 LLM 优先、规则兜底。
 输入包含：
 
 - 用户原始问题
-- Planner 标签
+- QuestionResolver 输出的 retrieval_plan
 - 当前事项范围
 - 必要的工单事实摘要
 - metadata filter 是否已经包含事项范围
@@ -255,6 +266,7 @@ Query Rewrite 当前是 LLM 优先、规则兜底。
 
 - Query Rewrite 不负责选择事项。
 - Query Rewrite 不负责生成 filter。
+- Query Rewrite 不负责推断 evidence_types 或决定 section-aware backfill。
 - 如果 metadata filter 已经限定事项，改写时会避免重复塞事项名，减少 query 污染。
 
 ## RAG 检索
@@ -267,7 +279,7 @@ RAG 检索流程：
 4. PostgreSQL 按 `chunk_id` 批量回表加载 chunk 内容和 metadata。
 5. 使用 RRF 融合多路召回结果。
 6. 使用 Rerank 重排。
-7. 命中 child 后按需从 PostgreSQL 加载 parent 或同一结构化章节 sibling。
+7. 命中 child 后按 retrieval_plan 从 PostgreSQL 加载 parent 或同一结构化章节 sibling。
 8. 返回证据来源和检索诊断信息。
 
 多问题场景下，每个子问题独立检索，最终会构造共享证据池：
@@ -339,7 +351,7 @@ POST /api/declaration-qa/chat/stream
 | `run_started` | 开始处理 |
 | `context_built` | 已构建工单上下文 |
 | `query_preprocessed` | 问题规范化完成 |
-| `question_plan` | Planner 输出 |
+| `question_resolution` | QuestionResolver 输出 |
 | `ticket_selected` | 工单已选择 |
 | `knowledge_filter` | 已生成 metadata filter |
 | `query_rewrite` | Query Rewrite 输出 |
@@ -377,8 +389,8 @@ POST /api/declaration-qa/chat/stream
 | 位置 | 重点 |
 | --- | --- |
 | `/health` | 当前使用的是内存还是 PostgreSQL / Milvus / LLM |
-| Workflow 事件 | Planner、工单选择、filter、rewrite、sources 是否符合预期 |
-| audit 详情 | 完整 question_plan、retrieval_filter、retrieval_queries、final_prompt |
+| Workflow 事件 | QuestionResolver、工单选择、filter、rewrite、sources 是否符合预期 |
+| audit 详情 | 完整 question_resolution、retrieval_filter、retrieval_queries、final_prompt |
 | sources | 是否召回到正确事项、正确材料 |
 | rag_status | 是否启用 metadata_filtering、召回数量是否正常 |
 
@@ -387,7 +399,7 @@ POST /api/declaration-qa/chat/stream
 | 现象 | 优先检查 |
 | --- | --- |
 | 绑定工单后仍检索到别的事项 | `knowledge_filter` 是否包含 `item_code` 或 `item_name` |
-| 一个问题被错误拆成多个 | `question_plan.questions` 和 `reason` |
+| 一个问题被错误拆成多个 | `question_resolution.questions` 和 `reason` |
 | Query Rewrite 把事项名重复塞进 query | `metadata_filter_has_item_scope` 是否为 true |
 | 回答后才要求选工单 | 是否在检索前完成了 ticket selection |
 | 材料清单缺失 | 文档是否已发布、chunk 是否带正确事项元数据 |
@@ -413,8 +425,8 @@ python -m pytest tests/declaration_qa_production_test.py -q
 
 ## 当前边界
 
-- Planner 只拆问题和打标签，不做语义补全。
-- Query Rewrite 只生成检索 query，不生成 metadata filter。
+- QuestionResolver 拆问题、判断工单上下文并输出 retrieval_plan，不生成答案。
+- Query Rewrite 只根据 retrieval_plan 生成检索 query，不生成 metadata filter 或回填策略。
 - `biz_type` 不参与知识库过滤。
 - 工单状态、退回原因、补正信息必须来自业务数据。
 - 多问题最终回答可以由一个模型汇总，但证据必须按子问题隔离。

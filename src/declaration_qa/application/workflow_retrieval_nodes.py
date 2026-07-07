@@ -22,6 +22,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import (
 from declaration_qa.core.domain import RetrievalResult
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
+from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED
 
 
@@ -55,6 +56,7 @@ class WorkflowRetrievalNodes:
                 "provider": payload.get("provider"),
                 "reason": payload.get("reason"),
                 "scope_text": payload.get("scope_text") or "",
+                "retrieval_plan": next_state.get("retrieval_plan") or {},
                 "queries": next_state["retrieval_queries"],
             },
         )
@@ -64,6 +66,7 @@ class WorkflowRetrievalNodes:
         """按 rewrite 结果执行多路检索并去重合并。"""
         retrieval_queries = state.get("retrieval_queries") or []
         answer_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
+        retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
         if not retrieval_queries:
             retrieval_queries = [{"id": "rq1", "text": answer_query, "strategy": "fallback", "top_k": 4}]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
@@ -72,7 +75,7 @@ class WorkflowRetrievalNodes:
         def retrieve_one(retrieval_query: dict[str, Any]) -> tuple[dict[str, Any], RetrievalResult]:
             text = str(retrieval_query.get("text") or "").strip()
             top_k = int(retrieval_query.get("top_k") or 3)
-            result = self.rag_engine.retrieve(text, filters, top_k=top_k)
+            result = self.rag_engine.retrieve(text, filters, top_k=top_k, retrieval_plan=retrieval_plan)
             return (
                 {
                     "id": retrieval_query.get("id") or "",
@@ -94,6 +97,7 @@ class WorkflowRetrievalNodes:
                     executable_queries,
                     filters,
                     top_k=6,
+                    retrieval_plan=retrieval_plan,
                 )
                 status = {
                     **(result.status or {}),
@@ -107,7 +111,7 @@ class WorkflowRetrievalNodes:
                 batch_degraded = type(exc).__name__
             try:
                 retrieval_mode = "batch_multi_query_rewrite"
-                results = self.rag_engine.retrieve_many(executable_queries, filters)
+                results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
                 for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
                     query_statuses[index] = query_status_from_result(retrieval_query, result)
             except Exception as exc:
@@ -139,7 +143,7 @@ class WorkflowRetrievalNodes:
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
         score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
         answer_source_limit = int(getattr(self.rag_engine, "rerank_max_sources", 6) or 6) if score_threshold > 0 else 6
-        sources = select_answer_sources(merged, answer_query, limit=answer_source_limit)
+        sources = select_answer_sources(merged, answer_query, limit=answer_source_limit, retrieval_plan=retrieval_plan)
         ordered_statuses = [status for status in query_statuses if status is not None]
         status = {
             "query": answer_query,
@@ -159,6 +163,7 @@ class WorkflowRetrievalNodes:
                 "threshold": score_threshold,
                 "max_sources": answer_source_limit,
             },
+            "retrieval_plan": retrieval_plan,
         }
         return RetrievalResult(sources=sources, filter=filters, status=status)
 

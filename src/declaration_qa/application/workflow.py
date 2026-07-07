@@ -27,7 +27,7 @@ from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDa
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
 from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 from declaration_qa.rag.router import (
     ROUTE_CLARIFICATION,
@@ -57,7 +57,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
-        question_planner: RuleQuestionPlanner | None = None,
+        question_resolver: RuleQuestionResolver | None = None,
         query_rewriter: RuleQueryRewriter | None = None,
         max_sub_question_workers: int = 4,
         max_retrieval_workers: int = 4,
@@ -67,7 +67,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
-        self.question_planner = question_planner or RuleQuestionPlanner()
+        self.question_resolver = question_resolver or RuleQuestionResolver()
         self.query_rewriter = query_rewriter or RuleQueryRewriter()
         self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
@@ -86,7 +86,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
             multi_question=bool(final_state.get("multi_question")),
-            question_plan=final_state.get("question_plan") or {},
+            question_resolution=final_state.get("question_resolution") or {},
             sub_tasks=final_state.get("sub_tasks") or [],
             need_ticket_selection=bool(final_state.get("need_ticket_selection")),
             ticket_selection_reason=str(final_state.get("ticket_selection_reason") or ""),
@@ -188,10 +188,11 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "sub_intent": "",
             "route": "",
             "route_decision": {},
-            "question_plan": {},
+            "question_resolution": {},
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
             "retrieval_focus": "knowledge_qa",
+            "retrieval_plan": {},
             "multi_question": False,
             "sub_tasks": [],
             "retrieval_chain": "",
@@ -222,7 +223,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
-        builder.add_node("question_plan", self.question_plan)
+        builder.add_node("question_resolution", self.question_resolution)
         builder.add_node("multi_question_collect", self.multi_question_collect)
         builder.add_node("prepare_task", self.prepare_task)
         builder.add_node("ticket_list_query", self.ticket_list_query)
@@ -241,9 +242,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
 
         builder.add_edge(START, "context_build")
         builder.add_edge("context_build", "query_preprocess")
-        builder.add_edge("query_preprocess", "question_plan")
+        builder.add_edge("query_preprocess", "question_resolution")
         builder.add_conditional_edges(
-            "question_plan",
+            "question_resolution",
             lambda state: "multi" if state.get("multi_question") else "single",
             {"multi": "multi_question_collect", "single": "prepare_task"},
         )

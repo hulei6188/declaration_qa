@@ -39,6 +39,7 @@ class LLMQueryRewriter:
                 ticket_fact_type=fallback.ticket_fact_type,
                 retrieval_focus=fallback.retrieval_focus,
                 queries=fallback.queries,
+                retrieval_plan=fallback.retrieval_plan,
                 provider="rule_fallback",
                 reason=f"llm_query_rewriter_fallback:{type(exc).__name__}:{fallback.reason}",
             )

@@ -1,4 +1,4 @@
-"""Question planner data structures."""
+"""Question resolver data structures."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class QuestionPlan:
+class QuestionResolution:
     """Question decomposition result."""
 
     is_multi_question: bool

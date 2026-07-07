@@ -6,7 +6,12 @@ from collections.abc import Iterable
 from typing import Any
 
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
-from declaration_qa.rag.prompting import ANSWER_PROMPT, MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
+from declaration_qa.rag.prompting import (
+    ANSWER_PROMPT,
+    MULTI_QUESTION_ANSWER_PROMPT,
+    format_source_payload,
+    format_sub_task_payload,
+)
 
 
 class OpenAIAnswerGenerator:
@@ -46,7 +51,7 @@ class OpenAIAnswerGenerator:
                 sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
             )
         sources = state.get("retrieved_sources") or []
-        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources)
+        source_text = format_source_payload(sources)
         business_payload = state.get("business_status") or state.get("reject_info") or {}
         return ANSWER_PROMPT.format(
             query=state.get("query") or "",
@@ -68,4 +73,3 @@ class OpenAIAnswerGenerator:
         """生成流式回答片段和提示词。"""
         prompt = self.build_prompt(state)
         return stream_chat_model_content(self._llm.stream(prompt)), prompt
-

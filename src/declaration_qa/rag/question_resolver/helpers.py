@@ -1,10 +1,11 @@
-"""Question planner helper functions."""
+"""Question resolver helper functions."""
 
 from __future__ import annotations
 
 import re
 from typing import Any
 
+from declaration_qa.rag.retrieval_plan import infer_retrieval_plan
 from declaration_qa.rag.router import ticket_context_related
 
 
@@ -12,14 +13,21 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
     """Build a sub-question item."""
     normalized = normalize_question_text(query)
     requires_ticket_context = ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized})
+    ticket_fact_type = normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context)
+    retrieval_focus = normalize_retrieval_focus("", normalized)
     return {
         "id": "",
         "original_query": normalized,
         "query": normalized,
         "retrieval_query": normalized,
         "requires_ticket_context": requires_ticket_context,
-        "ticket_fact_type": normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context),
-        "retrieval_focus": normalize_retrieval_focus("", normalized),
+        "ticket_fact_type": ticket_fact_type,
+        "retrieval_focus": retrieval_focus,
+        "retrieval_plan": infer_retrieval_plan(
+            normalized,
+            retrieval_focus,
+            ticket_fact_type=ticket_fact_type,
+        ),
         "is_expanded": False,
         "expansion_reason": "",
     }

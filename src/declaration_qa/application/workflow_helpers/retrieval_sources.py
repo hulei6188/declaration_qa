@@ -66,14 +66,20 @@ def merge_retrieval_sources(results: list[RetrievalResult]) -> dict[str, Retriev
     return merged
 
 
-def select_answer_sources(merged: dict[str, RetrievedSource], query: str, *, limit: int = 6) -> list[RetrievedSource]:
+def select_answer_sources(
+    merged: dict[str, RetrievedSource],
+    query: str,
+    *,
+    limit: int = 6,
+    retrieval_plan: dict[str, Any] | None = None,
+) -> list[RetrievedSource]:
     """选择进入答案生成的来源，优先保全结构化章节节点。"""
     ranked = sorted(
         merged.values(),
         key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
         reverse=True,
     )
-    target_chunk_type = structured_backfill_chunk_type(query)
+    target_chunk_type = structured_backfill_chunk_type(query, retrieval_plan)
     primary_section_id = primary_structured_section_id(ranked, target_chunk_type)
     if not primary_section_id:
         return ranked[:limit]

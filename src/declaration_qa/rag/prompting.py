@@ -73,7 +73,7 @@ class DeterministicAnswerGenerator:
         if state.get("multi_question"):
             return multi_question_answer(state)
         sources = state.get("retrieved_sources") or []
-        source_text = "\n".join(f"- {item.get('title')}: {item.get('snippet')}" for item in sources)
+        source_text = format_source_payload(sources)
         business_payload = state.get("business_status") or state.get("reject_info") or {}
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
@@ -120,7 +120,7 @@ def knowledge_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> st
     if not sources:
         return "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
     title = sources[0].get("title") or "办理指南"
-    snippet = sources[0].get("snippet") or ""
+    snippet = source_evidence_text(sources[0])
     return f"根据《{title}》，{snippet} 请以页面展示的材料清单和提交入口为准。"
 
 
@@ -157,8 +157,21 @@ def deterministic_sub_task_answer(task: dict[str, Any]) -> str:
     if not sources:
         return "暂未查询到可靠依据，建议查看办事指南或联系人工客服确认。"
     title = sources[0].get("title") or "办理指南"
-    snippet = sources[0].get("snippet") or ""
+    snippet = source_evidence_text(sources[0])
     return f"根据《{title}》，{snippet} 请以页面展示的信息为准。"
+
+
+def format_source_payload(sources: list[dict[str, Any]]) -> str:
+    """用完整证据文本格式化回答生成输入。"""
+    return "\n".join(
+        f"- {item.get('title')}: {source_evidence_text(item)}"
+        for item in sources
+    )
+
+
+def source_evidence_text(source: dict[str, Any]) -> str:
+    """返回完整证据文本，缺失时退回展示摘要。"""
+    return str(source.get("evidence_text") or source.get("content") or source.get("snippet") or "")
 
 
 def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:
@@ -236,7 +249,7 @@ def build_shared_evidence_pool(sub_tasks: list[dict[str, Any]]) -> list[dict[str
                     "id": evidence_id(source),
                     "key": key,
                     "title": str(source.get("title") or ""),
-                    "snippet": str(source.get("snippet") or ""),
+                    "snippet": source_evidence_text(source),
                 }
             )
     return pool

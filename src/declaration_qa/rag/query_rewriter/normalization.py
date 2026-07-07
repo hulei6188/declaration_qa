@@ -13,6 +13,7 @@ from declaration_qa.rag.query_rewriter.helpers import (
     selected_ticket_scope_text,
 )
 from declaration_qa.rag.query_rewriter.schema import DEFAULT_RETRIEVAL_TOP_K, MAX_RETRIEVAL_QUERY_COUNT, QueryRewrite, RetrievalQuery
+from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
 
 def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QueryRewrite:
@@ -28,14 +29,11 @@ def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, p
     seen = set()
     raw_queries = payload.get("queries") if isinstance(payload.get("queries"), list) else []
     for item in raw_queries:
-        if isinstance(item, dict):
-            text = normalize_text(str(item.get("text") or item.get("query") or ""))
-            strategy = normalize_strategy_name(item.get("strategy") or "llm_rewrite")
-            top_k = normalize_top_k(item.get("top_k"))
-        else:
-            text = normalize_text(str(item or ""))
-            strategy = "llm_rewrite"
-            top_k = DEFAULT_RETRIEVAL_TOP_K
+        if not isinstance(item, dict):
+            continue
+        text = normalize_text(str(item.get("text") or ""))
+        strategy = normalize_strategy_name(item.get("strategy") or "llm_rewrite")
+        top_k = normalize_top_k(item.get("top_k"))
         if not text or text in seen:
             continue
         seen.add(text)
@@ -50,6 +48,7 @@ def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, p
         ticket_fact_type=ticket_fact_type,
         retrieval_focus=retrieval_focus,
         queries=queries,
+        retrieval_plan=normalize_retrieval_plan(state.get("retrieval_plan") or {}),
         provider=provider,
         reason=str(payload.get("reason") or "").strip()[:160],
     )

@@ -66,6 +66,7 @@ class RetrievedSource:
             "doc_id": self.chunk.doc_id,
             "title": self.chunk.title,
             "snippet": self.chunk.content[:500],
+            "evidence_text": self.chunk.content,
             "score": round(float(self.score), 4),
             "dense_score": round(float(self.dense_score), 4),
             "bm25_score": round(float(self.bm25_score), 4),

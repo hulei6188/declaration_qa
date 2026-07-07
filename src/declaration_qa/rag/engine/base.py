@@ -16,6 +16,7 @@ from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider impor
 from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_coverage, normalize_retrieval_filter
+from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 from declaration_qa.search.keyword import KeywordIndex
 from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.storage.cache import CacheStore, InMemoryCacheStore
@@ -84,11 +85,24 @@ class RAGEngine(Protocol):
         """Load persisted metadata without rewriting external indexes."""
         ...
 
-    def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 4,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> RetrievalResult:
         """Retrieve sources for one query."""
         ...
 
-    def retrieve_many(self, queries: list[dict[str, Any]], filters: dict[str, Any]) -> list[RetrievalResult]:
+    def retrieve_many(
+        self,
+        queries: list[dict[str, Any]],
+        filters: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> list[RetrievalResult]:
         """Retrieve sources for multiple rewritten queries."""
         ...
 
@@ -99,6 +113,7 @@ class RAGEngine(Protocol):
         filters: dict[str, Any],
         *,
         top_k: int = 6,
+        retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
         """Retrieve for multiple rewrite queries belonging to one user question."""
         ...
@@ -145,21 +160,36 @@ class BaseRAGEngine:
         """Return document chunks."""
         return split_document(document)
 
-    def retrieve(self, query: str, filters: dict[str, Any], *, top_k: int = 4) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 4,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> RetrievalResult:
         """Retrieve sources for one query."""
         normalized_query = normalize_text(query)
         effective_filter = normalize_retrieval_filter(filters)
-        cache_key = self._cache_key(normalized_query, effective_filter, top_k)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        cache_key = self._cache_key(normalized_query, effective_filter, top_k, policy)
         cached_payload = self.cache_store.get_json(cache_key)
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
-        result = self._retrieve_uncached(normalized_query, effective_filter, top_k=top_k)
+        result = self._retrieve_uncached(normalized_query, effective_filter, top_k=top_k, retrieval_plan=policy)
         self._cache_result(cache_key, result)
         return result
 
-    def retrieve_many(self, queries: list[dict[str, Any]], filters: dict[str, Any]) -> list[RetrievalResult]:
+    def retrieve_many(
+        self,
+        queries: list[dict[str, Any]],
+        filters: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> list[RetrievalResult]:
         """Retrieve sources for multiple rewritten queries."""
         effective_filter = normalize_retrieval_filter(filters)
+        policy = normalize_retrieval_plan(retrieval_plan)
         query_specs = []
         results: list[RetrievalResult | None] = [None] * len(queries)
         for index, query in enumerate(queries):
@@ -168,7 +198,7 @@ class BaseRAGEngine:
             if not text:
                 results[index] = self._empty_result("", effective_filter, top_k=top_k)
                 continue
-            cache_key = self._cache_key(text, effective_filter, top_k)
+            cache_key = self._cache_key(text, effective_filter, top_k, policy)
             cached_payload = self.cache_store.get_json(cache_key)
             if cached_payload:
                 results[index] = self._result_from_cache(cached_payload, effective_filter)
@@ -176,7 +206,7 @@ class BaseRAGEngine:
                 query_specs.append({"index": index, "query": text, "top_k": top_k, "cache_key": cache_key})
         if not query_specs:
             return [result for result in results if result is not None]
-        return self._retrieve_many_uncached(query_specs, results, effective_filter)
+        return self._retrieve_many_uncached(query_specs, results, effective_filter, retrieval_plan=policy)
 
     def retrieve_rewrites(
         self,
@@ -185,9 +215,11 @@ class BaseRAGEngine:
         filters: dict[str, Any],
         *,
         top_k: int = 6,
+        retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
         """Retrieve rewrite queries as recall lists, then fuse and rerank once."""
         effective_filter = normalize_retrieval_filter(filters)
+        policy = normalize_retrieval_plan(retrieval_plan)
         query_specs = []
         for index, query in enumerate(retrieval_queries):
             text = normalize_text(str(query.get("text") or query.get("query") or ""))
@@ -206,15 +238,28 @@ class BaseRAGEngine:
         top_k = max(1, int(top_k or 6))
         if not query_specs:
             return self._empty_rewrite_result(normalized_query, [], effective_filter, top_k=top_k)
-        cache_key = self._rewrite_cache_key(normalized_query, query_specs, effective_filter, top_k)
+        cache_key = self._rewrite_cache_key(normalized_query, query_specs, effective_filter, top_k, policy)
         cached_payload = self.cache_store.get_json(cache_key)
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
-        result = self._retrieve_rewrites_uncached(normalized_query, query_specs, effective_filter, top_k=top_k)
+        result = self._retrieve_rewrites_uncached(
+            normalized_query,
+            query_specs,
+            effective_filter,
+            top_k=top_k,
+            retrieval_plan=policy,
+        )
         self._cache_result(cache_key, result)
         return result
 
-    def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
+    def _retrieve_uncached(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
         """Retrieve without cache."""
         raise NotImplementedError
 
@@ -223,6 +268,8 @@ class BaseRAGEngine:
         query_specs: list[dict[str, Any]],
         results: list[RetrievalResult | None],
         effective_filter: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch retrieve without cache."""
         raise NotImplementedError
@@ -234,6 +281,7 @@ class BaseRAGEngine:
         effective_filter: dict[str, Any],
         *,
         top_k: int,
+        retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
         """Retrieve rewrite recall lists without cache."""
         raise NotImplementedError
@@ -266,6 +314,7 @@ class BaseRAGEngine:
         degraded: list[dict[str, str]] | None = None,
         batch_mode: bool = False,
         candidate_source: str | None = None,
+        retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
         """Build a standard retrieval result from channel hits."""
         degraded = list(degraded or [])
@@ -278,7 +327,12 @@ class BaseRAGEngine:
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
         selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
         expanded_sources = self._expand_parent_context(selected_sources)
-        expanded_sources, structured_backfill_status = self._expand_structured_section_context(normalized_query, expanded_sources)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        expanded_sources, structured_backfill_status = self._expand_structured_section_context(
+            normalized_query,
+            expanded_sources,
+            retrieval_plan=policy,
+        )
         return RetrievalResult(
             sources=expanded_sources,
             filter=effective_filter,
@@ -301,6 +355,7 @@ class BaseRAGEngine:
                 },
                 "score_cutoff": score_cutoff_status,
                 "structured_backfill": structured_backfill_status,
+                "retrieval_plan": policy,
                 "degraded": degraded,
                 "filter": effective_filter,
                 "batch_mode": batch_mode,
@@ -322,6 +377,7 @@ class BaseRAGEngine:
         candidate_count: int | None = None,
         prefilter_child_count: int | None = None,
         candidate_source: str | None = None,
+        retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
         """Build one fused retrieval result for related rewrite queries."""
         degraded = list(degraded or [])
@@ -347,7 +403,12 @@ class BaseRAGEngine:
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
         selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
         expanded_sources = self._expand_parent_context(selected_sources)
-        expanded_sources, structured_backfill_status = self._expand_structured_section_context(original_query, expanded_sources)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        expanded_sources, structured_backfill_status = self._expand_structured_section_context(
+            original_query,
+            expanded_sources,
+            retrieval_plan=policy,
+        )
         unique_hit_ids = {
             source.chunk.id
             for hit_list in hit_lists
@@ -381,6 +442,7 @@ class BaseRAGEngine:
                 },
                 "score_cutoff": score_cutoff_status,
                 "structured_backfill": structured_backfill_status,
+                "retrieval_plan": policy,
                 "degraded": degraded,
                 "filter": effective_filter,
                 "batch_mode": True,
@@ -515,17 +577,26 @@ class BaseRAGEngine:
         self,
         query: str,
         sources: list[RetrievedSource],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
         """Backfill structured section context."""
         raise NotImplementedError
 
-    def _cache_key(self, normalized_query: str, effective_filter: dict[str, Any], top_k: int) -> str:
+    def _cache_key(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        top_k: int,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> str:
         """Build a retrieval cache key."""
         payload = json.dumps(
             {
                 "query": normalized_query,
                 "filters": effective_filter,
                 "top_k": top_k,
+                "retrieval_plan": normalize_retrieval_plan(retrieval_plan),
                 "rerank_score_threshold": self.rerank_score_threshold,
                 "rerank_max_sources": self.rerank_max_sources,
             },
@@ -541,6 +612,7 @@ class BaseRAGEngine:
         query_specs: list[dict[str, Any]],
         effective_filter: dict[str, Any],
         top_k: int,
+        retrieval_plan: dict[str, Any] | None = None,
     ) -> str:
         """Build a fused rewrite retrieval cache key."""
         payload = json.dumps(
@@ -557,6 +629,7 @@ class BaseRAGEngine:
                 ],
                 "filters": effective_filter,
                 "top_k": top_k,
+                "retrieval_plan": normalize_retrieval_plan(retrieval_plan),
                 "rerank_score_threshold": self.rerank_score_threshold,
                 "rerank_max_sources": self.rerank_max_sources,
             },

@@ -100,7 +100,7 @@ class ChatResponse(BaseModel):
     sub_intent: str = ""
     route_decision: dict[str, Any] = Field(default_factory=dict)
     multi_question: bool = False
-    question_plan: dict[str, Any] = Field(default_factory=dict)
+    question_resolution: dict[str, Any] = Field(default_factory=dict)
     sub_tasks: list[dict[str, Any]] = Field(default_factory=list)
     need_ticket_selection: bool = False
     ticket_selection_reason: str = ""

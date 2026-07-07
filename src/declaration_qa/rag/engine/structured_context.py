@@ -8,6 +8,7 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
 from declaration_qa.rag.engine.text import safe_int
+from declaration_qa.rag.retrieval_plan import backfill_chunk_types_from_plan
 
 
 def expand_parent_context(sources: list[RetrievedSource], chunks: dict[str, KnowledgeChunk]) -> list[RetrievedSource]:
@@ -36,41 +37,55 @@ def expand_structured_section_context(
     query: str,
     sources: list[RetrievedSource],
     chunks: dict[str, KnowledgeChunk],
+    *,
+    retrieval_plan: dict[str, Any] | None = None,
 ) -> tuple[list[RetrievedSource], dict[str, Any]]:
     """Backfill structured section siblings."""
-    target_chunk_type = structured_backfill_chunk_type(query)
-    if not target_chunk_type:
+    target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
+    if not target_chunk_types:
         return sources, {"applied": False}
     expanded: list[RetrievedSource] = []
     seen_chunk_ids: set[str] = set()
     seen_node_keys: set[tuple[str, str, str]] = set()
-    backfilled_sections: set[str] = set()
+    backfilled_sections: set[tuple[str, str]] = set()
     added_count = 0
     for source in sources:
         parent_section_id = str(source.chunk.metadata.get("parent_section_id") or "")
-        if parent_section_id and parent_section_id not in backfilled_sections and structured_source_matches(source, target_chunk_type):
-            siblings = structured_section_sibling_sources(source, chunks, parent_section_id, target_chunk_type)
-            for sibling in siblings:
-                if append_unique_source(expanded, sibling, seen_chunk_ids, seen_node_keys):
-                    added_count += 1
-            backfilled_sections.add(parent_section_id)
+        for target_chunk_type in target_chunk_types:
+            section_key = (parent_section_id, target_chunk_type)
+            if parent_section_id and section_key not in backfilled_sections and structured_source_matches(source, target_chunk_type):
+                siblings = structured_section_sibling_sources(source, chunks, parent_section_id, target_chunk_type)
+                for sibling in siblings:
+                    if append_unique_source(expanded, sibling, seen_chunk_ids, seen_node_keys):
+                        added_count += 1
+                backfilled_sections.add(section_key)
         append_unique_source(expanded, source, seen_chunk_ids, seen_node_keys)
     return expanded, {
         "applied": bool(backfilled_sections),
-        "target_chunk_type": target_chunk_type,
+        "target_chunk_type": target_chunk_types[0],
+        "target_chunk_types": target_chunk_types,
         "section_count": len(backfilled_sections),
         "added_source_count": added_count,
     }
 
 
-def structured_backfill_chunk_type(query: str) -> str:
-    """Infer structured chunk type to backfill."""
+def structured_backfill_chunk_types(query: str, retrieval_plan: dict[str, Any] | None = None) -> list[str]:
+    """Infer structured chunk types to backfill."""
+    plan_types = backfill_chunk_types_from_plan(retrieval_plan)
+    if plan_types:
+        return plan_types
     text = str(query or "")
     if any(keyword in text for keyword in ["材料", "申请材料", "要交啥", "要准备什么", "提交什么", "上传什么", "需要哪些材料", "要带", "需要什么"]):
-        return "material_item"
+        return ["material_item"]
     if any(keyword in text for keyword in ["流程", "怎么办", "怎么申请", "办理步骤", "提交后", "审核", "如何办理"]):
-        return "process_step"
-    return ""
+        return ["process_step"]
+    return []
+
+
+def structured_backfill_chunk_type(query: str, retrieval_plan: dict[str, Any] | None = None) -> str:
+    """Infer the primary structured chunk type to backfill."""
+    target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
+    return target_chunk_types[0] if target_chunk_types else ""
 
 
 def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -> bool:

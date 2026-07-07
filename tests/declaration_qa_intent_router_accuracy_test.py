@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
 from declaration_qa.rag.router import classify_knowledge_intent, classify_ticket_intent
 
 
@@ -44,11 +44,11 @@ def test_router_accuracy_dataset_covers_real_ahzwfw_40_topic_documents():
     assert case_docs == manifest_docs
 
 
-def test_rule_question_planner_context_accuracy_on_real_ahzwfw_40_topic_dataset():
+def test_rule_question_resolver_context_accuracy_on_real_ahzwfw_40_topic_dataset():
     cases = load_json(DATASET_PATH)["cases"]
-    planner = RuleQuestionPlanner()
+    resolver = RuleQuestionResolver()
 
-    results = [evaluate_case(planner, index, case) for index, case in enumerate(cases, start=1)]
+    results = [evaluate_case(resolver, index, case) for index, case in enumerate(cases, start=1)]
     metrics = calculate_metrics(results)
 
     assert metrics["case_count"] == 200
@@ -57,17 +57,17 @@ def test_rule_question_planner_context_accuracy_on_real_ahzwfw_40_topic_dataset(
     assert metrics["joint_accuracy"] >= MIN_JOINT_ACCURACY, format_failures(results, kind="joint")
 
 
-def test_configured_question_planner_context_accuracy_on_real_ahzwfw_40_topic_dataset():
+def test_configured_question_resolver_context_accuracy_on_real_ahzwfw_40_topic_dataset():
     if os.getenv("DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY") != "1":
-        pytest.skip("Set DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY=1 to evaluate the configured live planner.")
+        pytest.skip("Set DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY=1 to evaluate the configured live resolver.")
 
     from declaration_qa.core.config import DeclarationQASettings
-    from declaration_qa.rag.model_providers.factories import build_question_planner
+    from declaration_qa.rag.model_providers.factories import build_question_resolver
 
     cases = load_json(DATASET_PATH)["cases"]
-    planner = build_question_planner(DeclarationQASettings())
+    resolver = build_question_resolver(DeclarationQASettings())
 
-    results = [evaluate_case(planner, index, case) for index, case in enumerate(cases, start=1)]
+    results = [evaluate_case(resolver, index, case) for index, case in enumerate(cases, start=1)]
     metrics = calculate_metrics(results)
 
     assert metrics["case_count"] == 200
@@ -76,8 +76,8 @@ def test_configured_question_planner_context_accuracy_on_real_ahzwfw_40_topic_da
     assert metrics["joint_accuracy"] >= MIN_JOINT_ACCURACY, format_failures(results, kind="joint")
 
 
-def evaluate_case(planner: RuleQuestionPlanner, index: int, case: dict[str, Any]) -> dict[str, Any]:
-    plan = planner.plan(router_state_from_case(case))
+def evaluate_case(resolver: RuleQuestionResolver, index: int, case: dict[str, Any]) -> dict[str, Any]:
+    plan = resolver.resolve(router_state_from_case(case))
     first_question = (plan.questions or [{}])[0]
     expected_intent = str(case.get("expected_intent") or "")
     expected_requires_context = expected_requires_context_from_case(case)

@@ -526,6 +526,43 @@ def test_material_backfill_merges_all_windows_for_long_item():
     ]) == 1
 
 
+def test_retrieval_plan_backfills_complete_material_section_without_material_keyword():
+    engine = InMemoryRAGEngine()
+    document = KnowledgeDocument(
+        id="doc-policy-material-backfill",
+        title="草原防火期施工审批办事指南",
+        content=(
+            "# 草原防火期施工审批办事指南\n\n"
+            "## 申请材料\n\n"
+            "### 1. 身份证件\n身份证件通过共享核验，无需申请人提供。\n\n"
+            "### 2. 单位组织机构代码证\n单位组织机构代码证通过共享核验。\n\n"
+            "### 3. 申请表\n申请表需要申请人自备，并填写防火措施说明。"
+        ),
+        metadata={"chunking_strategy": "hierarchical"},
+    )
+
+    engine.index_document(document)
+    result = engine.retrieve(
+        "防火期在草原施工需要办理什么",
+        {},
+        top_k=2,
+        retrieval_plan={
+            "evidence_types": ["basic_info", "eligibility", "material_item"],
+            "need_complete_sections": ["申请材料"],
+        },
+    )
+
+    material_titles = [
+        source.chunk.metadata.get("node_title")
+        for source in result.sources
+        if source.chunk.metadata.get("chunk_type") == "material_item"
+    ]
+    assert material_titles[:3] == ["1. 身份证件", "2. 单位组织机构代码证", "3. 申请表"]
+    assert result.status["structured_backfill"]["applied"] is True
+    assert result.status["structured_backfill"]["target_chunk_type"] == "material_item"
+    assert result.status["retrieval_plan"]["need_complete_sections"] == ["申请材料"]
+
+
 def test_process_query_backfills_sibling_steps_by_parent_section_id():
     engine = InMemoryRAGEngine()
     document = KnowledgeDocument(

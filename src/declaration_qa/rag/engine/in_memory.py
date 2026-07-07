@@ -115,7 +115,14 @@ class InMemoryRAGEngine(BaseRAGEngine):
         self.cache_store.clear()
         return len(chunks)
 
-    def _retrieve_uncached(self, normalized_query: str, effective_filter: dict[str, Any], *, top_k: int) -> RetrievalResult:
+    def _retrieve_uncached(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
         """Retrieve from in-memory chunks."""
         search_filter = published_visibility_filter(effective_filter)
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
@@ -147,6 +154,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
             bm25_hits,
             top_k=top_k,
             degraded=degraded,
+            retrieval_plan=retrieval_plan,
         )
 
     def _retrieve_many_uncached(
@@ -154,6 +162,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
         query_specs: list[dict[str, Any]],
         results: list[RetrievalResult | None],
         effective_filter: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
         """Batch retrieve from in-memory chunks."""
         search_filter = published_visibility_filter(effective_filter)
@@ -208,6 +218,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
                 top_k=int(spec["top_k"]),
                 degraded=degraded_by_index.get(index) or [],
                 batch_mode=True,
+                retrieval_plan=retrieval_plan,
             )
             self._cache_result(str(spec["cache_key"]), result)
             results[index] = result
@@ -220,6 +231,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         effective_filter: dict[str, Any],
         *,
         top_k: int,
+        retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
         """Fuse in-memory rewrite recall lists and rerank once."""
         search_filter = published_visibility_filter(effective_filter)
@@ -294,6 +306,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
             degraded=degraded,
             candidate_count=len(candidates),
             prefilter_child_count=prefilter_child_count,
+            retrieval_plan=retrieval_plan,
         )
 
     def _prefilter_child_count(self) -> int:
@@ -315,9 +328,11 @@ class InMemoryRAGEngine(BaseRAGEngine):
         self,
         query: str,
         sources: list[RetrievedSource],
+        *,
+        retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
         """Backfill structured section siblings from memory."""
-        return expand_structured_section_context(query, sources, self._chunks)
+        return expand_structured_section_context(query, sources, self._chunks, retrieval_plan=retrieval_plan)
 
     def _dense_retrieve(
         self,

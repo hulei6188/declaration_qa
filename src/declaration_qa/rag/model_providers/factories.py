@@ -13,8 +13,8 @@ from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import Dash
 from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.question_planner.llm import LLMQuestionPlanner
-from declaration_qa.rag.question_planner.rule import RuleQuestionPlanner
+from declaration_qa.rag.question_resolver.llm import LLMQuestionResolver
+from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
 from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
 from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 
@@ -64,22 +64,22 @@ def build_answer_generator(settings: DeclarationQASettings):
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
 
 
-def build_question_planner(settings: DeclarationQASettings):
-    """按配置创建多问题拆解 planner。"""
+def build_question_resolver(settings: DeclarationQASettings):
+    """按配置创建问题解析器。"""
     if settings.llm_provider.strip().lower() in {"openai", "dashscope"} and settings.openai_api_key:
         from langchain_openai import ChatOpenAI
 
         kwargs: dict[str, Any] = {
             "api_key": settings.openai_api_key,
-            "model": settings.question_planner_model or settings.llm_model,
+            "model": settings.question_resolver_model or settings.llm_model,
             "temperature": 0.0,
             "timeout": settings.external_request_timeout_seconds,
             "max_retries": 1,
         }
         if settings.openai_api_base:
             kwargs["base_url"] = settings.openai_api_base
-        return LLMQuestionPlanner(ChatOpenAI(**kwargs), fallback_planner=RuleQuestionPlanner())
-    return RuleQuestionPlanner()
+        return LLMQuestionResolver(ChatOpenAI(**kwargs), fallback_resolver=RuleQuestionResolver())
+    return RuleQuestionResolver()
 
 
 def build_query_rewriter(settings: DeclarationQASettings):

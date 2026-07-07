@@ -25,7 +25,7 @@ def is_unsafe_query(query: str) -> bool:
 
 
 def task_intent(retrieval_focus: str, ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
-    """从 Planner 任务字段派生 intent 展示值。"""
+    """从 QuestionResolver 任务字段派生 intent 展示值。"""
     if requires_ticket_context:
         if ticket_fact_type == "status":
             return INTENT_TICKET_STATUS
@@ -80,4 +80,3 @@ def infer_biz_type(query: str) -> str | None:
     if "身份证" in text:
         return "id_card_replace"
     return None
-
