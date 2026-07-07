@@ -35,6 +35,8 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         embedding_provider: EmbeddingProvider | None = None,
         reranker: Reranker | None = None,
         cache_ttl_seconds: int = 600,
+        rerank_score_threshold: float = 0.0,
+        rerank_max_sources: int = 12,
     ) -> None:
         """Initialize external-index RAG engine."""
         if vector_index is None or keyword_index is None or chunk_store is None:
@@ -47,6 +49,8 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             reranker=reranker,
             keyword_index=keyword_index,
             cache_ttl_seconds=cache_ttl_seconds,
+            rerank_score_threshold=rerank_score_threshold,
+            rerank_max_sources=rerank_max_sources,
         )
         self.chunk_store = chunk_store
 
@@ -107,7 +111,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         """Retrieve through external indexes and hydrate chunks on demand."""
         search_filter = published_visibility_filter(effective_filter)
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
-        limit = max(top_k * 3, 8)
+        limit = self._recall_limit(top_k)
         degraded: list[dict[str, str]] = []
         try:
             dense_hits = self._remote_dense_retrieve(normalized_query, search_filter, limit=limit, channel="dense")
@@ -141,7 +145,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
     ) -> list[RetrievalResult]:
         """Batch remote dense retrieval, then hydrate and rerank."""
         search_filter = published_visibility_filter(effective_filter)
-        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         dense_by_index: dict[int, list[RetrievedSource]] = {}
         degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
@@ -195,7 +199,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
     ) -> RetrievalResult:
         """Batch recall rewrite queries, globally fuse, and rerank once."""
         search_filter = published_visibility_filter(effective_filter)
-        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         degraded: list[dict[str, str]] = []
         dense_scores_by_index: dict[int, list[tuple[str, float]]] = {int(spec["index"]): [] for spec in query_specs}

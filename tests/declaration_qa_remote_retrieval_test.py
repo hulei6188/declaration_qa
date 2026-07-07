@@ -134,8 +134,11 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
 
     assert len(many_results) == 2
     assert engine.chunk_count == 0
-    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000"}, "limit": 8}]
-    assert [call["filters"] for call in keyword_index.search_calls[-2:]] == [{"region_code": "340000"}, {"region_code": "340000"}]
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 8}]
+    assert [call["filters"] for call in keyword_index.search_calls[-2:]] == [
+        {"region_code": "340000", "doc_status": "published"},
+        {"region_code": "340000", "doc_status": "published"},
+    ]
     assert all(result.status["candidate_source"] == "external_indexes" for result in many_results)
     assert all(result.status["batch_mode"] is True for result in many_results)
 
@@ -269,11 +272,11 @@ def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
         top_k=2,
     )
 
-    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000"}, "limit": 8}]
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 8}]
     assert keyword_index.search_many_calls == [
         {
             "queries": ["办理时限", "承诺办结时限"],
-            "filters": {"region_code": "340000"},
+            "filters": {"region_code": "340000", "doc_status": "published"},
             "limits": [8, 8],
         }
     ]

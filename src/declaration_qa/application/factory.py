@@ -83,6 +83,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             embedding_provider=embedding_provider,
             reranker=reranker,
             cache_ttl_seconds=settings.redis_ttl_seconds,
+            rerank_score_threshold=settings.rerank_score_threshold,
+            rerank_max_sources=settings.rerank_max_sources,
         )
     else:
         rag_engine = build_seed_rag_engine(
@@ -92,6 +94,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             reranker=reranker,
             keyword_index=keyword_index,
             cache_ttl_seconds=settings.redis_ttl_seconds,
+            rerank_score_threshold=settings.rerank_score_threshold,
+            rerank_max_sources=settings.rerank_max_sources,
             include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
         )
     if hasattr(audit_store, "list_indexed_knowledge"):

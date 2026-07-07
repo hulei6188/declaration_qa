@@ -116,6 +116,8 @@ class BaseRAGEngine:
         reranker: Reranker | None = None,
         keyword_index: KeywordIndex | None = None,
         cache_ttl_seconds: int = 600,
+        rerank_score_threshold: float = 0.0,
+        rerank_max_sources: int = 12,
     ) -> None:
         """Initialize shared providers and stores."""
         self.cache_store = cache_store or InMemoryCacheStore()
@@ -125,6 +127,8 @@ class BaseRAGEngine:
         self.keyword_index = keyword_index
         self.chunk_store: ChunkStore | None = None
         self.cache_ttl_seconds = max(1, int(cache_ttl_seconds))
+        self.rerank_score_threshold = max(0.0, min(1.0, float(rerank_score_threshold or 0.0)))
+        self.rerank_max_sources = max(1, int(rerank_max_sources or 12))
 
     def index_document(self, document: KnowledgeDocument) -> int:
         """Index one document."""
@@ -266,12 +270,14 @@ class BaseRAGEngine:
         """Build a standard retrieval result from channel hits."""
         degraded = list(degraded or [])
         fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
+        rerank_top_n = self._rerank_top_n(top_k)
         try:
-            reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+            reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
         except Exception as exc:
-            reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=max(top_k, 1))
+            reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
-        expanded_sources = self._expand_parent_context(reranked)
+        selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+        expanded_sources = self._expand_parent_context(selected_sources)
         expanded_sources, structured_backfill_status = self._expand_structured_section_context(normalized_query, expanded_sources)
         return RetrievalResult(
             sources=expanded_sources,
@@ -291,7 +297,9 @@ class BaseRAGEngine:
                     "bm25": len(bm25_hits),
                     "rrf": len(fused_hits),
                     "rerank": len(reranked),
+                    "selected": len(selected_sources),
                 },
+                "score_cutoff": score_cutoff_status,
                 "structured_backfill": structured_backfill_status,
                 "degraded": degraded,
                 "filter": effective_filter,
@@ -331,12 +339,14 @@ class BaseRAGEngine:
         fused_hits = rrf_fuse(hit_lists, rrf_k=60)
         rerank_candidate_limit = min(len(fused_hits), max(top_k * 10, 40), 100)
         rerank_candidates = fused_hits[:rerank_candidate_limit]
+        rerank_top_n = self._rerank_top_n(top_k)
         try:
-            reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=max(top_k, 1))
+            reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
         except Exception as exc:
-            reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=max(top_k, 1))
+            reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
             degraded.append({"stage": "rerank", "error": type(exc).__name__})
-        expanded_sources = self._expand_parent_context(reranked)
+        selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+        expanded_sources = self._expand_parent_context(selected_sources)
         expanded_sources, structured_backfill_status = self._expand_structured_section_context(original_query, expanded_sources)
         unique_hit_ids = {
             source.chunk.id
@@ -365,9 +375,11 @@ class BaseRAGEngine:
                     "rrf": len(fused_hits),
                     "rerank_candidates": len(rerank_candidates),
                     "rerank": len(reranked),
+                    "selected": len(selected_sources),
                     "dense": sum(int((status.get("channels") or {}).get("dense") or 0) for status in query_statuses),
                     "bm25": sum(int((status.get("channels") or {}).get("bm25") or 0) for status in query_statuses),
                 },
+                "score_cutoff": score_cutoff_status,
                 "structured_backfill": structured_backfill_status,
                 "degraded": degraded,
                 "filter": effective_filter,
@@ -404,6 +416,55 @@ class BaseRAGEngine:
                 )
             )
         return sources
+
+    def _recall_limit(self, top_k: int) -> int:
+        """Return the channel recall window before RRF and rerank."""
+        limit = max(int(top_k or 1) * 3, 8)
+        if self.rerank_score_threshold > 0:
+            limit = max(limit, self.rerank_max_sources * 3)
+        return limit
+
+    def _rerank_top_n(self, top_k: int) -> int:
+        """Return reranker output size before score-based cutoff."""
+        if self.rerank_score_threshold > 0:
+            return max(int(top_k or 1), self.rerank_max_sources, 1)
+        return max(int(top_k or 1), 1)
+
+    def _apply_rerank_score_cutoff(
+        self,
+        reranked: list[RetrievedSource],
+        *,
+        requested_top_k: int,
+    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
+        """Select answer sources by rerank score instead of a fixed Top-K."""
+        threshold = self.rerank_score_threshold
+        if threshold <= 0:
+            limit = max(int(requested_top_k or 1), 1)
+            selected = reranked[:limit]
+            return selected, {
+                "enabled": False,
+                "threshold": 0.0,
+                "requested_top_k": limit,
+                "max_sources": self.rerank_max_sources,
+                "before": len(reranked),
+                "after": len(selected),
+                "rejected": False,
+            }
+
+        selected = [
+            source
+            for source in reranked
+            if float(source.rerank_score or 0.0) >= threshold
+        ][: self.rerank_max_sources]
+        return selected, {
+            "enabled": True,
+            "threshold": threshold,
+            "requested_top_k": max(int(requested_top_k or 1), 1),
+            "max_sources": self.rerank_max_sources,
+            "before": len(reranked),
+            "after": len(selected),
+            "rejected": bool(reranked and not selected),
+        }
 
     def _sources_from_scored_ids_lookup(
         self,
@@ -461,7 +522,13 @@ class BaseRAGEngine:
     def _cache_key(self, normalized_query: str, effective_filter: dict[str, Any], top_k: int) -> str:
         """Build a retrieval cache key."""
         payload = json.dumps(
-            {"query": normalized_query, "filters": effective_filter, "top_k": top_k},
+            {
+                "query": normalized_query,
+                "filters": effective_filter,
+                "top_k": top_k,
+                "rerank_score_threshold": self.rerank_score_threshold,
+                "rerank_max_sources": self.rerank_max_sources,
+            },
             ensure_ascii=False,
             sort_keys=True,
             default=str,
@@ -490,6 +557,8 @@ class BaseRAGEngine:
                 ],
                 "filters": effective_filter,
                 "top_k": top_k,
+                "rerank_score_threshold": self.rerank_score_threshold,
+                "rerank_max_sources": self.rerank_max_sources,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -550,6 +619,7 @@ class BaseRAGEngine:
                 "rerank_provider": self.reranker.name,
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
+                "score_cutoff": self._empty_score_cutoff_status(top_k),
                 "filter": effective_filter,
                 "candidate_source": candidate_source or self._candidate_source(),
             },
@@ -589,6 +659,7 @@ class BaseRAGEngine:
                 "rerank_provider": self.reranker.name,
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"hit_lists": 0, "rrf": 0, "rerank_candidates": 0, "rerank": 0, "dense": 0, "bm25": 0},
+                "score_cutoff": self._empty_score_cutoff_status(top_k),
                 "structured_backfill": {"applied": False},
                 "degraded": list(degraded or []),
                 "filter": effective_filter,
@@ -609,3 +680,15 @@ class BaseRAGEngine:
             },
             ttl_seconds=self.cache_ttl_seconds,
         )
+
+    def _empty_score_cutoff_status(self, top_k: int) -> dict[str, Any]:
+        """Return score cutoff status for empty retrieval results."""
+        return {
+            "enabled": self.rerank_score_threshold > 0,
+            "threshold": self.rerank_score_threshold,
+            "requested_top_k": max(int(top_k or 1), 1),
+            "max_sources": self.rerank_max_sources,
+            "before": 0,
+            "after": 0,
+            "rejected": False,
+        }

@@ -50,6 +50,7 @@ def query_status_from_result(retrieval_query: dict[str, Any], result: RetrievalR
         "source_count": len(result.sources),
         "cache": (result.status or {}).get("cache") or {},
         "channels": (result.status or {}).get("channels") or {},
+        "score_cutoff": (result.status or {}).get("score_cutoff") or {},
         "batch_mode": bool((result.status or {}).get("batch_mode")),
     }
 
@@ -150,4 +151,3 @@ def source_chunk_type(source: RetrievedSource) -> str:
 def source_node_title(source: RetrievedSource) -> str:
     """读取来源的结构化节点标题。"""
     return str((source.chunk.metadata or {}).get("node_title") or "")
-

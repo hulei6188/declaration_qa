@@ -137,7 +137,9 @@ class WorkflowRetrievalNodes:
                 results.append(result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
-        sources = select_answer_sources(merged, answer_query, limit=6)
+        score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
+        answer_source_limit = int(getattr(self.rag_engine, "rerank_max_sources", 6) or 6) if score_threshold > 0 else 6
+        sources = select_answer_sources(merged, answer_query, limit=answer_source_limit)
         ordered_statuses = [status for status in query_statuses if status is not None]
         status = {
             "query": answer_query,
@@ -152,6 +154,11 @@ class WorkflowRetrievalNodes:
             "retrieval_mode": retrieval_mode,
             "retrieval_parallelism": min(self.max_retrieval_workers, max(1, len(executable_queries))),
             "batch_degraded": batch_degraded,
+            "score_cutoff": {
+                "enabled": score_threshold > 0,
+                "threshold": score_threshold,
+                "max_sources": answer_source_limit,
+            },
         }
         return RetrievalResult(sources=sources, filter=filters, status=status)
 

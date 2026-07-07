@@ -19,6 +19,8 @@ def build_seed_rag_engine(
     reranker: Reranker | None = None,
     keyword_index: KeywordIndex | None = None,
     cache_ttl_seconds: int = 600,
+    rerank_score_threshold: float = 0.0,
+    rerank_max_sources: int = 12,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
     """Create an in-memory RAG engine and optionally load seed knowledge."""
@@ -29,6 +31,8 @@ def build_seed_rag_engine(
         reranker=reranker,
         keyword_index=keyword_index,
         cache_ttl_seconds=cache_ttl_seconds,
+        rerank_score_threshold=rerank_score_threshold,
+        rerank_max_sources=rerank_max_sources,
     )
     if include_seed:
         for document in seed_documents():

@@ -31,6 +31,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
         reranker: Reranker | None = None,
         keyword_index: KeywordIndex | None = None,
         cache_ttl_seconds: int = 600,
+        rerank_score_threshold: float = 0.0,
+        rerank_max_sources: int = 12,
     ) -> None:
         """Initialize in-memory RAG engine."""
         self._documents: dict[str, KnowledgeDocument] = {}
@@ -43,6 +45,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
             reranker=reranker,
             keyword_index=keyword_index,
             cache_ttl_seconds=cache_ttl_seconds,
+            rerank_score_threshold=rerank_score_threshold,
+            rerank_max_sources=rerank_max_sources,
         )
 
     @property
@@ -125,7 +129,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
                 prefilter_child_count=prefilter_child_count,
                 coverage=coverage,
             )
-        limit = max(top_k * 3, 8)
+        limit = self._recall_limit(top_k)
         degraded: list[dict[str, str]] = []
         try:
             dense_hits = self._dense_retrieve(normalized_query, candidates, search_filter, limit=limit)
@@ -169,7 +173,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
                 results[int(spec["index"])] = result
             return [result for result in results if result is not None]
 
-        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         dense_by_index: dict[int, list[RetrievedSource]] = {}
         degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
         try:
@@ -243,7 +247,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
                 prefilter_child_count=prefilter_child_count,
             )
 
-        limits = [max(int(spec["top_k"]) * 3, 8) for spec in query_specs]
+        limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         dense_by_index: dict[int, list[RetrievedSource]] = {}
         degraded: list[dict[str, str]] = []
         try:

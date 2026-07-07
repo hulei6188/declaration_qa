@@ -38,6 +38,8 @@ class DeclarationQASettings(BaseSettings):
     rerank_provider: str = Field(default="heuristic", alias="DECLARATION_QA_RERANK_PROVIDER")
     rerank_api_key: str = Field(default="", alias="DECLARATION_QA_RERANK_API_KEY")
     rerank_model: str = Field(default="qwen3-rerank", alias="DECLARATION_QA_RERANK_MODEL")
+    rerank_score_threshold: float = Field(default=0.0, alias="DECLARATION_QA_RERANK_SCORE_THRESHOLD")
+    rerank_max_sources: int = Field(default=12, alias="DECLARATION_QA_RERANK_MAX_SOURCES")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
     llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")
