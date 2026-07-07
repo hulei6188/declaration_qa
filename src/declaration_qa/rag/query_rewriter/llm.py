@@ -9,6 +9,7 @@ from declaration_qa.rag.query_rewriter.prompts import build_query_rewriter_promp
 from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 from declaration_qa.rag.query_rewriter.schema import QueryRewrite
 from declaration_qa.rag.router import parse_json_object
+from declaration_qa.observability.langfuse import invoke_with_langfuse
 
 
 class LLMQueryRewriter:
@@ -23,7 +24,12 @@ class LLMQueryRewriter:
     def rewrite(self, state: dict[str, Any]) -> QueryRewrite:
         """Call LLM to generate retrieval queries."""
         try:
-            response = self.llm.invoke(build_query_rewriter_prompt(state))
+            response = invoke_with_langfuse(
+                self.llm,
+                build_query_rewriter_prompt(state),
+                state,
+                run_name="query_rewriter",
+            )
             payload = parse_json_object(str(getattr(response, "content", response)))
             rewrite = normalize_query_rewrite(payload, state, provider=self.name)
             if not rewrite.queries:

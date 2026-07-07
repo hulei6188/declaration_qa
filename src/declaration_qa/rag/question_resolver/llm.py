@@ -9,6 +9,7 @@ from declaration_qa.rag.question_resolver.prompts import build_question_resolver
 from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
 from declaration_qa.rag.question_resolver.schema import QuestionResolution
 from declaration_qa.rag.router import parse_json_object
+from declaration_qa.observability.langfuse import invoke_with_langfuse
 
 
 class LLMQuestionResolver:
@@ -23,7 +24,12 @@ class LLMQuestionResolver:
     def resolve(self, state: dict[str, Any]) -> QuestionResolution:
         """Call LLM to decompose questions."""
         try:
-            response = self.llm.invoke(build_question_resolver_prompt(state))
+            response = invoke_with_langfuse(
+                self.llm,
+                build_question_resolver_prompt(state),
+                state,
+                run_name="question_resolver",
+            )
             payload = parse_json_object(str(getattr(response, "content", response)))
             resolution = normalize_question_resolution(payload, state)
             return QuestionResolution(

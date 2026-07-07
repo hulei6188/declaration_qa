@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import TopBar from './components/TopBar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import ChatPane from './components/ChatPane.jsx';
 import Inspector from './components/Inspector.jsx';
 import {
   DEFAULT_CONTEXT,
-  checkHealth,
   buildChatRequest,
   startChatStream,
   readSSE,
@@ -43,10 +41,6 @@ import {
 export default function App() {
   // ---- Request context ----
   const [ctx, setCtx] = useState(DEFAULT_CONTEXT);
-
-  // ---- Health ----
-  const [healthStatus, setHealthStatus] = useState('pending');
-  const [healthLabel, setHealthLabel] = useState('检测服务中');
 
   // ---- Chat ----
   const [sessionId, setSessionId] = useState(null);
@@ -101,25 +95,9 @@ export default function App() {
         regionCode: saved.requestContext?.regionCode || saved.ticket.region_code || prev.regionCode,
       }));
     }
-    doCheckHealth();
     loadSessions();
     loadDocuments();
   }, []);
-
-  // ---- Health ----
-  async function doCheckHealth() {
-    setHealthStatus('pending');
-    setHealthLabel('检测服务中');
-    try {
-      const payload = await checkHealth();
-      setHealthStatus('ok');
-      setHealthLabel(`${payload.business_adapter} · ${payload.vector_backend}/${payload.cache_backend}`);
-    } catch (e) {
-      setHealthStatus('error');
-      setHealthLabel('服务不可用');
-      addTimeline('health_error', { message: e.message });
-    }
-  }
 
   // ---- Chat ----
   async function sendMessage(query, displayText, meta, ctxOverride) {
@@ -646,7 +624,6 @@ export default function App() {
   // ---- Render ----
   return (
     <div className="app-shell">
-      <TopBar healthStatus={healthStatus} healthLabel={healthLabel} />
       <main className={`workspace${chatExpanded ? ' chat-expanded' : ''}`}>
         <Sidebar
           sessions={sessions}

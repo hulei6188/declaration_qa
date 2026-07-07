@@ -51,6 +51,7 @@ class DeclarationQASettings(BaseSettings):
     query_rewriter_model: str = Field(default="", alias="DECLARATION_QA_QUERY_REWRITER_MODEL")
     max_sub_question_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_SUB_QUESTION_WORKERS")
     max_retrieval_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_RETRIEVAL_WORKERS")
+    langfuse_enabled: bool = Field(default=False, alias="DECLARATION_QA_LANGFUSE_ENABLED")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")

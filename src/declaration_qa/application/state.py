@@ -59,3 +59,4 @@ class DeclarationQAState(TypedDict, total=False):
     events: list[dict[str, Any]]
     audit_payload: dict[str, Any]
     audit_id: str
+    langfuse_trace_id: str

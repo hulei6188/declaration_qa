@@ -16,6 +16,7 @@ from declaration_qa.application.workflow_helpers.intent import (
 )
 from declaration_qa.application.workflow_helpers.planning import apply_planned_question
 from declaration_qa.application.workflow_helpers.retrieval_sources import unique_sources
+from declaration_qa.observability.langfuse import observation, safe_value
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
 from declaration_qa.rag.retrieval_plan import infer_retrieval_plan, normalize_retrieval_plan
@@ -66,21 +67,37 @@ class WorkflowPlanningNodes:
     def question_resolution(self, state: DeclarationQAState) -> DeclarationQAState:
         """拆解多问题请求。"""
         next_state = dict(state)
-        resolution = self.question_resolver.resolve(next_state)
-        questions = []
-        for index, item in enumerate(resolution.questions, start=1):
-            question = dict(item)
-            question["id"] = question.get("id") or f"q{index}"
-            question["retrieval_query"] = normalize_text(
-                str(question.get("retrieval_query") or question.get("query") or question.get("original_query") or "")
+        with observation(
+            "workflow.question_resolution",
+            input={"query": next_state.get("normalized_query") or next_state.get("query") or ""},
+            metadata=workflow_observation_metadata(next_state),
+        ) as span:
+            resolution = self.question_resolver.resolve(next_state)
+            questions = []
+            for index, item in enumerate(resolution.questions, start=1):
+                question = dict(item)
+                question["id"] = question.get("id") or f"q{index}"
+                question["retrieval_query"] = normalize_text(
+                    str(question.get("retrieval_query") or question.get("query") or question.get("original_query") or "")
+                )
+                question["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
+                questions.append(question)
+            next_state["question_resolution"] = {**resolution.payload(), "questions": questions}
+            next_state["multi_question"] = bool(resolution.is_multi_question and len(questions) > 1)
+            next_state["sub_tasks"] = questions if next_state["multi_question"] else []
+            if not next_state["multi_question"] and questions:
+                apply_planned_question(next_state, questions[0])
+            span.update(
+                output=safe_value(
+                    {
+                        "multi_question": next_state["multi_question"],
+                        "count": len(questions),
+                        "provider": resolution.provider,
+                        "reason": resolution.reason,
+                        "questions": questions,
+                    }
+                )
             )
-            question["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
-            questions.append(question)
-        next_state["question_resolution"] = {**resolution.payload(), "questions": questions}
-        next_state["multi_question"] = bool(resolution.is_multi_question and len(questions) > 1)
-        next_state["sub_tasks"] = questions if next_state["multi_question"] else []
-        if not next_state["multi_question"] and questions:
-            apply_planned_question(next_state, questions[0])
         add_event(
             next_state,
             "question_resolution",
@@ -327,3 +344,19 @@ class WorkflowPlanningNodes:
         add_event(next_state, "intent", route_decision)
         add_event(next_state, "task_prepared", route_decision)
         return next_state
+
+
+def workflow_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """Build compact metadata for workflow node observations."""
+    return safe_value(
+        {
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "retrieval_plan": state.get("retrieval_plan") or {},
+        }
+    )

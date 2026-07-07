@@ -20,6 +20,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import (
     ticket_rag_query,
 )
 from declaration_qa.core.domain import RetrievalResult
+from declaration_qa.observability.langfuse import observation, safe_value, source_summary
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
@@ -41,11 +42,32 @@ class WorkflowRetrievalNodes:
     def query_rewrite(self, state: DeclarationQAState) -> DeclarationQAState:
         """生成多路检索 query。"""
         next_state = dict(state)
-        rewrite = self.query_rewriter.rewrite(next_state)
-        payload = rewrite.payload()
-        next_state["query_rewrite"] = payload
-        next_state["retrieval_queries"] = payload.get("queries") or []
-        next_state["rag_query"] = "\n".join(str(query.get("text") or "") for query in next_state["retrieval_queries"])
+        with observation(
+            "workflow.query_rewrite",
+            input={
+                "query": next_state.get("retrieval_query")
+                or next_state.get("normalized_query")
+                or next_state.get("query")
+                or "",
+                "retrieval_plan": next_state.get("retrieval_plan") or {},
+            },
+            metadata=retrieval_observation_metadata(next_state),
+        ) as span:
+            rewrite = self.query_rewriter.rewrite(next_state)
+            payload = rewrite.payload()
+            next_state["query_rewrite"] = payload
+            next_state["retrieval_queries"] = payload.get("queries") or []
+            next_state["rag_query"] = "\n".join(str(query.get("text") or "") for query in next_state["retrieval_queries"])
+            span.update(
+                output=safe_value(
+                    {
+                        "count": len(next_state["retrieval_queries"]),
+                        "provider": payload.get("provider"),
+                        "reason": payload.get("reason"),
+                        "queries": next_state["retrieval_queries"],
+                    }
+                )
+            )
         add_event(
             next_state,
             "query_rewrite",
@@ -169,9 +191,29 @@ class WorkflowRetrievalNodes:
     def hybrid_retrieve(self, state: DeclarationQAState) -> DeclarationQAState:
         """执行普通知识问答混合检索。"""
         next_state = dict(state)
-        result = self.multi_retrieve(next_state, next_state.get("retrieval_filter") or {})
-        next_state["retrieved_sources"] = [source.payload() for source in result.sources]
-        next_state["rag_status"] = result.status
+        filters = next_state.get("retrieval_filter") or {}
+        with observation(
+            "workflow.retrieve",
+            input={
+                "query": knowledge_rag_query(next_state),
+                "retrieval_queries": next_state.get("retrieval_queries") or [],
+                "filter": filters,
+                "retrieval_plan": next_state.get("retrieval_plan") or {},
+            },
+            metadata=retrieval_observation_metadata(next_state),
+        ) as span:
+            result = self.multi_retrieve(next_state, filters)
+            next_state["retrieved_sources"] = [source.payload() for source in result.sources]
+            next_state["rag_status"] = result.status
+            span.update(
+                output=safe_value(
+                    {
+                        "source_count": len(next_state["retrieved_sources"]),
+                        "rag_status": result.status,
+                        "sources": source_summary(next_state["retrieved_sources"]),
+                    }
+                )
+            )
         add_event(next_state, "rag_status", {**result.status, "rag_query": next_state.get("rag_query") or ""})
         return next_state
 
@@ -194,3 +236,19 @@ class WorkflowRetrievalNodes:
             next_state["refuse_reason"] = decision.reason
         add_event(next_state, "evidence", decision.payload())
         return next_state
+
+
+def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """Build compact metadata for retrieval node observations."""
+    return safe_value(
+        {
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "retrieval_plan": state.get("retrieval_plan") or {},
+        }
+    )

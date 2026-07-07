@@ -57,6 +57,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
 /* ============================================================
    Layout
    ============================================================ */
@@ -66,38 +71,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   max-width: 1720px;
   margin: 0 auto;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-}
-
-/* ----- Top Bar ----- */
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 24px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-xs);
-}
-
-.topbar .eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.topbar h1 {
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 0;
 }
 
 h2 {
@@ -106,41 +81,6 @@ h2 {
   font-weight: 700;
   color: var(--text);
   letter-spacing: 0;
-}
-
-/* ----- Status Strip ----- */
-.status-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--bg-alt);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.status-dot.ok    { background: #16a34a; }
-.status-dot.error { background: #dc2626; }
-.status-dot.pending {
-  background: #f59e0b;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.4; }
 }
 
 /* ----- Workspace ----- */
@@ -1082,11 +1022,11 @@ select {
   .workspace {
     grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr);
     height: auto;
-    min-height: calc(100vh - 124px);
+    min-height: calc(100vh - 28px);
   }
 
   .chat-pane {
-    min-height: calc(100vh - 124px);
+    min-height: calc(100vh - 28px);
   }
 
   .inspect-pane {
@@ -1104,15 +1044,6 @@ select {
 
 @media (max-width: 860px) {
   .app-shell { padding: 14px; }
-
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 18px 20px;
-  }
-
-  .topbar h1 { font-size: 18px; }
 
   .workspace {
     grid-template-columns: 1fr;
@@ -1137,13 +1068,6 @@ select {
 
 @media (max-width: 480px) {
   .app-shell { padding: 8px; }
-
-  .topbar {
-    padding: 14px 16px;
-    border-radius: var(--radius-md);
-  }
-
-  .topbar h1 { font-size: 17px; }
 
   .panel { padding: 16px; }
 

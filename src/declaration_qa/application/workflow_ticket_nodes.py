@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.actions import material_tags
 from declaration_qa.application.workflow_helpers.events import add_event
@@ -10,6 +12,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import (
     build_business_snapshot,
     ticket_summary_from_context,
 )
+from declaration_qa.observability.langfuse import observation, safe_value, source_summary
 from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STATUS
 
 
@@ -133,18 +136,41 @@ class WorkflowTicketNodes:
         """围绕办件问题执行知识检索。"""
         next_state = dict(state)
         filters = base_policy_filter(next_state, allow_request_filter=False)
-        result = self.multi_retrieve(next_state, filters)
-        next_state["retrieval_filter"] = filters
-        next_state["retrieved_sources"] = [source.payload() for source in result.sources]
-        next_state["rag_status"] = result.status
-        if next_state.get("intent") == INTENT_TICKET_STATUS:
-            next_state["evidence_ok"] = True
-            next_state["evidence_decision"] = {
-                "ok": True,
-                "reason": "business_status_verified",
-                "business_snapshot_present": bool(next_state.get("business_snapshot")),
-                "source_count": len(result.sources),
-            }
+        with observation(
+            "workflow.retrieve.ticket_context",
+            input={
+                "query": next_state.get("rag_query")
+                or next_state.get("retrieval_query")
+                or next_state.get("normalized_query")
+                or next_state.get("query")
+                or "",
+                "retrieval_queries": next_state.get("retrieval_queries") or [],
+                "filter": filters,
+                "retrieval_plan": next_state.get("retrieval_plan") or {},
+            },
+            metadata=ticket_observation_metadata(next_state),
+        ) as span:
+            result = self.multi_retrieve(next_state, filters)
+            next_state["retrieval_filter"] = filters
+            next_state["retrieved_sources"] = [source.payload() for source in result.sources]
+            next_state["rag_status"] = result.status
+            if next_state.get("intent") == INTENT_TICKET_STATUS:
+                next_state["evidence_ok"] = True
+                next_state["evidence_decision"] = {
+                    "ok": True,
+                    "reason": "business_status_verified",
+                    "business_snapshot_present": bool(next_state.get("business_snapshot")),
+                    "source_count": len(result.sources),
+                }
+            span.update(
+                output=safe_value(
+                    {
+                        "source_count": len(next_state["retrieved_sources"]),
+                        "rag_status": result.status,
+                        "sources": source_summary(next_state["retrieved_sources"]),
+                    }
+                )
+            )
         add_event(next_state, "rag_status", {**result.status, "rag_query": next_state.get("rag_query") or ""})
         return next_state
 
@@ -206,7 +232,6 @@ class WorkflowTicketNodes:
         }
         add_event(next_state, "rag_status", result.status)
         return next_state
-
     def business_reject_query(self, state: DeclarationQAState) -> DeclarationQAState:
         """查询办件退回补正业务数据。"""
         next_state = dict(state)
@@ -270,3 +295,20 @@ class WorkflowTicketNodes:
         next_state["rag_status"] = result.status
         add_event(next_state, "rag_status", result.status)
         return next_state
+
+
+def ticket_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """Build compact metadata for ticket node observations."""
+    return safe_value(
+        {
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "retrieval_plan": state.get("retrieval_plan") or {},
+            "has_apply_context": bool(state.get("apply_context")),
+        }
+    )

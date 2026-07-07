@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 from declaration_qa.rag.prompting import (
     ANSWER_PROMPT,
@@ -65,11 +66,11 @@ class OpenAIAnswerGenerator:
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:
         """生成非流式回答和提示词。"""
         prompt = self.build_prompt(state)
-        response = self._llm.invoke(prompt)
+        response = invoke_with_langfuse(self._llm, prompt, state, run_name="answer_generation")
         content = getattr(response, "content", response)
         return str(content), prompt
 
     def stream_generate(self, state: dict[str, Any]) -> tuple[Iterable[str], str]:
         """生成流式回答片段和提示词。"""
         prompt = self.build_prompt(state)
-        return stream_chat_model_content(self._llm.stream(prompt)), prompt
+        return stream_chat_model_content(stream_with_langfuse(self._llm, prompt, state, run_name="answer_generation")), prompt

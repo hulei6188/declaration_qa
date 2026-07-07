@@ -154,11 +154,6 @@ async function requestJson(url, options) {
   return res.json();
 }
 
-// Health
-export function checkHealth() {
-  return requestJson('/api/declaration-qa/health');
-}
-
 // Chat SSE
 export function buildChatRequest(query, sessionId, ctx) {
   const payload = {

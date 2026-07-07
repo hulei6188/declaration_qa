@@ -19,4 +19,5 @@ elasticsearch==8.19.2
 langchain-core==1.4.6
 langchain-openai==1.2.1
 langgraph==1.2.4
+langfuse>=4.0.0
 pypdf==5.1.0

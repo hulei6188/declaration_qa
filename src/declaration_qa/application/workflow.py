@@ -24,6 +24,7 @@ from declaration_qa.application.workflow_helpers.streaming import (
 from declaration_qa.application.workflow_helpers.ticket_context import ticket_rag_query
 from declaration_qa.application.workflow_nodes import WorkflowNodes
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
+from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
@@ -77,7 +78,18 @@ class DeclarationQAWorkflow(WorkflowNodes):
     def invoke(self, request: ChatRequest) -> ChatResponse:
         """同步执行问答工作流并返回最终响应。"""
         initial_state = self._initial_state(request)
-        final_state = self.graph.invoke(initial_state)
+        with observation(
+            "declaration_qa.chat",
+            input=chat_trace_input(request),
+            metadata=chat_trace_metadata(initial_state),
+            trace_id=str(initial_state.get("langfuse_trace_id") or ""),
+            user_id=str(initial_state.get("user_id") or ""),
+            session_id=str(initial_state.get("session_id") or ""),
+            tags=["declaration-qa", "chat"],
+        ) as span:
+            final_state = self.graph.invoke(initial_state)
+            span.update(output=chat_trace_output(final_state), metadata=chat_trace_metadata(final_state))
+            span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(final_state))
         return ChatResponse(
             session_id=str(final_state["session_id"]),
             audit_id=str(final_state["audit_id"]),
@@ -107,38 +119,49 @@ class DeclarationQAWorkflow(WorkflowNodes):
     def stream(self, request: ChatRequest) -> Iterable[dict[str, Any]]:
         """通过 LangGraph 流式执行问答工作流并产出 SSE 事件。"""
         state: DeclarationQAState = self._initial_state(request)
-        yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
+        with observation(
+            "declaration_qa.chat.stream",
+            input=chat_trace_input(request),
+            metadata=chat_trace_metadata(state),
+            trace_id=str(state.get("langfuse_trace_id") or ""),
+            user_id=str(state.get("user_id") or ""),
+            session_id=str(state.get("session_id") or ""),
+            tags=["declaration-qa", "chat", "stream"],
+        ) as span:
+            yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
 
-        emitted_event_count = 0
-        streamed_answer = False
-        config = {"configurable": {"declaration_qa_stream": True}}
-        for chunk in self.graph.stream(state, config=config, stream_mode=["updates", "custom"]):
-            mode, payload = graph_stream_part(chunk)
-            if mode == "custom":
-                event = normalize_stream_event(payload)
-                if event:
-                    if event["event"] == "token":
-                        streamed_answer = True
-                    yield event
-                continue
-            if mode != "updates" or not isinstance(payload, dict):
-                continue
-            for node_name, node_state in payload.items():
-                if not isinstance(node_state, dict):
+            emitted_event_count = 0
+            streamed_answer = False
+            config = {"configurable": {"declaration_qa_stream": True}}
+            for chunk in self.graph.stream(state, config=config, stream_mode=["updates", "custom"]):
+                mode, payload = graph_stream_part(chunk)
+                if mode == "custom":
+                    event = normalize_stream_event(payload)
+                    if event:
+                        if event["event"] == "token":
+                            streamed_answer = True
+                        yield event
                     continue
-                state.update(node_state)
-                events = state.get("events") or []
-                for event in events[emitted_event_count:]:
-                    yield {"event": event.get("event") or node_name, "data": event.get("data") or {}}
-                emitted_event_count = len(events)
-                if should_emit_sources(node_name, state):
-                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-                if node_name == "refuse_or_human":
-                    yield from token_events(str(state.get("answer") or ""))
-                elif node_name == "llm_generate" and not streamed_answer:
-                    yield from token_events(str(state.get("answer") or ""))
+                if mode != "updates" or not isinstance(payload, dict):
+                    continue
+                for node_name, node_state in payload.items():
+                    if not isinstance(node_state, dict):
+                        continue
+                    state.update(node_state)
+                    events = state.get("events") or []
+                    for event in events[emitted_event_count:]:
+                        yield {"event": event.get("event") or node_name, "data": event.get("data") or {}}
+                    emitted_event_count = len(events)
+                    if should_emit_sources(node_name, state):
+                        yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
+                    if node_name == "refuse_or_human":
+                        yield from token_events(str(state.get("answer") or ""))
+                    elif node_name == "llm_generate" and not streamed_answer:
+                        yield from token_events(str(state.get("answer") or ""))
 
-        yield done_event(state)
+            span.update(output=chat_trace_output(state), metadata=chat_trace_metadata(state))
+            span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(state))
+            yield done_event(state)
 
     def llm_generate_stream_events(self, state: DeclarationQAState) -> Iterable[dict[str, Any]]:
         """流式调用回答生成器并产出文本事件。"""
@@ -171,9 +194,10 @@ class DeclarationQAWorkflow(WorkflowNodes):
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
         apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
+        session_id = request.session_id or uuid4().hex
         return {
             "user_id": request.user_id,
-            "session_id": request.session_id or uuid4().hex,
+            "session_id": session_id,
             "query": request.query,
             "normalized_query": "",
             "region_code": request.region_code,
@@ -215,6 +239,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "suggested_actions": [],
             "events": [],
             "audit_payload": {},
+            "langfuse_trace_id": create_trace_id(f"{session_id}:{request.query}"),
         }
 
     def _build_graph(self):
@@ -354,3 +379,67 @@ class DeclarationQAWorkflow(WorkflowNodes):
         )
         builder.add_edge("refuse_or_human", END)
         return builder.compile()
+
+
+def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
+    """Build sanitized trace input from a chat request."""
+    return safe_value(
+        {
+            "user_id": request.user_id,
+            "session_id": request.session_id or "",
+            "query": request.query,
+            "region_code": request.region_code,
+            "app_version": request.app_version,
+            "policy_version": request.policy_version,
+            "biz_type": request.biz_type,
+            "apply_id": request.apply_id,
+            "has_apply_context": request.apply_context is not None,
+            "metadata_filter": request.metadata_filter,
+        }
+    )
+
+
+def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """Build sanitized trace metadata from workflow state."""
+    rag_status = state.get("rag_status") or {}
+    return safe_value(
+        {
+            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "region_code": state.get("region_code") or "",
+            "app_version": state.get("app_version") or "",
+            "policy_version": state.get("policy_version") or "",
+            "biz_type": state.get("biz_type") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "sub_intent": state.get("sub_intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "need_ticket_selection": bool(state.get("need_ticket_selection")),
+            "refused": bool(state.get("refused")),
+            "source_count": len(state.get("retrieved_sources") or []),
+            "rag_retrieval_mode": rag_status.get("retrieval_mode") or "",
+            "audit_id": state.get("audit_id") or "",
+        }
+    )
+
+
+def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
+    """Build sanitized trace output from workflow state."""
+    return safe_value(
+        {
+            "audit_id": state.get("audit_id") or "",
+            "answer": state.get("answer") or "",
+            "refused": bool(state.get("refused")),
+            "refuse_reason": state.get("refuse_reason"),
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "source_count": len(state.get("retrieved_sources") or []),
+            "rag_status": state.get("rag_status") or {},
+            "evidence_decision": state.get("evidence_decision") or {},
+            "suggested_actions": state.get("suggested_actions") or [],
+        }
+    )

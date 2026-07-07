@@ -9,6 +9,7 @@ description = "Declaration QA workflow service"
 requires-python = ">=3.10"
 dependencies = [
     "dashscope",
+    "langfuse>=4.0.0",
 ]
 
 [tool.setuptools.packages.find]

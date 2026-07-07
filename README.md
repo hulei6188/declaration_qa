@@ -83,6 +83,19 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_RERANK_SCORE_THRESHOLD`
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND`: `inline` 或 `rq`。
 
+## Langfuse
+
+打开 Langfuse 可观测：
+
+```env
+DECLARATION_QA_LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=http://localhost:3000
+```
+
+本地 Langfuse 可用 Docker Compose 部署，Cloud 版则把 `LANGFUSE_BASE_URL` 改成 `https://cloud.langfuse.com`。系统会上报一次问答主 trace，并记录 `QuestionResolver`、`QueryRewriter`、RAG 检索、答案生成和 LangChain LLM 调用。`POST /api/declaration-qa/feedback` 会把用户反馈写成 Langfuse score。
+
 ## 问答链路
 
 ```text

@@ -1,0 +1,266 @@
+"""Langfuse observability helpers."""
+
+from __future__ import annotations
+
+import os
+from contextlib import ExitStack, contextmanager
+from typing import Any
+
+from declaration_qa.core.config import DeclarationQASettings
+
+
+SENSITIVE_KEYWORDS = (
+    "id_card",
+    "idcard",
+    "identity",
+    "phone",
+    "mobile",
+    "secret",
+    "token",
+    "password",
+    "api_key",
+    "authorization",
+)
+MAX_STRING_LENGTH = 800
+MAX_LIST_ITEMS = 12
+MAX_DICT_ITEMS = 30
+
+
+class NoopObservation:
+    """No-op object with the Langfuse observation methods used by this app."""
+
+    trace_id = ""
+
+    def update(self, **_: Any) -> None:
+        """Ignore updates when observability is disabled."""
+
+    def set_trace_io(self, **_: Any) -> None:
+        """Ignore trace I/O updates when observability is disabled."""
+
+    def score_trace(self, **_: Any) -> None:
+        """Ignore trace scores when observability is disabled."""
+
+
+def langfuse_ready(settings: DeclarationQASettings | None = None) -> bool:
+    """Return whether Langfuse tracing should be attempted."""
+    if settings is not None:
+        if not bool(settings.langfuse_enabled):
+            return False
+    elif os.getenv("DECLARATION_QA_LANGFUSE_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return False
+    return bool(
+        os.getenv("LANGFUSE_PUBLIC_KEY")
+        and os.getenv("LANGFUSE_SECRET_KEY")
+    )
+
+
+def create_trace_id(seed: str, settings: DeclarationQASettings | None = None) -> str:
+    """Create a deterministic Langfuse trace id for later feedback scoring."""
+    if not langfuse_ready(settings):
+        return ""
+    try:
+        from langfuse import Langfuse
+
+        return str(Langfuse.create_trace_id(seed=str(seed or "")))
+    except Exception:
+        return ""
+
+
+@contextmanager
+def observation(
+    name: str,
+    *,
+    settings: DeclarationQASettings | None = None,
+    input: Any = None,
+    metadata: dict[str, Any] | None = None,
+    output: Any = None,
+    trace_id: str = "",
+    user_id: str = "",
+    session_id: str = "",
+    tags: list[str] | None = None,
+    as_type: str = "span",
+    model: str = "",
+):
+    """Start a Langfuse observation if configured, otherwise yield a no-op."""
+    if not langfuse_ready(settings):
+        yield NoopObservation()
+        return
+    try:
+        from langfuse import get_client, propagate_attributes
+
+        client = get_client()
+        kwargs: dict[str, Any] = {"as_type": as_type, "name": name}
+        if model:
+            kwargs["model"] = model
+        if trace_id:
+            kwargs["trace_context"] = {"trace_id": trace_id}
+        with ExitStack() as stack:
+            raw = stack.enter_context(client.start_as_current_observation(**kwargs))
+            stack.enter_context(
+                propagate_attributes(
+                    trace_name=name,
+                    user_id=user_id or None,
+                    session_id=session_id or None,
+                    tags=tags or None,
+                    metadata=safe_value(metadata or {}),
+                )
+            )
+            wrapped = Observation(raw)
+            wrapped.update(input=safe_value(input), output=safe_value(output), metadata=safe_value(metadata or {}))
+            yield wrapped
+    except Exception:
+        yield NoopObservation()
+
+
+class Observation:
+    """Safe wrapper around a Langfuse observation."""
+
+    def __init__(self, raw: Any) -> None:
+        self.raw = raw
+        self.trace_id = str(getattr(raw, "trace_id", "") or getattr(raw, "id", "") or "")
+
+    def update(self, **kwargs: Any) -> None:
+        """Update the current observation without letting SDK errors escape."""
+        payload = {key: value for key, value in kwargs.items() if value not in (None, "", [], {})}
+        if not payload:
+            return
+        try:
+            self.raw.update(**payload)
+        except Exception:
+            return
+
+    def set_trace_io(self, **kwargs: Any) -> None:
+        """Set trace input/output when supported by the SDK."""
+        payload = {key: value for key, value in kwargs.items() if value not in (None, "", [], {})}
+        if not payload:
+            return
+        try:
+            self.raw.set_trace_io(**payload)
+        except Exception:
+            return
+
+    def score_trace(self, **kwargs: Any) -> None:
+        """Score current trace when supported by the SDK."""
+        try:
+            self.raw.score_trace(**kwargs)
+        except Exception:
+            return
+
+
+def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | None = None) -> dict[str, Any] | None:
+    """Build LangChain callback config for Langfuse."""
+    if not langfuse_ready():
+        return None
+    try:
+        from langfuse.langchain import CallbackHandler
+    except Exception:
+        return None
+    metadata = {
+        "langfuse_user_id": str(state.get("user_id") or ""),
+        "langfuse_session_id": str(state.get("session_id") or ""),
+        "route": state.get("route") or "",
+        "intent": state.get("intent") or "",
+        "ticket_fact_type": state.get("ticket_fact_type") or "none",
+        "retrieval_chain": state.get("retrieval_chain") or "",
+    }
+    trace_id = str(state.get("langfuse_trace_id") or "")
+    if trace_id:
+        metadata["langfuse_trace_id"] = trace_id
+    return {
+        "callbacks": [CallbackHandler()],
+        "run_name": run_name,
+        "tags": tags or ["declaration-qa"],
+        "metadata": safe_value(metadata),
+    }
+
+
+def invoke_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
+    """Invoke a LangChain LLM with Langfuse callbacks when enabled."""
+    config = langchain_config(state, run_name=run_name)
+    if config:
+        return llm.invoke(prompt, config=config)
+    return llm.invoke(prompt)
+
+
+def stream_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
+    """Stream a LangChain LLM with Langfuse callbacks when enabled."""
+    config = langchain_config(state, run_name=run_name)
+    if config:
+        return llm.stream(prompt, config=config)
+    return llm.stream(prompt)
+
+
+def score_trace(
+    trace_id: str,
+    *,
+    name: str,
+    value: float | int,
+    comment: str = "",
+    settings: DeclarationQASettings | None = None,
+) -> None:
+    """Create a Langfuse trace score by trace id."""
+    if not trace_id or not langfuse_ready(settings):
+        return
+    try:
+        from langfuse import get_client
+
+        get_client().create_score(
+            trace_id=str(trace_id),
+            name=name,
+            value=value,
+            data_type="NUMERIC",
+            comment=comment or None,
+        )
+    except Exception:
+        return
+
+
+def source_summary(sources: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return a compact retrieval source summary for observability."""
+    output = []
+    for source in (sources or [])[:limit]:
+        output.append(
+            {
+                "chunk_id": source.get("chunk_id") or "",
+                "doc_id": source.get("doc_id") or "",
+                "title": source.get("title") or "",
+                "score": source.get("score") or 0,
+                "rerank_score": source.get("rerank_score") or 0,
+                "channel": source.get("retrieval_channel") or "",
+                "item_name": (source.get("metadata") or {}).get("item_name") or source.get("item_name") or "",
+            }
+        )
+    return output
+
+
+def safe_value(value: Any, *, depth: int = 0) -> Any:
+    """Redact and truncate values before sending them to observability sinks."""
+    if depth > 4:
+        return str(type(value).__name__)
+    if isinstance(value, dict):
+        output: dict[str, Any] = {}
+        for index, (key, item) in enumerate(value.items()):
+            if index >= MAX_DICT_ITEMS:
+                output["..."] = f"{len(value) - MAX_DICT_ITEMS} more"
+                break
+            key_text = str(key)
+            if is_sensitive_key(key_text):
+                output[key_text] = "[redacted]"
+            else:
+                output[key_text] = safe_value(item, depth=depth + 1)
+        return output
+    if isinstance(value, (list, tuple, set)):
+        items = list(value)
+        output = [safe_value(item, depth=depth + 1) for item in items[:MAX_LIST_ITEMS]]
+        if len(items) > MAX_LIST_ITEMS:
+            output.append(f"... {len(items) - MAX_LIST_ITEMS} more")
+        return output
+    if isinstance(value, str):
+        return value if len(value) <= MAX_STRING_LENGTH else f"{value[:MAX_STRING_LENGTH]}..."
+    return value
+
+
+def is_sensitive_key(key: str) -> bool:
+    """Return whether a metadata key should be redacted."""
+    lowered = key.lower()
+    return any(token in lowered for token in SENSITIVE_KEYWORDS) or lowered in {"name", "applicant_name"}

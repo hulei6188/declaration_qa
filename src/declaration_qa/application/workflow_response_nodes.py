@@ -8,6 +8,7 @@ from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.actions import suggested_actions
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
+from declaration_qa.observability.langfuse import observation, safe_value
 
 
 class WorkflowResponseNodes:
@@ -45,29 +46,50 @@ class WorkflowResponseNodes:
     def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
         """调用回答生成器生成最终回答。"""
         next_state = dict(state)
-        if is_declaration_qa_stream_run():
-            stream_generate = getattr(self.answer_generator, "stream_generate", None)
-        else:
-            stream_generate = None
-        if callable(stream_generate):
-            token_stream, prompt = stream_generate(dict(next_state))
-            writer = get_stream_writer()
-            answer_parts = []
-            for token in token_stream:
-                text = str(token or "")
-                if not text:
-                    continue
-                answer_parts.append(text)
-                writer({"event": "token", "data": {"content": text}})
-            answer = "".join(answer_parts)
-            add_event(next_state, "answer_generated", {"intent": next_state.get("intent"), "streamed": True})
-        else:
-            answer, prompt = self.answer_generator.generate(next_state)
-            add_event(next_state, "answer_generated", {"intent": next_state.get("intent")})
-        next_state["answer"] = answer
-        audit_payload = dict(next_state.get("audit_payload") or {})
-        audit_payload["final_prompt"] = prompt
-        next_state["audit_payload"] = audit_payload
+        with observation(
+            "workflow.answer_generation",
+            input={
+                "query": next_state.get("query") or "",
+                "intent": next_state.get("intent") or "",
+                "source_count": len(next_state.get("retrieved_sources") or []),
+                "multi_question": bool(next_state.get("multi_question")),
+            },
+            metadata=response_observation_metadata(next_state),
+        ) as span:
+            if is_declaration_qa_stream_run():
+                stream_generate = getattr(self.answer_generator, "stream_generate", None)
+            else:
+                stream_generate = None
+            if callable(stream_generate):
+                token_stream, prompt = stream_generate(dict(next_state))
+                writer = get_stream_writer()
+                answer_parts = []
+                for token in token_stream:
+                    text = str(token or "")
+                    if not text:
+                        continue
+                    answer_parts.append(text)
+                    writer({"event": "token", "data": {"content": text}})
+                answer = "".join(answer_parts)
+                add_event(next_state, "answer_generated", {"intent": next_state.get("intent"), "streamed": True})
+                streamed = True
+            else:
+                answer, prompt = self.answer_generator.generate(next_state)
+                add_event(next_state, "answer_generated", {"intent": next_state.get("intent")})
+                streamed = False
+            next_state["answer"] = answer
+            audit_payload = dict(next_state.get("audit_payload") or {})
+            audit_payload["final_prompt"] = prompt
+            next_state["audit_payload"] = audit_payload
+            span.update(
+                output=safe_value(
+                    {
+                        "answer": answer,
+                        "prompt_length": len(prompt),
+                        "streamed": streamed,
+                    }
+                )
+            )
         return next_state
 
     def answer_postprocess(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -119,9 +141,26 @@ class WorkflowResponseNodes:
             "answer": next_state.get("answer"),
             "suggested_actions": next_state.get("suggested_actions") or [],
             "events": next_state.get("events") or [],
+            "langfuse_trace_id": next_state.get("langfuse_trace_id") or "",
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
         next_state["audit_id"] = audit_id
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
+
+
+def response_observation_metadata(state: dict[str, object]) -> dict[str, object]:
+    """Build compact metadata for response node observations."""
+    return safe_value(
+        {
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "source_count": len(state.get("retrieved_sources") or []),
+            "multi_question": bool(state.get("multi_question")),
+        }
+    )
