@@ -7,10 +7,11 @@ import json
 from typing import Any, Protocol
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.observability.langfuse import observation, retrieved_source_summary, safe_value
+from declaration_qa.observability.langfuse import observation, record_error, retrieved_source_summary, safe_value
 from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.constants import EMBEDDING_DIMS
 from declaration_qa.rag.engine.scoring import rrf_fuse
+from declaration_qa.rag.engine.structured_context import structured_backfill_chunk_types
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
@@ -368,11 +369,19 @@ class BaseRAGEngine:
             except Exception as exc:
                 reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
                 degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                record_error(
+                    span,
+                    exc,
+                    stage="rag.rerank",
+                    reason="rerank_provider_failed_fallback_to_heuristic",
+                    extra={"fallback_provider": "heuristic", "candidate_count": len(fused_hits)},
+                )
                 span.update(
                     output={
                         "reranked_count": len(reranked),
                         "fallback_provider": "heuristic",
                         "error": type(exc).__name__,
+                        "reason": "rerank_provider_failed_fallback_to_heuristic",
                         "sources": retrieved_source_summary(reranked),
                     }
                 )
@@ -387,6 +396,13 @@ class BaseRAGEngine:
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
             selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            if score_cutoff_status.get("rejected"):
+                record_error(
+                    span,
+                    stage="rag.score_cutoff",
+                    reason=str(score_cutoff_status.get("reason") or "score_cutoff_rejected_all"),
+                    extra=score_cutoff_status,
+                )
             span.update(
                 output={
                     **score_cutoff_status,
@@ -405,11 +421,25 @@ class BaseRAGEngine:
             input={"query": normalized_query, "source_count": len(expanded_sources), "retrieval_plan": policy},
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
+            before_backfill_count = len(expanded_sources)
             expanded_sources, structured_backfill_status = self._expand_structured_section_context(
                 normalized_query,
                 expanded_sources,
                 retrieval_plan=policy,
             )
+            structured_backfill_status = self._with_structured_backfill_reason(
+                normalized_query,
+                before_backfill_count,
+                structured_backfill_status,
+                policy,
+            )
+            if self._structured_backfill_failed(structured_backfill_status):
+                record_error(
+                    span,
+                    stage="rag.structured_backfill",
+                    reason=str(structured_backfill_status.get("reason") or "structured_backfill_failed"),
+                    extra=structured_backfill_status,
+                )
             span.update(
                 output={
                     **structured_backfill_status,
@@ -510,11 +540,19 @@ class BaseRAGEngine:
             except Exception as exc:
                 reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
                 degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                record_error(
+                    span,
+                    exc,
+                    stage="rag.rerank",
+                    reason="rerank_provider_failed_fallback_to_heuristic",
+                    extra={"fallback_provider": "heuristic", "candidate_count": len(rerank_candidates), "mode": "rewrites"},
+                )
                 span.update(
                     output={
                         "reranked_count": len(reranked),
                         "fallback_provider": "heuristic",
                         "error": type(exc).__name__,
+                        "reason": "rerank_provider_failed_fallback_to_heuristic",
                         "sources": retrieved_source_summary(reranked),
                     }
                 )
@@ -530,6 +568,13 @@ class BaseRAGEngine:
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
             selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            if score_cutoff_status.get("rejected"):
+                record_error(
+                    span,
+                    stage="rag.score_cutoff",
+                    reason=str(score_cutoff_status.get("reason") or "score_cutoff_rejected_all"),
+                    extra=score_cutoff_status,
+                )
             span.update(
                 output={
                     **score_cutoff_status,
@@ -548,11 +593,25 @@ class BaseRAGEngine:
             input={"query": original_query, "source_count": len(expanded_sources), "retrieval_plan": policy, "mode": "rewrites"},
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
+            before_backfill_count = len(expanded_sources)
             expanded_sources, structured_backfill_status = self._expand_structured_section_context(
                 original_query,
                 expanded_sources,
                 retrieval_plan=policy,
             )
+            structured_backfill_status = self._with_structured_backfill_reason(
+                original_query,
+                before_backfill_count,
+                structured_backfill_status,
+                policy,
+            )
+            if self._structured_backfill_failed(structured_backfill_status):
+                record_error(
+                    span,
+                    stage="rag.structured_backfill",
+                    reason=str(structured_backfill_status.get("reason") or "structured_backfill_failed"),
+                    extra=structured_backfill_status,
+                )
             span.update(
                 output={
                     **structured_backfill_status,
@@ -662,6 +721,7 @@ class BaseRAGEngine:
                 "before": len(reranked),
                 "after": len(selected),
                 "rejected": False,
+                "reason": "score_cutoff_disabled",
             }
 
         selected = [
@@ -669,6 +729,12 @@ class BaseRAGEngine:
             for source in reranked
             if float(source.rerank_score or 0.0) >= threshold
         ][: self.rerank_max_sources]
+        if not reranked:
+            reason = "no_reranked_sources"
+        elif not selected:
+            reason = "all_rerank_scores_below_threshold"
+        else:
+            reason = "passed_threshold"
         return selected, {
             "enabled": True,
             "threshold": threshold,
@@ -677,6 +743,45 @@ class BaseRAGEngine:
             "before": len(reranked),
             "after": len(selected),
             "rejected": bool(reranked and not selected),
+            "reason": reason,
+        }
+
+    def _with_structured_backfill_reason(
+        self,
+        query: str,
+        before_count: int,
+        status: dict[str, Any],
+        retrieval_plan: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Add a stable reason to structured backfill status."""
+        output = dict(status or {})
+        target_types = structured_backfill_chunk_types(query, retrieval_plan)
+        output.setdefault("target_chunk_types", target_types)
+        if output.get("reason"):
+            return output
+        if output.get("applied") and int(output.get("added_source_count") or 0) > 0:
+            output.setdefault("reason", "applied")
+        elif not target_types:
+            output["reason"] = "no_target_chunk_type"
+        elif before_count <= 0:
+            output["reason"] = "no_sources_for_backfill"
+        elif not int(output.get("section_count") or 0):
+            output["reason"] = "no_matching_parent_section"
+        elif not int(output.get("added_source_count") or 0):
+            output["reason"] = "no_sibling_added"
+        else:
+            output["reason"] = "not_applied"
+        return output
+
+    def _structured_backfill_failed(self, status: dict[str, Any]) -> bool:
+        """Return whether structured backfill should be marked as an error metadata event."""
+        reason = str((status or {}).get("reason") or "")
+        return reason in {
+            "chunk_store_missing",
+            "no_sources_for_backfill",
+            "no_matching_parent_section",
+            "no_sibling_added",
+            "not_applied",
         }
 
     def _sources_from_scored_ids_lookup(
@@ -850,6 +955,7 @@ class BaseRAGEngine:
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
+                "structured_backfill": {"applied": False, "reason": "not_run_empty_retrieval"},
                 "filter": effective_filter,
                 "candidate_source": candidate_source or self._candidate_source(),
             },
@@ -890,7 +996,7 @@ class BaseRAGEngine:
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"hit_lists": 0, "rrf": 0, "rerank_candidates": 0, "rerank": 0, "dense": 0, "bm25": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
-                "structured_backfill": {"applied": False},
+                "structured_backfill": {"applied": False, "reason": "not_run_empty_retrieval"},
                 "degraded": list(degraded or []),
                 "filter": effective_filter,
                 "batch_mode": True,
@@ -927,6 +1033,7 @@ class BaseRAGEngine:
             "before": 0,
             "after": 0,
             "rejected": False,
+            "reason": "empty_retrieval_result",
         }
 
     def _observability_metadata(self, *, retrieval_plan: dict[str, Any] | None = None) -> dict[str, Any]:

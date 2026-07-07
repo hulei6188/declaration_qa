@@ -41,6 +41,9 @@ class NoopObservation:
     def score_trace(self, **_: Any) -> None:
         """Ignore trace scores when observability is disabled."""
 
+    def record_error(self, *_: Any, **__: Any) -> None:
+        """Ignore errors when observability is disabled."""
+
 
 def langfuse_ready(settings: DeclarationQASettings | None = None) -> bool:
     """Return whether Langfuse tracing should be attempted."""
@@ -109,6 +112,7 @@ def observation(
     if not langfuse_ready(settings):
         yield NoopObservation()
         return
+    stack = ExitStack()
     try:
         from langfuse import get_client, propagate_attributes
 
@@ -118,36 +122,48 @@ def observation(
             kwargs["model"] = model
         if trace_id:
             kwargs["trace_context"] = {"trace_id": trace_id}
-        with ExitStack() as stack:
-            raw = stack.enter_context(client.start_as_current_observation(**kwargs))
-            stack.enter_context(
-                propagate_attributes(
-                    trace_name=name,
-                    user_id=user_id or None,
-                    session_id=session_id or None,
-                    tags=tags or None,
-                    metadata=safe_value(metadata or {}),
-                )
+        raw = stack.enter_context(client.start_as_current_observation(**kwargs))
+        stack.enter_context(
+            propagate_attributes(
+                trace_name=name,
+                user_id=user_id or None,
+                session_id=session_id or None,
+                tags=tags or None,
+                metadata=safe_value(metadata or {}),
             )
-            wrapped = Observation(raw)
-            wrapped.update(input=safe_value(input), output=safe_value(output), metadata=safe_value(metadata or {}))
-            yield wrapped
+        )
     except Exception:
+        stack.close()
         yield NoopObservation()
+        return
+
+    wrapped = Observation(raw, metadata=safe_value(metadata or {}))
+    try:
+        wrapped.update(input=safe_value(input), output=safe_value(output), metadata=safe_value(metadata or {}))
+        yield wrapped
+    except Exception as exc:
+        record_error(wrapped, exc, stage=name)
+        raise
+    finally:
+        stack.close()
 
 
 class Observation:
     """Safe wrapper around a Langfuse observation."""
 
-    def __init__(self, raw: Any) -> None:
+    def __init__(self, raw: Any, *, metadata: dict[str, Any] | None = None) -> None:
         self.raw = raw
         self.trace_id = str(getattr(raw, "trace_id", "") or getattr(raw, "id", "") or "")
+        self.metadata = metadata or {}
 
     def update(self, **kwargs: Any) -> None:
         """Update the current observation without letting SDK errors escape."""
         payload = {key: value for key, value in kwargs.items() if value not in (None, "", [], {})}
         if not payload:
             return
+        if isinstance(payload.get("metadata"), dict):
+            self.metadata = {**self.metadata, **payload["metadata"]}
+            payload["metadata"] = self.metadata
         try:
             self.raw.update(**payload)
         except Exception:
@@ -169,6 +185,49 @@ class Observation:
             self.raw.score_trace(**kwargs)
         except Exception:
             return
+
+    def record_error(self, exc: BaseException | None = None, **kwargs: Any) -> None:
+        """Record an error payload on the observation."""
+        record_error(self, exc, **kwargs)
+
+
+def error_payload(
+    exc: BaseException | None = None,
+    *,
+    stage: str = "",
+    reason: str = "",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a sanitized error payload."""
+    payload = {
+        "ok": False,
+        "stage": stage,
+        "reason": reason or (type(exc).__name__ if exc else ""),
+        "error_type": type(exc).__name__ if exc else "",
+        "message": str(exc or ""),
+        **(extra or {}),
+    }
+    return safe_value(payload)
+
+
+def record_error(
+    span: Any,
+    exc: BaseException | None = None,
+    *,
+    stage: str = "",
+    reason: str = "",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write a structured error payload to a Langfuse observation."""
+    payload = error_payload(exc, stage=stage, reason=reason, extra=extra)
+    metadata = {"error": payload}
+    if isinstance(span, Observation):
+        metadata = {**span.metadata, "error": payload}
+    try:
+        span.update(output={"ok": False, "error": payload}, metadata=metadata)
+    except Exception:
+        return payload
+    return payload
 
 
 def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | None = None) -> dict[str, Any] | None:

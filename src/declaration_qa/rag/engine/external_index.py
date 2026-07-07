@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.observability.langfuse import observation, safe_value
+from declaration_qa.observability.langfuse import observation, record_error, safe_value
 from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore
 from declaration_qa.rag.engine.embeddings import embed_chunk_batch
 from declaration_qa.rag.engine.structured_context import (
@@ -181,7 +181,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
             ) as span:
                 batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
-                span.update(output={"hit_counts": [len(hits) for hits in batch_hits]})
+                output = batch_scored_id_summary(query_specs, batch_hits, empty_reason="vector_index_empty_result")
+                if output.get("empty_count"):
+                    record_error(
+                        span,
+                        stage="rag.vector_search.batch",
+                        reason=str(output.get("reason") or "vector_index_empty_result"),
+                        extra={"backend": self.vector_index.backend, **output},
+                    )
+                span.update(output=output)
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_by_index[int(spec["index"])] = self._sources_from_scored_ids(
                     vector_hits[:limit],
@@ -258,7 +266,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
             ) as span:
                 batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
-                span.update(output={"hit_counts": [len(hits) for hits in batch_hits]})
+                output = batch_scored_id_summary(query_specs, batch_hits, empty_reason="vector_index_empty_result")
+                if output.get("empty_count"):
+                    record_error(
+                        span,
+                        stage="rag.vector_search.batch",
+                        reason=str(output.get("reason") or "vector_index_empty_result"),
+                        extra={"backend": self.vector_index.backend, **output},
+                    )
+                span.update(output=output)
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_scores_by_index[int(spec["index"])] = [
                     (str(chunk_id), float(score))
@@ -283,8 +299,17 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                     metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
                 ) as span:
                     many_results = keyword_search_many(query_specs, search_filter, limits)
-                    span.update(output={"hit_counts": {str(index): len(scores) for index, scores in many_results.items()}})
-                bm25_scores_by_index.update({int(index): list(scores) for index, scores in many_results.items()})
+                    normalized_results = {int(index): list(scores) for index, scores in many_results.items()}
+                    output = score_map_summary(query_specs, normalized_results, empty_reason="keyword_index_empty_result")
+                    if output.get("empty_count"):
+                        record_error(
+                            span,
+                            stage="rag.keyword_search.batch",
+                            reason=str(output.get("reason") or "keyword_index_empty_result"),
+                            extra={"backend": self.keyword_index.backend, **output},
+                        )
+                    span.update(output=output)
+                bm25_scores_by_index.update(normalized_results)
             except Exception as exc:
                 degraded.append({"stage": "bm25_retrieve_batch", "error": type(exc).__name__})
                 bm25_scores_by_index.update(self._keyword_retrieve_many_fallback(query_specs, search_filter, limits, degraded))
@@ -371,7 +396,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                     metadata=self._observability_metadata(),
                 ) as span:
                     results[index] = self.keyword_index.search(query, effective_filter, limit=limit)
-                    span.update(output={"hit_count": len(results[index]), "hits": scored_id_summary(results[index])})
+                    output = scored_id_output(results[index], empty_reason="keyword_index_empty_result")
+                    if output.get("empty"):
+                        record_error(
+                            span,
+                            stage="rag.keyword_search",
+                            reason=str(output.get("reason") or "keyword_index_empty_result"),
+                            extra={"backend": self.keyword_index.backend, "query_index": index, **output},
+                        )
+                    span.update(output=output)
             except Exception as exc:
                 results[index] = []
                 degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
@@ -399,7 +432,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             metadata=self._observability_metadata(),
         ) as span:
             scored_ids = self.vector_index.search(query_vector, filters, limit=limit)
-            span.update(output={"hit_count": len(scored_ids), "hits": scored_id_summary(scored_ids)})
+            output = scored_id_output(scored_ids, empty_reason="vector_index_empty_result")
+            if output.get("empty"):
+                record_error(
+                    span,
+                    stage="rag.vector_search",
+                    reason=str(output.get("reason") or "vector_index_empty_result"),
+                    extra={"backend": self.vector_index.backend, "channel": channel, **output},
+                )
+            span.update(output=output)
         return self._sources_from_scored_ids(scored_ids, score_kind="dense", channel=channel)
 
     def _keyword_retrieve(self, query: str, filters: dict[str, Any], *, limit: int) -> list[RetrievedSource]:
@@ -410,7 +451,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             metadata=self._observability_metadata(),
         ) as span:
             scored_ids = self.keyword_index.search(query, filters, limit=limit)
-            span.update(output={"hit_count": len(scored_ids), "hits": scored_id_summary(scored_ids)})
+            output = scored_id_output(scored_ids, empty_reason="keyword_index_empty_result")
+            if output.get("empty"):
+                record_error(
+                    span,
+                    stage="rag.keyword_search",
+                    reason=str(output.get("reason") or "keyword_index_empty_result"),
+                    extra={"backend": self.keyword_index.backend, **output},
+                )
+            span.update(output=output)
         return self._sources_from_scored_ids(scored_ids, score_kind="bm25", channel=f"{self.keyword_index.backend}_bm25")
 
     def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
@@ -426,7 +475,26 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             chunks = self.chunk_store.get_chunks_by_ids(unique_ids) if self.chunk_store is not None else []
             by_id = {chunk.id: chunk for chunk in chunks}
             ordered_chunks = [by_id[chunk_id] for chunk_id in unique_ids if chunk_id in by_id]
-            span.update(output={"loaded_count": len(ordered_chunks), "missing_count": len(unique_ids) - len(ordered_chunks)})
+            missing_ids = [chunk_id for chunk_id in unique_ids if chunk_id not in by_id]
+            output = {
+                "loaded_count": len(ordered_chunks),
+                "missing_count": len(missing_ids),
+                "missing_chunk_ids": missing_ids[:20],
+            }
+            if not ordered_chunks:
+                output["reason"] = "all_requested_chunks_missing"
+            elif missing_ids:
+                output["reason"] = "some_requested_chunks_missing"
+            else:
+                output["reason"] = "all_requested_chunks_loaded"
+            if missing_ids:
+                record_error(
+                    span,
+                    stage="rag.chunk_hydrate",
+                    reason=str(output["reason"]),
+                    extra=output,
+                )
+            span.update(output=output)
             return ordered_chunks
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
@@ -445,8 +513,29 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             metadata=self._observability_metadata(),
         ) as span:
             parent_chunks = self.chunk_store.get_parent_chunks(unique_parent_ids)
-            span.update(output={"loaded_count": len(parent_chunks)})
-        parents = {chunk.id: chunk for chunk in parent_chunks}
+            parents = {chunk.id: chunk for chunk in parent_chunks}
+            missing_parent_ids = [parent_id for parent_id in unique_parent_ids if parent_id not in parents]
+            output = {
+                "loaded_count": len(parent_chunks),
+                "missing_count": len(missing_parent_ids),
+                "missing_parent_ids": missing_parent_ids[:20],
+            }
+            if not unique_parent_ids:
+                output["reason"] = "no_parent_ids"
+            elif not parent_chunks:
+                output["reason"] = "parents_not_found"
+            elif missing_parent_ids:
+                output["reason"] = "some_parents_missing"
+            else:
+                output["reason"] = "parents_loaded"
+            if output["reason"] in {"parents_not_found", "some_parents_missing"}:
+                record_error(
+                    span,
+                    stage="rag.parent_context.load_parents",
+                    reason=str(output["reason"]),
+                    extra=output,
+                )
+            span.update(output=output)
         return expand_parent_context(sources, parents)
 
     def _expand_structured_section_context(
@@ -458,10 +547,16 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
         """Backfill structured section siblings from storage."""
         if self.chunk_store is None:
-            return sources, {"applied": False}
+            return sources, {"applied": False, "reason": "chunk_store_missing"}
         target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
         if not target_chunk_types:
-            return sources, {"applied": False}
+            with observation(
+                "rag.structured_backfill.load_siblings",
+                input={"target_chunk_types": [], "source_count": len(sources)},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                span.update(output={"sibling_count": 0, "reason": "no_target_chunk_type"})
+            return sources, {"applied": False, "reason": "no_target_chunk_type"}
         sibling_lookup = {}
         for target_chunk_type in target_chunk_types:
             parent_section_ids = [
@@ -483,7 +578,25 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                     unique_parent_section_ids,
                     target_chunk_type,
                 )
-                span.update(output={"sibling_count": len(sibling_chunks)})
+                output = {"sibling_count": len(sibling_chunks)}
+                if not unique_parent_section_ids:
+                    output["reason"] = "no_matching_parent_section_ids"
+                elif not sibling_chunks:
+                    output["reason"] = "siblings_not_found"
+                else:
+                    output["reason"] = "siblings_loaded"
+                if output["reason"] in {"no_matching_parent_section_ids", "siblings_not_found"}:
+                    record_error(
+                        span,
+                        stage="rag.structured_backfill.load_siblings",
+                        reason=str(output["reason"]),
+                        extra={
+                            "target_chunk_type": target_chunk_type,
+                            "parent_section_count": len(unique_parent_section_ids),
+                            **output,
+                        },
+                    )
+                span.update(output=output)
             sibling_lookup.update({chunk.id: chunk for chunk in sibling_chunks})
         return expand_structured_section_context(
             query,
@@ -501,3 +614,67 @@ def scored_id_summary(scored_ids: list[tuple[str, float]], *, limit: int = 8) ->
             for chunk_id, score in (scored_ids or [])[:limit]
         ]
     )
+
+
+def scored_id_output(scored_ids: list[tuple[str, float]], *, empty_reason: str) -> dict[str, Any]:
+    """Return a Langfuse output payload for one scored-id search."""
+    output: dict[str, Any] = {
+        "hit_count": len(scored_ids),
+        "hits": scored_id_summary(scored_ids),
+    }
+    if not scored_ids:
+        output["empty"] = True
+        output["reason"] = empty_reason
+    return safe_value(output)
+
+
+def batch_scored_id_summary(
+    query_specs: list[dict[str, Any]],
+    batch_hits: list[list[tuple[str, float]]],
+    *,
+    empty_reason: str,
+) -> dict[str, Any]:
+    """Return a Langfuse output payload for batched scored-id search."""
+    hit_counts = {
+        str(int(spec["index"])): len(hits)
+        for spec, hits in zip(query_specs, batch_hits)
+    }
+    empty_indices = [
+        int(spec["index"])
+        for spec, hits in zip(query_specs, batch_hits)
+        if not hits
+    ]
+    output: dict[str, Any] = {
+        "hit_counts": hit_counts,
+        "empty_count": len(empty_indices),
+        "empty_indices": empty_indices[:20],
+    }
+    if empty_indices:
+        output["reason"] = empty_reason if len(empty_indices) == len(hit_counts) else "some_queries_empty"
+    return safe_value(output)
+
+
+def score_map_summary(
+    query_specs: list[dict[str, Any]],
+    scores_by_index: dict[int, list[tuple[str, float]]],
+    *,
+    empty_reason: str,
+) -> dict[str, Any]:
+    """Return a Langfuse output payload for indexed scored-id maps."""
+    hit_counts = {
+        str(int(spec["index"])): len(scores_by_index.get(int(spec["index"])) or [])
+        for spec in query_specs
+    }
+    empty_indices = [
+        int(spec["index"])
+        for spec in query_specs
+        if not scores_by_index.get(int(spec["index"]))
+    ]
+    output: dict[str, Any] = {
+        "hit_counts": hit_counts,
+        "empty_count": len(empty_indices),
+        "empty_indices": empty_indices[:20],
+    }
+    if empty_indices:
+        output["reason"] = empty_reason if len(empty_indices) == len(hit_counts) else "some_queries_empty"
+    return safe_value(output)

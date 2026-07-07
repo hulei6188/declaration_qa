@@ -48,6 +48,7 @@ def test_rerank_score_threshold_expands_beyond_fixed_top_k() -> None:
         "before": 12,
         "after": 12,
         "rejected": False,
+        "reason": "passed_threshold",
     }
 
 
@@ -67,6 +68,7 @@ def test_rerank_score_threshold_rejects_all_low_confidence_hits() -> None:
     assert result.status["channels"]["selected"] == 0
     assert result.status["score_cutoff"]["rejected"] is True
     assert result.status["score_cutoff"]["after"] == 0
+    assert result.status["score_cutoff"]["reason"] == "all_rerank_scores_below_threshold"
 
 
 def scored_policy_chunks(scores: list[float]) -> tuple[KnowledgeDocument, list[KnowledgeChunk]]:
