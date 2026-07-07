@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
+from declaration_qa.observability.langfuse import observation, safe_value
 from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore
 from declaration_qa.rag.engine.embeddings import embed_chunk_batch
 from declaration_qa.rag.engine.structured_context import (
@@ -160,8 +161,27 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         dense_by_index: dict[int, list[RetrievedSource]] = {}
         degraded_by_index: dict[int, list[dict[str, str]]] = {int(spec["index"]): [] for spec in query_specs}
         try:
-            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
+            query_texts = [str(spec["query"]) for spec in query_specs]
+            with observation(
+                "rag.embedding.batch",
+                input={"query_count": len(query_texts), "queries": query_texts},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                query_vectors = self.embedding_provider.embed_documents(query_texts)
+                span.update(
+                    output={
+                        "vector_count": len(query_vectors),
+                        "dimension": len(query_vectors[0]) if query_vectors else 0,
+                        "provider": self.embedding_provider.name,
+                    }
+                )
+            with observation(
+                "rag.vector_search.batch",
+                input={"query_count": len(query_specs), "limit": max(limits), "filter": search_filter},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
+                span.update(output={"hit_counts": [len(hits) for hits in batch_hits]})
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_by_index[int(spec["index"])] = self._sources_from_scored_ids(
                     vector_hits[:limit],
@@ -218,8 +238,27 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         bm25_scores_by_index: dict[int, list[tuple[str, float]]] = {int(spec["index"]): [] for spec in query_specs}
 
         try:
-            query_vectors = self.embedding_provider.embed_documents([str(spec["query"]) for spec in query_specs])
-            batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
+            query_texts = [str(spec["query"]) for spec in query_specs]
+            with observation(
+                "rag.embedding.batch",
+                input={"query_count": len(query_texts), "queries": query_texts, "mode": "rewrites"},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                query_vectors = self.embedding_provider.embed_documents(query_texts)
+                span.update(
+                    output={
+                        "vector_count": len(query_vectors),
+                        "dimension": len(query_vectors[0]) if query_vectors else 0,
+                        "provider": self.embedding_provider.name,
+                    }
+                )
+            with observation(
+                "rag.vector_search.batch",
+                input={"query_count": len(query_specs), "limit": max(limits), "filter": search_filter, "mode": "rewrites"},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
+                span.update(output={"hit_counts": [len(hits) for hits in batch_hits]})
             for spec, vector_hits, limit in zip(query_specs, batch_hits, limits):
                 dense_scores_by_index[int(spec["index"])] = [
                     (str(chunk_id), float(score))
@@ -232,7 +271,19 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         keyword_search_many = getattr(self.keyword_index, "search_many", None)
         if callable(keyword_search_many):
             try:
-                many_results = keyword_search_many(query_specs, search_filter, limits)
+                with observation(
+                    "rag.keyword_search.batch",
+                    input={
+                        "query_count": len(query_specs),
+                        "queries": [str(spec.get("query") or "") for spec in query_specs],
+                        "limits": limits,
+                        "filter": search_filter,
+                        "backend": self.keyword_index.backend,
+                    },
+                    metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+                ) as span:
+                    many_results = keyword_search_many(query_specs, search_filter, limits)
+                    span.update(output={"hit_counts": {str(index): len(scores) for index, scores in many_results.items()}})
                 bm25_scores_by_index.update({int(index): list(scores) for index, scores in many_results.items()})
             except Exception as exc:
                 degraded.append({"stage": "bm25_retrieve_batch", "error": type(exc).__name__})
@@ -307,7 +358,20 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         for spec, limit in zip(query_specs, limits):
             index = int(spec["index"])
             try:
-                results[index] = self.keyword_index.search(str(spec["query"]), effective_filter, limit=limit)
+                query = str(spec["query"])
+                with observation(
+                    "rag.keyword_search",
+                    input={
+                        "query": query,
+                        "limit": limit,
+                        "filter": effective_filter,
+                        "backend": self.keyword_index.backend,
+                        "mode": "fallback",
+                    },
+                    metadata=self._observability_metadata(),
+                ) as span:
+                    results[index] = self.keyword_index.search(query, effective_filter, limit=limit)
+                    span.update(output={"hit_count": len(results[index]), "hits": scored_id_summary(results[index])})
             except Exception as exc:
                 results[index] = []
                 degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
@@ -322,29 +386,48 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         channel: str,
     ) -> list[RetrievedSource]:
         """Run vector retrieval against the configured vector index."""
-        query_vector = self.embedding_provider.embed_query(query)
-        return self._sources_from_scored_ids(
-            self.vector_index.search(query_vector, filters, limit=limit),
-            score_kind="dense",
-            channel=channel,
-        )
+        with observation(
+            "rag.embedding.query",
+            input={"query": query},
+            metadata=self._observability_metadata(),
+        ) as span:
+            query_vector = self.embedding_provider.embed_query(query)
+            span.update(output={"dimension": len(query_vector), "provider": self.embedding_provider.name})
+        with observation(
+            "rag.vector_search",
+            input={"limit": limit, "filter": filters, "channel": channel},
+            metadata=self._observability_metadata(),
+        ) as span:
+            scored_ids = self.vector_index.search(query_vector, filters, limit=limit)
+            span.update(output={"hit_count": len(scored_ids), "hits": scored_id_summary(scored_ids)})
+        return self._sources_from_scored_ids(scored_ids, score_kind="dense", channel=channel)
 
     def _keyword_retrieve(self, query: str, filters: dict[str, Any], *, limit: int) -> list[RetrievedSource]:
         """Run keyword retrieval against the configured keyword index."""
-        return self._sources_from_scored_ids(
-            self.keyword_index.search(query, filters, limit=limit),
-            score_kind="bm25",
-            channel=f"{self.keyword_index.backend}_bm25",
-        )
+        with observation(
+            "rag.keyword_search",
+            input={"query": query, "limit": limit, "filter": filters, "backend": self.keyword_index.backend},
+            metadata=self._observability_metadata(),
+        ) as span:
+            scored_ids = self.keyword_index.search(query, filters, limit=limit)
+            span.update(output={"hit_count": len(scored_ids), "hits": scored_id_summary(scored_ids)})
+        return self._sources_from_scored_ids(scored_ids, score_kind="bm25", channel=f"{self.keyword_index.backend}_bm25")
 
     def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
         """Load chunks from the persistent chunk store."""
         unique_ids = unique_ordered_strings(chunk_ids)
         if not unique_ids:
             return []
-        chunks = self.chunk_store.get_chunks_by_ids(unique_ids) if self.chunk_store is not None else []
-        by_id = {chunk.id: chunk for chunk in chunks}
-        return [by_id[chunk_id] for chunk_id in unique_ids if chunk_id in by_id]
+        with observation(
+            "rag.chunk_hydrate",
+            input={"requested_count": len(unique_ids), "chunk_ids": unique_ids[:20]},
+            metadata=self._observability_metadata(),
+        ) as span:
+            chunks = self.chunk_store.get_chunks_by_ids(unique_ids) if self.chunk_store is not None else []
+            by_id = {chunk.id: chunk for chunk in chunks}
+            ordered_chunks = [by_id[chunk_id] for chunk_id in unique_ids if chunk_id in by_id]
+            span.update(output={"loaded_count": len(ordered_chunks), "missing_count": len(unique_ids) - len(ordered_chunks)})
+            return ordered_chunks
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
         """Expand child hits with parent chunks from storage."""
@@ -355,7 +438,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             for source in sources
             if source.chunk.chunk_type == "child" and source.chunk.parent_id
         ]
-        parents = {chunk.id: chunk for chunk in self.chunk_store.get_parent_chunks(unique_ordered_strings(parent_ids))}
+        unique_parent_ids = unique_ordered_strings(parent_ids)
+        with observation(
+            "rag.parent_context.load_parents",
+            input={"parent_count": len(unique_parent_ids), "parent_ids": unique_parent_ids[:20]},
+            metadata=self._observability_metadata(),
+        ) as span:
+            parent_chunks = self.chunk_store.get_parent_chunks(unique_parent_ids)
+            span.update(output={"loaded_count": len(parent_chunks)})
+        parents = {chunk.id: chunk for chunk in parent_chunks}
         return expand_parent_context(sources, parents)
 
     def _expand_structured_section_context(
@@ -378,10 +469,21 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 for source in sources
                 if structured_source_matches(source, target_chunk_type)
             ]
-            sibling_chunks = self.chunk_store.get_structured_section_chunks(
-                unique_ordered_strings(parent_section_ids),
-                target_chunk_type,
-            )
+            unique_parent_section_ids = unique_ordered_strings(parent_section_ids)
+            with observation(
+                "rag.structured_backfill.load_siblings",
+                input={
+                    "target_chunk_type": target_chunk_type,
+                    "parent_section_count": len(unique_parent_section_ids),
+                    "parent_section_ids": unique_parent_section_ids[:20],
+                },
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                sibling_chunks = self.chunk_store.get_structured_section_chunks(
+                    unique_parent_section_ids,
+                    target_chunk_type,
+                )
+                span.update(output={"sibling_count": len(sibling_chunks)})
             sibling_lookup.update({chunk.id: chunk for chunk in sibling_chunks})
         return expand_structured_section_context(
             query,
@@ -389,3 +491,13 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             sibling_lookup,
             retrieval_plan=retrieval_plan,
         )
+
+
+def scored_id_summary(scored_ids: list[tuple[str, float]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return compact scored id details for retrieval observations."""
+    return safe_value(
+        [
+            {"chunk_id": str(chunk_id), "score": round(float(score or 0.0), 4)}
+            for chunk_id, score in (scored_ids or [])[:limit]
+        ]
+    )

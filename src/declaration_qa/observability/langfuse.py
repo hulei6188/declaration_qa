@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from contextlib import ExitStack, contextmanager
+from functools import lru_cache
 from typing import Any
 
 from declaration_qa.core.config import DeclarationQASettings
@@ -43,15 +44,38 @@ class NoopObservation:
 
 def langfuse_ready(settings: DeclarationQASettings | None = None) -> bool:
     """Return whether Langfuse tracing should be attempted."""
+    settings = ensure_langfuse_env(settings)
     if settings is not None:
-        if not bool(settings.langfuse_enabled):
-            return False
-    elif os.getenv("DECLARATION_QA_LANGFUSE_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return bool(settings.langfuse_enabled and settings.langfuse_public_key and settings.langfuse_secret_key)
+    if os.getenv("DECLARATION_QA_LANGFUSE_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
         return False
     return bool(
         os.getenv("LANGFUSE_PUBLIC_KEY")
         and os.getenv("LANGFUSE_SECRET_KEY")
     )
+
+
+@lru_cache
+def default_settings() -> DeclarationQASettings | None:
+    """Load project settings from environment and .env for observability helpers."""
+    try:
+        return DeclarationQASettings()
+    except Exception:
+        return None
+
+
+def ensure_langfuse_env(settings: DeclarationQASettings | None = None) -> DeclarationQASettings | None:
+    """Expose .env Langfuse settings to the Langfuse SDK."""
+    settings = settings or default_settings()
+    if settings is None:
+        return None
+    if settings.langfuse_public_key:
+        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", settings.langfuse_public_key)
+    if settings.langfuse_secret_key:
+        os.environ.setdefault("LANGFUSE_SECRET_KEY", settings.langfuse_secret_key)
+    if settings.langfuse_base_url:
+        os.environ.setdefault("LANGFUSE_BASE_URL", settings.langfuse_base_url)
+    return settings
 
 
 def create_trace_id(seed: str, settings: DeclarationQASettings | None = None) -> str:
@@ -228,6 +252,29 @@ def source_summary(sources: list[dict[str, Any]], *, limit: int = 8) -> list[dic
                 "rerank_score": source.get("rerank_score") or 0,
                 "channel": source.get("retrieval_channel") or "",
                 "item_name": (source.get("metadata") or {}).get("item_name") or source.get("item_name") or "",
+            }
+        )
+    return output
+
+
+def retrieved_source_summary(sources: list[Any], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return a compact summary for RetrievedSource-like objects."""
+    output = []
+    for source in (sources or [])[:limit]:
+        chunk = getattr(source, "chunk", None)
+        metadata = getattr(chunk, "metadata", {}) or {}
+        output.append(
+            {
+                "chunk_id": getattr(chunk, "id", "") or "",
+                "doc_id": getattr(chunk, "doc_id", "") or "",
+                "title": getattr(chunk, "title", "") or "",
+                "score": round(float(getattr(source, "score", 0.0) or 0.0), 4),
+                "dense_score": round(float(getattr(source, "dense_score", 0.0) or 0.0), 4),
+                "bm25_score": round(float(getattr(source, "bm25_score", 0.0) or 0.0), 4),
+                "rerank_score": round(float(getattr(source, "rerank_score", 0.0) or 0.0), 4),
+                "channel": getattr(source, "retrieval_channel", "") or "",
+                "item_name": metadata.get("item_name") or "",
+                "chunk_type": getattr(chunk, "chunk_type", "") or "",
             }
         )
     return output

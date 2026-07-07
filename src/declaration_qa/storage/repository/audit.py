@@ -48,6 +48,7 @@ class AuditRepository(EngineBackedRepository):
                     "evidence_ok": payload.get("evidence_ok"),
                     "evidence_decision": payload.get("evidence_decision") or {},
                     "rag_status": payload.get("rag_status") or {},
+                    "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
                 },
             )
             stmt = text(
@@ -57,14 +58,16 @@ class AuditRepository(EngineBackedRepository):
                     retrieval_chain, region_code, biz_type, apply_id, business_snapshot,
                     business_status, reject_info,
                     material_mapping, retrieval_filter, retrieved_sources, rag_status,
-                    evidence_ok, evidence_decision, refused, refuse_reason, final_prompt, answer, events
+                    evidence_ok, evidence_decision, refused, refuse_reason, final_prompt, answer,
+                    events, langfuse_trace_id
                 )
                 VALUES (
                     :audit_uid, :session_id, :user_id, :query, :normalized_query, :intent,
                     :retrieval_chain, :region_code, :biz_type, :apply_id, :business_snapshot,
                     :business_status, :reject_info,
                     :material_mapping, :retrieval_filter, :retrieved_sources, :rag_status,
-                    :evidence_ok, :evidence_decision, :refused, :refuse_reason, :final_prompt, :answer, :events
+                    :evidence_ok, :evidence_decision, :refused, :refuse_reason, :final_prompt, :answer,
+                    :events, :langfuse_trace_id
                 )
                 ON CONFLICT (audit_uid) DO UPDATE SET answer = EXCLUDED.answer
                 RETURNING audit_uid
@@ -107,6 +110,7 @@ class AuditRepository(EngineBackedRepository):
                     "final_prompt": str(payload.get("final_prompt") or ""),
                     "answer": str(payload.get("answer") or ""),
                     "events": payload.get("events") or [],
+                    "langfuse_trace_id": str(payload.get("langfuse_trace_id") or ""),
                 },
             )
         return audit_uid

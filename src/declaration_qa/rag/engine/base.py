@@ -7,6 +7,7 @@ import json
 from typing import Any, Protocol
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
+from declaration_qa.observability.langfuse import observation, retrieved_source_summary, safe_value
 from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.constants import EMBEDDING_DIMS
 from declaration_qa.rag.engine.scoring import rrf_fuse
@@ -173,7 +174,13 @@ class BaseRAGEngine:
         effective_filter = normalize_retrieval_filter(filters)
         policy = normalize_retrieval_plan(retrieval_plan)
         cache_key = self._cache_key(normalized_query, effective_filter, top_k, policy)
-        cached_payload = self.cache_store.get_json(cache_key)
+        with observation(
+            "rag.cache.lookup",
+            input={"query": normalized_query, "filter": effective_filter, "top_k": top_k, "mode": "single"},
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            cached_payload = self.cache_store.get_json(cache_key)
+            span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
         result = self._retrieve_uncached(normalized_query, effective_filter, top_k=top_k, retrieval_plan=policy)
@@ -199,7 +206,13 @@ class BaseRAGEngine:
                 results[index] = self._empty_result("", effective_filter, top_k=top_k)
                 continue
             cache_key = self._cache_key(text, effective_filter, top_k, policy)
-            cached_payload = self.cache_store.get_json(cache_key)
+            with observation(
+                "rag.cache.lookup",
+                input={"query": text, "filter": effective_filter, "top_k": top_k, "mode": "many", "index": index},
+                metadata=self._observability_metadata(retrieval_plan=policy),
+            ) as span:
+                cached_payload = self.cache_store.get_json(cache_key)
+                span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
             if cached_payload:
                 results[index] = self._result_from_cache(cached_payload, effective_filter)
             else:
@@ -239,7 +252,19 @@ class BaseRAGEngine:
         if not query_specs:
             return self._empty_rewrite_result(normalized_query, [], effective_filter, top_k=top_k)
         cache_key = self._rewrite_cache_key(normalized_query, query_specs, effective_filter, top_k, policy)
-        cached_payload = self.cache_store.get_json(cache_key)
+        with observation(
+            "rag.cache.lookup",
+            input={
+                "query": normalized_query,
+                "filter": effective_filter,
+                "top_k": top_k,
+                "mode": "rewrites",
+                "query_count": len(query_specs),
+            },
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            cached_payload = self.cache_store.get_json(cache_key)
+            span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
         result = self._retrieve_rewrites_uncached(
@@ -318,21 +343,80 @@ class BaseRAGEngine:
     ) -> RetrievalResult:
         """Build a standard retrieval result from channel hits."""
         degraded = list(degraded or [])
-        fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
+        with observation(
+            "rag.rrf_merge",
+            input={"dense_count": len(dense_hits), "bm25_count": len(bm25_hits), "rrf_k": 60},
+            metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+        ) as span:
+            fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
+            span.update(output={"fused_count": len(fused_hits), "sources": retrieved_source_summary(fused_hits)})
         rerank_top_n = self._rerank_top_n(top_k)
-        try:
-            reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
-        except Exception as exc:
-            reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
-            degraded.append({"stage": "rerank", "error": type(exc).__name__})
-        selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
-        expanded_sources = self._expand_parent_context(selected_sources)
         policy = normalize_retrieval_plan(retrieval_plan)
-        expanded_sources, structured_backfill_status = self._expand_structured_section_context(
-            normalized_query,
-            expanded_sources,
-            retrieval_plan=policy,
-        )
+        with observation(
+            "rag.rerank",
+            input={
+                "query": normalized_query,
+                "candidate_count": len(fused_hits),
+                "top_n": rerank_top_n,
+                "provider": self.reranker.name,
+            },
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            try:
+                reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
+                span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
+            except Exception as exc:
+                reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
+                degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                span.update(
+                    output={
+                        "reranked_count": len(reranked),
+                        "fallback_provider": "heuristic",
+                        "error": type(exc).__name__,
+                        "sources": retrieved_source_summary(reranked),
+                    }
+                )
+        with observation(
+            "rag.score_cutoff",
+            input={
+                "reranked_count": len(reranked),
+                "requested_top_k": top_k,
+                "threshold": self.rerank_score_threshold,
+                "max_sources": self.rerank_max_sources,
+            },
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            span.update(
+                output={
+                    **score_cutoff_status,
+                    "sources": retrieved_source_summary(selected_sources),
+                }
+            )
+        with observation(
+            "rag.parent_context",
+            input={"source_count": len(selected_sources)},
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            expanded_sources = self._expand_parent_context(selected_sources)
+            span.update(output={"before": len(selected_sources), "after": len(expanded_sources)})
+        with observation(
+            "rag.structured_backfill",
+            input={"query": normalized_query, "source_count": len(expanded_sources), "retrieval_plan": policy},
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            expanded_sources, structured_backfill_status = self._expand_structured_section_context(
+                normalized_query,
+                expanded_sources,
+                retrieval_plan=policy,
+            )
+            span.update(
+                output={
+                    **structured_backfill_status,
+                    "source_count": len(expanded_sources),
+                    "sources": retrieved_source_summary(expanded_sources),
+                }
+            )
         return RetrievalResult(
             sources=expanded_sources,
             filter=effective_filter,
@@ -392,23 +476,90 @@ class BaseRAGEngine:
                 candidate_source=candidate_source,
                 prefilter_child_count=prefilter_child_count,
             )
-        fused_hits = rrf_fuse(hit_lists, rrf_k=60)
+        with observation(
+            "rag.rrf_merge",
+            input={
+                "hit_list_count": len(hit_lists),
+                "hit_counts": [len(hit_list) for hit_list in hit_lists],
+                "rrf_k": 60,
+                "mode": "rewrites",
+            },
+            metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+        ) as span:
+            fused_hits = rrf_fuse(hit_lists, rrf_k=60)
+            span.update(output={"fused_count": len(fused_hits), "sources": retrieved_source_summary(fused_hits)})
         rerank_candidate_limit = min(len(fused_hits), max(top_k * 10, 40), 100)
         rerank_candidates = fused_hits[:rerank_candidate_limit]
         rerank_top_n = self._rerank_top_n(top_k)
-        try:
-            reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
-        except Exception as exc:
-            reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
-            degraded.append({"stage": "rerank", "error": type(exc).__name__})
-        selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
-        expanded_sources = self._expand_parent_context(selected_sources)
         policy = normalize_retrieval_plan(retrieval_plan)
-        expanded_sources, structured_backfill_status = self._expand_structured_section_context(
-            original_query,
-            expanded_sources,
-            retrieval_plan=policy,
-        )
+        with observation(
+            "rag.rerank",
+            input={
+                "query": original_query,
+                "candidate_count": len(rerank_candidates),
+                "candidate_limit": rerank_candidate_limit,
+                "top_n": rerank_top_n,
+                "provider": self.reranker.name,
+                "mode": "rewrites",
+            },
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            try:
+                reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
+                span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
+            except Exception as exc:
+                reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
+                degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                span.update(
+                    output={
+                        "reranked_count": len(reranked),
+                        "fallback_provider": "heuristic",
+                        "error": type(exc).__name__,
+                        "sources": retrieved_source_summary(reranked),
+                    }
+                )
+        with observation(
+            "rag.score_cutoff",
+            input={
+                "reranked_count": len(reranked),
+                "requested_top_k": top_k,
+                "threshold": self.rerank_score_threshold,
+                "max_sources": self.rerank_max_sources,
+                "mode": "rewrites",
+            },
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            span.update(
+                output={
+                    **score_cutoff_status,
+                    "sources": retrieved_source_summary(selected_sources),
+                }
+            )
+        with observation(
+            "rag.parent_context",
+            input={"source_count": len(selected_sources), "mode": "rewrites"},
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            expanded_sources = self._expand_parent_context(selected_sources)
+            span.update(output={"before": len(selected_sources), "after": len(expanded_sources)})
+        with observation(
+            "rag.structured_backfill",
+            input={"query": original_query, "source_count": len(expanded_sources), "retrieval_plan": policy, "mode": "rewrites"},
+            metadata=self._observability_metadata(retrieval_plan=policy),
+        ) as span:
+            expanded_sources, structured_backfill_status = self._expand_structured_section_context(
+                original_query,
+                expanded_sources,
+                retrieval_plan=policy,
+            )
+            span.update(
+                output={
+                    **structured_backfill_status,
+                    "source_count": len(expanded_sources),
+                    "sources": retrieved_source_summary(expanded_sources),
+                }
+            )
         unique_hit_ids = {
             source.chunk.id
             for hit_list in hit_lists
@@ -642,20 +793,26 @@ class BaseRAGEngine:
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
         """Hydrate a cached retrieval result."""
         cached_items = list(cached_payload.get("sources") or [])
-        chunks = self._load_chunks_by_ids([str(item.get("chunk_id") or "") for item in cached_items])
-        by_id = {chunk.id: chunk for chunk in chunks}
-        cached_sources = [
-            RetrievedSource(
-                chunk=by_id[item["chunk_id"]],
-                score=float(item.get("score") or 0.0),
-                dense_score=float(item.get("dense_score") or 0.0),
-                bm25_score=float(item.get("bm25_score") or 0.0),
-                rerank_score=float(item.get("rerank_score") or 0.0),
-                retrieval_channel=str(item.get("retrieval_channel") or "cache"),
-            )
-            for item in cached_items
-            if item.get("chunk_id") in by_id
-        ]
+        with observation(
+            "rag.cache.hydrate",
+            input={"cached_source_count": len(cached_items)},
+            metadata=self._observability_metadata(),
+        ) as span:
+            chunks = self._load_chunks_by_ids([str(item.get("chunk_id") or "") for item in cached_items])
+            by_id = {chunk.id: chunk for chunk in chunks}
+            cached_sources = [
+                RetrievedSource(
+                    chunk=by_id[item["chunk_id"]],
+                    score=float(item.get("score") or 0.0),
+                    dense_score=float(item.get("dense_score") or 0.0),
+                    bm25_score=float(item.get("bm25_score") or 0.0),
+                    rerank_score=float(item.get("rerank_score") or 0.0),
+                    retrieval_channel=str(item.get("retrieval_channel") or "cache"),
+                )
+                for item in cached_items
+                if item.get("chunk_id") in by_id
+            ]
+            span.update(output={"source_count": len(cached_sources), "sources": retrieved_source_summary(cached_sources)})
         status = cached_payload.get("status") or {}
         return RetrievalResult(
             sources=cached_sources,
@@ -744,15 +901,21 @@ class BaseRAGEngine:
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
         """Write a retrieval result to cache."""
-        self.cache_store.set_json(
-            cache_key,
-            {
-                "sources": [source.payload() for source in result.sources],
-                "filter": result.filter,
-                "status": result.status,
-            },
-            ttl_seconds=self.cache_ttl_seconds,
-        )
+        with observation(
+            "rag.cache.write",
+            input={"source_count": len(result.sources), "ttl_seconds": self.cache_ttl_seconds},
+            metadata=self._observability_metadata(retrieval_plan=result.status.get("retrieval_plan") or {}),
+        ) as span:
+            self.cache_store.set_json(
+                cache_key,
+                {
+                    "sources": [source.payload() for source in result.sources],
+                    "filter": result.filter,
+                    "status": result.status,
+                },
+                ttl_seconds=self.cache_ttl_seconds,
+            )
+            span.update(output={"backend": self.cache_store.backend, "written": True})
 
     def _empty_score_cutoff_status(self, top_k: int) -> dict[str, Any]:
         """Return score cutoff status for empty retrieval results."""
@@ -765,3 +928,19 @@ class BaseRAGEngine:
             "after": 0,
             "rejected": False,
         }
+
+    def _observability_metadata(self, *, retrieval_plan: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Build compact metadata for RAG engine observations."""
+        return safe_value(
+            {
+                "rag_engine": self.__class__.__name__,
+                "cache_backend": self.cache_store.backend,
+                "vector_backend": self.vector_index.backend,
+                "keyword_backend": self.keyword_index.backend if self.keyword_index else "",
+                "embedding_provider": self.embedding_provider.name,
+                "rerank_provider": self.reranker.name,
+                "rerank_score_threshold": self.rerank_score_threshold,
+                "rerank_max_sources": self.rerank_max_sources,
+                "retrieval_plan": normalize_retrieval_plan(retrieval_plan),
+            }
+        )

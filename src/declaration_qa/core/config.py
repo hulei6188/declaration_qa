@@ -52,6 +52,9 @@ class DeclarationQASettings(BaseSettings):
     max_sub_question_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_SUB_QUESTION_WORKERS")
     max_retrieval_workers: int = Field(default=4, alias="DECLARATION_QA_MAX_RETRIEVAL_WORKERS")
     langfuse_enabled: bool = Field(default=False, alias="DECLARATION_QA_LANGFUSE_ENABLED")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    langfuse_base_url: str = Field(default="http://localhost:3000", alias="LANGFUSE_BASE_URL")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")

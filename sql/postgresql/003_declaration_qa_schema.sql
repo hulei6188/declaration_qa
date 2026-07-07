@@ -328,6 +328,7 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     final_prompt TEXT NOT NULL DEFAULT '',
     answer TEXT NOT NULL DEFAULT '',
     events JSONB NOT NULL DEFAULT '[]'::jsonb,
+    langfuse_trace_id VARCHAR(80) NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE declaration_qa.audit_logs
@@ -336,6 +337,8 @@ ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS evidence_decision JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS langfuse_trace_id VARCHAR(80) NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_user
     ON declaration_qa.audit_logs (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_intent
@@ -348,6 +351,8 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_filter_gin
     ON declaration_qa.audit_logs USING GIN (retrieval_filter);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_business_snapshot_gin
     ON declaration_qa.audit_logs USING GIN (business_snapshot);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_langfuse_trace
+    ON declaration_qa.audit_logs (langfuse_trace_id);
 
 CREATE TABLE IF NOT EXISTS declaration_qa.feedback (
     id BIGSERIAL PRIMARY KEY,
@@ -606,6 +611,7 @@ COMMENT ON COLUMN declaration_qa.audit_logs.refuse_reason IS '拒答原因编码
 COMMENT ON COLUMN declaration_qa.audit_logs.final_prompt IS '最终生成提示词';
 COMMENT ON COLUMN declaration_qa.audit_logs.answer IS '最终回答文本';
 COMMENT ON COLUMN declaration_qa.audit_logs.events IS '工作流事件流水';
+COMMENT ON COLUMN declaration_qa.audit_logs.langfuse_trace_id IS 'Langfuse trace id，用于用户反馈反写 score';
 COMMENT ON COLUMN declaration_qa.audit_logs.created_at IS '创建时间';
 
 COMMENT ON TABLE declaration_qa.feedback IS '用户反馈表';
