@@ -13,21 +13,19 @@ from declaration_qa.rag.query_rewriter.helpers import (
     selected_ticket_scope_text,
 )
 from declaration_qa.rag.query_rewriter.schema import DEFAULT_RETRIEVAL_TOP_K, MAX_RETRIEVAL_QUERY_COUNT, QueryRewrite, RetrievalQuery
-from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
 
-EVIDENCE_TYPE_FOCUS = {
-    "basic_info": "knowledge_qa",
-    "eligibility": "eligibility",
-    "material_item": "material_requirements",
-    "process_step": "process_steps",
-    "fee_time_limit": "fee_time_limit",
-    "office_location": "office_location",
-    "contact": "contact",
-    "policy_basis": "policy_basis",
-    "form_template": "form_template",
-    "online_apply": "online_apply",
-}
+QUERY_TERM_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("material_requirements", ("材料", "要带", "提交什么", "需要什么", "清单", "补什么", "上传什么")),
+    ("process_steps", ("流程", "步骤", "怎么办", "如何办理", "怎么申请", "办理环节")),
+    ("eligibility", ("条件", "资格", "能不能办", "是否可以")),
+    ("fee_time_limit", ("费用", "收费", "多少钱", "时限", "多久", "几天", "多少天", "拿结果", "办结")),
+    ("office_location", ("地点", "窗口", "地址", "哪里办")),
+    ("contact", ("电话", "咨询", "投诉", "联系方式")),
+    ("online_apply", ("网上办", "入口", "链接", "在线")),
+    ("policy_basis", ("依据", "政策", "法规", "文件")),
+    ("form_template", ("表格", "模板", "样表", "申请表")),
+)
 
 
 class RuleQueryRewriter:
@@ -38,21 +36,18 @@ class RuleQueryRewriter:
     def rewrite(self, state: dict[str, Any]) -> QueryRewrite:
         """Generate retrieval queries from task semantics and item scope."""
         base_query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
-        retrieval_focus = str(state.get("retrieval_focus") or state.get("intent") or "other")
         ticket_fact_type = str(state.get("ticket_fact_type") or "none")
         requires_ticket_context = bool(state.get("requires_ticket_context"))
         scope_text = "" if has_item_scope_filter(state.get("retrieval_filter") or {}) else selected_ticket_scope_text(state)
         fact_text = selected_ticket_fact_text(state) if requires_ticket_context else ""
-        retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
         candidates = [("scoped_original", join_query_parts(scope_text, fact_text, base_query))]
-        focus_keys = []
-        for evidence_type in retrieval_plan.get("evidence_types") or []:
-            focus_key = EVIDENCE_TYPE_FOCUS.get(str(evidence_type))
-            if focus_key and focus_key not in focus_keys:
-                focus_keys.append(focus_key)
+        term_keys = []
+        for key, keywords in QUERY_TERM_KEYWORDS:
+            if key not in term_keys and any(keyword in base_query for keyword in keywords):
+                term_keys.append(key)
         term_index = 1
-        for focus_key in focus_keys:
-            for terms in INTENT_REWRITE_TERMS.get(focus_key, INTENT_REWRITE_TERMS["other"]):
+        for term_key in term_keys:
+            for terms in INTENT_REWRITE_TERMS.get(term_key, INTENT_REWRITE_TERMS["other"]):
                 candidates.append((f"plan_terms_{term_index}", join_query_parts(scope_text, fact_text, terms, base_query)))
                 term_index += 1
         queries: list[RetrievalQuery] = []
@@ -78,9 +73,7 @@ class RuleQueryRewriter:
             fact_text=fact_text,
             requires_ticket_context=requires_ticket_context,
             ticket_fact_type=ticket_fact_type,
-            retrieval_focus=retrieval_focus,
             queries=queries,
-            retrieval_plan=retrieval_plan,
             provider=self.name,
             reason="rule_rewrite",
         )

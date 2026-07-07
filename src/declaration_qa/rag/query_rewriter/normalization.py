@@ -13,13 +13,11 @@ from declaration_qa.rag.query_rewriter.helpers import (
     selected_ticket_scope_text,
 )
 from declaration_qa.rag.query_rewriter.schema import DEFAULT_RETRIEVAL_TOP_K, MAX_RETRIEVAL_QUERY_COUNT, QueryRewrite, RetrievalQuery
-from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
 
 def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QueryRewrite:
     """Normalize LLM query rewrite payload."""
     base_query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
-    retrieval_focus = str(state.get("retrieval_focus") or state.get("intent") or "other")
     ticket_fact_type = str(state.get("ticket_fact_type") or "none")
     requires_ticket_context = bool(state.get("requires_ticket_context"))
     filters = state.get("retrieval_filter") or {}
@@ -46,9 +44,7 @@ def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, p
         fact_text=fact_text,
         requires_ticket_context=requires_ticket_context,
         ticket_fact_type=ticket_fact_type,
-        retrieval_focus=retrieval_focus,
         queries=queries,
-        retrieval_plan=normalize_retrieval_plan(state.get("retrieval_plan") or {}),
         provider=provider,
         reason=str(payload.get("reason") or "").strip()[:160],
     )

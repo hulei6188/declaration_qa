@@ -191,7 +191,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "question_resolution": {},
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
-            "retrieval_focus": "knowledge_qa",
             "retrieval_plan": {},
             "multi_question": False,
             "sub_tasks": [],

@@ -24,7 +24,7 @@ def is_unsafe_query(query: str) -> bool:
     return any(keyword in str(query or "") for keyword in ["伪造", "造假", "假材料", "绕过审核"])
 
 
-def task_intent(retrieval_focus: str, ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
+def task_intent(ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
     """从 QuestionResolver 任务字段派生 intent 展示值。"""
     if requires_ticket_context:
         if ticket_fact_type == "status":
@@ -33,9 +33,7 @@ def task_intent(retrieval_focus: str, ticket_fact_type: str, requires_ticket_con
             return INTENT_REJECTION_REASON
         if ticket_fact_type == "correction":
             return INTENT_CORRECTION_GUIDANCE
-    if retrieval_focus == "other":
-        return classify_intent(query) if query else "knowledge_qa"
-    return str(retrieval_focus or "knowledge_qa")
+    return classify_intent(query) if query else "knowledge_qa"
 
 
 def classify_intent(query: str) -> str:

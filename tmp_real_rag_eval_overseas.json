@@ -18,7 +18,6 @@
           "retrieval_query": "办理华侨回国定居审批需要准备哪些材料",
           "requires_ticket_context": false,
           "ticket_fact_type": "none",
-          "retrieval_focus": "material_requirements",
           "is_expanded": false,
           "expansion_reason": ""
         },
@@ -29,7 +28,6 @@
           "retrieval_query": "办理华侨回国定居审批 哪些是非必要材料",
           "requires_ticket_context": false,
           "ticket_fact_type": "none",
-          "retrieval_focus": "material_requirements",
           "is_expanded": false,
           "expansion_reason": ""
         }

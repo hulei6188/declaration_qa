@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from declaration_qa.application.workflow_helpers.intent import classify_intent, infer_biz_type
+from declaration_qa.application.workflow_helpers.intent import infer_biz_type
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
@@ -20,6 +20,5 @@ def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> N
     state["retrieval_query"] = retrieval_query
     state["requires_ticket_context"] = bool(question.get("requires_ticket_context"))
     state["ticket_fact_type"] = question.get("ticket_fact_type") or "none"
-    state["retrieval_focus"] = question.get("retrieval_focus") or classify_intent(planned_query)
     state["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
     state["biz_type"] = state.get("biz_type") or infer_biz_type(retrieval_query) or infer_biz_type(planned_query)

@@ -8,7 +8,6 @@ from declaration_qa.rag.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_su
 from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
 from declaration_qa.rag.query_rewriter.prompts import build_query_rewriter_prompt
 from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
-from declaration_qa.rag.question_resolver.helpers import normalize_retrieval_focus
 from declaration_qa.rag.question_resolver.llm import LLMQuestionResolver
 from declaration_qa.rag.question_resolver.prompts import QUESTION_RESOLVER_PROMPT
 from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
@@ -196,9 +195,7 @@ def test_query_rewriter_scopes_unrelated_query_without_ticket_facts():
             "normalized_query": "这个事情最快几天能拿结果",
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
-            "retrieval_focus": "fee_time_limit",
             "retrieval_plan": {
-                "evidence_types": ["fee_time_limit"],
                 "need_complete_sections": [],
                 "metadata_needs": ["item_scope"],
                 "ticket_fact_type": "none",
@@ -228,7 +225,6 @@ def test_query_rewriter_allows_ticket_facts_for_rejection_query():
             "normalized_query": "为什么被退回了",
             "requires_ticket_context": True,
             "ticket_fact_type": "rejection",
-            "retrieval_focus": "knowledge_qa",
             "apply_context": {
                 "biz_type": "grassland_fire_blasting_approval",
                 "payload": {
@@ -246,23 +242,19 @@ def test_query_rewriter_allows_ticket_facts_for_rejection_query():
     assert all("申请表缺少防火措施说明" in item.text for item in rewrite.queries)
 
 
-def test_unknown_retrieval_focus_falls_back_to_other_without_extra_terms():
-    assert normalize_retrieval_focus("random_model_tag", "这是什么意思") == "other"
-
+def test_query_rewriter_without_complete_sections_uses_scoped_original_only():
     rewrite = RuleQueryRewriter().rewrite(
         {
             "query": "这是什么意思",
             "normalized_query": "这是什么意思",
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
-            "retrieval_focus": "other",
             "apply_context": {
                 "payload": {"official_item_name": "示例事项A"},
             },
         }
     )
 
-    assert rewrite.retrieval_focus == "other"
     assert len(rewrite.queries) == 1
     assert rewrite.queries[0].strategy == "scoped_original"
     assert rewrite.queries[0].text == "示例事项A 这是什么意思"
@@ -277,10 +269,8 @@ def test_question_resolver_infers_broad_handling_retrieval_plan():
     )
     retrieval_plan = resolution.questions[0]["retrieval_plan"]
 
-    assert "eligibility" in retrieval_plan["evidence_types"]
-    assert "material_item" in retrieval_plan["evidence_types"]
-    assert "process_step" in retrieval_plan["evidence_types"]
     assert "申请材料" in retrieval_plan["need_complete_sections"]
+    assert "办理流程" in retrieval_plan["need_complete_sections"]
 
 
 def test_llm_query_rewriter_uses_model_queries():
@@ -302,7 +292,6 @@ def test_llm_query_rewriter_uses_model_queries():
         {
             "query": "要哪些材料",
             "normalized_query": "要哪些材料",
-            "retrieval_focus": "material_requirements",
             "requires_ticket_context": False,
             "apply_context": {"payload": {"official_item_name": "示例事项A"}},
         }
@@ -324,7 +313,6 @@ def test_llm_query_rewriter_falls_back_to_rule_on_invalid_json():
         {
             "query": "要哪些材料",
             "normalized_query": "要哪些材料",
-            "retrieval_focus": "material_requirements",
             "requires_ticket_context": False,
             "apply_context": {"payload": {"official_item_name": "示例事项A"}},
         }
@@ -340,7 +328,6 @@ def test_query_rewriter_prompt_hides_scope_when_item_metadata_filter_exists():
         {
             "query": "这个事情最快几天能拿结果",
             "normalized_query": "这个事情最快几天能拿结果",
-            "retrieval_focus": "fee_time_limit",
             "requires_ticket_context": False,
             "retrieval_filter": {"item_code": "ITEM001"},
             "apply_context": {"payload": {"official_item_name": "示例事项A"}},
@@ -349,6 +336,8 @@ def test_query_rewriter_prompt_hides_scope_when_item_metadata_filter_exists():
 
     assert '"metadata_filter_has_item_scope": true' in prompt
     assert '"scope_text": ""' in prompt
+    assert "retrieval_plan" not in prompt
+    assert "need_complete_sections" not in prompt
     assert "示例事项A" not in prompt
 
 
@@ -416,12 +405,13 @@ def test_question_resolver_prompt_limits_over_splitting_and_markdown():
     assert "同一个业务问题中的限定条件" in QUESTION_RESOLVER_PROMPT
     assert "requires_ticket_context" in QUESTION_RESOLVER_PROMPT
     assert "ticket_fact_type" in QUESTION_RESOLVER_PROMPT
-    assert "retrieval_focus" in QUESTION_RESOLVER_PROMPT
+    assert "retrieval_plan" in QUESTION_RESOLVER_PROMPT
+    assert "need_complete_sections" in QUESTION_RESOLVER_PROMPT
+    assert ("retrieval" "_focus") not in QUESTION_RESOLVER_PROMPT
+    assert ("evidence" "_types") not in QUESTION_RESOLVER_PROMPT
     assert "retrieval_query" in QUESTION_RESOLVER_PROMPT
     assert "query 字段不负责对内容进行语义补全或改写" in QUESTION_RESOLVER_PROMPT
     assert "retrieval_query 才允许为了检索而补上下文" in QUESTION_RESOLVER_PROMPT
-    assert '"other"' in QUESTION_RESOLVER_PROMPT
-    assert '必须使用 "other"' in QUESTION_RESOLVER_PROMPT
     assert "不负责对内容进行语义补全或改写" in QUESTION_RESOLVER_PROMPT
     assert "直接提取用户原始片段赋予 query 字段" in QUESTION_RESOLVER_PROMPT
     assert "补全原则" not in QUESTION_RESOLVER_PROMPT
@@ -446,7 +436,7 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
                   "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
                   "requires_ticket_context": false,
                   "ticket_fact_type": "none",
-                  "retrieval_focus": "process_steps",
+                  "retrieval_plan": {"need_complete_sections": ["办理流程"]},
                   "is_expanded": true,
                   "expansion_reason": "keyword_query_to_process_question",
                   "intent": "process_and_time",
@@ -462,7 +452,7 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
     assert plan.is_multi_question is False
     assert plan.questions[0]["original_query"] == "防火办事流程"
     assert plan.questions[0]["query"] == "防火办事流程"
-    assert plan.questions[0]["retrieval_focus"] == "process_steps"
+    assert plan.questions[0]["retrieval_plan"]["need_complete_sections"] == ["办理流程"]
     assert plan.questions[0]["is_expanded"] is False
     assert plan.questions[0]["expansion_reason"] == ""
     assert "intent" not in plan.questions[0]
@@ -482,16 +472,14 @@ def test_llm_question_resolver_allows_retrieval_query_context_without_changing_q
                   "query": "华侨回国定居审批多久能办完",
                   "retrieval_query": "华侨回国定居审批多久能办完",
                   "requires_ticket_context": false,
-                  "ticket_fact_type": "none",
-                  "retrieval_focus": "fee_time_limit"
+                  "ticket_fact_type": "none"
                 },
                 {
                   "original_query": "收费吗",
                   "query": "收费吗",
                   "retrieval_query": "华侨回国定居审批 收费吗",
                   "requires_ticket_context": false,
-                  "ticket_fact_type": "none",
-                  "retrieval_focus": "fee_time_limit"
+                  "ticket_fact_type": "none"
                 }
               ],
               "reason": "short_followup_inherits_context_for_retrieval"
@@ -666,16 +654,14 @@ def test_multi_question_uses_resolver_retrieval_query_for_short_followup():
                   "query": "华侨回国定居审批多久能办完",
                   "retrieval_query": "华侨回国定居审批多久能办完",
                   "requires_ticket_context": false,
-                  "ticket_fact_type": "none",
-                  "retrieval_focus": "fee_time_limit"
+                  "ticket_fact_type": "none"
                 },
                 {
                   "original_query": "收费吗",
                   "query": "收费吗",
                   "retrieval_query": "华侨回国定居审批 收费吗",
                   "requires_ticket_context": false,
-                  "ticket_fact_type": "none",
-                  "retrieval_focus": "fee_time_limit"
+                  "ticket_fact_type": "none"
                 }
               ],
               "reason": "short_followup_inherits_context_for_retrieval"

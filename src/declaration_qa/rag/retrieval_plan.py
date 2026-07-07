@@ -4,61 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
-ALLOWED_EVIDENCE_TYPES = (
-    "basic_info",
-    "eligibility",
-    "material_item",
-    "process_step",
-    "fee_time_limit",
-    "office_location",
-    "contact",
-    "policy_basis",
-    "form_template",
-    "online_apply",
-)
-
-EVIDENCE_TYPE_ALIASES = {
-    "basic": "basic_info",
-    "basic_information": "basic_info",
-    "条件": "eligibility",
-    "办理条件": "eligibility",
-    "受理条件": "eligibility",
-    "材料": "material_item",
-    "申请材料": "material_item",
-    "materials": "material_item",
-    "material": "material_item",
-    "流程": "process_step",
-    "办理流程": "process_step",
-    "process": "process_step",
-    "steps": "process_step",
-    "时限": "fee_time_limit",
-    "办理时限": "fee_time_limit",
-    "地点": "office_location",
-    "办理地点": "office_location",
-    "电话": "contact",
-    "联系方式": "contact",
-    "依据": "policy_basis",
-    "法律依据": "policy_basis",
-    "表格": "form_template",
-    "申请表": "form_template",
-    "网办": "online_apply",
-    "网上办理": "online_apply",
-}
-
-FOCUS_EVIDENCE_TYPES = {
-    "material_requirements": ("material_item",),
-    "process_steps": ("process_step",),
-    "eligibility": ("eligibility",),
-    "fee_time_limit": ("fee_time_limit",),
-    "office_location": ("office_location",),
-    "contact": ("contact",),
-    "online_apply": ("online_apply",),
-    "policy_basis": ("policy_basis",),
-    "form_template": ("form_template", "material_item"),
-    "knowledge_qa": ("basic_info",),
-}
-
 COMPLETE_SECTION_ALIASES = {
     "材料": "申请材料",
     "申请材料": "申请材料",
@@ -119,44 +64,24 @@ PROCESS_KEYWORDS = (
 
 def infer_retrieval_plan(
     base_query: str,
-    retrieval_focus: str,
     *,
-    evidence_types: Any = None,
     need_complete_sections: Any = None,
     metadata_needs: Any = None,
     ticket_fact_type: str = "none",
 ) -> dict[str, Any]:
     """Infer a normalized structured retrieval plan."""
     query = str(base_query or "")
-    focus = str(retrieval_focus or "")
-    inferred_types = list(normalize_evidence_types(evidence_types))
-    for evidence_type in FOCUS_EVIDENCE_TYPES.get(focus, ()):
-        append_unique(inferred_types, evidence_type)
+    sections = list(normalize_complete_sections(need_complete_sections))
 
     if contains_any(query, BROAD_HANDLING_KEYWORDS):
-        for evidence_type in ("basic_info", "eligibility", "material_item", "process_step"):
-            append_unique(inferred_types, evidence_type)
-    if contains_any(query, MATERIAL_KEYWORDS):
-        append_unique(inferred_types, "material_item")
-    if contains_any(query, PROCESS_KEYWORDS):
-        append_unique(inferred_types, "process_step")
-
-    sections = list(normalize_complete_sections(need_complete_sections))
-    if "material_item" in inferred_types and (
-        focus == "material_requirements"
-        or contains_any(query, MATERIAL_KEYWORDS)
-        or contains_any(query, BROAD_HANDLING_KEYWORDS)
-    ):
         append_unique(sections, "申请材料")
-    if "process_step" in inferred_types and (
-        focus == "process_steps"
-        or contains_any(query, PROCESS_KEYWORDS)
-        or contains_any(query, BROAD_HANDLING_KEYWORDS)
-    ):
+        append_unique(sections, "办理流程")
+    if contains_any(query, MATERIAL_KEYWORDS):
+        append_unique(sections, "申请材料")
+    if contains_any(query, PROCESS_KEYWORDS):
         append_unique(sections, "办理流程")
 
     return {
-        "evidence_types": inferred_types,
         "need_complete_sections": sections,
         "metadata_needs": list(normalize_metadata_needs(metadata_needs)),
         "ticket_fact_type": normalize_ticket_fact_type(ticket_fact_type),
@@ -167,7 +92,6 @@ def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
     """Normalize an already produced retrieval plan."""
     raw = plan or {}
     return {
-        "evidence_types": list(normalize_evidence_types(raw.get("evidence_types"))),
         "need_complete_sections": list(normalize_complete_sections(raw.get("need_complete_sections"))),
         "metadata_needs": list(normalize_metadata_needs(raw.get("metadata_needs"))),
         "ticket_fact_type": normalize_ticket_fact_type(str(raw.get("ticket_fact_type") or "none")),
@@ -181,17 +105,6 @@ def backfill_chunk_types_from_plan(plan: dict[str, Any] | None) -> list[str]:
     for section in normalized["need_complete_sections"]:
         append_unique(output, CHUNK_TYPE_BY_COMPLETE_SECTION.get(section, ""))
     return output
-
-
-def normalize_evidence_types(values: Any) -> tuple[str, ...]:
-    """Normalize evidence type values."""
-    output: list[str] = []
-    for value in list_values(values):
-        key = str(value or "").strip()
-        normalized = EVIDENCE_TYPE_ALIASES.get(key, EVIDENCE_TYPE_ALIASES.get(key.lower(), key.lower()))
-        if normalized in ALLOWED_EVIDENCE_TYPES:
-            append_unique(output, normalized)
-    return tuple(output)
 
 
 def normalize_complete_sections(values: Any) -> tuple[str, ...]:

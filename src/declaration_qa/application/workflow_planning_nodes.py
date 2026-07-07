@@ -9,7 +9,6 @@ from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.collections import unique_strings, unique_tickets
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.intent import (
-    classify_intent,
     infer_biz_type,
     is_unsafe_query,
     mask_sensitive_text,
@@ -212,7 +211,6 @@ class WorkflowPlanningNodes:
             "route": "",
             "route_decision": {},
             "ticket_fact_type": question.get("ticket_fact_type") or "none",
-            "retrieval_focus": question.get("retrieval_focus") or "knowledge_qa",
             "retrieval_chain": "",
             "need_ticket_selection": False,
             "ticket_selection_reason": "",
@@ -252,7 +250,6 @@ class WorkflowPlanningNodes:
             "retrieval_query": state.get("retrieval_query") or question.get("retrieval_query") or "",
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
             "ticket_fact_type": state.get("ticket_fact_type") or question.get("ticket_fact_type") or "none",
-            "retrieval_focus": state.get("retrieval_focus") or question.get("retrieval_focus") or "knowledge_qa",
             "retrieval_plan": state.get("retrieval_plan") or question.get("retrieval_plan") or {},
             "is_expanded": bool(question.get("is_expanded")),
             "expansion_reason": question.get("expansion_reason") or "",
@@ -288,13 +285,10 @@ class WorkflowPlanningNodes:
             add_event(next_state, "task_prepared", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
             return next_state
         query = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        retrieval_focus = str(next_state.get("retrieval_focus") or "").strip() or classify_intent(query)
         ticket_fact_type = str(next_state.get("ticket_fact_type") or "none").strip() or "none"
         raw_retrieval_plan = next_state.get("retrieval_plan") or {}
         retrieval_plan = infer_retrieval_plan(
             query,
-            retrieval_focus,
-            evidence_types=raw_retrieval_plan.get("evidence_types"),
             need_complete_sections=raw_retrieval_plan.get("need_complete_sections"),
             metadata_needs=raw_retrieval_plan.get("metadata_needs"),
             ticket_fact_type=raw_retrieval_plan.get("ticket_fact_type") or ticket_fact_type,
@@ -308,7 +302,7 @@ class WorkflowPlanningNodes:
             intent = "clarification"
             next_state["refuse_reason"] = "clarification_required"
         else:
-            intent = task_intent(retrieval_focus, ticket_fact_type, bool(next_state.get("requires_ticket_context")), query)
+            intent = task_intent(ticket_fact_type, bool(next_state.get("requires_ticket_context")), query)
             route = ROUTE_TICKET_CONTEXT_RELATED if bool(next_state.get("requires_ticket_context")) else ROUTE_TICKET_CONTEXT_UNRELATED
         route_decision = {
             "route": route,
@@ -317,7 +311,6 @@ class WorkflowPlanningNodes:
             "confidence": 1.0,
             "requires_ticket_context": route == ROUTE_TICKET_CONTEXT_RELATED,
             "ticket_fact_type": ticket_fact_type,
-            "retrieval_focus": retrieval_focus,
             "retrieval_plan": retrieval_plan,
             "can_answer_from_knowledge": route == ROUTE_TICKET_CONTEXT_UNRELATED or intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON},
             "reason": "question_resolver_task_fields",
@@ -328,7 +321,6 @@ class WorkflowPlanningNodes:
         next_state["route"] = route
         next_state["intent"] = intent
         next_state["sub_intent"] = intent
-        next_state["retrieval_focus"] = retrieval_focus
         next_state["ticket_fact_type"] = ticket_fact_type
         next_state["retrieval_plan"] = retrieval_plan
         next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN

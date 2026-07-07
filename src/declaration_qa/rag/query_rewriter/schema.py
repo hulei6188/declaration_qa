@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -38,9 +38,7 @@ class QueryRewrite:
     fact_text: str
     requires_ticket_context: bool
     ticket_fact_type: str
-    retrieval_focus: str
     queries: list[RetrievalQuery]
-    retrieval_plan: dict[str, Any] = field(default_factory=dict)
     provider: str = "rule"
     reason: str = ""
 
@@ -52,9 +50,7 @@ class QueryRewrite:
             "fact_text": self.fact_text,
             "requires_ticket_context": self.requires_ticket_context,
             "ticket_fact_type": self.ticket_fact_type,
-            "retrieval_focus": self.retrieval_focus,
             "queries": [query.payload() for query in self.queries],
-            "retrieval_plan": dict(self.retrieval_plan),
             "provider": self.provider,
             "reason": self.reason,
         }

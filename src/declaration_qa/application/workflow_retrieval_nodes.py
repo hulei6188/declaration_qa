@@ -51,7 +51,6 @@ class WorkflowRetrievalNodes:
             "query_rewrite",
             {
                 "count": len(next_state["retrieval_queries"]),
-                "retrieval_focus": payload.get("retrieval_focus"),
                 "ticket_fact_type": payload.get("ticket_fact_type"),
                 "provider": payload.get("provider"),
                 "reason": payload.get("reason"),

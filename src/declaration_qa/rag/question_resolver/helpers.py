@@ -14,7 +14,6 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_question_text(query)
     requires_ticket_context = ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized})
     ticket_fact_type = normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context)
-    retrieval_focus = normalize_retrieval_focus("", normalized)
     return {
         "id": "",
         "original_query": normalized,
@@ -22,10 +21,8 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
         "retrieval_query": normalized,
         "requires_ticket_context": requires_ticket_context,
         "ticket_fact_type": ticket_fact_type,
-        "retrieval_focus": retrieval_focus,
         "retrieval_plan": infer_retrieval_plan(
             normalized,
-            retrieval_focus,
             ticket_fact_type=ticket_fact_type,
         ),
         "is_expanded": False,
@@ -49,46 +46,6 @@ def normalize_ticket_fact_type(value: str, query: str, *, requires_ticket_contex
     if any(keyword in text for keyword in ["进度", "到哪", "状态", "审核到", "办到哪", "什么情况", "怎么样"]):
         return "status"
     return "none"
-
-
-def normalize_retrieval_focus(value: str, query: str) -> str:
-    """Normalize knowledge retrieval focus."""
-    allowed = {
-        "material_requirements",
-        "process_steps",
-        "eligibility",
-        "fee_time_limit",
-        "office_location",
-        "contact",
-        "online_apply",
-        "policy_basis",
-        "form_template",
-        "knowledge_qa",
-        "other",
-    }
-    normalized = str(value or "").strip().lower()
-    if normalized in allowed:
-        return normalized
-    text = str(query or "")
-    if any(keyword in text for keyword in ["材料", "要带", "提交什么", "需要什么", "清单", "补什么"]):
-        return "material_requirements"
-    if any(keyword in text for keyword in ["流程", "步骤", "怎么办", "如何办理", "怎么申请"]):
-        return "process_steps"
-    if any(keyword in text for keyword in ["条件", "资格", "能不能办", "是否可以"]):
-        return "eligibility"
-    if any(keyword in text for keyword in ["费用", "收费", "多少钱", "时限", "多久", "几天", "多少天", "拿结果", "办结"]):
-        return "fee_time_limit"
-    if any(keyword in text for keyword in ["地点", "窗口", "地址", "哪里办"]):
-        return "office_location"
-    if any(keyword in text for keyword in ["电话", "咨询", "投诉"]):
-        return "contact"
-    if any(keyword in text for keyword in ["网上办", "入口", "链接", "在线"]):
-        return "online_apply"
-    if any(keyword in text for keyword in ["依据", "政策", "法规", "文件"]):
-        return "policy_basis"
-    if any(keyword in text for keyword in ["表格", "模板", "样表", "申请表"]):
-        return "form_template"
-    return "other"
 
 
 def split_questions(query: str) -> list[str]:

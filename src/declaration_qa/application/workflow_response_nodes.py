@@ -90,7 +90,6 @@ class WorkflowResponseNodes:
             "route": next_state.get("route"),
             "route_decision": next_state.get("route_decision") or {},
             "ticket_fact_type": next_state.get("ticket_fact_type") or "none",
-            "retrieval_focus": next_state.get("retrieval_focus") or "",
             "question_resolution": next_state.get("question_resolution") or {},
             "multi_question": next_state.get("multi_question"),
             "sub_tasks": next_state.get("sub_tasks") or [],

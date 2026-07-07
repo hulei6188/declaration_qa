@@ -14,20 +14,18 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
 3. 如果只有一个意图，同样返回 questions 数组，里面只放一个对象。
 4. 【铁律】保持克制！直接提取用户原始片段赋予 query 字段。query 字段不负责对内容进行语义补全或改写，绝对不要擅自替换、脑补、扩展事项名称，保留一切指代词（如“这个、我这单、该事项”）。
 5. retrieval_query 字段只用于 RAG 检索，可以在不改变 query 的前提下，为省略上下文的子问题补上用户原始输入、当前工单标题或请求上下文里已经明确出现的事项/证照/业务名称。
-6. retrieval_plan 字段用于告诉下游检索器需要哪些证据结构，QueryRewriter 只负责消费它生成 query，不再自行判断回填策略。
+6. retrieval_plan 字段用于告诉下游检索器是否需要完整章节、元数据约束和工单事实类型，QueryRewriter 只负责消费它生成 query，不再自行判断回填策略。
 
 【字段打标规范】
 - requires_ticket_context: 布尔值。判断该子问题是否看起来绝对依赖当前/个人的具体工单流水上下文。
   * 询问“我这单、为什么被驳回、进度到哪了、还要补什么、能不能继续办理”等个体状态 --> true
   * 询问通用的“办理条件、材料、流程、收费、时限、办事地点”等标准政策指南 --> false
 - ticket_fact_type: 字符串。表示需要读取哪类工单事实。只能取: ["status", "rejection", "correction", "none"]。
-- retrieval_focus: 字符串。指导下游检索的 Hint 标签。只能取: ["material_requirements", "process_steps", "eligibility", "fee_time_limit", "office_location", "contact", "online_apply", "policy_basis", "form_template", "knowledge_qa", "other"]。如果找不到合适标签，必须使用 "other"。
 - retrieval_plan: 对象。表示下游检索计划。
-  * evidence_types 只能从以下枚举选择: ["basic_info", "eligibility", "material_item", "process_step", "fee_time_limit", "office_location", "contact", "policy_basis", "form_template", "online_apply"]。
   * need_complete_sections 只能从以下枚举选择: ["申请材料", "办理流程"]。只有问题需要完整材料清单或完整办理环节时才输出。
   * metadata_needs 只能从以下枚举选择: ["region_code", "policy_version", "item_scope", "ticket_scope", "as_of"]。
   * ticket_fact_type 必须与子问题外层 ticket_fact_type 一致。
-  * 用户问“需要办理什么/要办理什么/办什么/怎么办/怎么办理/如何办理”等宽泛办理咨询时，通常需要 basic_info、eligibility、material_item、process_step，并把“申请材料”放入 need_complete_sections。
+  * 用户问“需要办理什么/要办理什么/办什么/怎么办/怎么办理/如何办理”等宽泛办理咨询时，通常把“申请材料”和“办理流程”放入 need_complete_sections。
 - retrieval_query: 字符串。下游检索使用的文本。
   * 如果子问题已经包含清楚的事项/业务上下文，retrieval_query 可以等于 query。
   * 如果子问题是“收费吗、多久、要哪些材料、去哪办”等省略问法，但同一原始问题前文已有明确事项/业务名称，应把该上下文补入 retrieval_query。
@@ -53,9 +51,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
       "retrieval_query": "用于检索的子问题文本",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
-      "retrieval_focus": "retrieval_focus_tag",
       "retrieval_plan": {
-        "evidence_types": ["basic_info"],
         "need_complete_sections": [],
         "metadata_needs": [],
         "ticket_fact_type": "none"
@@ -77,9 +73,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
       "retrieval_query": "示例事项A办事流程",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
-      "retrieval_focus": "process_steps",
       "retrieval_plan": {
-        "evidence_types": ["process_step"],
         "need_complete_sections": ["办理流程"],
         "metadata_needs": ["item_scope"],
         "ticket_fact_type": "none"
@@ -91,9 +85,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
       "retrieval_query": "还有我那单怎么被退回了",
       "requires_ticket_context": true,
       "ticket_fact_type": "rejection",
-      "retrieval_focus": "knowledge_qa",
       "retrieval_plan": {
-        "evidence_types": ["basic_info"],
         "need_complete_sections": [],
         "metadata_needs": ["ticket_scope"],
         "ticket_fact_type": "rejection"
@@ -114,9 +106,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
       "retrieval_query": "示例事项A多久能办完",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
-      "retrieval_focus": "fee_time_limit",
       "retrieval_plan": {
-        "evidence_types": ["fee_time_limit"],
         "need_complete_sections": [],
         "metadata_needs": ["item_scope"],
         "ticket_fact_type": "none"
@@ -128,9 +118,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
       "retrieval_query": "示例事项A 收费吗",
       "requires_ticket_context": false,
       "ticket_fact_type": "none",
-      "retrieval_focus": "fee_time_limit",
       "retrieval_plan": {
-        "evidence_types": ["fee_time_limit"],
         "need_complete_sections": [],
         "metadata_needs": ["item_scope"],
         "ticket_fact_type": "none"

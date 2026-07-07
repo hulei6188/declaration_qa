@@ -547,7 +547,6 @@ def test_retrieval_plan_backfills_complete_material_section_without_material_key
         {},
         top_k=2,
         retrieval_plan={
-            "evidence_types": ["basic_info", "eligibility", "material_item"],
             "need_complete_sections": ["申请材料"],
         },
     )
