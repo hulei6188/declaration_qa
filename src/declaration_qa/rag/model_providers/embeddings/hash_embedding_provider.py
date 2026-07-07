@@ -1,4 +1,4 @@
-"""Hash embedding provider."""
+"""哈希向量化 provider。"""
 
 from __future__ import annotations
 

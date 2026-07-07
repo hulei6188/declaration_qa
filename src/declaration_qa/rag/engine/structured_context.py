@@ -1,4 +1,4 @@
-"""Parent and structured-section context expansion."""
+"""父级和结构化章节上下文扩展。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from declaration_qa.rag.retrieval_plan import backfill_chunk_types_from_plan
 
 
 def expand_parent_context(sources: list[RetrievedSource], chunks: dict[str, KnowledgeChunk]) -> list[RetrievedSource]:
-    """Expand child hits with parent chunk content."""
+    """使用父片段内容扩展子命中。"""
     expanded = []
     for source in sources:
         chunk = source.chunk
@@ -40,7 +40,7 @@ def expand_structured_section_context(
     *,
     retrieval_plan: dict[str, Any] | None = None,
 ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-    """Backfill structured section siblings."""
+    """回填结构化章节同级片段。"""
     target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
     if not target_chunk_types:
         return sources, {"applied": False}
@@ -70,7 +70,7 @@ def expand_structured_section_context(
 
 
 def structured_backfill_chunk_types(query: str, retrieval_plan: dict[str, Any] | None = None) -> list[str]:
-    """Infer structured chunk types to backfill."""
+    """推断需要回填的结构化片段类型。"""
     plan_types = backfill_chunk_types_from_plan(retrieval_plan)
     if plan_types:
         return plan_types
@@ -83,13 +83,13 @@ def structured_backfill_chunk_types(query: str, retrieval_plan: dict[str, Any] |
 
 
 def structured_backfill_chunk_type(query: str, retrieval_plan: dict[str, Any] | None = None) -> str:
-    """Infer the primary structured chunk type to backfill."""
+    """推断需要回填的主要结构化片段类型。"""
     target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
     return target_chunk_types[0] if target_chunk_types else ""
 
 
 def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -> bool:
-    """Return whether a source can trigger structured backfill."""
+    """返回来源是否可以触发结构化回填。"""
     metadata = source.chunk.metadata or {}
     semantic_chunk_type = str(metadata.get("chunk_type") or "")
     section_title = str(metadata.get("section_title") or "")
@@ -108,7 +108,7 @@ def structured_section_sibling_sources(
     parent_section_id: str,
     target_chunk_type: str,
 ) -> list[RetrievedSource]:
-    """Return sibling sources in a structured section."""
+    """返回结构化章节中的同级来源。"""
     grouped: dict[tuple[int, str], list[KnowledgeChunk]] = defaultdict(list)
     for chunk in chunks.values():
         metadata = chunk.metadata or {}
@@ -129,7 +129,7 @@ def structured_section_sibling_sources(
 
 
 def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[KnowledgeChunk]) -> RetrievedSource:
-    """Merge one structured node into a single source."""
+    """将单个结构化节点合并为一个来源。"""
     ordered_chunks = sorted(node_chunks, key=structured_chunk_sort_key)
     first = ordered_chunks[0]
     merged_content = merge_structured_node_content(ordered_chunks)
@@ -155,7 +155,7 @@ def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[Kn
 
 
 def structured_chunk_sort_key(chunk: KnowledgeChunk) -> tuple[int, int, int, str]:
-    """Sort key for structured chunks."""
+    """结构化片段排序键。"""
     metadata = chunk.metadata or {}
     return (
         safe_int(metadata.get("node_order")),
@@ -166,7 +166,7 @@ def structured_chunk_sort_key(chunk: KnowledgeChunk) -> tuple[int, int, int, str
 
 
 def merge_structured_node_content(chunks: list[KnowledgeChunk]) -> str:
-    """Merge chunk contents without duplicates."""
+    """合并片段内容并去重。"""
     parts: list[str] = []
     seen_content: set[str] = set()
     for chunk in chunks:
@@ -184,7 +184,7 @@ def append_unique_source(
     seen_chunk_ids: set[str],
     seen_node_keys: set[tuple[str, str, str]],
 ) -> bool:
-    """Append a source once."""
+    """仅追加一次来源。"""
     chunk = source.chunk
     if chunk.id in seen_chunk_ids:
         return False

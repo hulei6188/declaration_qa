@@ -382,7 +382,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
 
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
-    """Build sanitized trace input from a chat request."""
+    """根据聊天请求构建脱敏后的 trace 输入。"""
     return safe_value(
         {
             "user_id": request.user_id,
@@ -400,7 +400,7 @@ def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
 
 
 def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
-    """Build sanitized trace metadata from workflow state."""
+    """根据工作流状态构建脱敏后的 trace 元数据。"""
     rag_status = state.get("rag_status") or {}
     return safe_value(
         {
@@ -427,7 +427,7 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
-    """Build sanitized trace output from workflow state."""
+    """根据工作流状态构建脱敏后的 trace 输出。"""
     return safe_value(
         {
             "audit_id": state.get("audit_id") or "",

@@ -10,7 +10,7 @@ try:
     from langchain_core.prompts import PromptTemplate
 except ModuleNotFoundError:
     class PromptTemplate:
-        """Minimal fallback used when langchain_core is not installed."""
+        """未安装 langchain_core 时使用的最小兜底实现。"""
 
         def __init__(self, template: str) -> None:
             self.template = template
@@ -62,10 +62,10 @@ MULTI_QUESTION_ANSWER_PROMPT = PromptTemplate.from_template(
 
 
 class DeterministicAnswerGenerator:
-    """Deterministic generator used as a safe local LLM boundary.
+    """作为安全本地 LLM 边界使用的确定性生成器。
 
-    The prompt is still built through LangChain so the integration point can be
-    replaced by a real chat model without changing the workflow contract.
+    提示词仍通过 LangChain 构建，因此后续可替换为真实聊天模型，
+    而无需改变工作流契约。
     """
 
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:

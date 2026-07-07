@@ -1,4 +1,4 @@
-"""Question resolver prompt construction."""
+"""问题解析提示词构造。"""
 
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ QUESTION_RESOLVER_PROMPT = """你是政务问答系统的【问题解析器】�
 
 
 def build_question_resolver_prompt(state: dict[str, Any]) -> str:
-    """Build Question resolver prompt."""
+    """构建问题解析提示词。"""
     apply_context = state.get("apply_context") or {}
     payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
     current_ticket_title = (

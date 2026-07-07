@@ -1,4 +1,4 @@
-"""Rule-based query rewriter."""
+"""基于规则的查询改写器。"""
 
 from __future__ import annotations
 
@@ -29,12 +29,12 @@ QUERY_TERM_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 class RuleQueryRewriter:
-    """Rule-based multi-query rewrite for stable retrieval recall."""
+    """用于稳定检索召回的规则多查询改写。"""
 
     name = "rule"
 
     def rewrite(self, state: dict[str, Any]) -> QueryRewrite:
-        """Generate retrieval queries from task semantics and item scope."""
+        """根据任务语义和事项范围生成检索查询。"""
         base_query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
         ticket_fact_type = str(state.get("ticket_fact_type") or "none")
         requires_ticket_context = bool(state.get("requires_ticket_context"))

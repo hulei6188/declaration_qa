@@ -6,11 +6,10 @@ from declaration_qa.core.config import DeclarationQASettings
 
 
 def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
-    """Return hard startup blockers for production mode.
+    """返回生产模式下阻止启动的硬性问题。
 
-    Development can use deterministic/local implementations for tests and local
-    UI work. Production must fail fast instead of silently serving mock answers
-    or writing audit data to process memory.
+    开发环境可以使用确定性或本地实现来支持测试和界面开发；
+    生产环境必须快速失败，不能静默提供模拟回答或把审计数据写入进程内存。
     """
 
     if not settings.is_production:

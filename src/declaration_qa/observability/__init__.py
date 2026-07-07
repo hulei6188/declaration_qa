@@ -1,1 +1,1 @@
-"""Observability integrations."""
+"""可观测性集成。"""

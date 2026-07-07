@@ -1,4 +1,4 @@
-"""FastAPI 依赖函数。"""
+"""服务依赖函数。"""
 
 from __future__ import annotations
 

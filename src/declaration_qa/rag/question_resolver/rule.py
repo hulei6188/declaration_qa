@@ -1,4 +1,4 @@
-"""Rule-based Question resolver."""
+"""基于规则的问题解析器。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ from declaration_qa.rag.question_resolver.schema import QuestionResolution
 
 
 class RuleQuestionResolver:
-    """Deterministic multi-question resolver for local fallback and tests."""
+    """用于本地兜底和测试的确定性多问题解析器。"""
 
     name = "rule"
 
     def resolve(self, state: dict[str, Any]) -> QuestionResolution:
-        """Split questions with conservative Chinese rules."""
+        """使用保守中文规则拆分问题。"""
         query = str(state.get("normalized_query") or state.get("query") or "").strip()
         parts = split_questions(query)
         if len(parts) <= 1:

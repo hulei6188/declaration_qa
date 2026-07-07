@@ -1,1 +1,1 @@
-"""Embedding provider package."""
+"""向量化 provider 包。"""

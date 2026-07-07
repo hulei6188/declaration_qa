@@ -1,4 +1,4 @@
-"""Query rewrite data structures."""
+"""查询改写数据结构。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ MAX_RETRIEVAL_QUERY_COUNT = 3
 
 @dataclass(frozen=True)
 class RetrievalQuery:
-    """Single retrieval query."""
+    """单条检索查询。"""
 
     id: str
     text: str
@@ -20,7 +20,7 @@ class RetrievalQuery:
     top_k: int = DEFAULT_RETRIEVAL_TOP_K
 
     def payload(self) -> dict[str, Any]:
-        """Convert to API/audit payload."""
+        """转换为 API 和审计载荷。"""
         return {
             "id": self.id,
             "text": self.text,
@@ -31,7 +31,7 @@ class RetrievalQuery:
 
 @dataclass(frozen=True)
 class QueryRewrite:
-    """Multi-query rewrite result."""
+    """多查询改写结果。"""
 
     base_query: str
     scope_text: str
@@ -43,7 +43,7 @@ class QueryRewrite:
     reason: str = ""
 
     def payload(self) -> dict[str, Any]:
-        """Convert to API/audit payload."""
+        """转换为 API 和审计载荷。"""
         return {
             "base_query": self.base_query,
             "scope_text": self.scope_text,

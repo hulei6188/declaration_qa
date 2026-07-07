@@ -1,4 +1,4 @@
-"""Embedding helpers for RAG engines."""
+"""RAG 引擎的向量化辅助函数。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def embed_chunk_batch(
     max_retries: int = 3,
     base_delay_seconds: float = 1.0,
 ) -> list[list[float]]:
-    """Create embeddings in batches with bounded retry and jitter."""
+    """按批创建向量，并使用有限重试和随机抖动。"""
     vectors: list[list[float]] = []
     for index in range(0, len(texts), batch_size):
         vectors.extend(
@@ -36,7 +36,7 @@ def embed_batch_with_retry(
     max_retries: int,
     base_delay_seconds: float,
 ) -> list[list[float]]:
-    """Call an embedding provider with exponential backoff."""
+    """使用指数退避调用向量化 provider。"""
     attempt = 0
     while True:
         try:

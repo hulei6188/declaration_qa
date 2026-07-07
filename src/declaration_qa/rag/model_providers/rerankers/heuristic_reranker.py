@@ -1,4 +1,4 @@
-"""Heuristic reranker."""
+"""启发式重排器。"""
 
 from __future__ import annotations
 

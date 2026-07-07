@@ -1,4 +1,4 @@
-"""LLM-based query rewriter."""
+"""基于 LLM 的查询改写器。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from declaration_qa.observability.langfuse import invoke_with_langfuse
 
 
 class LLMQueryRewriter:
-    """LLM-based multi-query rewrite with rule fallback."""
+    """基于 LLM 的多查询改写，带规则兜底。"""
 
     name = "llm"
 
@@ -22,7 +22,7 @@ class LLMQueryRewriter:
         self.fallback_rewriter = fallback_rewriter or RuleQueryRewriter()
 
     def rewrite(self, state: dict[str, Any]) -> QueryRewrite:
-        """Call LLM to generate retrieval queries."""
+        """调用 LLM 生成检索查询。"""
         try:
             response = invoke_with_langfuse(
                 self.llm,

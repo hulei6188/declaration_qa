@@ -1,4 +1,4 @@
-"""Question resolver helper functions."""
+"""问题解析辅助函数。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from declaration_qa.rag.router import ticket_context_related
 
 
 def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
-    """Build a sub-question item."""
+    """构建子问题条目。"""
     normalized = normalize_question_text(query)
     requires_ticket_context = ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized})
     ticket_fact_type = normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context)
@@ -31,7 +31,7 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_ticket_fact_type(value: str, query: str, *, requires_ticket_context: bool) -> str:
-    """Normalize ticket fact type."""
+    """归一化办件事实类型。"""
     allowed = {"status", "rejection", "correction", "none"}
     normalized = str(value or "").strip().lower()
     if normalized in allowed:
@@ -49,7 +49,7 @@ def normalize_ticket_fact_type(value: str, query: str, *, requires_ticket_contex
 
 
 def split_questions(query: str) -> list[str]:
-    """Split a compound Chinese question conservatively."""
+    """保守拆分复合中文问题。"""
     text = normalize_question_text(query)
     if not text:
         return []
@@ -64,13 +64,13 @@ def split_questions(query: str) -> list[str]:
 
 
 def has_distinct_question_signals(parts: list[str]) -> bool:
-    """Return whether split parts look like distinct questions."""
+    """返回拆分片段是否像不同问题。"""
     signals = ["材料", "流程", "条件", "费用", "收费", "多久", "时限", "进度", "状态", "驳回", "补正", "干嘛", "是什么"]
     return sum(1 for part in parts if any(signal in part for signal in signals)) >= 2
 
 
 def numbered_questions(parts: list[str]) -> list[str]:
-    """Clean and deduplicate split questions."""
+    """清理并去重拆分后问题。"""
     output = []
     seen = set()
     for part in parts:
@@ -84,5 +84,5 @@ def numbered_questions(parts: list[str]) -> list[str]:
 
 
 def normalize_question_text(value: str) -> str:
-    """Normalize sub-question text."""
+    """归一化子问题文本。"""
     return re.sub(r"\s+", " ", str(value or "").strip(" \t\r\n。；;？?"))

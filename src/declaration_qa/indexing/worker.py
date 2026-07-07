@@ -1,4 +1,4 @@
-"""RQ 索引 worker 启动入口。"""
+"""RQ 索引工作进程启动入口。"""
 
 from __future__ import annotations
 

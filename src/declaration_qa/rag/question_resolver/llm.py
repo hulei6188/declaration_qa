@@ -1,4 +1,4 @@
-"""LLM-based Question resolver."""
+"""基于 LLM 的问题解析器。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from declaration_qa.observability.langfuse import invoke_with_langfuse
 
 
 class LLMQuestionResolver:
-    """LLM-based Question resolver with rule fallback."""
+    """基于 LLM 的问题解析器，带规则兜底。"""
 
     name = "llm"
 
@@ -22,7 +22,7 @@ class LLMQuestionResolver:
         self.fallback_resolver = fallback_resolver or RuleQuestionResolver()
 
     def resolve(self, state: dict[str, Any]) -> QuestionResolution:
-        """Call LLM to decompose questions."""
+        """调用 LLM 拆解问题。"""
         try:
             response = invoke_with_langfuse(
                 self.llm,

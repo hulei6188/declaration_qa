@@ -160,7 +160,7 @@ class MilvusVectorIndex:
             self._available = False
 
     def flush(self) -> None:
-        """Flush Milvus writes so immediately-following searches can see them."""
+        """刷写 Milvus 写入，确保紧随其后的搜索可见。"""
         if self._fallback is not None:
             self._fallback.flush()
         if not self._available:

@@ -1,4 +1,4 @@
-"""Helper functions for query rewriting."""
+"""查询改写辅助函数。"""
 
 from __future__ import annotations
 
@@ -53,18 +53,18 @@ INTENT_REWRITE_TERMS: dict[str, list[str]] = {
 
 
 def normalize_text(value: Any) -> str:
-    """Normalize text to compact whitespace."""
+    """将文本空白归一化为紧凑格式。"""
     return re.sub(r"\s+", " ", str(value or "").strip())
 
 
 def normalize_strategy_name(value: Any) -> str:
-    """Normalize an LLM strategy name."""
+    """归一化 LLM 策略名称。"""
     text = re.sub(r"[^a-zA-Z0-9_:-]+", "_", str(value or "llm_rewrite").strip().lower())
     return text[:40] or "llm_rewrite"
 
 
 def normalize_top_k(value: Any) -> int:
-    """Clamp per-query top_k."""
+    """限制单条查询的 top_k。"""
     try:
         number = int(value)
     except (TypeError, ValueError):
@@ -73,12 +73,12 @@ def normalize_top_k(value: Any) -> int:
 
 
 def join_query_parts(*parts: Any) -> str:
-    """Join non-empty query fragments."""
+    """拼接非空查询片段。"""
     return normalize_text(" ".join(str(part) for part in parts if str(part or "").strip()))
 
 
 def selected_ticket_scope_text(state: dict[str, Any]) -> str:
-    """Extract item scope from current ticket context."""
+    """从当前办件上下文提取事项范围。"""
     apply_context = state.get("apply_context") or {}
     if not isinstance(apply_context, dict) or not apply_context:
         return ""
@@ -101,12 +101,12 @@ def selected_ticket_scope_text(state: dict[str, Any]) -> str:
 
 
 def has_item_scope_filter(filters: dict[str, Any]) -> bool:
-    """Return whether metadata filters already include item scope."""
+    """返回元数据过滤条件是否已包含事项范围。"""
     return any(filters.get(key) for key in ("item_code", "ssqd_code", "ssqd_id", "item_name"))
 
 
 def selected_ticket_fact_text(state: dict[str, Any]) -> str:
-    """Extract allowed ticket facts for retrieval."""
+    """提取允许用于检索的办件事实。"""
     ticket_fact_type = str(state.get("ticket_fact_type") or "none")
     if ticket_fact_type == "status":
         business = state.get("business_status") or state.get("business_snapshot") or {}
@@ -126,7 +126,7 @@ def selected_ticket_fact_text(state: dict[str, Any]) -> str:
 
 
 def ticket_title(*sources: dict[str, Any]) -> str:
-    """Extract current item title."""
+    """提取当前事项标题。"""
     for source in sources:
         if not isinstance(source, dict):
             continue
@@ -148,7 +148,7 @@ def ticket_title(*sources: dict[str, Any]) -> str:
 
 
 def unique_strings(values: list[str]) -> list[str]:
-    """Deduplicate strings in first-seen order."""
+    """按首次出现顺序去重字符串。"""
     seen = set()
     output = []
     for value in values:

@@ -1,4 +1,4 @@
-"""FastAPI 服务运行时组件。"""
+"""服务运行时组件。"""
 
 from __future__ import annotations
 

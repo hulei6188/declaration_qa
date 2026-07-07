@@ -201,7 +201,7 @@ def normalize_eval_run_item(row) -> dict[str, Any]:
 
 
 def chunk_select_sql(where_clause: str):
-    """Build a published chunk select statement with document and parent metadata."""
+    """构建包含文档和父级元数据的已发布片段查询语句。"""
     return text(
         f"""
         SELECT
@@ -228,7 +228,7 @@ def chunk_select_sql(where_clause: str):
 
 
 def knowledge_chunk_from_row(row) -> KnowledgeChunk:
-    """Convert a persisted chunk row into a KnowledgeChunk."""
+    """将持久化片段行转换为 KnowledgeChunk。"""
     metadata = sanitize_metadata(dict(row["metadata"] or {}))
     return KnowledgeChunk(
         id=str(row["chunk_uid"] or ""),
@@ -250,14 +250,14 @@ def knowledge_chunk_from_row(row) -> KnowledgeChunk:
 
 
 def ordered_chunks(rows, chunk_ids: list[str]) -> list[KnowledgeChunk]:
-    """Return chunks in the requested chunk id order."""
+    """按请求的片段 ID 顺序返回片段。"""
     chunks = [knowledge_chunk_from_row(row) for row in rows]
     by_id = {chunk.id: chunk for chunk in chunks}
     return [by_id[chunk_id] for chunk_id in chunk_ids if chunk_id in by_id]
 
 
 def unique_ordered_strings(values: list[str]) -> list[str]:
-    """Return non-empty strings in first-seen order."""
+    """按首次出现顺序返回非空字符串。"""
     seen = set()
     output = []
     for value in values:

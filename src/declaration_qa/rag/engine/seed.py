@@ -1,4 +1,4 @@
-"""Built-in seed knowledge for local in-memory RAG."""
+"""本地内存 RAG 使用的内置种子知识。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def build_seed_rag_engine(
     rerank_max_sources: int = 12,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
-    """Create an in-memory RAG engine and optionally load seed knowledge."""
+    """创建内存 RAG 引擎，并可选择加载种子知识。"""
     engine = InMemoryRAGEngine(
         cache_store=cache_store,
         vector_index=vector_index,
@@ -41,7 +41,7 @@ def build_seed_rag_engine(
 
 
 def seed_documents() -> list[KnowledgeDocument]:
-    """Return built-in seed knowledge documents."""
+    """返回内置种子知识文档。"""
     return [
         KnowledgeDocument(
             id="doc-residence-guide-2025",

@@ -32,6 +32,6 @@ class VectorIndex(Protocol):
         ...
 
     def flush(self) -> None:
-        """Flush pending writes when supported by the backend."""
+        """后端支持时刷写待提交写入。"""
         ...
 

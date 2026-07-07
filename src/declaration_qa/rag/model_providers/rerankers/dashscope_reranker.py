@@ -1,4 +1,4 @@
-"""DashScope SDK reranker."""
+"""DashScope SDK 重排器。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from declaration_qa.core.domain import RetrievedSource
 
 
 class DashScopeReranker:
-    """DashScope SDK reranker adapter."""
+    """DashScope SDK 重排器适配器。"""
 
     name = "dashscope"
     default_instruct = "Given a web search query, retrieve relevant passages that answer the query."
@@ -61,7 +61,7 @@ class DashScopeReranker:
 
 
 def response_value(payload: Any, key: str, default: Any = None) -> Any:
-    """Read a value from DashScope SDK response objects or dictionaries."""
+    """从 DashScope SDK 响应对象或字典读取值。"""
     if isinstance(payload, dict):
         return payload.get(key, default)
     return getattr(payload, key, default)

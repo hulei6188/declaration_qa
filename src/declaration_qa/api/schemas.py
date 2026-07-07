@@ -1,4 +1,4 @@
-"""FastAPI 请求和响应模型定义。"""
+"""请求和响应模型定义。"""
 
 from __future__ import annotations
 

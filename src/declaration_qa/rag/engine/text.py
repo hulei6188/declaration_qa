@@ -1,4 +1,4 @@
-"""Text helpers for RAG engines."""
+"""RAG 引擎文本辅助函数。"""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from typing import Any
 
 
 def normalize_text(value: Any) -> str:
-    """Normalize text to compact whitespace."""
+    """将文本空白归一化为紧凑格式。"""
     return re.sub(r"\s+", " ", str(value or "").strip())
 
 
 def tokenize(text: str) -> list[str]:
-    """Tokenize text for local retrieval scoring."""
+    """为本地检索评分分词。"""
     normalized = normalize_text(text).lower()
     try:
         import jieba
@@ -29,7 +29,7 @@ def tokenize(text: str) -> list[str]:
 
 
 def unique_ordered_strings(values: list[str]) -> list[str]:
-    """Return non-empty strings in first-seen order."""
+    """按首次出现顺序返回非空字符串。"""
     seen = set()
     output = []
     for value in values:
@@ -42,7 +42,7 @@ def unique_ordered_strings(values: list[str]) -> list[str]:
 
 
 def safe_int(value: Any) -> int:
-    """Convert a value to int, defaulting to 0."""
+    """将值转换为整数，默认返回 0。"""
     try:
         return int(value or 0)
     except (TypeError, ValueError):

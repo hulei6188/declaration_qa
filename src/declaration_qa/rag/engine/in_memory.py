@@ -1,4 +1,4 @@
-"""In-memory RAG engine implementation."""
+"""内存 RAG 引擎实现。"""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from declaration_qa.storage.cache import CacheStore
 
 
 class InMemoryRAGEngine(BaseRAGEngine):
-    """RAG engine backed by process-local documents, chunks and vectors."""
+    """基于进程内文档、片段和向量的 RAG 引擎。"""
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 12,
     ) -> None:
-        """Initialize in-memory RAG engine."""
+        """初始化内存 RAG 引擎。"""
         self._documents: dict[str, KnowledgeDocument] = {}
         self._chunks: dict[str, KnowledgeChunk] = {}
         self._vectors: dict[str, list[float]] = {}
@@ -51,15 +51,15 @@ class InMemoryRAGEngine(BaseRAGEngine):
 
     @property
     def chunk_count(self) -> int:
-        """Return loaded chunk count."""
+        """返回已加载片段数量。"""
         return len(self._chunks)
 
     def documents(self) -> list[KnowledgeDocument]:
-        """Return loaded documents."""
+        """返回已加载文档。"""
         return list(self._documents.values())
 
     def index_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
-        """Index chunks into local memory and local indexes."""
+        """将片段写入本地内存和本地索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
         vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
@@ -75,7 +75,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         return len(chunks)
 
     def delete_document(self, doc_id: str) -> None:
-        """Delete one document from memory and indexes."""
+        """从内存和索引中删除单个文档。"""
         self._documents.pop(doc_id, None)
         for chunk_id, chunk in list(self._chunks.items()):
             if chunk.doc_id == doc_id:
@@ -87,7 +87,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         self.cache_store.clear()
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Rebuild local memory/vector/keyword indexes from chunks."""
+        """根据片段重建本地内存、向量和关键词索引。"""
         self._documents.clear()
         self._chunks.clear()
         self._vectors.clear()
@@ -108,7 +108,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         return len(chunks)
 
     def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Load persisted document/chunk metadata without re-embedding."""
+        """加载持久化文档和片段元数据，不重新向量化。"""
         self._documents = {document.id: document for document in documents}
         self._chunks = {chunk.id: chunk for chunk in chunks}
         self._vectors.clear()
@@ -123,7 +123,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Retrieve from in-memory chunks."""
+        """从内存片段中检索。"""
         search_filter = published_visibility_filter(effective_filter)
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
@@ -165,7 +165,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         *,
         retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
-        """Batch retrieve from in-memory chunks."""
+        """从内存片段中批量检索。"""
         search_filter = published_visibility_filter(effective_filter)
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
@@ -233,7 +233,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Fuse in-memory rewrite recall lists and rerank once."""
+        """融合内存改写召回列表并统一重排一次。"""
         search_filter = published_visibility_filter(effective_filter)
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
@@ -310,18 +310,18 @@ class InMemoryRAGEngine(BaseRAGEngine):
         )
 
     def _prefilter_child_count(self) -> int:
-        """Return loaded child count."""
+        """返回已加载子片段数量。"""
         return sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")
 
     def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
-        """Load chunks from memory."""
+        """从内存加载片段。"""
         unique_ids = unique_ordered_strings(chunk_ids)
         chunks = [self._chunks[chunk_id] for chunk_id in unique_ids if chunk_id in self._chunks]
         by_id = {chunk.id: chunk for chunk in chunks}
         return [by_id[chunk_id] for chunk_id in unique_ids if chunk_id in by_id]
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
-        """Expand child hits with in-memory parents."""
+        """用内存中的父片段扩展子命中。"""
         return expand_parent_context(sources, self._chunks)
 
     def _expand_structured_section_context(
@@ -331,7 +331,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         *,
         retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """Backfill structured section siblings from memory."""
+        """从内存回填结构化章节同级片段。"""
         return expand_structured_section_context(query, sources, self._chunks, retrieval_plan=retrieval_plan)
 
     def _dense_retrieve(
@@ -342,7 +342,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         *,
         limit: int,
     ) -> list[RetrievedSource]:
-        """Run vector retrieval for this engine."""
+        """为当前引擎执行向量检索。"""
         query_vector = self.embedding_provider.embed_query(query)
         by_id = {chunk.id: chunk for chunk in candidates}
         vector_hits = self.vector_index.search(query_vector, filters, limit=limit)

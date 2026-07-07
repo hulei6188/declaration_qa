@@ -1,4 +1,4 @@
-"""Normalize LLM Question resolver outputs."""
+"""归一化 LLM 问题解析输出。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from declaration_qa.rag.router import ticket_context_related
 
 
 def normalize_question_resolution(payload: dict[str, Any], state: dict[str, Any]) -> QuestionResolution:
-    """Normalize LLM resolver payload."""
+    """归一化 LLM 解析载荷。"""
     raw_questions = payload.get("questions") if isinstance(payload.get("questions"), list) else []
     questions = []
     seen = set()

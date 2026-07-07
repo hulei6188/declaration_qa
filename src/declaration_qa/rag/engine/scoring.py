@@ -1,4 +1,4 @@
-"""Retrieval scoring and metadata filtering."""
+"""检索评分和元数据过滤。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def dense_retrieve(
     limit: int,
     embedding_provider: Any,
 ) -> list[RetrievedSource]:
-    """Run local dense retrieval over in-memory vectors."""
+    """基于内存向量执行本地稠密检索。"""
     query_vector = embedding_provider.embed_query(query)
     hits = []
     for chunk in candidates:
@@ -32,7 +32,7 @@ def dense_retrieve(
 
 
 def bm25_retrieve(query: str, candidates: list[KnowledgeChunk], *, limit: int) -> list[RetrievedSource]:
-    """Run local BM25 keyword retrieval."""
+    """执行本地 BM25 关键词检索。"""
     query_tokens = tokenize(query)
     corpus = [tokenize(chunk.content) for chunk in candidates]
     if not query_tokens:
@@ -49,7 +49,7 @@ def bm25_retrieve(query: str, candidates: list[KnowledgeChunk], *, limit: int) -
 
 
 def bm25_scores(query_tokens: list[str], corpus: list[list[str]]) -> list[float]:
-    """Calculate BM25 scores with lexical fallback."""
+    """计算 BM25 分数，并使用词法兜底。"""
     try:
         from rank_bm25 import BM25Okapi
 
@@ -63,7 +63,7 @@ def bm25_scores(query_tokens: list[str], corpus: list[list[str]]) -> list[float]
 
 
 def rrf_fuse(hit_lists: list[list[RetrievedSource]], *, rrf_k: int) -> list[RetrievedSource]:
-    """Fuse retrieval channels with reciprocal rank fusion."""
+    """使用倒数排名融合合并检索通道。"""
     chunk_scores: dict[str, float] = defaultdict(float)
     best_source: dict[str, RetrievedSource] = {}
     dense_scores: dict[str, float] = defaultdict(float)
@@ -93,7 +93,7 @@ def rrf_fuse(hit_lists: list[list[RetrievedSource]], *, rrf_k: int) -> list[Retr
 
 
 def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> float:
-    """Boost rerank score when metadata matches filters."""
+    """元数据匹配过滤条件时提升重排分数。"""
     if not filters:
         return 0.0
     metadata = chunk.metadata or {}
@@ -106,7 +106,7 @@ def metadata_match_boost(chunk: KnowledgeChunk, filters: dict[str, Any]) -> floa
 
 
 def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
-    """Return whether a chunk satisfies metadata filters."""
+    """返回片段是否满足元数据过滤条件。"""
     if not filters:
         return True
     metadata = chunk.metadata or {}
@@ -119,7 +119,7 @@ def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
 
 
 def chunk_filter_value(chunk: KnowledgeChunk, metadata: dict[str, Any], key: str) -> Any:
-    """Return the value used for metadata filter matching."""
+    """返回用于元数据过滤匹配的值。"""
     if key == "status":
         return chunk.status
     if key == "doc_status":
@@ -130,7 +130,7 @@ def chunk_filter_value(chunk: KnowledgeChunk, metadata: dict[str, Any], key: str
 
 
 def metadata_value_matches(candidate: Any, expected: Any) -> bool:
-    """Match metadata values with list support."""
+    """匹配元数据值，并支持列表取值。"""
     if isinstance(expected, list):
         return any(metadata_value_matches(candidate, item) for item in expected)
     if isinstance(candidate, list):

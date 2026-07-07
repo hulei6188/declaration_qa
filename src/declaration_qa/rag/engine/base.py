@@ -1,4 +1,4 @@
-"""Common RAG engine contracts and orchestration."""
+"""RAG 引擎通用契约和编排。"""
 
 from __future__ import annotations
 
@@ -25,23 +25,23 @@ from declaration_qa.storage.cache import CacheStore, InMemoryCacheStore
 
 
 class ChunkStore(Protocol):
-    """Persistent chunk store used for on-demand retrieval hydration."""
+    """按需检索回表使用的持久化片段存储。"""
 
     def get_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
-        """Load chunks by public chunk ids."""
+        """按公开片段 ID 加载片段。"""
         ...
 
     def get_parent_chunks(self, parent_ids: list[str]) -> list[KnowledgeChunk]:
-        """Load parent chunks by public chunk ids."""
+        """按公开父片段 ID 加载父片段。"""
         ...
 
     def get_structured_section_chunks(self, parent_section_ids: list[str], target_chunk_type: str) -> list[KnowledgeChunk]:
-        """Load structured sibling chunks for section backfill."""
+        """加载用于章节回填的结构化同级片段。"""
         ...
 
 
 class RAGEngine(Protocol):
-    """Common retrieval/indexing contract used by the workflow."""
+    """工作流使用的通用检索和索引契约。"""
 
     cache_store: CacheStore
     vector_index: VectorIndex
@@ -52,39 +52,39 @@ class RAGEngine(Protocol):
 
     @property
     def chunk_count(self) -> int:
-        """Return locally loaded chunk count."""
+        """返回本地加载的片段数量。"""
         ...
 
     def documents(self) -> list[KnowledgeDocument]:
-        """Return documents known to the engine."""
+        """返回引擎已知的文档。"""
         ...
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
-        """Split a document into indexable chunks."""
+        """将文档切分为可索引片段。"""
         ...
 
     def index_document(self, document: KnowledgeDocument) -> int:
-        """Index one document."""
+        """索引单个文档。"""
         ...
 
     def index_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
-        """Index precomputed chunks."""
+        """索引预先计算好的片段。"""
         ...
 
     def delete_document(self, doc_id: str) -> None:
-        """Delete a document from indexes."""
+        """从索引中删除文档。"""
         ...
 
     def rebuild(self, documents: list[KnowledgeDocument]) -> int:
-        """Rebuild indexes from documents."""
+        """根据文档重建索引。"""
         ...
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Rebuild indexes from persisted chunks."""
+        """根据持久化片段重建索引。"""
         ...
 
     def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Load persisted metadata without rewriting external indexes."""
+        """加载持久化元数据，不重写外部索引。"""
         ...
 
     def retrieve(
@@ -95,7 +95,7 @@ class RAGEngine(Protocol):
         top_k: int = 4,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Retrieve sources for one query."""
+        """检索单个查询的来源。"""
         ...
 
     def retrieve_many(
@@ -105,7 +105,7 @@ class RAGEngine(Protocol):
         *,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> list[RetrievalResult]:
-        """Retrieve sources for multiple rewritten queries."""
+        """检索多个改写查询的来源。"""
         ...
 
     def retrieve_rewrites(
@@ -117,12 +117,12 @@ class RAGEngine(Protocol):
         top_k: int = 6,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Retrieve for multiple rewrite queries belonging to one user question."""
+        """检索同一用户问题下的多个改写查询。"""
         ...
 
 
 class BaseRAGEngine:
-    """Shared RAG orchestration for concrete retrieval backends."""
+    """具体检索后端共享的 RAG 编排逻辑。"""
 
     def __init__(
         self,
@@ -136,7 +136,7 @@ class BaseRAGEngine:
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 12,
     ) -> None:
-        """Initialize shared providers and stores."""
+        """初始化共享的 provider 和存储。"""
         self.cache_store = cache_store or InMemoryCacheStore()
         self.vector_index = vector_index
         self.embedding_provider = embedding_provider or HashEmbeddingProvider(dimension=EMBEDDING_DIMS)
@@ -148,18 +148,18 @@ class BaseRAGEngine:
         self.rerank_max_sources = max(1, int(rerank_max_sources or 12))
 
     def index_document(self, document: KnowledgeDocument) -> int:
-        """Index one document."""
+        """索引单个文档。"""
         return self.index_chunks(document, split_document(document))
 
     def rebuild(self, documents: list[KnowledgeDocument]) -> int:
-        """Rebuild indexes from documents."""
+        """根据文档重建索引。"""
         return self.rebuild_indexed_data(
             documents,
             [chunk for document in documents for chunk in split_document(document)],
         )
 
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
-        """Return document chunks."""
+        """返回文档片段。"""
         return split_document(document)
 
     def retrieve(
@@ -170,7 +170,7 @@ class BaseRAGEngine:
         top_k: int = 4,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Retrieve sources for one query."""
+        """检索单个查询的来源。"""
         normalized_query = normalize_text(query)
         effective_filter = normalize_retrieval_filter(filters)
         policy = normalize_retrieval_plan(retrieval_plan)
@@ -195,7 +195,7 @@ class BaseRAGEngine:
         *,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> list[RetrievalResult]:
-        """Retrieve sources for multiple rewritten queries."""
+        """检索多个改写查询的来源。"""
         effective_filter = normalize_retrieval_filter(filters)
         policy = normalize_retrieval_plan(retrieval_plan)
         query_specs = []
@@ -231,7 +231,7 @@ class BaseRAGEngine:
         top_k: int = 6,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Retrieve rewrite queries as recall lists, then fuse and rerank once."""
+        """将改写查询检索为召回列表，再统一融合并重排一次。"""
         effective_filter = normalize_retrieval_filter(filters)
         policy = normalize_retrieval_plan(retrieval_plan)
         query_specs = []
@@ -286,7 +286,7 @@ class BaseRAGEngine:
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Retrieve without cache."""
+        """不使用缓存执行检索。"""
         raise NotImplementedError
 
     def _retrieve_many_uncached(
@@ -297,7 +297,7 @@ class BaseRAGEngine:
         *,
         retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
-        """Batch retrieve without cache."""
+        """不使用缓存执行批量检索。"""
         raise NotImplementedError
 
     def _retrieve_rewrites_uncached(
@@ -309,21 +309,21 @@ class BaseRAGEngine:
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Retrieve rewrite recall lists without cache."""
+        """不使用缓存检索改写召回列表。"""
         raise NotImplementedError
 
     def _flush_vector_index(self) -> None:
-        """Make newly indexed vector rows visible when supported."""
+        """后端支持时让新写入的向量行可见。"""
         flush = getattr(self.vector_index, "flush", None)
         if callable(flush):
             flush()
 
     def _candidate_source(self) -> str:
-        """Return candidate source label."""
+        """返回候选来源标签。"""
         return "memory"
 
     def _prefilter_child_count(self) -> int:
-        """Return backend-specific child count."""
+        """返回后端特定的子片段数量。"""
         return 0
 
     def _build_result_from_hits(
@@ -342,7 +342,7 @@ class BaseRAGEngine:
         candidate_source: str | None = None,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Build a standard retrieval result from channel hits."""
+        """根据各通道命中构建标准检索结果。"""
         degraded = list(degraded or [])
         with observation(
             "rag.rrf_merge",
@@ -493,7 +493,7 @@ class BaseRAGEngine:
         candidate_source: str | None = None,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> RetrievalResult:
-        """Build one fused retrieval result for related rewrite queries."""
+        """为相关改写查询构建一个融合后的检索结果。"""
         degraded = list(degraded or [])
         if not hit_lists:
             return self._empty_rewrite_result(
@@ -668,7 +668,7 @@ class BaseRAGEngine:
         score_kind: str,
         channel: str,
     ) -> list[RetrievedSource]:
-        """Hydrate scored chunk ids into sources."""
+        """将带分数的片段 ID 回表为来源。"""
         if not scored_ids:
             return []
         chunks = self._load_chunks_by_ids([chunk_id for chunk_id, _ in scored_ids])
@@ -690,14 +690,14 @@ class BaseRAGEngine:
         return sources
 
     def _recall_limit(self, top_k: int) -> int:
-        """Return the channel recall window before RRF and rerank."""
+        """返回 RRF 和重排前的通道召回窗口。"""
         limit = max(int(top_k or 1) * 3, 8)
         if self.rerank_score_threshold > 0:
             limit = max(limit, self.rerank_max_sources * 3)
         return limit
 
     def _rerank_top_n(self, top_k: int) -> int:
-        """Return reranker output size before score-based cutoff."""
+        """返回基于分数截断前的重排输出数量。"""
         if self.rerank_score_threshold > 0:
             return max(int(top_k or 1), self.rerank_max_sources, 1)
         return max(int(top_k or 1), 1)
@@ -708,7 +708,7 @@ class BaseRAGEngine:
         *,
         requested_top_k: int,
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """Select answer sources by rerank score instead of a fixed Top-K."""
+        """按重排分数选择回答来源，而不是固定 Top-K。"""
         threshold = self.rerank_score_threshold
         if threshold <= 0:
             limit = max(int(requested_top_k or 1), 1)
@@ -753,7 +753,7 @@ class BaseRAGEngine:
         status: dict[str, Any],
         retrieval_plan: dict[str, Any],
     ) -> dict[str, Any]:
-        """Add a stable reason to structured backfill status."""
+        """为结构化回填状态补充稳定原因。"""
         output = dict(status or {})
         target_types = structured_backfill_chunk_types(query, retrieval_plan)
         output.setdefault("target_chunk_types", target_types)
@@ -774,7 +774,7 @@ class BaseRAGEngine:
         return output
 
     def _structured_backfill_failed(self, status: dict[str, Any]) -> bool:
-        """Return whether structured backfill should be marked as an error metadata event."""
+        """返回结构化回填是否应标记为错误元数据事件。"""
         reason = str((status or {}).get("reason") or "")
         return reason in {
             "chunk_store_missing",
@@ -792,7 +792,7 @@ class BaseRAGEngine:
         score_kind: str,
         channel: str,
     ) -> list[RetrievedSource]:
-        """Hydrate scored ids from a preloaded chunk lookup."""
+        """通过预加载片段映射回表带分数的 ID。"""
         sources = []
         for chunk_id, score in scored_ids:
             chunk = chunks_by_id.get(str(chunk_id))
@@ -810,11 +810,11 @@ class BaseRAGEngine:
         return sources
 
     def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
-        """Load chunks by public ids."""
+        """按公开 ID 加载片段。"""
         raise NotImplementedError
 
     def _unique_hit_chunks(self, *hit_lists: list[RetrievedSource]) -> list[KnowledgeChunk]:
-        """Return unique hit chunks."""
+        """返回去重后的命中片段。"""
         seen = set()
         chunks = []
         for hits in hit_lists:
@@ -826,7 +826,7 @@ class BaseRAGEngine:
         return chunks
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
-        """Expand parent context."""
+        """扩展父级上下文。"""
         raise NotImplementedError
 
     def _expand_structured_section_context(
@@ -836,7 +836,7 @@ class BaseRAGEngine:
         *,
         retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """Backfill structured section context."""
+        """回填结构化章节上下文。"""
         raise NotImplementedError
 
     def _cache_key(
@@ -846,7 +846,7 @@ class BaseRAGEngine:
         top_k: int,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> str:
-        """Build a retrieval cache key."""
+        """构建检索缓存键。"""
         payload = json.dumps(
             {
                 "query": normalized_query,
@@ -870,7 +870,7 @@ class BaseRAGEngine:
         top_k: int,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> str:
-        """Build a fused rewrite retrieval cache key."""
+        """构建融合改写检索缓存键。"""
         payload = json.dumps(
             {
                 "query": normalized_query,
@@ -896,7 +896,7 @@ class BaseRAGEngine:
         return f"declaration_qa:rag:rewrites:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
-        """Hydrate a cached retrieval result."""
+        """回表缓存中的检索结果。"""
         cached_items = list(cached_payload.get("sources") or [])
         with observation(
             "rag.cache.hydrate",
@@ -935,7 +935,7 @@ class BaseRAGEngine:
         coverage: dict[str, Any] | None = None,
         candidate_source: str | None = None,
     ) -> RetrievalResult:
-        """Build an empty retrieval result."""
+        """构建空检索结果。"""
         if prefilter_child_count is None:
             prefilter_child_count = self._prefilter_child_count()
         coverage = coverage or metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
@@ -973,7 +973,7 @@ class BaseRAGEngine:
         candidate_source: str | None = None,
         prefilter_child_count: int | None = None,
     ) -> RetrievalResult:
-        """Build an empty fused rewrite retrieval result."""
+        """构建空的融合改写检索结果。"""
         if prefilter_child_count is None:
             prefilter_child_count = self._prefilter_child_count()
         coverage = coverage or metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
@@ -1006,7 +1006,7 @@ class BaseRAGEngine:
         )
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
-        """Write a retrieval result to cache."""
+        """将检索结果写入缓存。"""
         with observation(
             "rag.cache.write",
             input={"source_count": len(result.sources), "ttl_seconds": self.cache_ttl_seconds},
@@ -1024,7 +1024,7 @@ class BaseRAGEngine:
             span.update(output={"backend": self.cache_store.backend, "written": True})
 
     def _empty_score_cutoff_status(self, top_k: int) -> dict[str, Any]:
-        """Return score cutoff status for empty retrieval results."""
+        """返回空检索结果的分数截断状态。"""
         return {
             "enabled": self.rerank_score_threshold > 0,
             "threshold": self.rerank_score_threshold,
@@ -1037,7 +1037,7 @@ class BaseRAGEngine:
         }
 
     def _observability_metadata(self, *, retrieval_plan: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Build compact metadata for RAG engine observations."""
+        """构建 RAG 引擎观测的紧凑元数据。"""
         return safe_value(
             {
                 "rag_engine": self.__class__.__name__,

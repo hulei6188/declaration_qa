@@ -1,4 +1,4 @@
-"""Structured retrieval plan helpers."""
+"""结构化检索计划辅助函数。"""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def infer_retrieval_plan(
     metadata_needs: Any = None,
     ticket_fact_type: str = "none",
 ) -> dict[str, Any]:
-    """Infer a normalized structured retrieval plan."""
+    """推断并归一化结构化检索计划。"""
     query = str(base_query or "")
     sections = list(normalize_complete_sections(need_complete_sections))
 
@@ -89,7 +89,7 @@ def infer_retrieval_plan(
 
 
 def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
-    """Normalize an already produced retrieval plan."""
+    """归一化已经生成的检索计划。"""
     raw = plan or {}
     return {
         "need_complete_sections": list(normalize_complete_sections(raw.get("need_complete_sections"))),
@@ -99,7 +99,7 @@ def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def backfill_chunk_types_from_plan(plan: dict[str, Any] | None) -> list[str]:
-    """Return structured chunk types requested by complete-section plan."""
+    """返回完整章节计划请求的结构化片段类型。"""
     normalized = normalize_retrieval_plan(plan)
     output: list[str] = []
     for section in normalized["need_complete_sections"]:
@@ -108,7 +108,7 @@ def backfill_chunk_types_from_plan(plan: dict[str, Any] | None) -> list[str]:
 
 
 def normalize_complete_sections(values: Any) -> tuple[str, ...]:
-    """Normalize complete-section values."""
+    """归一化完整章节取值。"""
     output: list[str] = []
     for value in list_values(values):
         key = str(value or "").strip()
@@ -119,7 +119,7 @@ def normalize_complete_sections(values: Any) -> tuple[str, ...]:
 
 
 def normalize_metadata_needs(values: Any) -> tuple[str, ...]:
-    """Normalize metadata need values."""
+    """归一化元数据需求取值。"""
     output: list[str] = []
     for value in list_values(values):
         normalized = str(value or "").strip().lower()
@@ -129,13 +129,13 @@ def normalize_metadata_needs(values: Any) -> tuple[str, ...]:
 
 
 def normalize_ticket_fact_type(value: str) -> str:
-    """Normalize ticket fact type inside retrieval plan."""
+    """归一化检索计划中的办件事实类型。"""
     normalized = str(value or "none").strip().lower()
     return normalized if normalized in {"status", "rejection", "correction", "none"} else "none"
 
 
 def list_values(values: Any) -> list[Any]:
-    """Return list-like values as a flat list."""
+    """将类列表值返回为扁平列表。"""
     if values is None:
         return []
     if isinstance(values, (list, tuple, set)):
@@ -144,11 +144,11 @@ def list_values(values: Any) -> list[Any]:
 
 
 def contains_any(text: str, keywords: tuple[str, ...]) -> bool:
-    """Return whether text contains any keyword."""
+    """返回文本是否包含任一关键词。"""
     return any(keyword in text for keyword in keywords)
 
 
 def append_unique(output: list[str], value: str) -> None:
-    """Append non-empty value once."""
+    """仅追加一次非空值。"""
     if value and value not in output:
         output.append(value)

@@ -1,4 +1,4 @@
-"""SSE 响应序列化辅助函数。"""
+"""服务端事件响应序列化辅助函数。"""
 
 from __future__ import annotations
 

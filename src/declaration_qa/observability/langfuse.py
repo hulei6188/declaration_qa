@@ -1,4 +1,4 @@
-"""Langfuse observability helpers."""
+"""Langfuse 可观测性辅助函数。"""
 
 from __future__ import annotations
 
@@ -28,25 +28,25 @@ MAX_DICT_ITEMS = 30
 
 
 class NoopObservation:
-    """No-op object with the Langfuse observation methods used by this app."""
+    """空实现对象，提供本应用使用的 Langfuse 观测方法。"""
 
     trace_id = ""
 
     def update(self, **_: Any) -> None:
-        """Ignore updates when observability is disabled."""
+        """可观测性关闭时忽略更新。"""
 
     def set_trace_io(self, **_: Any) -> None:
-        """Ignore trace I/O updates when observability is disabled."""
+        """可观测性关闭时忽略 trace 输入输出更新。"""
 
     def score_trace(self, **_: Any) -> None:
-        """Ignore trace scores when observability is disabled."""
+        """可观测性关闭时忽略 trace 评分。"""
 
     def record_error(self, *_: Any, **__: Any) -> None:
-        """Ignore errors when observability is disabled."""
+        """可观测性关闭时忽略错误记录。"""
 
 
 def langfuse_ready(settings: DeclarationQASettings | None = None) -> bool:
-    """Return whether Langfuse tracing should be attempted."""
+    """返回是否应尝试 Langfuse 追踪。"""
     settings = ensure_langfuse_env(settings)
     if settings is not None:
         return bool(settings.langfuse_enabled and settings.langfuse_public_key and settings.langfuse_secret_key)
@@ -60,7 +60,7 @@ def langfuse_ready(settings: DeclarationQASettings | None = None) -> bool:
 
 @lru_cache
 def default_settings() -> DeclarationQASettings | None:
-    """Load project settings from environment and .env for observability helpers."""
+    """从环境变量和 .env 加载可观测性辅助函数所需的项目配置。"""
     try:
         return DeclarationQASettings()
     except Exception:
@@ -68,7 +68,7 @@ def default_settings() -> DeclarationQASettings | None:
 
 
 def ensure_langfuse_env(settings: DeclarationQASettings | None = None) -> DeclarationQASettings | None:
-    """Expose .env Langfuse settings to the Langfuse SDK."""
+    """将 .env 中的 Langfuse 配置暴露给 Langfuse SDK。"""
     settings = settings or default_settings()
     if settings is None:
         return None
@@ -82,7 +82,7 @@ def ensure_langfuse_env(settings: DeclarationQASettings | None = None) -> Declar
 
 
 def create_trace_id(seed: str, settings: DeclarationQASettings | None = None) -> str:
-    """Create a deterministic Langfuse trace id for later feedback scoring."""
+    """创建确定性的 Langfuse trace ID，供后续反馈评分使用。"""
     if not langfuse_ready(settings):
         return ""
     try:
@@ -108,7 +108,7 @@ def observation(
     as_type: str = "span",
     model: str = "",
 ):
-    """Start a Langfuse observation if configured, otherwise yield a no-op."""
+    """配置可用时启动 Langfuse 观测，否则返回空实现。"""
     if not langfuse_ready(settings):
         yield NoopObservation()
         return
@@ -149,7 +149,7 @@ def observation(
 
 
 class Observation:
-    """Safe wrapper around a Langfuse observation."""
+    """Langfuse 观测对象的安全包装。"""
 
     def __init__(self, raw: Any, *, metadata: dict[str, Any] | None = None) -> None:
         self.raw = raw
@@ -157,7 +157,7 @@ class Observation:
         self.metadata = metadata or {}
 
     def update(self, **kwargs: Any) -> None:
-        """Update the current observation without letting SDK errors escape."""
+        """更新当前观测，并阻止 SDK 异常外泄。"""
         payload = {key: value for key, value in kwargs.items() if value not in (None, "", [], {})}
         if not payload:
             return
@@ -170,7 +170,7 @@ class Observation:
             return
 
     def set_trace_io(self, **kwargs: Any) -> None:
-        """Set trace input/output when supported by the SDK."""
+        """在 SDK 支持时设置 trace 输入输出。"""
         payload = {key: value for key, value in kwargs.items() if value not in (None, "", [], {})}
         if not payload:
             return
@@ -180,14 +180,14 @@ class Observation:
             return
 
     def score_trace(self, **kwargs: Any) -> None:
-        """Score current trace when supported by the SDK."""
+        """在 SDK 支持时为当前 trace 评分。"""
         try:
             self.raw.score_trace(**kwargs)
         except Exception:
             return
 
     def record_error(self, exc: BaseException | None = None, **kwargs: Any) -> None:
-        """Record an error payload on the observation."""
+        """在观测对象上记录错误载荷。"""
         record_error(self, exc, **kwargs)
 
 
@@ -198,7 +198,7 @@ def error_payload(
     reason: str = "",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a sanitized error payload."""
+    """构建脱敏后的错误载荷。"""
     payload = {
         "ok": False,
         "stage": stage,
@@ -218,7 +218,7 @@ def record_error(
     reason: str = "",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write a structured error payload to a Langfuse observation."""
+    """向 Langfuse 观测写入结构化错误载荷。"""
     payload = error_payload(exc, stage=stage, reason=reason, extra=extra)
     metadata = {"error": payload}
     if isinstance(span, Observation):
@@ -231,7 +231,7 @@ def record_error(
 
 
 def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | None = None) -> dict[str, Any] | None:
-    """Build LangChain callback config for Langfuse."""
+    """构建 Langfuse 使用的 LangChain 回调配置。"""
     if not langfuse_ready():
         return None
     try:
@@ -258,7 +258,7 @@ def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | 
 
 
 def invoke_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
-    """Invoke a LangChain LLM with Langfuse callbacks when enabled."""
+    """启用时通过 Langfuse 回调调用 LangChain LLM。"""
     config = langchain_config(state, run_name=run_name)
     if config:
         return llm.invoke(prompt, config=config)
@@ -266,7 +266,7 @@ def invoke_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_na
 
 
 def stream_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
-    """Stream a LangChain LLM with Langfuse callbacks when enabled."""
+    """启用时通过 Langfuse 回调流式调用 LangChain LLM。"""
     config = langchain_config(state, run_name=run_name)
     if config:
         return llm.stream(prompt, config=config)
@@ -281,7 +281,7 @@ def score_trace(
     comment: str = "",
     settings: DeclarationQASettings | None = None,
 ) -> None:
-    """Create a Langfuse trace score by trace id."""
+    """根据 trace ID 创建 Langfuse trace 评分。"""
     if not trace_id or not langfuse_ready(settings):
         return
     try:
@@ -299,7 +299,7 @@ def score_trace(
 
 
 def source_summary(sources: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
-    """Return a compact retrieval source summary for observability."""
+    """返回用于可观测性的紧凑检索来源摘要。"""
     output = []
     for source in (sources or [])[:limit]:
         output.append(
@@ -317,7 +317,7 @@ def source_summary(sources: list[dict[str, Any]], *, limit: int = 8) -> list[dic
 
 
 def retrieved_source_summary(sources: list[Any], *, limit: int = 8) -> list[dict[str, Any]]:
-    """Return a compact summary for RetrievedSource-like objects."""
+    """返回 RetrievedSource 类对象的紧凑摘要。"""
     output = []
     for source in (sources or [])[:limit]:
         chunk = getattr(source, "chunk", None)
@@ -340,7 +340,7 @@ def retrieved_source_summary(sources: list[Any], *, limit: int = 8) -> list[dict
 
 
 def safe_value(value: Any, *, depth: int = 0) -> Any:
-    """Redact and truncate values before sending them to observability sinks."""
+    """发送到可观测性后端前对值进行脱敏和截断。"""
     if depth > 4:
         return str(type(value).__name__)
     if isinstance(value, dict):
@@ -367,6 +367,6 @@ def safe_value(value: Any, *, depth: int = 0) -> Any:
 
 
 def is_sensitive_key(key: str) -> bool:
-    """Return whether a metadata key should be redacted."""
+    """返回元数据键是否需要脱敏。"""
     lowered = key.lower()
     return any(token in lowered for token in SENSITIVE_KEYWORDS) or lowered in {"name", "applicant_name"}

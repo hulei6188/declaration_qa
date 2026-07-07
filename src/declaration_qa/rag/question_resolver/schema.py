@@ -1,4 +1,4 @@
-"""Question resolver data structures."""
+"""问题解析数据结构。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class QuestionResolution:
-    """Question decomposition result."""
+    """问题拆解结果。"""
 
     is_multi_question: bool
     questions: list[dict[str, Any]]
@@ -16,7 +16,7 @@ class QuestionResolution:
     provider: str = "rule"
 
     def payload(self) -> dict[str, Any]:
-        """Convert to API/audit payload."""
+        """转换为 API 和审计载荷。"""
         return {
             "is_multi_question": self.is_multi_question,
             "questions": [dict(item) for item in self.questions],

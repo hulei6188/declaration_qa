@@ -1,4 +1,4 @@
-"""Embedding provider protocol."""
+"""向量化 provider 协议。"""
 
 from __future__ import annotations
 

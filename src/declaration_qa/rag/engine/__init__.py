@@ -1,7 +1,7 @@
-"""RAG engine package.
+"""RAG 引擎包。
 
-Import concrete engines and helpers from their explicit modules:
-``engine.in_memory``, ``engine.external_index``, ``engine.base``,
-``engine.chunking``, ``engine.scoring``, ``engine.structured_context``,
-``engine.text``, ``engine.vectors``, ``engine.embeddings`` and ``engine.seed``.
+请从明确模块导入具体引擎和辅助函数：
+``engine.in_memory``、``engine.external_index``、``engine.base``、
+``engine.chunking``、``engine.scoring``、``engine.structured_context``、
+``engine.text``、``engine.vectors``、``engine.embeddings`` 和 ``engine.seed``。
 """

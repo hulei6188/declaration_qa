@@ -1,4 +1,4 @@
-"""Knowledge document chunking strategies."""
+"""知识文档切片策略。"""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ from declaration_qa.rag.retrieval import sanitize_metadata
 
 
 def normalize_chunking_strategy(value: Any) -> str:
-    """Normalize document chunking strategy."""
+    """归一化文档切片策略。"""
     strategy = str(value or CHUNKING_PARENT_CHILD).strip().lower().replace("-", "_")
     return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_PARENT_CHILD
 
 
 def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
-    """Split a document with the configured strategy."""
+    """按配置的策略切分文档。"""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
     if strategy == CHUNKING_HIERARCHICAL:
         return attach_sibling_ids(split_hierarchical(document))
@@ -32,7 +32,7 @@ def split_parent_child(
     child_size: int = 420,
     overlap: int = 80,
 ) -> list[KnowledgeChunk]:
-    """Split a document into parent and child windows."""
+    """将文档切分为父窗口和子窗口。"""
     content = document.content.strip()
     if not content:
         return []
@@ -71,7 +71,7 @@ def split_hierarchical(
     child_size: int = 420,
     overlap: int = 80,
 ) -> list[KnowledgeChunk]:
-    """Split a structured markdown document by heading hierarchy."""
+    """按标题层级切分结构化 Markdown 文档。"""
     content = document.content.strip()
     if not content:
         return []
@@ -148,7 +148,7 @@ def split_hierarchical(
 
 
 def hierarchical_section_metadata(document: KnowledgeDocument, section: dict[str, Any], section_index: int) -> dict[str, Any]:
-    """Build metadata for hierarchical chunks."""
+    """构建层级片段元数据。"""
     section_title = str(section.get("section_title") or section.get("title") or "Document")
     node_title = str(section.get("node_title") or section.get("title") or section_title)
     node_order = parse_heading_order(node_title)
@@ -168,7 +168,7 @@ def hierarchical_section_metadata(document: KnowledgeDocument, section: dict[str
 
 
 def classify_hierarchical_chunk_type(section_title: str, node_title: str) -> str:
-    """Classify structured chunk semantic type."""
+    """分类结构化片段的语义类型。"""
     if section_title == "申请材料" and parse_heading_order(node_title) is not None:
         return "material_item"
     normalized_node_title = strip_heading_order(node_title)
@@ -178,18 +178,18 @@ def classify_hierarchical_chunk_type(section_title: str, node_title: str) -> str
 
 
 def parse_heading_order(title: str) -> int | None:
-    """Parse numeric heading order."""
+    """解析数字标题序号。"""
     match = re.match(r"^\s*(\d+)(?:[\.、．\)]\s*|\s+)", str(title or ""))
     return int(match.group(1)) if match else None
 
 
 def strip_heading_order(title: str) -> str:
-    """Remove leading numeric heading order."""
+    """移除开头的数字标题序号。"""
     return re.sub(r"^\s*\d+(?:[\.、．\)]\s*|\s+)", "", str(title or "")).strip()
 
 
 def markdown_sections(text: str) -> list[dict[str, Any]]:
-    """Parse markdown headings into sections."""
+    """将 Markdown 标题解析为章节。"""
     sections: list[dict[str, Any]] = []
     stack: list[tuple[int, str]] = []
     current_lines: list[str] = []
@@ -240,7 +240,7 @@ def markdown_sections(text: str) -> list[dict[str, Any]]:
 
 
 def markdown_section_title(stack: list[tuple[int, str]], current_title: str) -> str:
-    """Return the semantic section title for current markdown stack."""
+    """返回当前 Markdown 栈对应的语义章节标题。"""
     for level, title in stack:
         if level == 2:
             return title
@@ -252,7 +252,7 @@ def markdown_section_title(stack: list[tuple[int, str]], current_title: str) -> 
 
 
 def split_windows(text: str, size: int, overlap: int) -> list[str]:
-    """Split text into overlapping windows."""
+    """将文本切分为重叠窗口。"""
     content = str(text or "").strip()
     if len(content) <= size:
         return [content]
@@ -271,7 +271,7 @@ def split_windows(text: str, size: int, overlap: int) -> list[str]:
 
 
 def split_window_units(text: str, size: int) -> list[str]:
-    """Split text into line-sized units."""
+    """将文本切分为按行组织的单元。"""
     units: list[str] = []
     for line in text.splitlines():
         if not line.strip():
@@ -281,7 +281,7 @@ def split_window_units(text: str, size: int) -> list[str]:
 
 
 def split_long_line(line: str, size: int) -> list[str]:
-    """Split an overlong line at a soft boundary."""
+    """在软边界处切分过长行。"""
     if len(line) <= size:
         return [line]
     if "http://" in line or "https://" in line:
@@ -298,7 +298,7 @@ def split_long_line(line: str, size: int) -> list[str]:
 
 
 def best_soft_split(text: str, size: int) -> int:
-    """Find a soft split near the desired size."""
+    """在目标大小附近寻找软切分点。"""
     search_start = max(1, size // 2)
     candidates = [text.rfind(separator, search_start, size) for separator in ["。", "；", "，", "、", " ", "\t"]]
     split_at = max(candidates)
@@ -306,7 +306,7 @@ def best_soft_split(text: str, size: int) -> int:
 
 
 def trailing_overlap_units(units: list[str], overlap: int) -> list[str]:
-    """Return units needed to preserve trailing overlap."""
+    """返回保留尾部重叠所需的单元。"""
     if overlap <= 0:
         return []
     retained: list[str] = []
@@ -320,7 +320,7 @@ def trailing_overlap_units(units: list[str], overlap: int) -> list[str]:
 
 
 def join_window_units(units: list[str]) -> str:
-    """Join window units."""
+    """拼接窗口单元。"""
     return "\n".join(unit for unit in units if unit.strip()).strip()
 
 
@@ -333,7 +333,7 @@ def knowledge_chunk_from_document(
     content: str,
     extra_metadata: dict[str, Any] | None = None,
 ) -> KnowledgeChunk:
-    """Create a knowledge chunk from a document."""
+    """根据文档创建知识片段。"""
     document_metadata = sanitize_metadata(document.metadata)
     metadata = {
         **document_metadata,
@@ -368,7 +368,7 @@ def knowledge_chunk_from_document(
 
 
 def attach_sibling_ids(chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
-    """Attach sibling chunk ids for section-level material backfill."""
+    """附加用于章节级材料回填的同级片段 ID。"""
     groups: dict[str, list[str]] = {}
     for chunk in chunks:
         if chunk.chunk_type != "child":

@@ -1,5 +1,5 @@
-"""Query rewriter package.
+"""查询改写包。
 
-Import implementations from explicit modules such as ``query_rewriter.rule``
-and ``query_rewriter.llm``.
+请从明确模块导入实现，例如 ``query_rewriter.rule``
+和 ``query_rewriter.llm``。
 """

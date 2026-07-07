@@ -1,4 +1,4 @@
-"""Answer and audit nodes for the declaration QA workflow."""
+"""申报问答工作流的回答和审计节点。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from declaration_qa.observability.langfuse import observation, safe_value
 
 
 class WorkflowResponseNodes:
-    """Refusal, answer generation, postprocess, and audit nodes."""
+    """拒答、回答生成、后处理和审计节点。"""
     def refuse_or_human(self, state: DeclarationQAState) -> DeclarationQAState:
         """在证据不足时生成拒答和人工建议。"""
         next_state = dict(state)
@@ -151,7 +151,7 @@ class WorkflowResponseNodes:
 
 
 def response_observation_metadata(state: dict[str, object]) -> dict[str, object]:
-    """Build compact metadata for response node observations."""
+    """构建响应节点观测的紧凑元数据。"""
     return safe_value(
         {
             "user_id": state.get("user_id"),

@@ -1,4 +1,4 @@
-"""Retrieval and evidence nodes for the declaration QA workflow."""
+"""申报问答工作流的检索和证据节点。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED
 
 
 class WorkflowRetrievalNodes:
-    """Knowledge retrieval and evidence-gating nodes."""
+    """知识检索和证据门控节点。"""
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造普通知识检索过滤条件。"""
         next_state = dict(state)
@@ -239,7 +239,7 @@ class WorkflowRetrievalNodes:
 
 
 def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
-    """Build compact metadata for retrieval node observations."""
+    """构建检索节点观测的紧凑元数据。"""
     return safe_value(
         {
             "user_id": state.get("user_id"),

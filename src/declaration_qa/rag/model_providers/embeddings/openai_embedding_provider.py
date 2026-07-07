@@ -1,4 +1,4 @@
-"""OpenAI-compatible embedding provider."""
+"""兼容 OpenAI 的向量化 provider。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Combined node methods for DeclarationQAWorkflow."""
+"""DeclarationQAWorkflow 的组合节点方法。"""
 
 from __future__ import annotations
 
@@ -14,4 +14,4 @@ class WorkflowNodes(
     WorkflowRetrievalNodes,
     WorkflowResponseNodes,
 ):
-    """All LangGraph node methods used by DeclarationQAWorkflow."""
+    """DeclarationQAWorkflow 使用的全部 LangGraph 节点方法。"""

@@ -29,11 +29,10 @@ class BusinessDataAdapter(Protocol):
 
 
 class InMemoryBusinessDataAdapter:
-    """Business adapter used by the isolated QA app.
+    """独立问答应用使用的业务数据适配器。
 
-    Production wiring uses the PostgreSQL-backed adapter on
-    PostgresDeclarationQAStore; this remains for local development without a
-    database.
+    生产环境通过 PostgresDeclarationQAStore 使用 PostgreSQL 适配器；
+    这里保留给没有数据库的本地开发场景。
     """
 
     def __init__(self) -> None:

@@ -1,4 +1,4 @@
-"""Ticket and business-context nodes for the declaration QA workflow."""
+"""申报问答工作流的办件和业务上下文节点。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STA
 
 
 class WorkflowTicketNodes:
-    """Ticket selection and business-data enrichment nodes."""
+    """办件选择和业务数据补充节点。"""
     def ticket_list_query(self, state: DeclarationQAState) -> DeclarationQAState:
         """查询用户办件列表并写入状态。"""
         next_state = dict(state)
@@ -298,7 +298,7 @@ class WorkflowTicketNodes:
 
 
 def ticket_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
-    """Build compact metadata for ticket node observations."""
+    """构建办件节点观测的紧凑元数据。"""
     return safe_value(
         {
             "user_id": state.get("user_id"),

@@ -1,4 +1,4 @@
-"""QuestionResolver and routing nodes for the declaration QA workflow."""
+"""申报问答工作流的 QuestionResolver 和路由节点。"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from declaration_qa.rag.router import (
 
 
 class WorkflowPlanningNodes:
-    """Context, resolver, and route preparation nodes."""
+    """上下文、问题解析和路由准备节点。"""
     def context_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造基础请求上下文。"""
         next_state = dict(state)
@@ -347,7 +347,7 @@ class WorkflowPlanningNodes:
 
 
 def workflow_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
-    """Build compact metadata for workflow node observations."""
+    """构建工作流节点观测的紧凑元数据。"""
     return safe_value(
         {
             "user_id": state.get("user_id"),

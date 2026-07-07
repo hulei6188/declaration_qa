@@ -1,1 +1,1 @@
-"""Reranker provider package."""
+"""重排器 provider 包。"""

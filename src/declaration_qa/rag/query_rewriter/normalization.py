@@ -1,4 +1,4 @@
-"""Normalize LLM query rewrite outputs."""
+"""归一化 LLM 查询改写输出。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from declaration_qa.rag.query_rewriter.schema import DEFAULT_RETRIEVAL_TOP_K, MA
 
 
 def normalize_query_rewrite(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QueryRewrite:
-    """Normalize LLM query rewrite payload."""
+    """归一化 LLM 查询改写载荷。"""
     base_query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
     ticket_fact_type = str(state.get("ticket_fact_type") or "none")
     requires_ticket_context = bool(state.get("requires_ticket_context"))

@@ -1,4 +1,4 @@
-"""External-index RAG engine implementation."""
+"""外部索引 RAG 引擎实现。"""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from declaration_qa.storage.cache import CacheStore
 
 
 class ExternalIndexRAGEngine(BaseRAGEngine):
-    """RAG engine backed by external vector/keyword indexes and a chunk store."""
+    """基于外部向量/关键词索引和片段存储的 RAG 引擎。"""
 
     def __init__(
         self,
@@ -39,7 +39,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 12,
     ) -> None:
-        """Initialize external-index RAG engine."""
+        """初始化外部索引 RAG 引擎。"""
         if vector_index is None or keyword_index is None or chunk_store is None:
             raise ValueError("ExternalIndexRAGEngine requires vector_index, keyword_index and chunk_store")
         self._documents: dict[str, KnowledgeDocument] = {}
@@ -57,15 +57,15 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
 
     @property
     def chunk_count(self) -> int:
-        """External chunks are hydrated on demand."""
+        """外部片段按需回表。"""
         return 0
 
     def documents(self) -> list[KnowledgeDocument]:
-        """Return known documents."""
+        """返回已知文档。"""
         return list(self._documents.values())
 
     def index_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
-        """Index chunks into external vector and keyword indexes."""
+        """将片段写入外部向量和关键词索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
         vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
@@ -78,14 +78,14 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         return len(chunks)
 
     def delete_document(self, doc_id: str) -> None:
-        """Delete one document from external indexes."""
+        """从外部索引中删除单个文档。"""
         self._documents.pop(doc_id, None)
         self.vector_index.delete_by_doc(doc_id)
         self.keyword_index.delete_by_doc(doc_id)
         self.cache_store.clear()
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Rebuild external vector and keyword indexes from chunks."""
+        """根据片段重建外部向量和关键词索引。"""
         self._documents = {document.id: document for document in documents}
         self.vector_index.clear()
         self.keyword_index.clear()
@@ -99,13 +99,13 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         return len(chunks)
 
     def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
-        """Load document metadata without hydrating chunk bodies."""
+        """加载文档元数据，不回表片段正文。"""
         self._documents = {document.id: document for document in documents}
         self.cache_store.clear()
         return len(chunks)
 
     def _candidate_source(self) -> str:
-        """Return candidate source label."""
+        """返回候选来源标签。"""
         return "external_indexes"
 
     def _retrieve_uncached(
@@ -116,7 +116,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Retrieve through external indexes and hydrate chunks on demand."""
+        """通过外部索引检索，并按需回表片段。"""
         search_filter = published_visibility_filter(effective_filter)
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         limit = self._recall_limit(top_k)
@@ -154,7 +154,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         *,
         retrieval_plan: dict[str, Any],
     ) -> list[RetrievalResult]:
-        """Batch remote dense retrieval, then hydrate and rerank."""
+        """批量执行远程稠密检索，然后回表并重排。"""
         search_filter = published_visibility_filter(effective_filter)
         limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
@@ -237,7 +237,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         top_k: int,
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
-        """Batch recall rewrite queries, globally fuse, and rerank once."""
+        """批量召回改写查询，全局融合后统一重排一次。"""
         search_filter = published_visibility_filter(effective_filter)
         limits = [self._recall_limit(int(spec["top_k"])) for spec in query_specs]
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
@@ -378,7 +378,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         limits: list[int],
         degraded: list[dict[str, str]],
     ) -> dict[int, list[tuple[str, float]]]:
-        """Run keyword retrieval one query at a time when batch search is unavailable."""
+        """批量搜索不可用时逐条执行关键词检索。"""
         results: dict[int, list[tuple[str, float]]] = {}
         for spec, limit in zip(query_specs, limits):
             index = int(spec["index"])
@@ -418,7 +418,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         limit: int,
         channel: str,
     ) -> list[RetrievedSource]:
-        """Run vector retrieval against the configured vector index."""
+        """在配置的向量索引上执行向量检索。"""
         with observation(
             "rag.embedding.query",
             input={"query": query},
@@ -444,7 +444,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         return self._sources_from_scored_ids(scored_ids, score_kind="dense", channel=channel)
 
     def _keyword_retrieve(self, query: str, filters: dict[str, Any], *, limit: int) -> list[RetrievedSource]:
-        """Run keyword retrieval against the configured keyword index."""
+        """在配置的关键词索引上执行关键词检索。"""
         with observation(
             "rag.keyword_search",
             input={"query": query, "limit": limit, "filter": filters, "backend": self.keyword_index.backend},
@@ -463,7 +463,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         return self._sources_from_scored_ids(scored_ids, score_kind="bm25", channel=f"{self.keyword_index.backend}_bm25")
 
     def _load_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
-        """Load chunks from the persistent chunk store."""
+        """从持久化片段存储加载片段。"""
         unique_ids = unique_ordered_strings(chunk_ids)
         if not unique_ids:
             return []
@@ -498,7 +498,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             return ordered_chunks
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
-        """Expand child hits with parent chunks from storage."""
+        """用存储中的父片段扩展子命中。"""
         if self.chunk_store is None:
             return sources
         parent_ids = [
@@ -545,7 +545,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         *,
         retrieval_plan: dict[str, Any],
     ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """Backfill structured section siblings from storage."""
+        """从存储中回填结构化章节同级片段。"""
         if self.chunk_store is None:
             return sources, {"applied": False, "reason": "chunk_store_missing"}
         target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
@@ -607,7 +607,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
 
 
 def scored_id_summary(scored_ids: list[tuple[str, float]], *, limit: int = 8) -> list[dict[str, Any]]:
-    """Return compact scored id details for retrieval observations."""
+    """返回检索观测使用的紧凑带分数 ID 详情。"""
     return safe_value(
         [
             {"chunk_id": str(chunk_id), "score": round(float(score or 0.0), 4)}
@@ -617,7 +617,7 @@ def scored_id_summary(scored_ids: list[tuple[str, float]], *, limit: int = 8) ->
 
 
 def scored_id_output(scored_ids: list[tuple[str, float]], *, empty_reason: str) -> dict[str, Any]:
-    """Return a Langfuse output payload for one scored-id search."""
+    """返回单次带分数 ID 搜索的 Langfuse 输出载荷。"""
     output: dict[str, Any] = {
         "hit_count": len(scored_ids),
         "hits": scored_id_summary(scored_ids),
@@ -634,7 +634,7 @@ def batch_scored_id_summary(
     *,
     empty_reason: str,
 ) -> dict[str, Any]:
-    """Return a Langfuse output payload for batched scored-id search."""
+    """返回批量带分数 ID 搜索的 Langfuse 输出载荷。"""
     hit_counts = {
         str(int(spec["index"])): len(hits)
         for spec, hits in zip(query_specs, batch_hits)
@@ -660,7 +660,7 @@ def score_map_summary(
     *,
     empty_reason: str,
 ) -> dict[str, Any]:
-    """Return a Langfuse output payload for indexed scored-id maps."""
+    """返回索引化带分数 ID 映射的 Langfuse 输出载荷。"""
     hit_counts = {
         str(int(spec["index"])): len(scores_by_index.get(int(spec["index"])) or [])
         for spec in query_specs

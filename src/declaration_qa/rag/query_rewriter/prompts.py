@@ -1,4 +1,4 @@
-"""Query rewriter prompt construction."""
+"""查询改写提示词构造。"""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ QUERY_REWRITER_PROMPT = """你是政务问答系统的【检索 Query 改写器�
 
 
 def build_query_rewriter_prompt(state: dict[str, Any]) -> str:
-    """Build query rewrite prompt."""
+    """构建查询改写提示词。"""
     base_query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
     filters = state.get("retrieval_filter") or {}
     scope_text = "" if has_item_scope_filter(filters) else selected_ticket_scope_text(state)

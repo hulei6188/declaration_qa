@@ -1,4 +1,4 @@
-"""FastAPI 应用创建入口。"""
+"""应用创建入口。"""
 
 from __future__ import annotations
 

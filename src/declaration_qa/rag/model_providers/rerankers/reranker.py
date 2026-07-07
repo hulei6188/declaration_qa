@@ -1,4 +1,4 @@
-"""Reranker protocol."""
+"""重排器协议。"""
 
 from __future__ import annotations
 

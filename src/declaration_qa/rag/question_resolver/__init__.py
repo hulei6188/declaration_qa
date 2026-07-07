@@ -1,5 +1,5 @@
-"""Question resolver package.
+"""问题解析包。
 
-Import implementations from explicit modules such as ``question_resolver.rule``
-and ``question_resolver.llm``.
+请从明确模块导入实现，例如 ``question_resolver.rule``
+和 ``question_resolver.llm``。
 """

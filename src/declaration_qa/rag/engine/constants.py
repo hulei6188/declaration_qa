@@ -1,4 +1,4 @@
-"""RAG engine constants."""
+"""RAG 引擎常量。"""
 
 EMBEDDING_DIMS = 96
 CHUNKING_PARENT_CHILD = "parent_child"
