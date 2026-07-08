@@ -86,6 +86,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             user_id=str(initial_state.get("user_id") or ""),
             session_id=str(initial_state.get("session_id") or ""),
             tags=["declaration-qa", "chat"],
+            trace_name="declaration_qa.chat",
         ) as span:
             final_state = self.graph.invoke(initial_state)
             span.update(output=chat_trace_output(final_state), metadata=chat_trace_metadata(final_state))
@@ -127,6 +128,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             user_id=str(state.get("user_id") or ""),
             session_id=str(state.get("session_id") or ""),
             tags=["declaration-qa", "chat", "stream"],
+            trace_name="declaration_qa.chat.stream",
         ) as span:
             yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
 

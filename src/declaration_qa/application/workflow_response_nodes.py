@@ -154,6 +154,7 @@ def response_observation_metadata(state: dict[str, object]) -> dict[str, object]
     """构建响应节点观测的紧凑元数据。"""
     return safe_value(
         {
+            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
             "user_id": state.get("user_id"),
             "session_id": state.get("session_id") or "",
             "route": state.get("route") or "",

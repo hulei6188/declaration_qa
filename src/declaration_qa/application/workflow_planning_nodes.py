@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -127,6 +128,7 @@ class WorkflowPlanningNodes:
             with ThreadPoolExecutor(max_workers=min(self.max_sub_question_workers, len(planned_questions))) as executor:
                 futures = {
                     executor.submit(
+                        copy_context().run,
                         self.collect_sub_question,
                         self.state_for_sub_question(next_state, question),
                         question,
@@ -350,6 +352,7 @@ def workflow_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
     """构建工作流节点观测的紧凑元数据。"""
     return safe_value(
         {
+            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
             "user_id": state.get("user_id"),
             "session_id": state.get("session_id") or "",
             "route": state.get("route") or "",

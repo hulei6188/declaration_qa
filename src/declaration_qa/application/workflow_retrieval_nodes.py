@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -146,7 +147,10 @@ class WorkflowRetrievalNodes:
             retrieval_mode = "parallel_multi_query_rewrite"
             results_by_index: list[RetrievalResult | None] = [None] * len(executable_queries)
             with ThreadPoolExecutor(max_workers=min(self.max_retrieval_workers, len(executable_queries))) as executor:
-                futures = {executor.submit(retrieve_one, retrieval_query): index for index, retrieval_query in enumerate(executable_queries)}
+                futures = {
+                    executor.submit(copy_context().run, retrieve_one, retrieval_query): index
+                    for index, retrieval_query in enumerate(executable_queries)
+                }
                 for future in as_completed(futures):
                     index = futures[future]
                     query_status, result = future.result()
@@ -242,6 +246,7 @@ def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
     """构建检索节点观测的紧凑元数据。"""
     return safe_value(
         {
+            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
             "user_id": state.get("user_id"),
             "session_id": state.get("session_id") or "",
             "route": state.get("route") or "",

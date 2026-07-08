@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar, Token
 from contextlib import ExitStack, contextmanager
 from functools import lru_cache
 from typing import Any
@@ -25,6 +26,9 @@ SENSITIVE_KEYWORDS = (
 MAX_STRING_LENGTH = 800
 MAX_LIST_ITEMS = 12
 MAX_DICT_ITEMS = 30
+CURRENT_TRACE_ID: ContextVar[str] = ContextVar("declaration_qa_langfuse_trace_id", default="")
+CURRENT_TRACE_DEPTH: ContextVar[int] = ContextVar("declaration_qa_langfuse_trace_depth", default=0)
+CURRENT_SPAN_ID: ContextVar[str] = ContextVar("declaration_qa_langfuse_span_id", default="")
 
 
 class NoopObservation:
@@ -105,6 +109,7 @@ def observation(
     user_id: str = "",
     session_id: str = "",
     tags: list[str] | None = None,
+    trace_name: str = "",
     as_type: str = "span",
     model: str = "",
 ):
@@ -117,29 +122,43 @@ def observation(
         from langfuse import get_client, propagate_attributes
 
         client = get_client()
+        metadata_payload = safe_value(metadata or {})
+        effective_trace_id = trace_id or trace_id_from_metadata(metadata_payload) or CURRENT_TRACE_ID.get()
+        trace_depth = CURRENT_TRACE_DEPTH.get()
         kwargs: dict[str, Any] = {"as_type": as_type, "name": name}
         if model:
             kwargs["model"] = model
-        if trace_id:
-            kwargs["trace_context"] = {"trace_id": trace_id}
+        if effective_trace_id and trace_depth <= 0:
+            kwargs["trace_context"] = {"trace_id": effective_trace_id}
         raw = stack.enter_context(client.start_as_current_observation(**kwargs))
-        stack.enter_context(
-            propagate_attributes(
-                trace_name=name,
-                user_id=user_id or None,
-                session_id=session_id or None,
-                tags=tags or None,
-                metadata=safe_value(metadata or {}),
+        active_trace_id = effective_trace_id or str(getattr(raw, "trace_id", "") or "")
+        active_span_id = str(getattr(raw, "id", "") or "")
+        if active_trace_id:
+            token = CURRENT_TRACE_ID.set(active_trace_id)
+            stack.callback(reset_current_trace_id, token)
+        if active_span_id:
+            span_token = CURRENT_SPAN_ID.set(active_span_id)
+            stack.callback(reset_current_span_id, span_token)
+        depth_token = CURRENT_TRACE_DEPTH.set(trace_depth + 1)
+        stack.callback(reset_current_trace_depth, depth_token)
+        if trace_name or user_id or session_id or tags:
+            stack.enter_context(
+                propagate_attributes(
+                    trace_name=trace_name or None,
+                    user_id=user_id or None,
+                    session_id=session_id or None,
+                    tags=tags or None,
+                    metadata=metadata_payload,
+                )
             )
-        )
     except Exception:
         stack.close()
         yield NoopObservation()
         return
 
-    wrapped = Observation(raw, metadata=safe_value(metadata or {}))
+    wrapped = Observation(raw, metadata=metadata_payload, trace_id=active_trace_id)
     try:
-        wrapped.update(input=safe_value(input), output=safe_value(output), metadata=safe_value(metadata or {}))
+        wrapped.update(input=safe_value(input), output=safe_value(output), metadata=metadata_payload)
         yield wrapped
     except Exception as exc:
         record_error(wrapped, exc, stage=name)
@@ -151,9 +170,9 @@ def observation(
 class Observation:
     """Langfuse 观测对象的安全包装。"""
 
-    def __init__(self, raw: Any, *, metadata: dict[str, Any] | None = None) -> None:
+    def __init__(self, raw: Any, *, metadata: dict[str, Any] | None = None, trace_id: str = "") -> None:
         self.raw = raw
-        self.trace_id = str(getattr(raw, "trace_id", "") or getattr(raw, "id", "") or "")
+        self.trace_id = str(trace_id or getattr(raw, "trace_id", "") or "")
         self.metadata = metadata or {}
 
     def update(self, **kwargs: Any) -> None:
@@ -230,6 +249,37 @@ def record_error(
     return payload
 
 
+def trace_id_from_metadata(metadata: Any) -> str:
+    """从观测元数据中读取 Langfuse trace ID。"""
+    if not isinstance(metadata, dict):
+        return ""
+    return str(metadata.get("langfuse_trace_id") or metadata.get("trace_id") or "").strip()
+
+
+def reset_current_trace_id(token: Token[str]) -> None:
+    """退出观测时恢复当前 trace 上下文。"""
+    try:
+        CURRENT_TRACE_ID.reset(token)
+    except Exception:
+        return
+
+
+def reset_current_trace_depth(token: Token[int]) -> None:
+    """退出观测时恢复当前 trace 嵌套深度。"""
+    try:
+        CURRENT_TRACE_DEPTH.reset(token)
+    except Exception:
+        return
+
+
+def reset_current_span_id(token: Token[str]) -> None:
+    """退出观测时恢复当前 span 上下文。"""
+    try:
+        CURRENT_SPAN_ID.reset(token)
+    except Exception:
+        return
+
+
 def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | None = None) -> dict[str, Any] | None:
     """构建 Langfuse 使用的 LangChain 回调配置。"""
     if not langfuse_ready():
@@ -249,8 +299,12 @@ def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | 
     trace_id = str(state.get("langfuse_trace_id") or "")
     if trace_id:
         metadata["langfuse_trace_id"] = trace_id
+    trace_context = {}
+    if trace_id and CURRENT_TRACE_DEPTH.get() <= 0:
+        trace_context["trace_id"] = trace_id
+    handler = CallbackHandler(trace_context=trace_context) if trace_context else CallbackHandler()
     return {
-        "callbacks": [CallbackHandler()],
+        "callbacks": [handler],
         "run_name": run_name,
         "tags": tags or ["declaration-qa"],
         "metadata": safe_value(metadata),
