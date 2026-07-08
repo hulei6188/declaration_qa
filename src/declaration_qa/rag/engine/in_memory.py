@@ -323,7 +323,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
         prefilter_child_count = self._prefilter_child_count()
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
-        result_query = text or "图片查询"
+        result_query = self.image_rerank_query(text, retrieval_plan)
         if not candidates:
             return self._empty_result(
                 result_query,

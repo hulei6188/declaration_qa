@@ -12,7 +12,15 @@ class HeuristicReranker:
 
     name = "heuristic"
 
-    def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int) -> list[Any]:
+    def rerank(
+        self,
+        query: str,
+        sources: list[Any],
+        filters: dict[str, Any],
+        *,
+        top_n: int,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> list[Any]:
         """按查询相关性重新排序候选来源。"""
         from declaration_qa.rag.engine.scoring import metadata_match_boost
         from declaration_qa.rag.engine.text import tokenize

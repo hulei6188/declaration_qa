@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImagePlus, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
 import { escapeHtml, ticketLabel } from '../utils.js';
+import SourceEvidenceList from './SourceEvidenceList.jsx';
 
 export default function ChatPane({
   messages, streaming, sendState, currentTicket, ticketPickerOpen, ticketList,
@@ -129,6 +130,9 @@ export default function ChatPane({
           <article key={i} className={`message ${m.role}`}>
             <span className="message-meta">{m.meta}</span>
             <div className="message-content">{m.content}</div>
+            {m.role === 'assistant' && m.sources?.length > 0 && (
+              <SourceEvidenceList sources={m.sources} />
+            )}
             {m.attachments?.length > 0 && (
               <div className="message-attachments">
                 {m.attachments.map((item, index) => (

@@ -318,6 +318,43 @@ class BaseRAGEngine:
             return embed_image(image_path, text=text)
         return self.embedding_provider.embed_query(text or "图片查询")
 
+    def image_rerank_query(self, text: str, retrieval_plan: dict[str, Any] | None) -> str:
+        """返回图片召回后用于重排和证据回填的语义问题。"""
+        planned = str((retrieval_plan or {}).get("image_rerank_query") or "").strip()
+        return normalize_text(planned or text or "图片内容相关申报材料")
+
+    def _call_reranker(
+        self,
+        query: str,
+        sources: list[RetrievedSource],
+        filters: dict[str, Any],
+        *,
+        top_n: int,
+        retrieval_plan: dict[str, Any],
+    ) -> list[RetrievedSource]:
+        """调用重排器，兼容测试中旧签名的轻量假对象。"""
+        try:
+            return self.reranker.rerank(query, sources, filters, top_n=top_n, retrieval_plan=retrieval_plan)
+        except TypeError as exc:
+            if "retrieval_plan" not in str(exc):
+                raise
+            return self.reranker.rerank(query, sources, filters, top_n=top_n)
+
+    def _reranker_model(self) -> str:
+        """返回当前重排模型名称。"""
+        return str(getattr(self.reranker, "model", "") or "")
+
+    def _rerank_is_multimodal(self, retrieval_plan: dict[str, Any]) -> bool:
+        """判断当前重排请求是否携带多模态输入。"""
+        return bool(
+            str(retrieval_plan.get("query_modality") or "").lower() == "image"
+            and str(retrieval_plan.get("query_image_path") or "").strip()
+        )
+
+    def _image_candidate_count(self, sources: list[RetrievedSource]) -> int:
+        """统计候选来源中的图片 chunk 数量。"""
+        return sum(1 for source in sources if (source.chunk.metadata or {}).get("modality") == "image")
+
     def _retrieve_uncached(
         self,
         normalized_query: str,
@@ -412,14 +449,24 @@ class BaseRAGEngine:
                 "candidate_count": len(fused_hits),
                 "top_n": rerank_top_n,
                 "provider": self.reranker.name,
+                "model": self._reranker_model(),
+                "query_modality": policy.get("query_modality") or "text",
+                "multimodal": self._rerank_is_multimodal(policy),
+                "image_candidate_count": self._image_candidate_count(fused_hits),
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
             try:
-                reranked = self.reranker.rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
+                reranked = self._call_reranker(
+                    normalized_query,
+                    fused_hits,
+                    effective_filter,
+                    top_n=rerank_top_n,
+                    retrieval_plan=policy,
+                )
                 span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
             except Exception as exc:
-                reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n)
+                reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n, retrieval_plan=policy)
                 degraded.append({"stage": "rerank", "error": type(exc).__name__})
                 record_error(
                     span,
@@ -511,6 +558,7 @@ class BaseRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "rerank_model": self._reranker_model(),
                 "metadata_filtering": bool(effective_filter),
                 "channels": {
                     "dense": len(dense_hits),
@@ -582,15 +630,25 @@ class BaseRAGEngine:
                 "candidate_limit": rerank_candidate_limit,
                 "top_n": rerank_top_n,
                 "provider": self.reranker.name,
+                "model": self._reranker_model(),
+                "query_modality": policy.get("query_modality") or "text",
+                "multimodal": self._rerank_is_multimodal(policy),
+                "image_candidate_count": self._image_candidate_count(rerank_candidates),
                 "mode": "rewrites",
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
             try:
-                reranked = self.reranker.rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
+                reranked = self._call_reranker(
+                    original_query,
+                    rerank_candidates,
+                    effective_filter,
+                    top_n=rerank_top_n,
+                    retrieval_plan=policy,
+                )
                 span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
             except Exception as exc:
-                reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n)
+                reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n, retrieval_plan=policy)
                 degraded.append({"stage": "rerank", "error": type(exc).__name__})
                 record_error(
                     span,
@@ -692,6 +750,7 @@ class BaseRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "rerank_model": self._reranker_model(),
                 "metadata_filtering": bool(effective_filter),
                 "channels": {
                     "hit_lists": len(hit_lists),
@@ -1004,6 +1063,7 @@ class BaseRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "rerank_model": self._reranker_model(),
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
@@ -1045,6 +1105,7 @@ class BaseRAGEngine:
                 "vector_backend": self.vector_index.backend,
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "rerank_model": self._reranker_model(),
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"hit_lists": 0, "rrf": 0, "rerank_candidates": 0, "rerank": 0, "dense": 0, "bm25": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
@@ -1098,6 +1159,7 @@ class BaseRAGEngine:
                 "keyword_backend": self.keyword_index.backend if self.keyword_index else "",
                 "embedding_provider": self.embedding_provider.name,
                 "rerank_provider": self.reranker.name,
+                "rerank_model": self._reranker_model(),
                 "rerank_score_threshold": self.rerank_score_threshold,
                 "rerank_max_sources": self.rerank_max_sources,
                 "retrieval_plan": normalize_retrieval_plan(retrieval_plan),

@@ -25,6 +25,7 @@ def register_system_routes(app):
             "audit_store": workflow.audit_store.__class__.__name__,
             "embedding_provider": workflow.rag_engine.embedding_provider.name,
             "rerank_provider": workflow.rag_engine.reranker.name,
+            "rerank_model": getattr(workflow.rag_engine.reranker, "model", ""),
             "question_resolver": getattr(workflow.question_resolver, "name", workflow.question_resolver.__class__.__name__),
             "query_rewriter": getattr(workflow.query_rewriter, "name", workflow.query_rewriter.__class__.__name__),
             "answer_generator": workflow.answer_generator.__class__.__name__,

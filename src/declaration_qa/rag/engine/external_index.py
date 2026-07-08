@@ -385,7 +385,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
         limit = self._recall_limit(top_k)
         degraded: list[dict[str, str]] = []
-        result_query = text or "图片查询"
+        result_query = self.image_rerank_query(text, retrieval_plan)
         try:
             with observation(
                 "rag.embedding.image_query",

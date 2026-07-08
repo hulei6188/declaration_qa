@@ -62,6 +62,7 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_LLM_PROVIDER=openai` 或 `dashscope`
 - `DECLARATION_QA_EMBEDDING_PROVIDER=qwen3-vl-embedding`
 - `DECLARATION_QA_RERANK_PROVIDER=dashscope`
+- `DECLARATION_QA_RERANK_MODEL=qwen3-vl-rerank`
 
 ## 关键配置
 
@@ -82,6 +83,7 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_EMBEDDING_DIMENSIONS`: 使用 `qwen3-vl-embedding` 时建议设为 `1024`。
 - `DECLARATION_QA_EMBEDDING_IMAGE_RES_LEVEL`: 图片向量分辨率等级，`0` 表示不传该参数。
 - `DECLARATION_QA_RERANK_PROVIDER` / `DECLARATION_QA_RERANK_MODEL`
+- 推荐图片检索场景使用 `DECLARATION_QA_RERANK_MODEL=qwen3-vl-rerank`。
 - `DECLARATION_QA_RERANK_SCORE_THRESHOLD`
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND`: `inline` 或 `rq`。
 - `DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED`: 是否解析附件并生成派生 chunk。
@@ -160,10 +162,11 @@ ChatRequest
 图片 + 文本 query:
   文本部分 -> Milvus dense + Elasticsearch BM25
   图片+文本部分 -> qwen3-vl-embedding -> Milvus dense
-  两路结果 -> merge / rerank / backfill
+  两路结果 -> merge / qwen3-vl-rerank / backfill
 
 纯图片 query:
   图片 embedding -> Milvus dense
+  qwen3-vl-rerank 使用用户图片和候选图片/文本做二排
   不使用兜底文本做 QueryRewrite / BM25
 ```
 

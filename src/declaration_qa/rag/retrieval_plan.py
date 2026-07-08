@@ -101,11 +101,21 @@ def infer_retrieval_plan(
 def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
     """归一化已经生成的检索计划。"""
     raw = plan or {}
-    return {
+    output = {
         "need_complete_sections": list(normalize_complete_sections(raw.get("need_complete_sections"))),
         "metadata_needs": list(normalize_metadata_needs(raw.get("metadata_needs"))),
         "ticket_fact_type": normalize_ticket_fact_type(str(raw.get("ticket_fact_type") or "none")),
     }
+    image_rerank_query = str(raw.get("image_rerank_query") or "").strip()
+    if image_rerank_query:
+        output["image_rerank_query"] = image_rerank_query
+    query_modality = str(raw.get("query_modality") or "").strip()
+    if query_modality:
+        output["query_modality"] = query_modality
+    query_image_path = str(raw.get("query_image_path") or "").strip()
+    if query_image_path:
+        output["query_image_path"] = query_image_path
+    return output
 
 
 def backfill_chunk_types_from_plan(plan: dict[str, Any] | None) -> list[str]:

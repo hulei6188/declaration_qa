@@ -105,6 +105,13 @@ class WorkflowRetrievalNodes:
         query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
         image_only = is_image_only_query(state)
         image_query_text = "" if image_only else answer_query
+        image_retrieval_plan = {
+            **retrieval_plan,
+            "query_modality": "image",
+            "image_rerank_query": answer_query,
+        }
+        if query_image_path:
+            image_retrieval_plan["query_image_path"] = query_image_path
         if image_only:
             retrieval_queries = []
         elif not retrieval_queries:
@@ -119,12 +126,14 @@ class WorkflowRetrievalNodes:
                 with observation(
                     "workflow.retrieve.image_query",
                     input={
-                        "query": image_query_text,
+                        "query": answer_query,
+                        "embedding_text": image_query_text,
+                        "rerank_query": answer_query,
                         "image_only": image_only,
                         "text_present": not image_only,
                         "top_k": 4,
                         "filter": filters,
-                        "retrieval_plan": {**retrieval_plan, "query_modality": "image"},
+                        "retrieval_plan": image_retrieval_plan,
                     },
                     metadata=observation_metadata,
                 ) as span:
@@ -133,12 +142,14 @@ class WorkflowRetrievalNodes:
                         image_query_text,
                         filters,
                         top_k=4,
-                        retrieval_plan={**retrieval_plan, "query_modality": "image"},
+                        retrieval_plan=image_retrieval_plan,
                     )
                     image_query_status = {
                         "id": "image",
                         "strategy": "image_query",
-                        "query": image_query_text or "图片查询",
+                        "query": answer_query,
+                        "embedding_text": image_query_text,
+                        "rerank_query": (image_result.status or {}).get("query") or answer_query,
                         "top_k": 4,
                         "source_count": len(image_result.sources),
                         "cache": (image_result.status or {}).get("cache") or {},
@@ -157,6 +168,8 @@ class WorkflowRetrievalNodes:
                     "id": "image",
                     "strategy": "image_query",
                     "query": answer_query,
+                    "embedding_text": image_query_text,
+                    "rerank_query": answer_query,
                     "top_k": 4,
                     "source_count": 0,
                     "error": type(exc).__name__,

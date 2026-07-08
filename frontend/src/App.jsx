@@ -56,9 +56,8 @@ export default function App() {
   const [ticketList, setTicketList] = useState([]);
   const [pendingTicketQuery, setPendingTicketQuery] = useState('');
 
-  // ---- Timeline / Sources / Audit ----
+  // ---- Timeline / Audit ----
   const [timeline, setTimeline] = useState([]);
-  const [sources, setSources] = useState([]);
   const [audit, setAudit] = useState({ intent: '-', auditId: '-', refused: '-' });
   const [feedbackResult, setFeedbackResult] = useState('反馈会写入独立服务。');
 
@@ -108,12 +107,11 @@ export default function App() {
       attachments: queryImage ? [queryImage] : [],
     };
     setMessages((prev) => [...prev, userMsg]);
-    const assistantMsg = { role: 'assistant', content: '', meta: '申报辅助' };
+    const assistantMsg = { role: 'assistant', content: '', meta: '申报辅助', sources: [] };
     setMessages((prev) => [...prev, assistantMsg]);
     assistantRef.current = '';
     setStreaming(true);
     setSendState('流式生成中…');
-    setSources([]);
     setTimeline([]);
 
     try {
@@ -130,7 +128,8 @@ export default function App() {
             return next;
           });
         } else if (event === 'sources') {
-          setSources(data.items || []);
+          const items = data.items || [];
+          setMessages((prev) => attachSourcesToLastAssistant(prev, items));
           addTimeline(event, { count: (data.items || []).length });
         } else if (event === 'done') {
           setSessionId(data.session_id || sessionId);
@@ -198,7 +197,6 @@ export default function App() {
     setSessionId(null);
     setMessages([]);
     setTimeline([]);
-    setSources([]);
     setAudit({ intent: '-', auditId: '-', refused: '-' });
     setCurrentTicket(null);
     setPendingTicketQuery('');
@@ -283,10 +281,10 @@ export default function App() {
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content || '',
           meta: m.role === 'user' ? '用户问题' : '申报辅助',
+          sources: m.role === 'user' ? [] : (m.sources || []),
         }))
       );
       setTimeline([]);
-      setSources([]);
       setAudit({ intent: '-', auditId: '-', refused: '-' });
 
       const applyId = String(session?.apply_id || '').trim();
@@ -672,7 +670,6 @@ export default function App() {
         />
         <Inspector
           timeline={timeline}
-          sources={sources}
           audit={audit}
           feedbackResult={feedbackResult}
           evalDatasetId={evalDatasetId}
@@ -694,4 +691,14 @@ export default function App() {
 function formatMetric(value) {
   if (value === null || value === undefined) return '-';
   return `${Math.round(Number(value) * 100)}%`;
+}
+
+function attachSourcesToLastAssistant(messages, sources) {
+  const next = [...messages];
+  for (let index = next.length - 1; index >= 0; index--) {
+    if (next[index]?.role !== 'assistant') continue;
+    next[index] = { ...next[index], sources: sources || [] };
+    break;
+  }
+  return next;
 }
