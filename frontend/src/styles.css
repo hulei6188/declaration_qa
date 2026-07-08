@@ -490,6 +490,22 @@ select {
   padding: 2px 0 0;
 }
 
+.message-attachments {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.message-attachments img {
+  width: 180px;
+  max-width: min(180px, 100%);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
 .message-meta {
   display: block;
   margin-bottom: 6px;
@@ -544,6 +560,45 @@ select {
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
+.composer-image {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 32px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.composer-image img {
+  width: 64px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--bg-alt);
+}
+
+.composer-image strong,
+.composer-image span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-image strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.composer-image span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .composer-actions {
   display: flex;
   align-items: center;
@@ -560,6 +615,19 @@ select {
 .composer-actions button {
   padding: 9px 22px;
   font-size: 14px;
+  border-radius: var(--radius);
+}
+
+.composer-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-buttons .icon-button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
   border-radius: var(--radius);
 }
 

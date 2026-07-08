@@ -120,6 +120,18 @@ class RAGEngine(Protocol):
         """检索同一用户问题下的多个改写查询。"""
         ...
 
+    def retrieve_image(
+        self,
+        image_path: str,
+        text: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 4,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> RetrievalResult:
+        """按用户上传图片检索来源。"""
+        ...
+
 
 class BaseRAGEngine:
     """具体检索后端共享的 RAG 编排逻辑。"""
@@ -278,6 +290,34 @@ class BaseRAGEngine:
         self._cache_result(cache_key, result)
         return result
 
+    def retrieve_image(
+        self,
+        image_path: str,
+        text: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 4,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> RetrievalResult:
+        """根据用户上传图片执行向量检索。"""
+        normalized_text = normalize_text(text)
+        effective_filter = normalize_retrieval_filter(filters)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        return self._retrieve_image_uncached(
+            str(image_path or ""),
+            normalized_text,
+            effective_filter,
+            top_k=top_k,
+            retrieval_plan=policy,
+        )
+
+    def embed_image_query(self, image_path: str, text: str) -> list[float]:
+        """调用支持图片查询的 embedding provider。"""
+        embed_image = getattr(self.embedding_provider, "embed_image_query", None)
+        if callable(embed_image):
+            return embed_image(image_path, text=text)
+        return self.embedding_provider.embed_query(text or "图片查询")
+
     def _retrieve_uncached(
         self,
         normalized_query: str,
@@ -310,6 +350,18 @@ class BaseRAGEngine:
         retrieval_plan: dict[str, Any],
     ) -> RetrievalResult:
         """不使用缓存检索改写召回列表。"""
+        raise NotImplementedError
+
+    def _retrieve_image_uncached(
+        self,
+        image_path: str,
+        text: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
+        """不使用缓存执行图片查询检索。"""
         raise NotImplementedError
 
     def _flush_vector_index(self) -> None:

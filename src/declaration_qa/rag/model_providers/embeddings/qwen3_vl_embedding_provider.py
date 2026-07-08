@@ -15,7 +15,7 @@ class Qwen3VLEmbeddingProvider:
     """基于 qwen3-vl-embedding 的文本/图片统一向量化实现。"""
 
     name = "dashscope-qwen3-vl"
-    document_batch_size = 10
+    document_batch_size = 20
 
     def __init__(
         self,
@@ -43,8 +43,11 @@ class Qwen3VLEmbeddingProvider:
             return []
         from dashscope import MultiModalEmbeddingItemText
 
-        items = [MultiModalEmbeddingItemText(text=safe_embedding_text(text), factor=1.0) for text in texts]
-        return self._call(items, enable_fusion=False)
+        vectors: list[list[float]] = []
+        for batch in batched_values(texts, self.document_batch_size):
+            items = [MultiModalEmbeddingItemText(text=safe_embedding_text(text), factor=1.0) for text in batch]
+            vectors.extend(self._call(items, enable_fusion=False))
+        return vectors
 
     def embed_chunks(self, chunks: list[KnowledgeChunk]) -> list[list[float]]:
         """根据 chunk 模态生成文本向量或图片向量。"""
@@ -65,13 +68,18 @@ class Qwen3VLEmbeddingProvider:
 
     def embed_image_chunk(self, chunk: KnowledgeChunk) -> list[float]:
         """为图片 chunk 生成图片或图文融合向量。"""
+        asset_path = str(chunk.metadata.get("asset_path") or "").strip()
+        text = image_chunk_text(chunk) or chunk.content
+        return self.embed_image_query(asset_path, text=text)
+
+    def embed_image_query(self, image_path: str, *, text: str = "") -> list[float]:
+        """为用户上传图片生成查询向量，有文本时走图文融合。"""
         from dashscope import MultiModalEmbeddingItemImage, MultiModalEmbeddingItemText
 
-        asset_path = str(chunk.metadata.get("asset_path") or "").strip()
-        if not asset_path or not Path(asset_path).is_file():
-            return self.embed_query(chunk.content)
-        items: list[Any] = [MultiModalEmbeddingItemImage(image=asset_path, factor=1.0)]
-        text = image_chunk_text(chunk)
+        path = str(image_path or "").strip()
+        if not path or not Path(path).is_file():
+            return self.embed_query(text or "图片查询")
+        items: list[Any] = [MultiModalEmbeddingItemImage(image=path, factor=1.0)]
         if text:
             items.append(MultiModalEmbeddingItemText(text=safe_embedding_text(text), factor=0.25))
         return self._call(items, enable_fusion=bool(text))[0]
@@ -108,6 +116,12 @@ def flush_text_embeddings(
     embedded = provider.embed_documents(texts)
     for index, vector in zip(indices, embedded):
         vectors[index] = vector
+
+
+def batched_values(values: list[str], batch_size: int) -> list[list[str]]:
+    """按 DashScope 批量上限切分文本。"""
+    size = max(1, int(batch_size or 1))
+    return [values[index : index + size] for index in range(0, len(values), size)]
 
 
 def chunk_is_image(chunk: KnowledgeChunk) -> bool:

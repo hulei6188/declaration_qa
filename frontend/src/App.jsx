@@ -100,8 +100,13 @@ export default function App() {
   }, []);
 
   // ---- Chat ----
-  async function sendMessage(query, displayText, meta, ctxOverride) {
-    const userMsg = { role: 'user', content: displayText || query, meta: meta || '用户问题' };
+  async function sendMessage(query, displayText, meta, ctxOverride, queryImage) {
+    const userMsg = {
+      role: 'user',
+      content: displayText || query,
+      meta: meta || '用户问题',
+      attachments: queryImage ? [queryImage] : [],
+    };
     setMessages((prev) => [...prev, userMsg]);
     const assistantMsg = { role: 'assistant', content: '', meta: '申报辅助' };
     setMessages((prev) => [...prev, assistantMsg]);
@@ -112,7 +117,7 @@ export default function App() {
     setTimeline([]);
 
     try {
-      const body = buildChatRequest(query, sessionId, ctxOverride || ctx);
+      const body = buildChatRequest(query, sessionId, ctxOverride || ctx, queryImage);
       const response = await startChatStream(body);
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 

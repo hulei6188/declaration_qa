@@ -11,6 +11,7 @@ class DeclarationQAState(TypedDict, total=False):
     session_id: str
     query: str
     normalized_query: str
+    query_image: dict[str, Any] | None
 
     region_code: str
     app_version: str

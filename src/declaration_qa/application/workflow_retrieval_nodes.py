@@ -89,10 +89,42 @@ class WorkflowRetrievalNodes:
         retrieval_queries = state.get("retrieval_queries") or []
         answer_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
         retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
+        query_image = state.get("query_image") or {}
+        query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
+        image_query_text = answer_query if not isinstance(query_image, dict) or query_image.get("text_present", True) else ""
         if not retrieval_queries:
             retrieval_queries = [{"id": "rq1", "text": answer_query, "strategy": "fallback", "top_k": 4}]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
+        image_result: RetrievalResult | None = None
+        image_query_status: dict[str, Any] | None = None
+        if query_image_path:
+            try:
+                image_result = self.rag_engine.retrieve_image(
+                    query_image_path,
+                    image_query_text,
+                    filters,
+                    top_k=4,
+                    retrieval_plan={**retrieval_plan, "query_modality": "image"},
+                )
+                image_query_status = {
+                    "id": "image",
+                    "strategy": "image_query",
+                    "query": image_query_text or "图片查询",
+                    "top_k": 4,
+                    "source_count": len(image_result.sources),
+                    "cache": (image_result.status or {}).get("cache") or {},
+                    "channels": (image_result.status or {}).get("channels") or {},
+                }
+            except Exception as exc:
+                image_query_status = {
+                    "id": "image",
+                    "strategy": "image_query",
+                    "query": answer_query,
+                    "top_k": 4,
+                    "source_count": 0,
+                    "error": type(exc).__name__,
+                }
 
         def retrieve_one(retrieval_query: dict[str, Any]) -> tuple[dict[str, Any], RetrievalResult]:
             text = str(retrieval_query.get("text") or "").strip()
@@ -112,6 +144,7 @@ class WorkflowRetrievalNodes:
             )
 
         batch_degraded = ""
+        results: list[RetrievalResult] = []
         if len(executable_queries) > 1:
             try:
                 result = self.rag_engine.retrieve_rewrites(
@@ -128,20 +161,24 @@ class WorkflowRetrievalNodes:
                     "retrieval_parallelism": 1,
                     "batch_degraded": "",
                 }
-                return RetrievalResult(sources=result.sources, filter=result.filter, status=status)
+                if image_result is None:
+                    return RetrievalResult(sources=result.sources, filter=result.filter, status=status)
+                results = [result]
+                query_statuses = list(status.get("queries") or [])
+                retrieval_mode = "multimodal_rewrite"
             except Exception as exc:
                 batch_degraded = type(exc).__name__
             try:
-                retrieval_mode = "batch_multi_query_rewrite"
-                results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
-                for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
-                    query_statuses[index] = query_status_from_result(retrieval_query, result)
+                if not (image_result is not None and results):
+                    retrieval_mode = "batch_multi_query_rewrite"
+                    results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
+                    for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
+                        query_statuses[index] = query_status_from_result(retrieval_query, result)
             except Exception as exc:
-                batch_degraded = batch_degraded or type(exc).__name__
-                query_statuses = [None] * len(executable_queries)
-                results = []
-        else:
-            results = []
+                if not results:
+                    batch_degraded = batch_degraded or type(exc).__name__
+                    query_statuses = [None] * len(executable_queries)
+                    results = []
 
         if not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
             retrieval_mode = "parallel_multi_query_rewrite"
@@ -164,12 +201,16 @@ class WorkflowRetrievalNodes:
                 query_status, result = retrieve_one(retrieval_query)
                 query_statuses[index] = query_status
                 results.append(result)
+        if image_result is not None:
+            results.append(image_result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
         score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
         answer_source_limit = int(getattr(self.rag_engine, "rerank_max_sources", 6) or 6) if score_threshold > 0 else 6
         sources = select_answer_sources(merged, answer_query, limit=answer_source_limit, retrieval_plan=retrieval_plan)
         ordered_statuses = [status for status in query_statuses if status is not None]
+        if image_query_status is not None:
+            ordered_statuses.append(image_query_status)
         status = {
             "query": answer_query,
             "rewrite_query": combined_query,
@@ -181,6 +222,7 @@ class WorkflowRetrievalNodes:
             "filter": filters,
             "metadata_filtering": bool(filters),
             "retrieval_mode": retrieval_mode,
+            "query_modalities": ["text", "image"] if query_image_path else ["text"],
             "retrieval_parallelism": min(self.max_retrieval_workers, max(1, len(executable_queries))),
             "batch_degraded": batch_degraded,
             "score_cutoff": {

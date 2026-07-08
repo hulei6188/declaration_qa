@@ -309,6 +309,57 @@ class InMemoryRAGEngine(BaseRAGEngine):
             retrieval_plan=retrieval_plan,
         )
 
+    def _retrieve_image_uncached(
+        self,
+        image_path: str,
+        text: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
+        """使用用户上传图片向量检索内存索引。"""
+        search_filter = published_visibility_filter(effective_filter)
+        candidates = [chunk for chunk in self._chunks.values() if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)]
+        prefilter_child_count = self._prefilter_child_count()
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        result_query = text or "图片查询"
+        if not candidates:
+            return self._empty_result(
+                result_query,
+                effective_filter,
+                top_k=top_k,
+                prefilter_child_count=prefilter_child_count,
+                coverage=coverage,
+            )
+        limit = self._recall_limit(top_k)
+        degraded: list[dict[str, str]] = []
+        try:
+            query_vector = self.embed_image_query(image_path, text)
+            by_id = {chunk.id: chunk for chunk in candidates}
+            vector_hits = self.vector_index.search(query_vector, search_filter, limit=limit)
+            dense_hits = [
+                RetrievedSource(chunk=by_id[chunk_id], score=score, dense_score=score, retrieval_channel="image_dense")
+                for chunk_id, score in vector_hits[:limit]
+                if chunk_id in by_id and score > 0
+            ]
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "image_dense_retrieve", "error": type(exc).__name__})
+        return self._build_result_from_hits(
+            result_query,
+            effective_filter,
+            candidates,
+            prefilter_child_count,
+            coverage,
+            dense_hits,
+            [],
+            top_k=top_k,
+            degraded=degraded,
+            candidate_source="image_query",
+            retrieval_plan=retrieval_plan,
+        )
+
     def _prefilter_child_count(self) -> int:
         """返回已加载子片段数量。"""
         return sum(1 for chunk in self._chunks.values() if chunk.chunk_type == "child")

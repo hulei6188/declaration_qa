@@ -40,6 +40,16 @@ class TicketSummary(BaseModel):
     updated_at: str = ""
 
 
+class ChatImagePayload(BaseModel):
+    """聊天图片查询载荷。"""
+    filename: str = Field(default="", max_length=255)
+    content_type: str = Field(default="image/png", max_length=120)
+    data_url: str | None = Field(default=None, max_length=12_000_000)
+    file_path: str = Field(default="", max_length=1000)
+    size_bytes: int = Field(default=0, ge=0)
+    text_present: bool = True
+
+
 class ChatRequest(BaseModel):
     """申报问答请求模型。"""
     query: str = Field(min_length=1, max_length=1000)
@@ -52,6 +62,7 @@ class ChatRequest(BaseModel):
     apply_id: str | None = Field(default=None, max_length=80)
     apply_context: ApplyContext | None = None
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
+    query_image: ChatImagePayload | None = None
 
 
 class SourcePayload(BaseModel):

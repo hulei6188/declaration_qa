@@ -81,6 +81,8 @@ class DeclarationQASettings(BaseSettings):
     index_queue_name: str = Field(default="declaration-qa-index", alias="DECLARATION_QA_INDEX_QUEUE_NAME")
     index_job_timeout_seconds: int = Field(default=1800, alias="DECLARATION_QA_INDEX_JOB_TIMEOUT_SECONDS")
     upload_dir: str = Field(default="data/declaration_qa/uploads", alias="DECLARATION_QA_UPLOAD_DIR")
+    chat_image_dir: str = Field(default="data/declaration_qa/query_images", alias="DECLARATION_QA_CHAT_IMAGE_DIR")
+    chat_image_max_bytes: int = Field(default=8 * 1024 * 1024, alias="DECLARATION_QA_CHAT_IMAGE_MAX_BYTES")
 
     seed_knowledge: bool = Field(default=True, alias="DECLARATION_QA_SEED_KNOWLEDGE")
 

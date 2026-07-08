@@ -371,6 +371,68 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             retrieval_plan=retrieval_plan,
         )
 
+    def _retrieve_image_uncached(
+        self,
+        image_path: str,
+        text: str,
+        effective_filter: dict[str, Any],
+        *,
+        top_k: int,
+        retrieval_plan: dict[str, Any],
+    ) -> RetrievalResult:
+        """使用用户上传图片向量检索外部索引。"""
+        search_filter = published_visibility_filter(effective_filter)
+        coverage = metadata_coverage(effective_filter, chain=str(effective_filter.get("chain") or KNOWLEDGE_RETRIEVAL_CHAIN))
+        limit = self._recall_limit(top_k)
+        degraded: list[dict[str, str]] = []
+        result_query = text or "图片查询"
+        try:
+            with observation(
+                "rag.embedding.image_query",
+                input={"text": text, "image_path": image_path},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                query_vector = self.embed_image_query(image_path, text)
+                span.update(
+                    output={
+                        "dimension": len(query_vector),
+                        "provider": self.embedding_provider.name,
+                        "mode": "image_text_fusion" if text else "image",
+                    }
+                )
+            with observation(
+                "rag.vector_search.image_query",
+                input={"limit": limit, "filter": search_filter},
+                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
+            ) as span:
+                scored_ids = self.vector_index.search(query_vector, search_filter, limit=limit)
+                output = scored_id_output(scored_ids, empty_reason="image_query_vector_empty_result")
+                if output.get("empty"):
+                    record_error(
+                        span,
+                        stage="rag.vector_search.image_query",
+                        reason=str(output.get("reason") or "image_query_vector_empty_result"),
+                        extra={"backend": self.vector_index.backend, **output},
+                    )
+                span.update(output=output)
+            dense_hits = self._sources_from_scored_ids(scored_ids, score_kind="dense", channel="image_dense")
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "image_dense_retrieve", "error": type(exc).__name__})
+        return self._build_result_from_hits(
+            result_query,
+            effective_filter,
+            [source.chunk for source in dense_hits],
+            len(dense_hits),
+            coverage,
+            dense_hits,
+            [],
+            top_k=top_k,
+            degraded=degraded,
+            candidate_source="image_query",
+            retrieval_plan=retrieval_plan,
+        )
+
     def _keyword_retrieve_many_fallback(
         self,
         query_specs: list[dict[str, Any]],

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2, Send, Trash2 } from 'lucide-react';
+import { ImagePlus, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
 import { escapeHtml, ticketLabel } from '../utils.js';
 
 export default function ChatPane({
@@ -8,10 +8,12 @@ export default function ChatPane({
   onSelectTicket, onClearTicket, ctx, setCtx, expanded = false, onToggleExpanded,
 }) {
   const [input, setInput] = useState('');
+  const [imageDraft, setImageDraft] = useState(null);
   const [autoFollow, setAutoFollow] = useState(true);
   const messagesRef = useRef(null);
   const messagesEnd = useRef(null);
   const previousCount = useRef(messages.length);
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     const hasNewMessage = messages.length > previousCount.current;
@@ -32,10 +34,13 @@ export default function ChatPane({
   function handleSubmit(e) {
     e.preventDefault();
     const q = input.trim();
-    if (!q || streaming) return;
+    if ((!q && !imageDraft) || streaming) return;
     setAutoFollow(true);
-    onSend(q);
+    const query = q || '请根据这张图片检索相关申报材料';
+    onSend(query, undefined, undefined, undefined, imageDraft ? { ...imageDraft, text_present: Boolean(q) } : null);
     setInput('');
+    setImageDraft(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   }
 
   function handleKeyDown(e) {
@@ -43,6 +48,30 @@ export default function ChatPane({
       e.preventDefault();
       handleSubmit(e);
     }
+  }
+
+  function handleImageChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageDraft({
+        filename: file.name,
+        content_type: file.type || 'image/png',
+        size_bytes: file.size,
+        data_url: String(reader.result || ''),
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImageDraft() {
+    setImageDraft(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   }
 
   const ticketId = currentTicket?.ticket_id || ctx.applyId;
@@ -100,6 +129,13 @@ export default function ChatPane({
           <article key={i} className={`message ${m.role}`}>
             <span className="message-meta">{m.meta}</span>
             <div className="message-content">{m.content}</div>
+            {m.attachments?.length > 0 && (
+              <div className="message-attachments">
+                {m.attachments.map((item, index) => (
+                  <img key={`${item.filename || 'image'}-${index}`} src={item.data_url} alt={item.filename || '上传图片'} />
+                ))}
+              </div>
+            )}
             {m.ticketSelection && (
               <div className="ticket-selection">
                 <strong>{m.ticketSelection.reason === 'multiple_candidates' ? '请选择对应工单' : '候选工单'}</strong>
@@ -118,6 +154,18 @@ export default function ChatPane({
 
       {/* Composer */}
       <form className="composer" onSubmit={handleSubmit}>
+        {imageDraft && (
+          <div className="composer-image">
+            <img src={imageDraft.data_url} alt={imageDraft.filename || '待发送图片'} />
+            <div>
+              <strong>{imageDraft.filename || '图片'}</strong>
+              <span>{formatBytes(imageDraft.size_bytes)}</span>
+            </div>
+            <button type="button" className="icon-button" onClick={clearImageDraft} title="移除图片" aria-label="移除图片">
+              <X size={15} />
+            </button>
+          </div>
+        )}
         <textarea
           rows="3"
           value={input}
@@ -128,12 +176,38 @@ export default function ChatPane({
         />
         <div className="composer-actions">
           <span>{sendState}</span>
-          <button className="primary" type="submit" disabled={streaming || !input.trim()}>
-            <Send size={15} />
-            发送
-          </button>
+          <div className="composer-buttons">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff"
+              onChange={handleImageChange}
+              hidden
+            />
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={streaming}
+              title="上传图片提问"
+              aria-label="上传图片提问"
+            >
+              <ImagePlus size={16} />
+            </button>
+            <button className="primary" type="submit" disabled={streaming || (!input.trim() && !imageDraft)}>
+              <Send size={15} />
+              发送
+            </button>
+          </div>
         </div>
       </form>
     </section>
   );
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }

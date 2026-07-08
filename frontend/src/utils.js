@@ -155,7 +155,7 @@ async function requestJson(url, options) {
 }
 
 // Chat SSE
-export function buildChatRequest(query, sessionId, ctx) {
+export function buildChatRequest(query, sessionId, ctx, queryImage) {
   const payload = {
     query,
     user_id: Number(ctx.userId || 1),
@@ -166,6 +166,15 @@ export function buildChatRequest(query, sessionId, ctx) {
   };
   if (ctx.bizType) payload.biz_type = ctx.bizType;
   if (ctx.applyId) payload.apply_id = ctx.applyId;
+  if (queryImage?.data_url) {
+    payload.query_image = {
+      filename: queryImage.filename || '',
+      content_type: queryImage.content_type || 'image/png',
+      size_bytes: Number(queryImage.size_bytes || 0),
+      data_url: queryImage.data_url,
+      text_present: Boolean(queryImage.text_present),
+    };
+  }
   return payload;
 }
 
