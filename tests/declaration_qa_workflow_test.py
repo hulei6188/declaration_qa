@@ -196,7 +196,6 @@ def test_query_rewriter_scopes_unrelated_query_without_ticket_facts():
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
             "retrieval_plan": {
-                "need_complete_sections": [],
                 "metadata_needs": ["item_scope"],
                 "ticket_fact_type": "none",
             },
@@ -260,7 +259,7 @@ def test_query_rewriter_without_complete_sections_uses_scoped_original_only():
     assert rewrite.queries[0].text == "示例事项A 这是什么意思"
 
 
-def test_question_resolver_infers_broad_handling_retrieval_plan():
+def test_question_resolver_does_not_request_complete_sections():
     resolution = RuleQuestionResolver().resolve(
         {
             "query": "防火期在草原施工需要办理什么",
@@ -269,8 +268,8 @@ def test_question_resolver_infers_broad_handling_retrieval_plan():
     )
     retrieval_plan = resolution.questions[0]["retrieval_plan"]
 
-    assert "申请材料" in retrieval_plan["need_complete_sections"]
-    assert "办理流程" in retrieval_plan["need_complete_sections"]
+    assert "need_complete_sections" not in retrieval_plan
+    assert retrieval_plan["ticket_fact_type"] == "none"
 
 
 def test_llm_query_rewriter_uses_model_queries():
@@ -406,7 +405,7 @@ def test_question_resolver_prompt_limits_over_splitting_and_markdown():
     assert "requires_ticket_context" in QUESTION_RESOLVER_PROMPT
     assert "ticket_fact_type" in QUESTION_RESOLVER_PROMPT
     assert "retrieval_plan" in QUESTION_RESOLVER_PROMPT
-    assert "need_complete_sections" in QUESTION_RESOLVER_PROMPT
+    assert "need_complete_sections" not in QUESTION_RESOLVER_PROMPT
     assert ("retrieval" "_focus") not in QUESTION_RESOLVER_PROMPT
     assert ("evidence" "_types") not in QUESTION_RESOLVER_PROMPT
     assert "retrieval_query" in QUESTION_RESOLVER_PROMPT
@@ -436,7 +435,7 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
                   "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
                   "requires_ticket_context": false,
                   "ticket_fact_type": "none",
-                  "retrieval_plan": {"need_complete_sections": ["办理流程"]},
+                  "retrieval_plan": {"metadata_needs": ["item_scope"]},
                   "is_expanded": true,
                   "expansion_reason": "keyword_query_to_process_question",
                   "intent": "process_and_time",
@@ -452,7 +451,7 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
     assert plan.is_multi_question is False
     assert plan.questions[0]["original_query"] == "防火办事流程"
     assert plan.questions[0]["query"] == "防火办事流程"
-    assert plan.questions[0]["retrieval_plan"]["need_complete_sections"] == ["办理流程"]
+    assert "need_complete_sections" not in plan.questions[0]["retrieval_plan"]
     assert plan.questions[0]["is_expanded"] is False
     assert plan.questions[0]["expansion_reason"] == ""
     assert "intent" not in plan.questions[0]

@@ -40,8 +40,6 @@ def normalize_question_resolution(payload: dict[str, Any], state: dict[str, Any]
         )
         raw_plan = item.get("retrieval_plan") if isinstance(item, dict) and isinstance(item.get("retrieval_plan"), dict) else {}
         retrieval_plan = infer_retrieval_plan(
-            retrieval_query or query,
-            need_complete_sections=raw_plan.get("need_complete_sections"),
             metadata_needs=raw_plan.get("metadata_needs"),
             ticket_fact_type=raw_plan.get("ticket_fact_type") or ticket_fact_type,
         )

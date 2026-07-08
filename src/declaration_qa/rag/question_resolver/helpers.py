@@ -22,7 +22,6 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
         "requires_ticket_context": requires_ticket_context,
         "ticket_fact_type": ticket_fact_type,
         "retrieval_plan": infer_retrieval_plan(
-            normalized,
             ticket_fact_type=ticket_fact_type,
         ),
         "is_expanded": False,

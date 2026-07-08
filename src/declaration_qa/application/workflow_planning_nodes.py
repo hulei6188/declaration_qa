@@ -307,8 +307,6 @@ class WorkflowPlanningNodes:
         ticket_fact_type = str(next_state.get("ticket_fact_type") or "none").strip() or "none"
         raw_retrieval_plan = next_state.get("retrieval_plan") or {}
         retrieval_plan = infer_retrieval_plan(
-            query,
-            need_complete_sections=raw_retrieval_plan.get("need_complete_sections"),
             metadata_needs=raw_retrieval_plan.get("metadata_needs"),
             ticket_fact_type=raw_retrieval_plan.get("ticket_fact_type") or ticket_fact_type,
         )

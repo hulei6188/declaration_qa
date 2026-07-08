@@ -75,7 +75,7 @@ src/declaration_qa/rag/engine/external_index.py
 src/declaration_qa/rag/engine/in_memory.py
 src/declaration_qa/rag/engine/scoring.py
 src/declaration_qa/rag/engine/seed.py
-src/declaration_qa/rag/engine/structured_context.py
+src/declaration_qa/rag/engine/parent_context.py
 src/declaration_qa/rag/engine/text.py
 src/declaration_qa/rag/engine/vectors.py
 src/declaration_qa/rag/model_providers/__init__.py

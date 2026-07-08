@@ -123,7 +123,6 @@ ChatRequest
 
 `retrieval_plan` 主要字段：
 
-- `need_complete_sections`: 需要完整回填的结构化章节，目前支持 `申请材料`、`办理流程`。
 - `metadata_needs`: 需要满足的元数据范围，如 `item_scope`、`ticket_scope`。
 - `ticket_fact_type`: `status`、`rejection`、`correction`、`none`。
 

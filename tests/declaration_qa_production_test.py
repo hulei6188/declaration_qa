@@ -462,7 +462,7 @@ def test_hierarchical_chunking_uses_context_parent_only_for_long_sections():
     assert {chunk.metadata.get("parent_section_id") for chunk in chunks} == {"doc-hierarchical-long#申请材料"}
 
 
-def test_material_query_backfills_sibling_items_by_parent_section_id():
+def test_material_query_does_not_backfill_sibling_items_by_parent_section_id():
     engine = InMemoryRAGEngine()
     document = KnowledgeDocument(
         id="doc-material-backfill",
@@ -485,12 +485,13 @@ def test_material_query_backfills_sibling_items_by_parent_section_id():
         for source in result.sources
         if source.chunk.metadata.get("chunk_type") == "material_item"
     ]
-    assert material_titles[:3] == ["1. 身份证件", "2. 单位组织机构代码证", "3. 申请表"]
-    assert result.status["structured_backfill"]["applied"] is True
-    assert result.status["structured_backfill"]["target_chunk_type"] == "material_item"
+    assert "3. 申请表" in material_titles
+    assert "1. 身份证件" not in material_titles
+    assert "2. 单位组织机构代码证" not in material_titles
+    assert "structured_backfill" not in result.status
 
 
-def test_material_backfill_merges_all_windows_for_long_item():
+def test_parent_context_expands_long_material_window():
     engine = InMemoryRAGEngine()
     long_material_body = "\n".join(
         [f"| 字段{i} | 长材料内容{i}，用于制造多个 child window |" for i in range(30)]
@@ -516,7 +517,7 @@ def test_material_backfill_merges_all_windows_for_long_item():
         for source in result.sources
         if source.chunk.metadata.get("node_title") == "2. 长材料"
     )
-    assert long_material.metadata["merged_chunk_count"] > 1
+    assert long_material.metadata.get("expanded_parent_chunk_id")
     assert "字段0" in long_material.content
     assert "长材料尾段XYZ必须保留" in long_material.content
     assert len([
@@ -526,7 +527,7 @@ def test_material_backfill_merges_all_windows_for_long_item():
     ]) == 1
 
 
-def test_retrieval_plan_backfills_complete_material_section_without_material_keyword():
+def test_retrieval_plan_does_not_backfill_complete_material_section():
     engine = InMemoryRAGEngine()
     document = KnowledgeDocument(
         id="doc-policy-material-backfill",
@@ -546,9 +547,7 @@ def test_retrieval_plan_backfills_complete_material_section_without_material_key
         "防火期在草原施工需要办理什么",
         {},
         top_k=2,
-        retrieval_plan={
-            "need_complete_sections": ["申请材料"],
-        },
+        retrieval_plan={"metadata_needs": ["item_scope"]},
     )
 
     material_titles = [
@@ -556,13 +555,12 @@ def test_retrieval_plan_backfills_complete_material_section_without_material_key
         for source in result.sources
         if source.chunk.metadata.get("chunk_type") == "material_item"
     ]
-    assert material_titles[:3] == ["1. 身份证件", "2. 单位组织机构代码证", "3. 申请表"]
-    assert result.status["structured_backfill"]["applied"] is True
-    assert result.status["structured_backfill"]["target_chunk_type"] == "material_item"
-    assert result.status["retrieval_plan"]["need_complete_sections"] == ["申请材料"]
+    assert len(material_titles) <= 2
+    assert "structured_backfill" not in result.status
+    assert "need_complete_sections" not in result.status["retrieval_plan"]
 
 
-def test_process_query_backfills_sibling_steps_by_parent_section_id():
+def test_process_query_does_not_backfill_sibling_steps_by_parent_section_id():
     engine = InMemoryRAGEngine()
     document = KnowledgeDocument(
         id="doc-process-backfill",
@@ -587,6 +585,6 @@ def test_process_query_backfills_sibling_steps_by_parent_section_id():
         for source in result.sources
         if source.chunk.metadata.get("chunk_type") == "process_step"
     ]
-    assert process_titles[:5] == ["受理", "审查", "决定", "办结", "送达"]
-    assert result.status["structured_backfill"]["applied"] is True
-    assert result.status["structured_backfill"]["target_chunk_type"] == "process_step"
+    assert "审查" in process_titles
+    assert len(process_titles) == 1
+    assert "structured_backfill" not in result.status

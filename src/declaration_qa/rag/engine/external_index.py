@@ -8,12 +8,7 @@ from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, Retrie
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
 from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore
 from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
-from declaration_qa.rag.engine.structured_context import (
-    expand_parent_context,
-    expand_structured_section_context,
-    structured_backfill_chunk_types,
-    structured_source_matches,
-)
+from declaration_qa.rag.engine.parent_context import expand_parent_context
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
@@ -599,73 +594,6 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 )
             span.update(output=output)
         return expand_parent_context(sources, parents)
-
-    def _expand_structured_section_context(
-        self,
-        query: str,
-        sources: list[RetrievedSource],
-        *,
-        retrieval_plan: dict[str, Any],
-    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """从存储中回填结构化章节同级片段。"""
-        if self.chunk_store is None:
-            return sources, {"applied": False, "reason": "chunk_store_missing"}
-        target_chunk_types = structured_backfill_chunk_types(query, retrieval_plan)
-        if not target_chunk_types:
-            with observation(
-                "rag.structured_backfill.load_siblings",
-                input={"target_chunk_types": [], "source_count": len(sources)},
-                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
-            ) as span:
-                span.update(output={"sibling_count": 0, "reason": "no_target_chunk_type"})
-            return sources, {"applied": False, "reason": "no_target_chunk_type"}
-        sibling_lookup = {}
-        for target_chunk_type in target_chunk_types:
-            parent_section_ids = [
-                str(source.chunk.metadata.get("parent_section_id") or "")
-                for source in sources
-                if structured_source_matches(source, target_chunk_type)
-            ]
-            unique_parent_section_ids = unique_ordered_strings(parent_section_ids)
-            with observation(
-                "rag.structured_backfill.load_siblings",
-                input={
-                    "target_chunk_type": target_chunk_type,
-                    "parent_section_count": len(unique_parent_section_ids),
-                    "parent_section_ids": unique_parent_section_ids[:20],
-                },
-                metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
-            ) as span:
-                sibling_chunks = self.chunk_store.get_structured_section_chunks(
-                    unique_parent_section_ids,
-                    target_chunk_type,
-                )
-                output = {"sibling_count": len(sibling_chunks)}
-                if not unique_parent_section_ids:
-                    output["reason"] = "no_matching_parent_section_ids"
-                elif not sibling_chunks:
-                    output["reason"] = "siblings_not_found"
-                else:
-                    output["reason"] = "siblings_loaded"
-                if output["reason"] in {"no_matching_parent_section_ids", "siblings_not_found"}:
-                    record_error(
-                        span,
-                        stage="rag.structured_backfill.load_siblings",
-                        reason=str(output["reason"]),
-                        extra={
-                            "target_chunk_type": target_chunk_type,
-                            "parent_section_count": len(unique_parent_section_ids),
-                            **output,
-                        },
-                    )
-                span.update(output=output)
-            sibling_lookup.update({chunk.id: chunk for chunk in sibling_chunks})
-        return expand_structured_section_context(
-            query,
-            sources,
-            sibling_lookup,
-            retrieval_plan=retrieval_plan,
-        )
 
 
 def scored_id_summary(scored_ids: list[tuple[str, float]], *, limit: int = 8) -> list[dict[str, Any]]:

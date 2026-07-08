@@ -11,7 +11,6 @@ from declaration_qa.observability.langfuse import observation, record_error, ret
 from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.constants import EMBEDDING_DIMS
 from declaration_qa.rag.engine.scoring import rrf_fuse
-from declaration_qa.rag.engine.structured_context import structured_backfill_chunk_types
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
@@ -34,11 +33,6 @@ class ChunkStore(Protocol):
     def get_parent_chunks(self, parent_ids: list[str]) -> list[KnowledgeChunk]:
         """按公开父片段 ID 加载父片段。"""
         ...
-
-    def get_structured_section_chunks(self, parent_section_ids: list[str], target_chunk_type: str) -> list[KnowledgeChunk]:
-        """加载用于章节回填的结构化同级片段。"""
-        ...
-
 
 class RAGEngine(Protocol):
     """工作流使用的通用检索和索引契约。"""
@@ -515,37 +509,6 @@ class BaseRAGEngine:
         ) as span:
             expanded_sources = self._expand_parent_context(selected_sources)
             span.update(output={"before": len(selected_sources), "after": len(expanded_sources)})
-        with observation(
-            "rag.structured_backfill",
-            input={"query": normalized_query, "source_count": len(expanded_sources), "retrieval_plan": policy},
-            metadata=self._observability_metadata(retrieval_plan=policy),
-        ) as span:
-            before_backfill_count = len(expanded_sources)
-            expanded_sources, structured_backfill_status = self._expand_structured_section_context(
-                normalized_query,
-                expanded_sources,
-                retrieval_plan=policy,
-            )
-            structured_backfill_status = self._with_structured_backfill_reason(
-                normalized_query,
-                before_backfill_count,
-                structured_backfill_status,
-                policy,
-            )
-            if self._structured_backfill_failed(structured_backfill_status):
-                record_error(
-                    span,
-                    stage="rag.structured_backfill",
-                    reason=str(structured_backfill_status.get("reason") or "structured_backfill_failed"),
-                    extra=structured_backfill_status,
-                )
-            span.update(
-                output={
-                    **structured_backfill_status,
-                    "source_count": len(expanded_sources),
-                    "sources": retrieved_source_summary(expanded_sources),
-                }
-            )
         return RetrievalResult(
             sources=expanded_sources,
             filter=effective_filter,
@@ -568,7 +531,6 @@ class BaseRAGEngine:
                     "selected": len(selected_sources),
                 },
                 "score_cutoff": score_cutoff_status,
-                "structured_backfill": structured_backfill_status,
                 "retrieval_plan": policy,
                 "degraded": degraded,
                 "filter": effective_filter,
@@ -698,37 +660,6 @@ class BaseRAGEngine:
         ) as span:
             expanded_sources = self._expand_parent_context(selected_sources)
             span.update(output={"before": len(selected_sources), "after": len(expanded_sources)})
-        with observation(
-            "rag.structured_backfill",
-            input={"query": original_query, "source_count": len(expanded_sources), "retrieval_plan": policy, "mode": "rewrites"},
-            metadata=self._observability_metadata(retrieval_plan=policy),
-        ) as span:
-            before_backfill_count = len(expanded_sources)
-            expanded_sources, structured_backfill_status = self._expand_structured_section_context(
-                original_query,
-                expanded_sources,
-                retrieval_plan=policy,
-            )
-            structured_backfill_status = self._with_structured_backfill_reason(
-                original_query,
-                before_backfill_count,
-                structured_backfill_status,
-                policy,
-            )
-            if self._structured_backfill_failed(structured_backfill_status):
-                record_error(
-                    span,
-                    stage="rag.structured_backfill",
-                    reason=str(structured_backfill_status.get("reason") or "structured_backfill_failed"),
-                    extra=structured_backfill_status,
-                )
-            span.update(
-                output={
-                    **structured_backfill_status,
-                    "source_count": len(expanded_sources),
-                    "sources": retrieved_source_summary(expanded_sources),
-                }
-            )
         unique_hit_ids = {
             source.chunk.id
             for hit_list in hit_lists
@@ -762,7 +693,6 @@ class BaseRAGEngine:
                     "bm25": sum(int((status.get("channels") or {}).get("bm25") or 0) for status in query_statuses),
                 },
                 "score_cutoff": score_cutoff_status,
-                "structured_backfill": structured_backfill_status,
                 "retrieval_plan": policy,
                 "degraded": degraded,
                 "filter": effective_filter,
@@ -857,44 +787,6 @@ class BaseRAGEngine:
             "reason": reason,
         }
 
-    def _with_structured_backfill_reason(
-        self,
-        query: str,
-        before_count: int,
-        status: dict[str, Any],
-        retrieval_plan: dict[str, Any],
-    ) -> dict[str, Any]:
-        """为结构化回填状态补充稳定原因。"""
-        output = dict(status or {})
-        target_types = structured_backfill_chunk_types(query, retrieval_plan)
-        output.setdefault("target_chunk_types", target_types)
-        if output.get("reason"):
-            return output
-        if output.get("applied") and int(output.get("added_source_count") or 0) > 0:
-            output.setdefault("reason", "applied")
-        elif not target_types:
-            output["reason"] = "no_target_chunk_type"
-        elif before_count <= 0:
-            output["reason"] = "no_sources_for_backfill"
-        elif not int(output.get("section_count") or 0):
-            output["reason"] = "no_matching_parent_section"
-        elif not int(output.get("added_source_count") or 0):
-            output["reason"] = "no_sibling_added"
-        else:
-            output["reason"] = "not_applied"
-        return output
-
-    def _structured_backfill_failed(self, status: dict[str, Any]) -> bool:
-        """返回结构化回填是否应标记为错误元数据事件。"""
-        reason = str((status or {}).get("reason") or "")
-        return reason in {
-            "chunk_store_missing",
-            "no_sources_for_backfill",
-            "no_matching_parent_section",
-            "no_sibling_added",
-            "not_applied",
-        }
-
     def _sources_from_scored_ids_lookup(
         self,
         scored_ids: list[tuple[str, float]],
@@ -938,16 +830,6 @@ class BaseRAGEngine:
 
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
         """扩展父级上下文。"""
-        raise NotImplementedError
-
-    def _expand_structured_section_context(
-        self,
-        query: str,
-        sources: list[RetrievedSource],
-        *,
-        retrieval_plan: dict[str, Any],
-    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """回填结构化章节上下文。"""
         raise NotImplementedError
 
     def _cache_key(
@@ -1067,7 +949,6 @@ class BaseRAGEngine:
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"dense": 0, "bm25": 0, "rrf": 0, "rerank": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
-                "structured_backfill": {"applied": False, "reason": "not_run_empty_retrieval"},
                 "filter": effective_filter,
                 "candidate_source": candidate_source or self._candidate_source(),
             },
@@ -1109,7 +990,6 @@ class BaseRAGEngine:
                 "metadata_filtering": bool(effective_filter),
                 "channels": {"hit_lists": 0, "rrf": 0, "rerank_candidates": 0, "rerank": 0, "dense": 0, "bm25": 0},
                 "score_cutoff": self._empty_score_cutoff_status(top_k),
-                "structured_backfill": {"applied": False, "reason": "not_run_empty_retrieval"},
                 "degraded": list(degraded or []),
                 "filter": effective_filter,
                 "batch_mode": True,

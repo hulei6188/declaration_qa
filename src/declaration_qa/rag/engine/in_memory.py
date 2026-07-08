@@ -8,7 +8,7 @@ from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, Retrie
 from declaration_qa.rag.engine.base import BaseRAGEngine
 from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
 from declaration_qa.rag.engine.scoring import bm25_retrieve, dense_retrieve, matches_filter
-from declaration_qa.rag.engine.structured_context import expand_parent_context, expand_structured_section_context
+from declaration_qa.rag.engine.parent_context import expand_parent_context
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
@@ -374,16 +374,6 @@ class InMemoryRAGEngine(BaseRAGEngine):
     def _expand_parent_context(self, sources: list[RetrievedSource]) -> list[RetrievedSource]:
         """用内存中的父片段扩展子命中。"""
         return expand_parent_context(sources, self._chunks)
-
-    def _expand_structured_section_context(
-        self,
-        query: str,
-        sources: list[RetrievedSource],
-        *,
-        retrieval_plan: dict[str, Any],
-    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
-        """从内存回填结构化章节同级片段。"""
-        return expand_structured_section_context(query, sources, self._chunks, retrieval_plan=retrieval_plan)
 
     def _dense_retrieve(
         self,

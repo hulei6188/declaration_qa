@@ -134,14 +134,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """读取父级知识片段。"""
         return self.knowledge.get_parent_chunks(parent_ids)
 
-    def get_structured_section_chunks(
-        self,
-        parent_section_ids: list[str],
-        target_chunk_type: str,
-    ) -> list[KnowledgeChunk]:
-        """读取结构化章节同级片段。"""
-        return self.knowledge.get_structured_section_chunks(parent_section_ids, target_chunk_type)
-
     def knowledge_base_revision(self) -> str:
         """计算知识库修订标识。"""
         return self.knowledge.knowledge_base_revision()

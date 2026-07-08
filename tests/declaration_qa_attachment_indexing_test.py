@@ -387,7 +387,7 @@ def test_form_question_backfills_attachment_form_from_material_section():
     )
 
     engine.index_document(document)
-    result = engine.retrieve("申请书需要申请人自备，怎么填", {}, top_k=1)
+    result = engine.retrieve("取水用途怎么填", {}, top_k=3)
 
     attachment_sources = [
         source
@@ -396,10 +396,10 @@ def test_form_question_backfills_attachment_form_from_material_section():
     ]
     assert attachment_sources
     assert "取水用途" in attachment_sources[0].chunk.content
-    assert "attachment_form" in result.status["structured_backfill"]["target_chunk_types"]
+    assert "structured_backfill" not in result.status
 
 
-def test_specific_form_field_question_retrieves_field_and_backfills_form():
+def test_specific_form_field_question_retrieves_field_without_backfilling_form():
     engine = InMemoryRAGEngine()
     document = KnowledgeDocument(
         id="doc-water-field",
@@ -479,8 +479,8 @@ def test_specific_form_field_question_retrieves_field_and_backfills_form():
     ]
     assert [source.chunk.metadata.get("field_name") for source in field_sources] == ["取水用途"]
     assert "制水供水" in field_sources[0].chunk.content
-    assert form_sources
-    assert result.status["structured_backfill"]["target_chunk_types"][:2] == ["form_field", "attachment_form"]
+    assert not form_sources
+    assert "structured_backfill" not in result.status
 
 
 def test_attachment_quality_gate_rejects_pdf_mojibake():

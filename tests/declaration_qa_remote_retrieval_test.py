@@ -88,7 +88,6 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
             self.chunks = {child.id: child, parent.id: parent, sibling.id: sibling}
             self.chunk_calls = []
             self.parent_calls = []
-            self.section_calls = []
 
         def get_chunks_by_ids(self, chunk_ids):
             self.chunk_calls.append(list(chunk_ids))
@@ -97,10 +96,6 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
         def get_parent_chunks(self, parent_ids):
             self.parent_calls.append(list(parent_ids))
             return [self.chunks[chunk_id] for chunk_id in parent_ids if chunk_id in self.chunks]
-
-        def get_structured_section_chunks(self, parent_section_ids, target_chunk_type):
-            self.section_calls.append((list(parent_section_ids), target_chunk_type))
-            return [sibling, child]
 
     store = RemoteChunkStore()
     vector_index = RemoteVectorIndex()
@@ -121,8 +116,6 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     assert result.status["channels"]["bm25"] == 1
     assert store.chunk_calls
     assert store.parent_calls == [[parent.id]]
-    assert store.section_calls == [(["doc-remote#申请材料"], "material_item")]
-    assert any(source.chunk.id == sibling.id for source in result.sources)
 
     many_results = engine.retrieve_many(
         [
@@ -226,9 +219,6 @@ def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
             return [self.chunks[chunk_id] for chunk_id in chunk_ids if chunk_id in self.chunks]
 
         def get_parent_chunks(self, parent_ids):
-            return []
-
-        def get_structured_section_chunks(self, parent_section_ids, target_chunk_type):
             return []
 
     class CountingReranker:

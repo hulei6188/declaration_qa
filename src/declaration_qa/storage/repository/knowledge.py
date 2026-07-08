@@ -193,25 +193,6 @@ class KnowledgeRepository(EngineBackedRepository):
         """按公开 parent chunk_uid 批量查询父级片段。"""
         return self.get_chunks_by_ids(parent_ids)
 
-    def get_structured_section_chunks(self, parent_section_ids: list[str], target_chunk_type: str) -> list[KnowledgeChunk]:
-        """按结构化章节批量查询同级材料/流程片段。"""
-        section_ids = unique_ordered_strings(parent_section_ids)
-        if not section_ids or not str(target_chunk_type or "").strip():
-            return []
-        with self.engine.begin() as connection:
-            rows = connection.execute(
-                chunk_select_sql(
-                    """
-                    c.chunk_type = 'child'
-                    AND COALESCE(c.metadata ->> 'indexable', 'true') <> 'false'
-                    AND c.metadata ->> 'parent_section_id' = ANY(:parent_section_ids)
-                    AND c.metadata ->> 'chunk_type' = :target_chunk_type
-                    """
-                ),
-                {"parent_section_ids": section_ids, "target_chunk_type": str(target_chunk_type)},
-            ).mappings().all()
-        return [knowledge_chunk_from_row(row) for row in rows]
-
     def knowledge_base_revision(self) -> str:
         """返回知识库当前修订标识。"""
         with self.engine.begin() as connection:
