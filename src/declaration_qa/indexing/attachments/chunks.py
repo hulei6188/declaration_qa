@@ -6,6 +6,7 @@ import hashlib
 import re
 from typing import Any
 
+from declaration_qa.indexing.attachments.form_fields import FormField, extract_form_fields
 from declaration_qa.indexing.attachments.models import ExtractedAttachment
 from declaration_qa.rag.engine.chunking import split_windows
 
@@ -55,6 +56,60 @@ def build_attachment_chunk_specs(
                     },
                 }
             )
+        if semantic_type == "attachment_form":
+            specs.extend(build_form_field_chunk_specs(extracted, document_metadata=document_metadata))
+    return specs
+
+
+def build_form_field_chunk_specs(
+    extracted: ExtractedAttachment,
+    *,
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """从表单附件中构建字段级 chunk 描述。"""
+    specs: list[dict[str, Any]] = []
+    fields = extract_form_fields(extracted.text)
+    for field in fields:
+        specs.append(
+            {
+                "id_suffix": form_field_chunk_suffix(extracted, field),
+                "content": form_field_chunk_content(extracted, field),
+                "source_url": extracted.ref.url,
+                "metadata": {
+                    **document_metadata,
+                    "chunk_type": "form_field",
+                    "attachment_index": extracted.ref.index,
+                    "attachment_name": extracted.ref.name,
+                    "attachment_type": extracted.ref.extension,
+                    "attachment_role": extracted.ref.role,
+                    "attachment_content_type": extracted.content_type,
+                    "attachment_sha256": extracted.sha256,
+                    "attachment_cache_path": extracted.cache_path,
+                    "attachment_status": extracted.status,
+                    "section_path": extracted.ref.section_path,
+                    "section_title": extracted.ref.section_title,
+                    "node_title": f"表单字段：{field.field_name}",
+                    "node_order": field.index,
+                    "parent_section_id": extracted.ref.parent_section_id,
+                    "material_name": extracted.ref.material_name,
+                    "form_name": extracted.ref.material_name or extracted.ref.node_title or extracted.ref.name,
+                    "field_name": field.field_name,
+                    "field_type": field.field_type,
+                    "field_options": field.options,
+                    "field_multiple": field.multiple,
+                    "field_required": field.required,
+                    "field_raw_label": field.raw_label,
+                    "field_raw_value": field.raw_value,
+                    "field_table_index": field.table_index,
+                    "field_row_index": field.row_index,
+                    "field_column_index": field.column_index,
+                    "field_confidence": round(field.confidence, 4),
+                    "source_attachment_chunk_type": "attachment_form",
+                    "extraction_method": extracted.metadata.get("extraction_method") or "native",
+                    "indexable": True,
+                },
+            }
+        )
     return specs
 
 
@@ -113,6 +168,41 @@ def attachment_chunk_content(extracted: ExtractedAttachment, text: str, *, part_
     return "\n".join(header) + "\n\n" + text.strip()
 
 
+def form_field_chunk_content(extracted: ExtractedAttachment, field: FormField) -> str:
+    """生成字段级证据文本。"""
+    ref = extracted.ref
+    lines = [
+        f"表单字段：{field.field_name}",
+        f"所属表单：{ref.material_name or ref.node_title or ref.name}",
+        f"来源附件：{ref.name}",
+        f"所属章节：{ref.section_path}",
+        f"字段类型：{field_type_label(field.field_type)}",
+    ]
+    if field.multiple is not None:
+        lines.append(f"是否多选：{'是' if field.multiple else '否'}")
+    if field.required is not None:
+        lines.append(f"是否必填：{'是' if field.required else '否'}")
+    if field.options:
+        lines.append(f"可选项：{'、'.join(field.options)}")
+    if field.raw_label and field.raw_label != field.field_name:
+        lines.append(f"原始标签：{field.raw_label}")
+    if field.raw_value:
+        lines.append(f"原始内容：{field.raw_value}")
+    if field.raw_cells:
+        lines.append(f"原始表格行：{' | '.join(field.raw_cells)}")
+    return "\n".join(lines)
+
+
+def field_type_label(field_type: str) -> str:
+    """返回字段类型中文标签。"""
+    return {
+        "checkbox": "勾选项",
+        "signature": "签字盖章",
+        "date": "日期时间",
+        "text": "文本填写",
+    }.get(field_type, field_type or "文本填写")
+
+
 def role_label(role: str) -> str:
     """返回附件角色中文标签。"""
     return {
@@ -128,3 +218,10 @@ def attachment_chunk_suffix(extracted: ExtractedAttachment, part_index: int) -> 
     key = f"{extracted.ref.url}|{extracted.ref.name}|{part_index}"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
     return f"att:{extracted.ref.index}:{digest}:{part_index}"
+
+
+def form_field_chunk_suffix(extracted: ExtractedAttachment, field: FormField) -> str:
+    """构建稳定的字段级 chunk 后缀。"""
+    key = f"{extracted.ref.url}|{field.table_index}|{field.row_index}|{field.column_index}|{field.field_name}|{field.raw_value}"
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"field:{extracted.ref.index}:{digest}:{field.index}"

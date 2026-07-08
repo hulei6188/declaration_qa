@@ -9,6 +9,7 @@ from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.indexing.attachments.downloader import content_type_from_extension
 from declaration_qa.indexing.attachments.extractor import attachment_text_quality_error, extract_attachment
+from declaration_qa.indexing.attachments.form_fields import extract_form_fields
 from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
 from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
@@ -87,6 +88,18 @@ def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_block
     assert spec["metadata"]["material_name"] == "取水许可申请书"
     assert "取水用途" in spec["content"]
     assert "制水供水" in spec["content"]
+    field_specs = [
+        spec
+        for spec in result.chunk_specs
+        if spec["metadata"].get("chunk_type") == "form_field"
+    ]
+    fields_by_name = {spec["metadata"]["field_name"]: spec for spec in field_specs}
+    assert {"取水用途", "取水工程类型"} <= set(fields_by_name)
+    water_use = fields_by_name["取水用途"]
+    assert water_use["metadata"]["field_type"] == "checkbox"
+    assert water_use["metadata"]["field_multiple"] is True
+    assert water_use["metadata"]["field_options"] == ["制水供水", "原水供水", "生活用水", "工业用水"]
+    assert "表单字段：取水用途" in water_use["content"]
 
 
 def test_attachment_pipeline_deduplicates_same_file_content(monkeypatch, tmp_path):
@@ -201,12 +214,112 @@ def test_form_question_backfills_attachment_form_from_material_section():
     assert "attachment_form" in result.status["structured_backfill"]["target_chunk_types"]
 
 
+def test_specific_form_field_question_retrieves_field_and_backfills_form():
+    engine = InMemoryRAGEngine()
+    document = KnowledgeDocument(
+        id="doc-water-field",
+        title="取水许可",
+        content="# 取水许可办事指南\n\n## 申请材料\n\n### 1. 取水许可申请书\n申请书需要申请人自备。",
+        metadata={"chunking_strategy": "hierarchical", "item_name": "取水许可"},
+        derived_chunks=[
+            {
+                "id_suffix": "field:0:water-use:0",
+                "content": (
+                    "表单字段：取水用途\n"
+                    "所属表单：取水许可申请书\n"
+                    "字段类型：勾选项\n"
+                    "是否多选：是\n"
+                    "可选项：制水供水、原水供水、生活用水、工业用水"
+                ),
+                "source_url": "https://example.test/form.docx",
+                "metadata": {
+                    "chunk_type": "form_field",
+                    "section_title": "申请材料",
+                    "node_title": "表单字段：取水用途",
+                    "node_order": 1,
+                    "parent_section_id": "doc-water-field#申请材料",
+                    "material_name": "取水许可申请书",
+                    "attachment_name": "空白样表-取水许可申请书.docx",
+                    "field_name": "取水用途",
+                    "field_type": "checkbox",
+                    "field_options": ["制水供水", "原水供水", "生活用水", "工业用水"],
+                    "indexable": True,
+                },
+            },
+            {
+                "id_suffix": "field:0:project-type:1",
+                "content": "表单字段：取水工程类型\n可选项：闸、坝、渠道、水泵、水井",
+                "source_url": "https://example.test/form.docx",
+                "metadata": {
+                    "chunk_type": "form_field",
+                    "section_title": "申请材料",
+                    "node_title": "表单字段：取水工程类型",
+                    "node_order": 2,
+                    "parent_section_id": "doc-water-field#申请材料",
+                    "material_name": "取水许可申请书",
+                    "field_name": "取水工程类型",
+                    "field_options": ["闸", "坝", "渠道", "水泵", "水井"],
+                    "indexable": True,
+                },
+            },
+            {
+                "id_suffix": "att:0:form:0",
+                "content": "附件：空白样表-取水许可申请书.docx\n\n| 取水用途（可多选） | □制水供水 □原水供水 □生活用水 □工业用水 |",
+                "source_url": "https://example.test/form.docx",
+                "metadata": {
+                    "chunk_type": "attachment_form",
+                    "section_title": "申请材料",
+                    "node_title": "1. 取水许可申请书",
+                    "parent_section_id": "doc-water-field#申请材料",
+                    "material_name": "取水许可申请书",
+                    "attachment_name": "空白样表-取水许可申请书.docx",
+                    "indexable": True,
+                },
+            },
+        ],
+    )
+
+    engine.index_document(document)
+    result = engine.retrieve("取水用途有哪些选项", {}, top_k=1)
+
+    field_sources = [
+        source
+        for source in result.sources
+        if source.chunk.metadata.get("chunk_type") == "form_field"
+    ]
+    form_sources = [
+        source
+        for source in result.sources
+        if source.chunk.metadata.get("chunk_type") == "attachment_form"
+    ]
+    assert [source.chunk.metadata.get("field_name") for source in field_sources] == ["取水用途"]
+    assert "制水供水" in field_sources[0].chunk.content
+    assert form_sources
+    assert result.status["structured_backfill"]["target_chunk_types"][:2] == ["form_field", "attachment_form"]
+
+
 def test_attachment_quality_gate_rejects_pdf_mojibake():
     bad_pdf_text = "## PDF 第 1 页\n" + "\x8b\x95\xaa\x89E\x8c\x94\x82\xca" * 5
     good_form_text = "取水许可申请书\n\n| 字段 | 内容 |\n| --- | --- |\n| 取水用途 | □制水供水 □生活用水 |"
 
     assert attachment_text_quality_error(bad_pdf_text, "pdf") == "low_quality_extracted_text"
     assert attachment_text_quality_error(good_form_text, "docx") == ""
+
+
+def test_extract_form_fields_from_markdown_table_rows():
+    fields = extract_form_fields(
+        "| 取水用途（可多选） | □制水供水 □原水供水 □生活用水 □工业用水 |\n"
+        "| --- | --- |\n"
+        "| 申请取水起始时间 | 年 月 日 |\n"
+        "| 申请单位盖章 |  |\n"
+    )
+
+    fields_by_name = {field.field_name: field for field in fields}
+    assert fields_by_name["取水用途"].field_type == "checkbox"
+    assert fields_by_name["取水用途"].multiple is True
+    assert fields_by_name["取水用途"].options == ["制水供水", "原水供水", "生活用水", "工业用水"]
+    assert fields_by_name["申请取水起始时间"].field_type == "date"
+    assert fields_by_name["申请单位盖章"].field_type == "signature"
 
 
 def test_pdf_low_quality_text_falls_back_to_page_ocr(monkeypatch):

@@ -54,7 +54,9 @@ def expand_structured_section_context(
         for target_chunk_type in target_chunk_types:
             section_key = (parent_section_id, target_chunk_type)
             if parent_section_id and section_key not in backfilled_sections and structured_source_matches(source, target_chunk_type):
-                siblings = structured_section_sibling_sources(source, chunks, parent_section_id, target_chunk_type)
+                siblings = structured_section_sibling_sources(source, chunks, parent_section_id, target_chunk_type, query=query)
+                if not siblings:
+                    continue
                 for sibling in siblings:
                     if append_unique_source(expanded, sibling, seen_chunk_ids, seen_node_keys):
                         added_count += 1
@@ -75,15 +77,15 @@ def structured_backfill_chunk_types(query: str, retrieval_plan: dict[str, Any] |
     plan_types = backfill_chunk_types_from_plan(retrieval_plan)
     if plan_types:
         if "material_item" in plan_types and contains_form_question(text):
-            append_unique(plan_types, "attachment_form")
+            return ordered_unique(["form_field", "attachment_form", *plan_types])
         return plan_types
     if any(keyword in text for keyword in ["材料", "申请材料", "要交啥", "要准备什么", "提交什么", "上传什么", "需要哪些材料", "要带", "需要什么"]):
         output = ["material_item"]
         if contains_form_question(text):
-            output.append("attachment_form")
+            output = ["form_field", "attachment_form", *output]
         return output
     if contains_form_question(text):
-        return ["material_item", "attachment_form"]
+        return ["form_field", "attachment_form", "material_item"]
     if any(keyword in text for keyword in ["流程", "怎么办", "怎么申请", "办理步骤", "提交后", "审核", "如何办理"]):
         return ["process_step"]
     return []
@@ -106,6 +108,8 @@ def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -
         return section_title == "申请材料"
     if target_chunk_type == "attachment_form":
         return section_title == "申请材料"
+    if target_chunk_type == "form_field":
+        return section_title == "申请材料"
     if target_chunk_type == "process_step":
         return section_title == "办理流程"
     return False
@@ -125,6 +129,7 @@ def contains_form_question(text: str) -> bool:
             "如何填",
             "填写",
             "字段",
+            "选项",
             "勾选",
             "盖章",
             "签字",
@@ -138,11 +143,21 @@ def append_unique(output: list[str], value: str) -> None:
         output.append(value)
 
 
+def ordered_unique(values: list[str]) -> list[str]:
+    """按原顺序去重。"""
+    output: list[str] = []
+    for value in values:
+        append_unique(output, value)
+    return output
+
+
 def structured_section_sibling_sources(
     trigger: RetrievedSource,
     chunks: dict[str, KnowledgeChunk],
     parent_section_id: str,
     target_chunk_type: str,
+    *,
+    query: str = "",
 ) -> list[RetrievedSource]:
     """返回结构化章节中的同级来源。"""
     grouped: dict[tuple[int, str], list[KnowledgeChunk]] = defaultdict(list)
@@ -156,12 +171,49 @@ def structured_section_sibling_sources(
             continue
         if str(metadata.get("chunk_type") or "") != target_chunk_type:
             continue
+        if target_chunk_type == "form_field" and not form_field_matches_query(query, chunk):
+            continue
         node_title = str(metadata.get("node_title") or "")
         grouped[(safe_int(metadata.get("node_order")), node_title)].append(chunk)
     return [
         merged_structured_node_source(trigger, node_chunks)
         for _, node_chunks in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1]))
     ]
+
+
+def form_field_matches_query(query: str, chunk: KnowledgeChunk) -> bool:
+    """字段级回填仅保留和问题相关的字段。"""
+    text = str(query or "")
+    metadata = chunk.metadata or {}
+    field_name = str(metadata.get("field_name") or "")
+    if not field_name:
+        return False
+    if field_name in text:
+        return True
+    compact_text = text.replace(" ", "")
+    if any(part and part in compact_text for part in field_name_parts(field_name)):
+        return True
+    options = metadata.get("field_options") or []
+    if isinstance(options, list) and any(str(option) and str(option) in text for option in options):
+        return True
+    if any(keyword in text for keyword in ["所有字段", "全部字段", "整张表", "完整表", "有哪些字段"]):
+        return True
+    return False
+
+
+def field_name_parts(field_name: str) -> list[str]:
+    """生成字段名的短语片段，用于匹配口语化问法。"""
+    normalized = str(field_name or "").replace(" ", "")
+    parts = [normalized]
+    ignored = {"取水", "申请", "许可", "项目", "基本", "情况", "名称", "单位", "个人"}
+    if len(normalized) >= 4:
+        parts.extend(
+            part
+            for index in range(len(normalized) - 1)
+            for part in [normalized[index : index + 2]]
+            if part not in ignored
+        )
+    return [part for part in parts if len(part) >= 2]
 
 
 def merged_structured_node_source(trigger: RetrievedSource, node_chunks: list[KnowledgeChunk]) -> RetrievedSource:
