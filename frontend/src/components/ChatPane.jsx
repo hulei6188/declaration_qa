@@ -37,8 +37,7 @@ export default function ChatPane({
     const q = input.trim();
     if ((!q && !imageDraft) || streaming) return;
     setAutoFollow(true);
-    const query = q || '请根据这张图片检索相关申报材料';
-    onSend(query, undefined, undefined, undefined, imageDraft ? { ...imageDraft, text_present: Boolean(q) } : null);
+    onSend(q, q, undefined, undefined, imageDraft ? { ...imageDraft, text_present: Boolean(q) } : null);
     setInput('');
     setImageDraft(null);
     if (imageInputRef.current) imageInputRef.current.value = '';

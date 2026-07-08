@@ -321,7 +321,7 @@ class BaseRAGEngine:
     def image_rerank_query(self, text: str, retrieval_plan: dict[str, Any] | None) -> str:
         """返回图片召回后用于重排和证据回填的语义问题。"""
         planned = str((retrieval_plan or {}).get("image_rerank_query") or "").strip()
-        return normalize_text(planned or text or "图片内容相关申报材料")
+        return normalize_text(planned or text)
 
     def _call_reranker(
         self,

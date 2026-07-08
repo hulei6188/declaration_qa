@@ -25,11 +25,41 @@ from declaration_qa.observability.langfuse import observation, safe_value, sourc
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
-from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED
+from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED, ROUTE_TICKET_CONTEXT_UNRELATED
 
 
 class WorkflowRetrievalNodes:
     """知识检索和证据门控节点。"""
+    def image_only_prepare(self, state: DeclarationQAState) -> DeclarationQAState:
+        """为纯图片查询准备检索状态，不进入文本解析和改写链路。"""
+        next_state = dict(state)
+        next_state["route"] = ROUTE_TICKET_CONTEXT_UNRELATED
+        next_state["intent"] = "image_query"
+        next_state["sub_intent"] = "image_only_retrieval"
+        next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
+        next_state["requires_ticket_context"] = False
+        next_state["ticket_fact_type"] = "none"
+        next_state["multi_question"] = False
+        next_state["sub_tasks"] = []
+        next_state["retrieval_queries"] = []
+        next_state["rag_query"] = ""
+        next_state["query_rewrite"] = {
+            "base_query": "",
+            "scope_text": "",
+            "fact_text": "",
+            "requires_ticket_context": False,
+            "ticket_fact_type": "none",
+            "queries": [],
+            "provider": "image_only",
+            "reason": "image_only_skip_text_chain",
+        }
+        next_state["retrieval_plan"] = {
+            **normalize_retrieval_plan(next_state.get("retrieval_plan") or {}),
+            "query_modality": "image",
+        }
+        add_event(next_state, "image_only_prepare", {"text_chain_skipped": True})
+        return next_state
+
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
         """构造普通知识检索过滤条件。"""
         next_state = dict(state)
@@ -105,10 +135,11 @@ class WorkflowRetrievalNodes:
         query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
         image_only = is_image_only_query(state)
         image_query_text = "" if image_only else answer_query
+        image_semantic_query = "" if image_only else answer_query
         image_retrieval_plan = {
             **retrieval_plan,
             "query_modality": "image",
-            "image_rerank_query": answer_query,
+            "image_rerank_query": image_semantic_query,
         }
         if query_image_path:
             image_retrieval_plan["query_image_path"] = query_image_path
@@ -126,9 +157,9 @@ class WorkflowRetrievalNodes:
                 with observation(
                     "workflow.retrieve.image_query",
                     input={
-                        "query": answer_query,
+                        "query": image_semantic_query,
                         "embedding_text": image_query_text,
-                        "rerank_query": answer_query,
+                        "rerank_query": image_semantic_query,
                         "image_only": image_only,
                         "text_present": not image_only,
                         "top_k": 4,
@@ -147,9 +178,9 @@ class WorkflowRetrievalNodes:
                     image_query_status = {
                         "id": "image",
                         "strategy": "image_query",
-                        "query": answer_query,
+                        "query": image_semantic_query,
                         "embedding_text": image_query_text,
-                        "rerank_query": (image_result.status or {}).get("query") or answer_query,
+                        "rerank_query": (image_result.status or {}).get("query") or image_semantic_query,
                         "top_k": 4,
                         "source_count": len(image_result.sources),
                         "cache": (image_result.status or {}).get("cache") or {},
@@ -167,9 +198,9 @@ class WorkflowRetrievalNodes:
                 image_query_status = {
                     "id": "image",
                     "strategy": "image_query",
-                    "query": answer_query,
+                    "query": image_semantic_query,
                     "embedding_text": image_query_text,
-                    "rerank_query": answer_query,
+                    "rerank_query": image_semantic_query,
                     "top_k": 4,
                     "source_count": 0,
                     "error": type(exc).__name__,

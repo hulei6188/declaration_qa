@@ -16,7 +16,7 @@ from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.repository.business import BusinessRepository
 from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
 from declaration_qa.rag.router import parse_json_object
-from declaration_qa.api.schemas import ChatRequest
+from declaration_qa.api.schemas import ChatImagePayload, ChatRequest
 from declaration_qa.api.server.app import create_app
 from declaration_qa.application.workflow import STREAM_TOKEN_DELAY_SECONDS, STREAM_TOKEN_SIZE, DeclarationQAWorkflow, select_answer_sources, ticket_rag_query, token_events
 
@@ -1066,6 +1066,72 @@ def test_image_only_query_skips_text_retrieval_and_rewrite():
     assert result.status["query_count"] == 0
     assert result.status["text_retrieval_skipped"] is True
     assert result.status["queries"][0]["strategy"] == "image_query"
+
+
+def test_image_only_graph_skips_text_resolution_and_rewrite():
+    class FailIfCalledResolver:
+        name = "fail"
+
+        def resolve(self, state):
+            raise AssertionError("image-only query should not use question resolution")
+
+    class FailIfCalledRewriter:
+        name = "fail"
+
+        def rewrite(self, state):
+            raise AssertionError("image-only query should not use text query rewrite")
+
+    class ImageOnlyRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.image_calls = []
+
+        def retrieve_image(self, image_path, text, filters, *, top_k=4, retrieval_plan=None):
+            self.image_calls.append((image_path, text, filters, top_k, retrieval_plan))
+            return RetrievalResult(
+                sources=[],
+                filter=filters,
+                status={
+                    "query": "",
+                    "retrieval_mode": "image_only",
+                    "cache": {"hit": False},
+                    "channels": {"dense": 0, "bm25": 0, "rerank": 0},
+                    "queries": [{"id": "image", "strategy": "image_query", "query": ""}],
+                    "text_retrieval_skipped": True,
+                },
+            )
+
+        def retrieve_rewrites(self, original_query, retrieval_queries, filters, *, top_k=6, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text rewrite retrieval")
+
+        def retrieve_many(self, queries, filters, *, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text batch retrieval")
+
+        def retrieve(self, query, filters, *, top_k=4, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text fallback retrieval")
+
+    engine = ImageOnlyRAGEngine()
+    workflow = DeclarationQAWorkflow(
+        rag_engine=engine,
+        question_resolver=FailIfCalledResolver(),
+        query_rewriter=FailIfCalledRewriter(),
+    )
+
+    response = workflow.invoke(
+        ChatRequest(
+            query="",
+            query_image=ChatImagePayload(file_path="C:/tmp/material.png", text_present=False),
+        )
+    )
+
+    assert engine.image_calls
+    assert engine.image_calls[0][1] == ""
+    assert response.question_resolution == {}
+    assert response.rag_status["retrieval_mode"] == "image_only"
+    assert response.rag_status["text_retrieval_skipped"] is True
+    assert any(event["event"] == "image_only_prepare" for event in response.events)
+    assert not any(event["event"] == "question_resolution" for event in response.events)
+    assert not any(event["event"] == "query_rewrite" for event in response.events)
 
 
 def test_multi_retrieve_falls_back_to_parallel_when_batch_fails():

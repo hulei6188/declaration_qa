@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ApplyContext(BaseModel):
@@ -52,7 +52,7 @@ class ChatImagePayload(BaseModel):
 
 class ChatRequest(BaseModel):
     """申报问答请求模型。"""
-    query: str = Field(min_length=1, max_length=1000)
+    query: str = Field(default="", max_length=1000)
     user_id: int = Field(default=1, ge=1)
     session_id: str | None = None
     region_code: str = Field(default="340000", min_length=2, max_length=12)
@@ -63,6 +63,13 @@ class ChatRequest(BaseModel):
     apply_context: ApplyContext | None = None
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
     query_image: ChatImagePayload | None = None
+
+    @model_validator(mode="after")
+    def validate_query_or_image(self) -> "ChatRequest":
+        """文本和图片至少提供一个。"""
+        if not str(self.query or "").strip() and self.query_image is None:
+            raise ValueError("query or query_image is required")
+        return self
 
 
 class SourcePayload(BaseModel):

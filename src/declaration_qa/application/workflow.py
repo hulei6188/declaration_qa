@@ -23,6 +23,7 @@ from declaration_qa.application.workflow_helpers.streaming import (
 )
 from declaration_qa.application.workflow_helpers.ticket_context import ticket_rag_query
 from declaration_qa.application.workflow_nodes import WorkflowNodes
+from declaration_qa.application.workflow_retrieval_nodes import is_image_only_query
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
 from declaration_qa.rag.engine.base import RAGEngine
@@ -250,6 +251,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
+        builder.add_node("image_only_prepare", self.image_only_prepare)
         builder.add_node("question_resolution", self.question_resolution)
         builder.add_node("multi_question_collect", self.multi_question_collect)
         builder.add_node("prepare_task", self.prepare_task)
@@ -269,7 +271,12 @@ class DeclarationQAWorkflow(WorkflowNodes):
 
         builder.add_edge(START, "context_build")
         builder.add_edge("context_build", "query_preprocess")
-        builder.add_edge("query_preprocess", "question_resolution")
+        builder.add_conditional_edges(
+            "query_preprocess",
+            lambda state: "image" if is_image_only_query(state) else "text",
+            {"image": "image_only_prepare", "text": "question_resolution"},
+        )
+        builder.add_edge("image_only_prepare", "knowledge_filter_build")
         builder.add_conditional_edges(
             "question_resolution",
             lambda state: "multi" if state.get("multi_question") else "single",
@@ -306,7 +313,11 @@ class DeclarationQAWorkflow(WorkflowNodes):
             {"ok": "ticket_context_build", "missing": "refuse_or_human"},
         )
         builder.add_edge("ticket_context_build", "knowledge_filter_build")
-        builder.add_edge("knowledge_filter_build", "query_rewrite")
+        builder.add_conditional_edges(
+            "knowledge_filter_build",
+            lambda state: "image" if is_image_only_query(state) else "text",
+            {"image": "hybrid_retrieve", "text": "query_rewrite"},
+        )
         builder.add_conditional_edges(
             "query_rewrite",
             lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
