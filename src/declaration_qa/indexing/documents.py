@@ -9,6 +9,7 @@ import logging
 import re
 import zipfile
 from dataclasses import dataclass
+from datetime import date, datetime, time
 from html import unescape
 from xml.etree import ElementTree
 
@@ -211,8 +212,8 @@ def parse_document_bytes(
         text = parse_pdf(data)
     elif suffix == "docx" or content_type.endswith("wordprocessingml.document"):
         text = parse_docx(data)
-    elif suffix == "xlsx" or content_type.endswith("spreadsheetml.sheet"):
-        text = parse_xlsx(data)
+    elif is_spreadsheet_file(suffix, content_type):
+        text = parse_spreadsheet(data)
     elif suffix in {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"} or content_type.startswith("image/"):
         if not ocr_client:
             raise DocumentParseError("Image OCR client is not configured")
@@ -429,45 +430,115 @@ def markdown_table_row(values: list[str]) -> str:
     return "| " + " | ".join(values) + " |"
 
 
-def parse_xlsx(data: bytes) -> str:
-    """从 XLSX 工作表中提取单元格文本。"""
+def is_spreadsheet_file(suffix: str, content_type: str) -> bool:
+    """判断上传文件是否是表格文档。"""
+    if suffix in {"xls", "xlsx", "xlsm", "ods"}:
+        return True
+    return content_type in {
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel.sheet.macroenabled.12",
+        "application/vnd.oasis.opendocument.spreadsheet",
+    } or content_type.endswith("spreadsheetml.sheet")
+
+
+def parse_spreadsheet(data: bytes) -> str:
+    """通过 python-calamine 从表格文档中提取工作表内容。"""
     try:
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            shared_strings = read_xlsx_shared_strings(archive)
-            sheet_names = [name for name in archive.namelist() if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")]
-            lines = []
-            for sheet_name in sheet_names:
-                root = ElementTree.fromstring(archive.read(sheet_name))
-                for row in root.iter():
-                    if not row.tag.endswith("}row"):
-                        continue
-                    values = []
-                    for cell in row:
-                        if not cell.tag.endswith("}c"):
-                            continue
-                        cell_type = cell.attrib.get("t", "")
-                        value = next((node.text for node in cell if node.tag.endswith("}v")), "") or ""
-                        if cell_type == "s" and value.isdigit():
-                            value = shared_strings[int(value)] if int(value) < len(shared_strings) else value
-                        values.append(value)
-                    if values:
-                        lines.append(" | ".join(values))
-    except (KeyError, zipfile.BadZipFile, ElementTree.ParseError) as exc:
-        raise DocumentParseError("Invalid XLSX document") from exc
+        from python_calamine import load_workbook
+    except ImportError as exc:
+        raise DocumentParseError("python-calamine is required to parse spreadsheet documents") from exc
+
+    workbook = None
+    try:
+        workbook = load_workbook(io.BytesIO(data))
+        blocks = []
+        for sheet_name in workbook.sheet_names:
+            sheet = workbook.get_sheet_by_name(sheet_name)
+            table = format_spreadsheet_table(sheet.to_python())
+            if table:
+                blocks.append(f"## 工作表：{clean_inline_text(str(sheet_name))}\n\n{table}")
+        return "\n\n".join(blocks)
+    except Exception as exc:
+        raise DocumentParseError("Invalid spreadsheet document") from exc
+    finally:
+        if workbook is not None and hasattr(workbook, "close"):
+            workbook.close()
+
+
+def format_spreadsheet_table(rows: list[list[object]]) -> str:
+    """将工作表行列内容转换为标准 Markdown 表格。"""
+    normalized_rows = normalize_spreadsheet_rows(rows)
+    if not normalized_rows:
+        return ""
+
+    title = ""
+    first_row_non_empty = non_empty_cells(normalized_rows[0])
+    if len(first_row_non_empty) == 1 and spreadsheet_title_like(first_row_non_empty[0]):
+        title = first_row_non_empty[0]
+        normalized_rows = normalized_rows[1:]
+
+    if not normalized_rows:
+        return f"### {title}" if title else ""
+
+    width = max(len(row) for row in normalized_rows)
+    padded_rows = [row + [""] * (width - len(row)) for row in normalized_rows]
+    lines = []
+    if title:
+        lines.extend([f"### {title}", ""])
+    lines.append(markdown_table_row(padded_rows[0]))
+    lines.append(markdown_table_row(["---"] * width))
+    lines.extend(markdown_table_row(row) for row in padded_rows[1:])
     return "\n".join(lines)
 
 
-def read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
-    """读取 XLSX 共享字符串表。"""
-    try:
-        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
-    except KeyError:
+def normalize_spreadsheet_rows(rows: list[list[object]]) -> list[list[str]]:
+    """清理工作表行列空白，同时保留行内列位置。"""
+    cleaned_rows = []
+    for row in rows:
+        cells = [spreadsheet_cell_text(cell) for cell in row]
+        if any(cells):
+            cleaned_rows.append(cells)
+    if not cleaned_rows:
         return []
-    values = []
-    for item in root.iter():
-        if item.tag.endswith("}si"):
-            values.append("".join(node.text or "" for node in item.iter() if node.tag.endswith("}t")))
-    return values
+    width = max(last_non_empty_index(row) + 1 for row in cleaned_rows)
+    return [row[:width] + [""] * max(0, width - len(row)) for row in cleaned_rows]
+
+
+def spreadsheet_cell_text(value: object) -> str:
+    """将单元格值转换为适合检索的文本。"""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, time):
+        return value.strftime("%H:%M:%S")
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return escape_table_cell(str(value).replace("\xa0", " "))
+
+
+def non_empty_cells(row: list[str]) -> list[str]:
+    """返回一行里的非空单元格。"""
+    return [cell for cell in row if cell.strip()]
+
+
+def spreadsheet_title_like(text: str) -> bool:
+    """判断单单元格行是否像表格标题。"""
+    normalized = clean_inline_text(text)
+    return len(normalized) <= 80 and any(token in normalized for token in ["表", "申请书", "报告", "协议书"])
+
+
+def last_non_empty_index(row: list[str]) -> int:
+    """返回最后一个非空单元格下标。"""
+    for index in range(len(row) - 1, -1, -1):
+        if row[index].strip():
+            return index
+    return -1
 
 
 def normalize_extracted_text(text: str) -> str:

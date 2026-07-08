@@ -3,7 +3,8 @@ import sys
 import types
 import zipfile
 
-from declaration_qa.indexing.documents import HttpOcrClient, parse_docx, parse_pdf
+from declaration_qa.indexing.attachments.form_fields import extract_form_fields
+from declaration_qa.indexing.documents import HttpOcrClient, parse_docx, parse_document_bytes, parse_pdf
 from declaration_qa.indexing.service.workflow_index import chunk_storage_status
 
 
@@ -73,6 +74,49 @@ def test_parse_pdf_preserves_page_boundaries_and_layout_fallback(monkeypatch):
     assert "第一页申请材料" in text
     assert "## PDF 第 2 页" in text
     assert "第二页办理流程" in text
+
+
+def test_parse_xls_with_calamine_preserves_table_for_form_fields(monkeypatch):
+    class FakeSheet:
+        def to_python(self):
+            return [
+                ["  国家重点保护野生植物采集申请表 ", "", "", ""],
+                ["申请单位、个人", "", "", ""],
+                ["联系人", "", "联系电话", ""],
+                ["采集目的", "", "", ""],
+                ["物种中文名", "学名", "保护级别", "采集数量"],
+            ]
+
+    class FakeWorkbook:
+        sheet_names = ["Sheet1", "Sheet2"]
+
+        def get_sheet_by_name(self, name):
+            return FakeSheet() if name == "Sheet1" else types.SimpleNamespace(to_python=lambda: [])
+
+        def close(self):
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "python_calamine",
+        types.SimpleNamespace(load_workbook=lambda _stream: FakeWorkbook()),
+    )
+
+    parsed = parse_document_bytes(
+        filename="国家重点保护野生植物采集申请表.xls",
+        content_type="application/vnd.ms-excel",
+        data=b"fake-xls",
+    )
+
+    assert "## 工作表：Sheet1" in parsed.text
+    assert "### 国家重点保护野生植物采集申请表" in parsed.text
+    assert "| 申请单位、个人 |" in parsed.text
+    assert "| 联系人 |" in parsed.text
+    assert "| --- | --- | --- | --- |" in parsed.text
+    assert "Sheet2" not in parsed.text
+
+    field_names = {field.field_name for field in extract_form_fields(parsed.text)}
+    assert {"申请单位、个人", "联系人", "联系电话", "采集目的", "物种中文名", "保护级别"}.issubset(field_names)
 
 
 def test_chunk_storage_status_keeps_staging_rows_database_safe():

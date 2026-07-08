@@ -80,6 +80,10 @@ def field_pairs_from_row(row: list[str]) -> list[tuple[int, str, str]]:
         inline_pair = split_inline_checkbox_field(cell)
         if inline_pair:
             pairs.append((column_index, inline_pair[0], inline_pair[1]))
+    label_grid_pairs = field_label_grid_pairs(row)
+    if label_grid_pairs:
+        pairs.extend(label_grid_pairs)
+        return pairs
     if len(row) == 2:
         pairs.append((0, row[0], row[1]))
         return pairs
@@ -93,6 +97,42 @@ def field_pairs_from_row(row: list[str]) -> list[tuple[int, str, str]]:
         else:
             column_index += 1
     return pairs
+
+
+def field_label_grid_pairs(row: list[str]) -> list[tuple[int, str, str]]:
+    """识别空表中一行多个字段标签的布局。"""
+    non_empty = [(index, clean_cell_text(cell)) for index, cell in enumerate(row) if clean_cell_text(cell)]
+    if len(non_empty) < 2:
+        return []
+    if len(row) == 2 and [index for index, _cell in non_empty] == [0, 1]:
+        return []
+    has_column_gap = any(
+        current_index - previous_index > 1
+        for (previous_index, _previous_cell), (current_index, _current_cell) in zip(non_empty, non_empty[1:])
+    )
+    if not has_column_gap and len(non_empty) < 3:
+        return []
+    if not all(is_field_label_cell(cell) for _index, cell in non_empty):
+        return []
+    return [(index, cell, "") for index, cell in non_empty]
+
+
+def is_field_label_cell(cell: str) -> bool:
+    """判断一个单元格是否更像空表字段名而不是样例值。"""
+    field_name = normalize_field_name(cell)
+    if not is_candidate_label(cell, ""):
+        return False
+    if len(field_name) > 30:
+        return False
+    if any(token in field_name for token in ["万元", "元/"]):
+        return False
+    if re.fullmatch(r"[\d.]+(?:只|元|万元|kg|千克|%|株|枝)?", field_name, flags=re.IGNORECASE):
+        return False
+    if re.search(r"\d", field_name) and not any(
+        token in field_name for token in ["代码", "编号", "号码", "电话", "邮编", "数量", "级别", "身份证"]
+    ):
+        return False
+    return True
 
 
 def build_form_field(

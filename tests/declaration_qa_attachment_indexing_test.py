@@ -497,6 +497,8 @@ def test_extract_form_fields_from_markdown_table_rows():
         "| --- | --- |\n"
         "| 申请取水起始时间 | 年 月 日 |\n"
         "| 申请单位盖章 |  |\n"
+        "| 联系人 |  | 联系电话 |  |\n"
+        "| 物种中文名 | 学名 | 保护级别 | 采集数量 |\n"
     )
 
     fields_by_name = {field.field_name: field for field in fields}
@@ -505,6 +507,9 @@ def test_extract_form_fields_from_markdown_table_rows():
     assert fields_by_name["取水用途"].options == ["制水供水", "原水供水", "生活用水", "工业用水"]
     assert fields_by_name["申请取水起始时间"].field_type == "date"
     assert fields_by_name["申请单位盖章"].field_type == "signature"
+    assert "联系电话" in fields_by_name
+    assert "学名" in fields_by_name
+    assert "保护级别" in fields_by_name
 
 
 def test_pdf_low_quality_text_falls_back_to_page_ocr(monkeypatch):
