@@ -71,12 +71,19 @@ def expand_structured_section_context(
 
 def structured_backfill_chunk_types(query: str, retrieval_plan: dict[str, Any] | None = None) -> list[str]:
     """推断需要回填的结构化片段类型。"""
+    text = str(query or "")
     plan_types = backfill_chunk_types_from_plan(retrieval_plan)
     if plan_types:
+        if "material_item" in plan_types and contains_form_question(text):
+            append_unique(plan_types, "attachment_form")
         return plan_types
-    text = str(query or "")
     if any(keyword in text for keyword in ["材料", "申请材料", "要交啥", "要准备什么", "提交什么", "上传什么", "需要哪些材料", "要带", "需要什么"]):
-        return ["material_item"]
+        output = ["material_item"]
+        if contains_form_question(text):
+            output.append("attachment_form")
+        return output
+    if contains_form_question(text):
+        return ["material_item", "attachment_form"]
     if any(keyword in text for keyword in ["流程", "怎么办", "怎么申请", "办理步骤", "提交后", "审核", "如何办理"]):
         return ["process_step"]
     return []
@@ -97,9 +104,38 @@ def structured_source_matches(source: RetrievedSource, target_chunk_type: str) -
         return True
     if target_chunk_type == "material_item":
         return section_title == "申请材料"
+    if target_chunk_type == "attachment_form":
+        return section_title == "申请材料"
     if target_chunk_type == "process_step":
         return section_title == "办理流程"
     return False
+
+
+def contains_form_question(text: str) -> bool:
+    """返回问题是否在追问申请表、样表或填写细节。"""
+    return any(
+        keyword in text
+        for keyword in [
+            "表格",
+            "空表",
+            "样表",
+            "样本",
+            "模板",
+            "怎么填",
+            "如何填",
+            "填写",
+            "字段",
+            "勾选",
+            "盖章",
+            "签字",
+        ]
+    )
+
+
+def append_unique(output: list[str], value: str) -> None:
+    """仅追加一次非空值。"""
+    if value and value not in output:
+        output.append(value)
 
 
 def structured_section_sibling_sources(

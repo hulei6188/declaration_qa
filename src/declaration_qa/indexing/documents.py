@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import re
 import zipfile
 from dataclasses import dataclass
@@ -118,6 +119,10 @@ def parse_csv(data: bytes) -> str:
 
 def parse_pdf(data: bytes) -> str:
     """从 PDF 字节中提取页面文本，并保留页码边界。"""
+    suppressed_loggers = [logging.getLogger(name) for name in ("pypdf", "pypdf._cmap")]
+    previous_levels = [(logger, logger.level) for logger in suppressed_loggers]
+    for logger in suppressed_loggers:
+        logger.setLevel(logging.CRITICAL)
     try:
         from pypdf import PdfReader
 
@@ -132,6 +137,9 @@ def parse_pdf(data: bytes) -> str:
         raise
     except Exception as exc:
         raise DocumentParseError("Invalid PDF document") from exc
+    finally:
+        for logger, level in previous_levels:
+            logger.setLevel(level)
 
 
 def extract_pdf_page_text(page) -> str:

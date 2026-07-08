@@ -27,6 +27,7 @@ class KnowledgeDocument:
     rollout_percent: int = 100
     change_note: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    derived_chunks: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
 from declaration_qa.indexing.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.indexing.service.metadata import extract_document_metadata
 from declaration_qa.indexing.service.workflow_index import index_document_for_workflow
@@ -76,6 +77,23 @@ def process_document_index(
             "chunking_strategy": metadata["chunking_strategy"],
         },
     )
+    attachment_result = build_attachment_chunks_for_document(
+        document_id=str(payload["document_id"]),
+        content=content,
+        metadata=metadata,
+        settings=settings,
+        stage_callback=stage_callback,
+    )
+    if attachment_result.total_count:
+        metadata["attachment_indexing"] = {
+            "enabled": settings.attachment_indexing_enabled,
+            "attachment_count": attachment_result.total_count,
+            "success_count": attachment_result.success_count,
+            "failed_count": attachment_result.failed_count,
+            "skipped_count": attachment_result.skipped_count,
+            "chunk_count": len(attachment_result.chunk_specs),
+            "failures": attachment_result.failures[:10],
+        }
     document = KnowledgeDocument(
         id=str(payload["document_id"]),
         title=title,
@@ -94,6 +112,7 @@ def process_document_index(
         effective_start_time=parse_optional_date(metadata.get("effective_start_time")),
         effective_end_time=parse_optional_date(metadata.get("effective_end_time")),
         metadata=metadata,
+        derived_chunks=attachment_result.chunk_specs,
     )
     chunks_indexed = index_document_for_workflow(
         workflow,
@@ -107,6 +126,7 @@ def process_document_index(
         "filename": filename,
         "content_type": content_type,
         "chunking_strategy": metadata["chunking_strategy"],
+        "attachments": metadata.get("attachment_indexing") or {},
         "message": "Document indexed",
     }
 

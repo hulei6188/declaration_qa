@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from queue import Queue
+from threading import Thread
+from typing import Any
 
 from declaration_qa.api.schemas import ChatResponse
 
@@ -13,10 +16,30 @@ SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
-def sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
-    """将文本片段转换为 SSE 数据流。"""
-    for event in events:
-        yield sse_event(str(event.get("event") or "event"), event.get("data") or {})
+def threaded_sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
+    """在固定后台线程中消费事件，再转为 SSE 数据流。"""
+    queue: Queue[tuple[str, Any]] = Queue()
+
+    def produce() -> None:
+        try:
+            for event in events:
+                queue.put(("event", event))
+        except Exception as exc:
+            queue.put(("error", exc))
+        finally:
+            queue.put(("done", None))
+
+    thread = Thread(target=produce, name="declaration-qa-sse-producer", daemon=True)
+    thread.start()
+    while True:
+        kind, payload = queue.get()
+        if kind == "event":
+            yield sse_event(str(payload.get("event") or "event"), payload.get("data") or {})
+            continue
+        if kind == "error":
+            yield sse_event("error", {"message": str(payload) or type(payload).__name__})
+            break
+        break
 
 
 def sse_response(response: ChatResponse) -> Iterable[str]:

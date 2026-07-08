@@ -10,7 +10,7 @@ from declaration_qa.api.schemas import ChatRequest, ChatResponse, TicketSummary
 from declaration_qa.api.server.dependencies import auth_context
 from declaration_qa.api.server.knowledge_admin import ensure_knowledge_base_fresh
 from declaration_qa.api.server.runtime import settings, workflow
-from declaration_qa.api.server.sse import SSE_HEADERS, sse_event_stream
+from declaration_qa.api.server.sse import SSE_HEADERS, threaded_sse_event_stream
 
 
 def register_chat_routes(app):
@@ -26,7 +26,7 @@ def register_chat_routes(app):
         """处理流式问答请求。"""
         ensure_knowledge_base_fresh()
         return StreamingResponse(
-            sse_event_stream(workflow.stream(apply_chat_auth(request, context, settings))),
+            threaded_sse_event_stream(workflow.stream(apply_chat_auth(request, context, settings))),
             media_type="text/event-stream",
             headers=SSE_HEADERS,
         )

@@ -21,8 +21,11 @@ def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
     """按配置的策略切分文档。"""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
     if strategy == CHUNKING_HIERARCHICAL:
-        return attach_sibling_ids(split_hierarchical(document))
-    return attach_sibling_ids(split_parent_child(document))
+        chunks = split_hierarchical(document)
+    else:
+        chunks = split_parent_child(document)
+    chunks.extend(derived_chunks_from_document(document))
+    return attach_sibling_ids(chunks)
 
 
 def split_parent_child(
@@ -365,6 +368,34 @@ def knowledge_chunk_from_document(
         embedding_id=f"vec:{chunk_id}",
         metadata=metadata,
     )
+
+
+def derived_chunks_from_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
+    """将索引流水线生成的派生片段转换为知识片段。"""
+    chunks: list[KnowledgeChunk] = []
+    for index, spec in enumerate(document.derived_chunks or []):
+        content = str(spec.get("content") or "").strip()
+        if not content:
+            continue
+        id_suffix = str(spec.get("id_suffix") or f"derived:{index}")
+        metadata = dict(spec.get("metadata") or {})
+        chunk = knowledge_chunk_from_document(
+            document,
+            chunk_id=f"{document.id}:{id_suffix}",
+            parent_id=str(spec.get("parent_id") or ""),
+            chunk_type="child",
+            content=content,
+            extra_metadata={
+                **metadata,
+                "derived_chunk": True,
+                "derived_chunk_index": index,
+            },
+        )
+        source_url = str(spec.get("source_url") or chunk.source_url)
+        if source_url != chunk.source_url:
+            chunk = replace(chunk, source_url=source_url)
+        chunks.append(chunk)
+    return chunks
 
 
 def attach_sibling_ids(chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
