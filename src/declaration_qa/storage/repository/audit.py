@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import JSON, bindparam, text
 
 from declaration_qa.storage.repository.base import EngineBackedRepository
+from declaration_qa.storage.session_payloads import query_image_attachments
 
 
 class AuditRepository(EngineBackedRepository):
@@ -30,7 +31,10 @@ class AuditRepository(EngineBackedRepository):
                 refuse_reason="",
                 sources=[],
                 suggested_actions=[],
-                meta={},
+                meta={
+                    "query_image": payload.get("query_image") or {},
+                    "attachments": query_image_attachments(payload.get("query_image")),
+                },
             )
             self._insert_message(
                 connection,

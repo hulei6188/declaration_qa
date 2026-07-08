@@ -106,6 +106,7 @@ class WorkflowResponseNodes:
             "user_id": next_state.get("user_id"),
             "session_id": next_state.get("session_id"),
             "query": next_state.get("query"),
+            "query_image": next_state.get("query_image") or None,
             "normalized_query": next_state.get("normalized_query"),
             "intent": next_state.get("intent"),
             "sub_intent": next_state.get("sub_intent"),

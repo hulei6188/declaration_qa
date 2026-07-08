@@ -281,6 +281,7 @@ export default function App() {
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content || '',
           meta: m.role === 'user' ? '用户问题' : '申报辅助',
+          attachments: m.role === 'user' ? (m.attachments || []) : [],
           sources: m.role === 'user' ? [] : (m.sources || []),
         }))
       );

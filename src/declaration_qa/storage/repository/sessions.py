@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from declaration_qa.storage.repository.base import EngineBackedRepository
 from declaration_qa.storage.repository.normalizers import normalize_session_row
+from declaration_qa.storage.session_payloads import normalize_message_row
 
 
 class SessionRepository(EngineBackedRepository):
@@ -65,7 +66,7 @@ class SessionRepository(EngineBackedRepository):
             ).mappings().all()
         payload = normalize_session_row(session)
         payload["message_count"] = len(messages)
-        payload["messages"] = [dict(message) for message in messages]
+        payload["messages"] = [normalize_message_row(message) for message in messages]
         return payload
 
     def delete_session(self, *, user_id: int, session_id: str) -> bool:

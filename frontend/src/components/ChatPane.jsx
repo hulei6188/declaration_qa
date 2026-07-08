@@ -128,14 +128,20 @@ export default function ChatPane({
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
             <span className="message-meta">{m.meta}</span>
-            <div className="message-content">{m.content}</div>
+            {String(m.content || '').trim() && (
+              <div className="message-content">{m.content}</div>
+            )}
             {m.role === 'assistant' && m.sources?.length > 0 && (
               <SourceEvidenceList sources={m.sources} />
             )}
             {m.attachments?.length > 0 && (
               <div className="message-attachments">
                 {m.attachments.map((item, index) => (
-                  <img key={`${item.filename || 'image'}-${index}`} src={item.data_url} alt={item.filename || '上传图片'} />
+                  <img
+                    key={`${item.filename || 'image'}-${index}`}
+                    src={item.data_url || item.url}
+                    alt={item.filename || '上传图片'}
+                  />
                 ))}
               </div>
             )}

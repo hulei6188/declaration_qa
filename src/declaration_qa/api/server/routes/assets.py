@@ -24,3 +24,14 @@ def register_asset_routes(app):
         if asset_dir not in asset_path.parents or not asset_path.is_file():
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(asset_path)
+
+    @app.get("/api/declaration-qa/chat-images/{image_name}")
+    def get_chat_image(image_name: str):
+        """读取聊天中用户上传的临时图片。"""
+        if not re.fullmatch(r"[a-fA-F0-9]{24}\.[A-Za-z0-9]+", image_name or ""):
+            raise HTTPException(status_code=404, detail="image not found")
+        image_dir = Path(settings.chat_image_dir).resolve()
+        image_path = (image_dir / image_name).resolve()
+        if image_dir not in image_path.parents or not image_path.is_file():
+            raise HTTPException(status_code=404, detail="image not found")
+        return FileResponse(image_path)

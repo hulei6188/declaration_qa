@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from declaration_qa.storage.session_payloads import user_message_payload
+
 
 class InMemoryAuditStore:
     """用于本地开发和测试的内存审计与评测存储。"""
@@ -87,7 +89,13 @@ class InMemoryAuditStore:
         first = items[0]
         messages = []
         for item in items:
-            messages.append({"role": "user", "content": item.get("query") or "", "created_at": item.get("created_at") or ""})
+            messages.append(
+                user_message_payload(
+                    content=str(item.get("query") or ""),
+                    created_at=str(item.get("created_at") or ""),
+                    query_image=item.get("query_image") if isinstance(item.get("query_image"), dict) else None,
+                )
+            )
             messages.append(
                 {
                     "role": "assistant",
