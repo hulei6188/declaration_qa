@@ -1438,6 +1438,7 @@ def test_declaration_qa_schema_file_defines_isolated_tables():
         "declaration_qa.knowledge_bases",
         "declaration_qa.documents",
         "declaration_qa.chunks",
+        "declaration_qa.assets",
         "declaration_qa.index_jobs",
         "declaration_qa.sessions",
         "declaration_qa.messages",

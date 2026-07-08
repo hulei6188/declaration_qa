@@ -85,6 +85,10 @@ class KnowledgeRepository(EngineBackedRepository):
             ).mappings().first()
             document_pk = int(row["id"])
             connection.execute(
+                text("DELETE FROM declaration_qa.assets WHERE document_id = :document_id"),
+                {"document_id": document_pk},
+            )
+            connection.execute(
                 text("DELETE FROM declaration_qa.chunks WHERE document_id = :document_id"),
                 {"document_id": document_pk},
             )
@@ -92,8 +96,10 @@ class KnowledgeRepository(EngineBackedRepository):
             for chunk in chunks:
                 parent_pk = parent_db_ids.get(chunk.parent_id)
                 chunk_row = self._insert_chunk(connection, document_pk, parent_pk, chunk)
+                chunk_pk = int(chunk_row["id"])
                 if chunk.chunk_type == "parent":
-                    parent_db_ids[chunk.id] = int(chunk_row["id"])
+                    parent_db_ids[chunk.id] = chunk_pk
+                self._insert_asset_if_present(connection, kb_id, document_pk, chunk_pk, chunk)
 
     def list_documents(self) -> list[KnowledgeDocument]:
         """查询已发布或可索引的知识文档。"""
@@ -480,4 +486,116 @@ class KnowledgeRepository(EngineBackedRepository):
             },
         ).mappings().first()
 
+    def _insert_asset_if_present(
+        self,
+        connection,
+        knowledge_base_id: int,
+        document_id: int,
+        chunk_id: int,
+        chunk: KnowledgeChunk,
+    ) -> None:
+        """从图片资产 chunk 元数据中登记资产记录。"""
+        metadata = dict(chunk.metadata or {})
+        asset_uid = str(metadata.get("asset_id") or "").strip()
+        if not asset_uid:
+            return
+        stmt = text(
+            """
+            INSERT INTO declaration_qa.assets (
+                asset_uid, knowledge_base_id, document_id, chunk_id,
+                attachment_index, attachment_name, attachment_type, attachment_role, attachment_sha256,
+                asset_kind, modality, filename, content_type, file_path, asset_url, thumbnail_url,
+                page_no, bbox, ocr_text, extraction_status, error_message, metadata
+            )
+            VALUES (
+                :asset_uid, :knowledge_base_id, :document_id, :chunk_id,
+                :attachment_index, :attachment_name, :attachment_type, :attachment_role, :attachment_sha256,
+                :asset_kind, :modality, :filename, :content_type, :file_path, :asset_url, :thumbnail_url,
+                :page_no, :bbox, :ocr_text, :extraction_status, :error_message, :metadata
+            )
+            ON CONFLICT (asset_uid) DO UPDATE SET
+                knowledge_base_id = EXCLUDED.knowledge_base_id,
+                document_id = EXCLUDED.document_id,
+                chunk_id = EXCLUDED.chunk_id,
+                attachment_index = EXCLUDED.attachment_index,
+                attachment_name = EXCLUDED.attachment_name,
+                attachment_type = EXCLUDED.attachment_type,
+                attachment_role = EXCLUDED.attachment_role,
+                attachment_sha256 = EXCLUDED.attachment_sha256,
+                asset_kind = EXCLUDED.asset_kind,
+                modality = EXCLUDED.modality,
+                filename = EXCLUDED.filename,
+                content_type = EXCLUDED.content_type,
+                file_path = EXCLUDED.file_path,
+                asset_url = EXCLUDED.asset_url,
+                thumbnail_url = EXCLUDED.thumbnail_url,
+                page_no = EXCLUDED.page_no,
+                bbox = EXCLUDED.bbox,
+                ocr_text = EXCLUDED.ocr_text,
+                extraction_status = EXCLUDED.extraction_status,
+                error_message = EXCLUDED.error_message,
+                metadata = EXCLUDED.metadata,
+                updated_at = CURRENT_TIMESTAMP
+            """
+        ).bindparams(bindparam("bbox", type_=JSON), bindparam("metadata", type_=JSON))
+        connection.execute(
+            stmt,
+            {
+                "asset_uid": asset_uid,
+                "knowledge_base_id": knowledge_base_id,
+                "document_id": document_id,
+                "chunk_id": chunk_id,
+                "attachment_index": non_negative_int(metadata.get("attachment_index")),
+                "attachment_name": text_value(metadata.get("attachment_name"), limit=255),
+                "attachment_type": text_value(metadata.get("attachment_type"), limit=40),
+                "attachment_role": text_value(metadata.get("attachment_role"), limit=80),
+                "attachment_sha256": text_value(metadata.get("attachment_sha256"), limit=80),
+                "asset_kind": text_value(metadata.get("asset_kind"), limit=80),
+                "modality": text_value(metadata.get("modality"), limit=40),
+                "filename": text_value(metadata.get("asset_filename"), limit=255),
+                "content_type": text_value(metadata.get("asset_content_type"), limit=120),
+                "file_path": text_value(metadata.get("asset_path")),
+                "asset_url": text_value(metadata.get("asset_url")),
+                "thumbnail_url": text_value(metadata.get("thumbnail_url")),
+                "page_no": positive_int_or_none(metadata.get("attachment_page_no")),
+                "bbox": metadata.get("bbox") if isinstance(metadata.get("bbox"), list) else None,
+                "ocr_text": text_value(metadata.get("asset_text")),
+                "extraction_status": asset_extraction_status(metadata.get("attachment_status")),
+                "error_message": text_value(metadata.get("visual_asset_error") or metadata.get("extraction_error")),
+                "metadata": sanitize_metadata({key: value for key, value in metadata.items() if key != "asset_text"}),
+            },
+        )
+
+
+def text_value(value: Any, *, limit: int | None = None) -> str:
+    """将元数据值归一化为可写入数据库的文本。"""
+    text_value = str(value or "")
+    if limit is not None:
+        return text_value[:limit]
+    return text_value
+
+
+def non_negative_int(value: Any) -> int:
+    """将元数据值归一化为非负整数。"""
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def positive_int_or_none(value: Any) -> int | None:
+    """将元数据值归一化为正整数。"""
+    try:
+        number = int(value or 0)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def asset_extraction_status(value: Any) -> str:
+    """归一化资产抽取状态。"""
+    status = str(value or "success").strip().lower()
+    if status in {"success", "failed", "skipped"}:
+        return status
+    return "success"
 

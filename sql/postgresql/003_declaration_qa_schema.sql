@@ -247,6 +247,46 @@ WHERE metadata ?| ARRAY['biz_type', 'source_type', 'material_code', 'reject_code
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_chunks_metadata_gin
     ON declaration_qa.chunks USING GIN (metadata);
 
+CREATE TABLE IF NOT EXISTS declaration_qa.assets (
+    id BIGSERIAL PRIMARY KEY,
+    asset_uid VARCHAR(120) NOT NULL UNIQUE,
+    knowledge_base_id BIGINT NOT NULL REFERENCES declaration_qa.knowledge_bases(id) ON DELETE CASCADE,
+    document_id BIGINT NOT NULL REFERENCES declaration_qa.documents(id) ON DELETE CASCADE,
+    chunk_id BIGINT NULL REFERENCES declaration_qa.chunks(id) ON DELETE SET NULL,
+    attachment_index INTEGER NOT NULL DEFAULT 0 CHECK (attachment_index >= 0),
+    attachment_name VARCHAR(255) NOT NULL DEFAULT '',
+    attachment_type VARCHAR(40) NOT NULL DEFAULT '',
+    attachment_role VARCHAR(80) NOT NULL DEFAULT '',
+    attachment_sha256 VARCHAR(80) NOT NULL DEFAULT '',
+    asset_kind VARCHAR(80) NOT NULL DEFAULT '',
+    modality VARCHAR(40) NOT NULL DEFAULT '',
+    filename VARCHAR(255) NOT NULL DEFAULT '',
+    content_type VARCHAR(120) NOT NULL DEFAULT '',
+    file_path TEXT NOT NULL DEFAULT '',
+    asset_url TEXT NOT NULL DEFAULT '',
+    thumbnail_url TEXT NOT NULL DEFAULT '',
+    page_no INTEGER NULL CHECK (page_no IS NULL OR page_no > 0),
+    bbox JSONB NULL,
+    ocr_text TEXT NOT NULL DEFAULT '',
+    extraction_status VARCHAR(20) NOT NULL DEFAULT 'success' CHECK (extraction_status IN ('success', 'failed', 'skipped')),
+    error_message TEXT NOT NULL DEFAULT '',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_document
+    ON declaration_qa.assets (document_id, id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_chunk
+    ON declaration_qa.assets (chunk_id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_kb
+    ON declaration_qa.assets (knowledge_base_id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_kind
+    ON declaration_qa.assets (asset_kind, modality);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_attachment
+    ON declaration_qa.assets (attachment_sha256, attachment_index);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_assets_metadata_gin
+    ON declaration_qa.assets USING GIN (metadata);
+
 CREATE TABLE IF NOT EXISTS declaration_qa.index_jobs (
     id BIGSERIAL PRIMARY KEY,
     job_uid VARCHAR(80) NOT NULL UNIQUE,
@@ -544,6 +584,33 @@ COMMENT ON COLUMN declaration_qa.chunks.status IS '分块状态：draft/publishe
 COMMENT ON COLUMN declaration_qa.chunks.metadata IS '分块扩展元数据，不包含已移除的 biz_type/source_type/material_code/reject_code/theme_name，且不参与 RAG 检索过滤';
 COMMENT ON COLUMN declaration_qa.chunks.created_at IS '创建时间';
 COMMENT ON COLUMN declaration_qa.chunks.updated_at IS '更新时间';
+
+COMMENT ON TABLE declaration_qa.assets IS '知识文档附件资产表，保存 PDF 页面截图、DOCX 内嵌图片和图片附件等可展示资产';
+COMMENT ON COLUMN declaration_qa.assets.id IS '资产自增主键';
+COMMENT ON COLUMN declaration_qa.assets.asset_uid IS '资产业务唯一标识，对应 chunk metadata 中的 asset_id';
+COMMENT ON COLUMN declaration_qa.assets.knowledge_base_id IS '关联 knowledge_bases.id';
+COMMENT ON COLUMN declaration_qa.assets.document_id IS '关联 documents.id';
+COMMENT ON COLUMN declaration_qa.assets.chunk_id IS '关联图片资产 chunk，可为空';
+COMMENT ON COLUMN declaration_qa.assets.attachment_index IS '来源附件在文档中的顺序';
+COMMENT ON COLUMN declaration_qa.assets.attachment_name IS '来源附件名称';
+COMMENT ON COLUMN declaration_qa.assets.attachment_type IS '来源附件扩展名';
+COMMENT ON COLUMN declaration_qa.assets.attachment_role IS '来源附件角色：空表、样表、流程图或其他附件';
+COMMENT ON COLUMN declaration_qa.assets.attachment_sha256 IS '来源附件内容 SHA256';
+COMMENT ON COLUMN declaration_qa.assets.asset_kind IS '资产类型：pdf_page_image/docx_embedded_image/original_image';
+COMMENT ON COLUMN declaration_qa.assets.modality IS '资产模态：image/text/table 等';
+COMMENT ON COLUMN declaration_qa.assets.filename IS '资产文件名';
+COMMENT ON COLUMN declaration_qa.assets.content_type IS '资产 MIME 类型';
+COMMENT ON COLUMN declaration_qa.assets.file_path IS '资产本地落盘路径';
+COMMENT ON COLUMN declaration_qa.assets.asset_url IS '资产 API 访问地址';
+COMMENT ON COLUMN declaration_qa.assets.thumbnail_url IS '缩略图 API 访问地址';
+COMMENT ON COLUMN declaration_qa.assets.page_no IS 'PDF 页面资产对应页码';
+COMMENT ON COLUMN declaration_qa.assets.bbox IS '资产在页面中的坐标区域';
+COMMENT ON COLUMN declaration_qa.assets.ocr_text IS '资产 OCR 或页面关联文本';
+COMMENT ON COLUMN declaration_qa.assets.extraction_status IS '资产抽取状态';
+COMMENT ON COLUMN declaration_qa.assets.error_message IS '资产抽取失败原因';
+COMMENT ON COLUMN declaration_qa.assets.metadata IS '资产扩展元数据';
+COMMENT ON COLUMN declaration_qa.assets.created_at IS '创建时间';
+COMMENT ON COLUMN declaration_qa.assets.updated_at IS '更新时间';
 
 COMMENT ON TABLE declaration_qa.index_jobs IS '知识索引异步任务表';
 COMMENT ON COLUMN declaration_qa.index_jobs.id IS '索引任务自增主键';
