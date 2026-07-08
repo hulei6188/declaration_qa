@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from declaration_qa import __version__
 from declaration_qa.api.server.routes.audit import register_audit_routes
+from declaration_qa.api.server.routes.assets import register_asset_routes
 from declaration_qa.api.server.routes.chat import register_chat_routes
 from declaration_qa.api.server.routes.evaluation import register_evaluation_routes
 from declaration_qa.api.server.routes.knowledge import register_knowledge_routes
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     register_system_routes(app)
+    register_asset_routes(app)
     register_chat_routes(app)
     register_knowledge_routes(app)
     register_session_routes(app)

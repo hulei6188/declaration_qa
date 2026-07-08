@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.models import DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.pdf_ocr import extract_pdf_pages_with_ocr
 from declaration_qa.indexing.documents import DocumentParseError, HttpOcrClient, parse_document_bytes
@@ -14,6 +17,7 @@ def extract_attachment(
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
+    asset_dir: Path | None = None,
 ) -> ExtractedAttachment:
     """抽取附件文本，失败时返回可观测的失败结果。"""
     ref = downloaded.ref
@@ -34,9 +38,19 @@ def extract_attachment(
                     native_error=quality_error,
                     max_pages=pdf_ocr_max_pages,
                     dpi=pdf_ocr_dpi,
+                    asset_dir=asset_dir,
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
+        assets, asset_metadata = safe_extract_visual_assets(
+            downloaded,
+            asset_dir=asset_dir,
+            extracted_text=text,
+            ocr_client=ocr_client,
+            pdf_max_pages=pdf_ocr_max_pages,
+            pdf_dpi=pdf_ocr_dpi,
+        )
+        metadata.update(asset_metadata)
         return ExtractedAttachment(
             ref=ref,
             text=text,
@@ -45,6 +59,7 @@ def extract_attachment(
             sha256=downloaded.sha256,
             status="success",
             metadata=metadata,
+            assets=assets,
         )
     except DocumentParseError as exc:
         if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -54,6 +69,7 @@ def extract_attachment(
                 native_error=str(exc) or type(exc).__name__,
                 max_pages=pdf_ocr_max_pages,
                 dpi=pdf_ocr_dpi,
+                asset_dir=asset_dir,
             )
         return failed_attachment(downloaded, reason=str(exc) or type(exc).__name__)
     except Exception as exc:
@@ -67,6 +83,7 @@ def extract_pdf_attachment_with_ocr(
     native_error: str,
     max_pages: int,
     dpi: int,
+    asset_dir: Path | None = None,
 ) -> ExtractedAttachment:
     """在 PDF 原生抽取不可用时使用页面 OCR。"""
     try:
@@ -110,6 +127,15 @@ def extract_pdf_attachment_with_ocr(
             "pdf_ocr_failed_pages": result.ocr_failed_pages,
         }
     )
+    assets, asset_metadata = safe_extract_visual_assets(
+        downloaded,
+        asset_dir=asset_dir,
+        extracted_text=result.text,
+        ocr_client=ocr_client,
+        pdf_max_pages=max_pages,
+        pdf_dpi=dpi,
+    )
+    metadata.update(asset_metadata)
     return ExtractedAttachment(
         ref=downloaded.ref,
         text=result.text,
@@ -118,7 +144,40 @@ def extract_pdf_attachment_with_ocr(
         sha256=downloaded.sha256,
         status="success",
         metadata=metadata,
+        assets=assets,
     )
+
+
+def safe_extract_visual_assets(
+    downloaded: DownloadedAttachment,
+    *,
+    asset_dir: Path | None,
+    extracted_text: str,
+    ocr_client: HttpOcrClient | None,
+    pdf_max_pages: int,
+    pdf_dpi: int,
+) -> tuple[list, dict[str, object]]:
+    """抽取视觉资产，失败时只记录诊断信息。"""
+    try:
+        assets = extract_visual_assets(
+            downloaded,
+            asset_dir=asset_dir,
+            extracted_text=extracted_text,
+            ocr_client=ocr_client,
+            pdf_max_pages=pdf_max_pages,
+            pdf_dpi=pdf_dpi,
+        )
+        if not assets:
+            return [], {"visual_asset_count": 0}
+        return assets, {
+            "visual_asset_count": len(assets),
+            "visual_asset_kinds": sorted({asset.asset_kind for asset in assets}),
+        }
+    except Exception as exc:
+        return [], {
+            "visual_asset_count": 0,
+            "visual_asset_error": f"{type(exc).__name__}: {str(exc)[:240]}",
+        }
 
 
 def failed_attachment(downloaded: DownloadedAttachment, *, reason: str, metadata: dict[str, object] | None = None) -> ExtractedAttachment:

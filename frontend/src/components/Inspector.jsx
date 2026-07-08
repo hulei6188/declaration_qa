@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Copy, Play, ThumbsUp, ThumbsDown, Package } from 'lucide-react';
-import { escapeHtml } from '../utils.js';
+import { API_BASE, escapeHtml } from '../utils.js';
 
 export default function Inspector({
   timeline, sources, audit, feedbackResult, evalDatasetId, evalRecall, evalRefusal,
@@ -44,6 +44,11 @@ export default function Inspector({
             sources.map((s, i) => (
               <div key={i} className="source-card">
                 <strong>{escapeHtml(s.title || '未命名来源')}</strong>
+                {isImageSource(s) && (
+                  <a className="source-media" href={assetHref(s)} target="_blank" rel="noreferrer">
+                    <img src={assetHref(s)} alt={escapeHtml(sourceImageAlt(s))} loading="lazy" />
+                  </a>
+                )}
                 <code>{escapeHtml(s.snippet || '')}</code>
                 <code>score={s.score} · {s.region_code} · {s.policy_version || '-'}</code>
               </div>
@@ -118,4 +123,20 @@ export default function Inspector({
       </section>
     </aside>
   );
+}
+
+function isImageSource(source) {
+  return source?.metadata?.modality === 'image' && Boolean(source?.metadata?.asset_url || source?.metadata?.thumbnail_url);
+}
+
+function assetHref(source) {
+  const url = source?.metadata?.thumbnail_url || source?.metadata?.asset_url || '';
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE}${url}`;
+}
+
+function sourceImageAlt(source) {
+  const metadata = source?.metadata || {};
+  return metadata.asset_filename || metadata.attachment_name || source?.title || '证据图片';
 }

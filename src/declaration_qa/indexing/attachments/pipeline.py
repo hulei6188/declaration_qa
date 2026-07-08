@@ -108,12 +108,14 @@ def build_attachment_chunks_for_document(
                     pdf_ocr_fallback_enabled=bool(settings.attachment_pdf_ocr_fallback_enabled),
                     pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
                     pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),
+                    asset_dir=Path(settings.attachment_asset_dir),
                 )
                 extracted_items.append(extracted)
                 extract_span.update(
                     output={
                         "status": extracted.status,
                         "text_length": len(extracted.text),
+                        "asset_count": len(extracted.assets),
                         "semantic_chunk_type": extracted.metadata.get("semantic_chunk_type") or "",
                         "extraction_method": extracted.metadata.get("extraction_method") or "native",
                         "error_reason": extracted.error_reason,
@@ -122,7 +124,7 @@ def build_attachment_chunks_for_document(
                 if extracted.status != "success":
                     failures.append({"name": ref.name, "url": ref.url, "stage": "extract", "reason": extracted.error_reason})
         chunk_specs = build_attachment_chunk_specs(extracted_items, document_id=document_id, document_metadata=metadata)
-        success_count = sum(1 for item in extracted_items if item.status == "success" and item.text.strip())
+        success_count = sum(1 for item in extracted_items if item.status == "success" and (item.text.strip() or item.assets))
         failed_count = len(selected_refs) - duplicate_skipped_count - success_count
         total_skipped_count = skipped_count + duplicate_skipped_count
         output = {

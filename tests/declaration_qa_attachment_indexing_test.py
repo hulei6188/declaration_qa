@@ -512,6 +512,58 @@ def test_extract_form_fields_from_markdown_table_rows():
     assert "保护级别" in fields_by_name
 
 
+def test_docx_embedded_image_generates_visual_asset_chunk(tmp_path):
+    downloaded = make_docx_with_media_downloaded()
+
+    class FakeOcrClient:
+        def extract_text(self, *, filename, content_type, data):
+            assert filename == "image1.png"
+            assert content_type == "image/png"
+            return "流程图图片文字"
+
+    extracted = extract_attachment(downloaded, ocr_client=FakeOcrClient(), asset_dir=tmp_path)
+
+    assert extracted.status == "success"
+    assert len(extracted.assets) == 1
+    assert extracted.assets[0].asset_kind == "docx_embedded_image"
+    assert Path(extracted.assets[0].path).is_file()
+
+    specs = build_attachment_chunk_specs([extracted], document_id="doc-media", document_metadata={})
+    image_specs = [spec for spec in specs if spec["metadata"].get("chunk_type") == "attachment_image"]
+
+    assert len(image_specs) == 1
+    assert image_specs[0]["metadata"]["modality"] == "image"
+    assert image_specs[0]["metadata"]["asset_url"].startswith("/api/declaration-qa/assets/")
+    assert "流程图图片文字" in image_specs[0]["content"]
+
+
+def test_pdf_page_assets_generate_page_image_chunks(monkeypatch, tmp_path):
+    downloaded = make_pdf_downloaded(data=b"%PDF page asset")
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.extractor.parse_document_bytes",
+        lambda **kwargs: types.SimpleNamespace(
+            text="## PDF 第 1 页\n第一页表单内容\n\n## PDF 第 2 页\n第二页说明内容",
+            content_type="application/pdf",
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "fitz", fake_fitz_module())
+
+    extracted = extract_attachment(downloaded, asset_dir=tmp_path, pdf_ocr_max_pages=2, pdf_ocr_dpi=144)
+
+    assert extracted.status == "success"
+    assert len(extracted.assets) == 2
+    assert {asset.page_no for asset in extracted.assets} == {1, 2}
+
+    specs = build_attachment_chunk_specs([extracted], document_id="doc-pdf", document_metadata={})
+    page_specs = [spec for spec in specs if spec["metadata"].get("chunk_type") == "page_image"]
+
+    assert len(page_specs) == 2
+    assert page_specs[0]["metadata"]["modality"] == "image"
+    assert page_specs[0]["metadata"]["attachment_page_no"] == 1
+    assert page_specs[0]["metadata"]["asset_kind"] == "pdf_page_image"
+    assert "第一页表单内容" in page_specs[0]["content"]
+
+
 def test_pdf_low_quality_text_falls_back_to_page_ocr(monkeypatch):
     downloaded = make_pdf_downloaded()
 
@@ -599,8 +651,41 @@ def make_docx() -> bytes:
     return buffer.getvalue()
 
 
-def make_pdf_downloaded() -> DownloadedAttachment:
-    data = b"%PDF-1.4 fake"
+def make_docx_with_media_downloaded() -> DownloadedAttachment:
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="{WORD_NS}">
+  <w:body>
+    <w:p><w:r><w:t>内嵌图片材料</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", xml)
+        archive.writestr("word/media/image1.png", b"fake image bytes")
+    data = buffer.getvalue()
+    ref = AttachmentRef(
+        index=7,
+        name="含图材料.docx",
+        url="https://example.test/media.docx",
+        extension="docx",
+        section_path="申请材料 > 图示材料",
+        section_title="申请材料",
+        node_title="图示材料",
+        parent_section_id="doc-media#申请材料",
+        material_name="图示材料",
+        role="sample_file",
+    )
+    return DownloadedAttachment(
+        ref=ref,
+        data=data,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        cache_path="",
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
+def make_pdf_downloaded(data: bytes = b"%PDF-1.4 fake") -> DownloadedAttachment:
     ref = AttachmentRef(
         index=0,
         name="示例样表-取水许可申请书.pdf",

@@ -7,7 +7,8 @@ import re
 from typing import Any
 
 from declaration_qa.indexing.attachments.form_fields import FormField, extract_form_fields
-from declaration_qa.indexing.attachments.models import ExtractedAttachment
+from declaration_qa.indexing.attachments.assets import asset_url
+from declaration_qa.indexing.attachments.models import AttachmentAsset, ExtractedAttachment
 from declaration_qa.rag.engine.chunking import markdown_sections, normalize_chunking_strategy, split_windows
 from declaration_qa.rag.engine.constants import CHUNKING_HIERARCHICAL, CHUNKING_PARENT_CHILD
 
@@ -24,7 +25,10 @@ def build_attachment_chunk_specs(
     specs: list[dict[str, Any]] = []
     chunking_strategy = normalize_chunking_strategy(document_metadata.get("chunking_strategy"))
     for extracted in extracted_items:
-        if extracted.status != "success" or not extracted.text.strip():
+        if extracted.status != "success":
+            continue
+        specs.extend(build_attachment_asset_chunk_specs(extracted, document_metadata=document_metadata))
+        if not extracted.text.strip():
             continue
         semantic_type = str(extracted.metadata.get("semantic_chunk_type") or "attachment_text")
         if semantic_type == "attachment_form":
@@ -68,6 +72,57 @@ def build_attachment_chunk_specs(
                 overlap=overlap,
             )
         )
+    return specs
+
+
+def build_attachment_asset_chunk_specs(
+    extracted: ExtractedAttachment,
+    *,
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """将附件视觉资产转换为可检索、可展示的 chunk。"""
+    specs: list[dict[str, Any]] = []
+    for asset_index, asset in enumerate(extracted.assets):
+        semantic_type = asset_semantic_chunk_type(asset)
+        specs.append(
+            {
+                "id_suffix": attachment_asset_chunk_suffix(extracted, asset, asset_index),
+                "chunk_type": "child",
+                "content": attachment_asset_chunk_content(extracted, asset, asset_index=asset_index),
+                "source_url": extracted.ref.url,
+                "metadata": {
+                    **attachment_base_metadata(extracted, document_metadata, semantic_type=semantic_type),
+                    "chunk_type": semantic_type,
+                    "modality": asset.modality,
+                    "asset_id": asset.asset_id,
+                    "asset_kind": asset.asset_kind,
+                    "asset_filename": asset.filename,
+                    "asset_content_type": asset.content_type,
+                    "asset_path": asset.path,
+                    "asset_url": asset_url(asset.asset_id, asset.path),
+                    "thumbnail_path": asset.path,
+                    "thumbnail_url": asset_url(asset.asset_id, asset.path),
+                    "asset_index": asset_index,
+                    "asset_text": asset.text,
+                    "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
+                    "extraction_method": extracted.metadata.get("extraction_method") or "native",
+                    "indexable": True,
+                    **asset.metadata,
+                },
+            }
+        )
+        if asset.page_no is not None:
+            specs[-1]["metadata"].update(
+                {
+                    "attachment_page_no": asset.page_no,
+                    "attachment_page_numbers": [asset.page_no],
+                    "attachment_page_start": asset.page_no,
+                    "attachment_page_end": asset.page_no,
+                    "attachment_page_range": str(asset.page_no),
+                }
+            )
+        if asset.bbox is not None:
+            specs[-1]["metadata"]["bbox"] = asset.bbox
     return specs
 
 
@@ -677,6 +732,44 @@ def form_field_chunk_content(extracted: ExtractedAttachment, field: FormField) -
     return "\n".join(lines)
 
 
+def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: AttachmentAsset, *, asset_index: int) -> str:
+    """生成视觉资产证据文本。"""
+    ref = extracted.ref
+    lines = [
+        f"视觉证据：{asset_kind_label(asset.asset_kind)}",
+        f"来源附件：{ref.name}",
+        f"附件角色：{role_label(ref.role)}",
+        f"所属章节：{ref.section_path}",
+        f"资产文件：{asset.filename}",
+    ]
+    if ref.material_name:
+        lines.append(f"关联材料：{ref.material_name}")
+    if asset.page_no is not None:
+        lines.append(f"页码：第{asset.page_no}页")
+    if asset.text:
+        lines.append(f"识别文本：{asset.text}")
+    else:
+        lines.append("识别文本：无")
+    lines.append(f"资产序号：{asset_index + 1}")
+    return "\n".join(lines)
+
+
+def asset_semantic_chunk_type(asset: AttachmentAsset) -> str:
+    """返回视觉资产的语义 chunk 类型。"""
+    if asset.asset_kind == "pdf_page_image":
+        return "page_image"
+    return "attachment_image"
+
+
+def asset_kind_label(asset_kind: str) -> str:
+    """返回视觉资产类型中文标签。"""
+    return {
+        "pdf_page_image": "PDF页面截图",
+        "docx_embedded_image": "DOCX内嵌图片",
+        "original_image": "图片附件",
+    }.get(asset_kind, asset_kind or "图片资产")
+
+
 def field_type_label(field_type: str) -> str:
     """返回字段类型中文标签。"""
     return {
@@ -729,3 +822,10 @@ def form_field_chunk_suffix(extracted: ExtractedAttachment, field: FormField) ->
     key = f"{extracted.ref.url}|{field.table_index}|{field.row_index}|{field.column_index}|{field.field_name}|{field.raw_value}"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
     return f"field:{extracted.ref.index}:{digest}:{field.index}"
+
+
+def attachment_asset_chunk_suffix(extracted: ExtractedAttachment, asset: AttachmentAsset, asset_index: int) -> str:
+    """构建稳定的视觉资产 chunk 后缀。"""
+    key = f"{extracted.ref.url}|{asset.asset_id}|{asset.asset_kind}|{asset.page_no or ''}|{asset_index}"
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"asset:{extracted.ref.index}:{digest}:{asset_index}"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,22 @@ class DownloadedAttachment:
 
 
 @dataclass(frozen=True)
+class AttachmentAsset:
+    """附件中可展示、可做多模态检索的视觉资产。"""
+
+    asset_id: str
+    asset_kind: str
+    modality: str
+    path: str
+    content_type: str
+    filename: str
+    text: str = ""
+    page_no: int | None = None
+    bbox: list[float] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ExtractedAttachment:
     """附件抽取后的文本和结构化摘要。"""
 
@@ -44,4 +61,4 @@ class ExtractedAttachment:
     status: str = "success"
     error_reason: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
-
+    assets: list[AttachmentAsset] = field(default_factory=list)

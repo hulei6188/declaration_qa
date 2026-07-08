@@ -67,6 +67,7 @@ class DeclarationQASettings(BaseSettings):
 
     attachment_indexing_enabled: bool = Field(default=True, alias="DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED")
     attachment_cache_dir: str = Field(default="data/declaration_qa/attachments", alias="DECLARATION_QA_ATTACHMENT_CACHE_DIR")
+    attachment_asset_dir: str = Field(default="data/declaration_qa/assets", alias="DECLARATION_QA_ATTACHMENT_ASSET_DIR")
     attachment_download_timeout_seconds: float = Field(default=15.0, alias="DECLARATION_QA_ATTACHMENT_DOWNLOAD_TIMEOUT_SECONDS")
     attachment_download_retries: int = Field(default=1, alias="DECLARATION_QA_ATTACHMENT_DOWNLOAD_RETRIES")
     attachment_max_bytes: int = Field(default=20 * 1024 * 1024, alias="DECLARATION_QA_ATTACHMENT_MAX_BYTES")
