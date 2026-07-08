@@ -3,7 +3,7 @@ import sys
 import types
 import zipfile
 
-from declaration_qa.indexing.documents import parse_docx, parse_pdf
+from declaration_qa.indexing.documents import HttpOcrClient, parse_docx, parse_pdf
 from declaration_qa.indexing.service.workflow_index import chunk_storage_status
 
 
@@ -80,6 +80,44 @@ def test_chunk_storage_status_keeps_staging_rows_database_safe():
     assert chunk_storage_status("draft") == "draft"
     assert chunk_storage_status("published") == "published"
     assert chunk_storage_status("deprecated") == "deprecated"
+
+
+def test_dashscope_qwen_ocr_uses_compatible_chat_endpoint(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        text = "{}"
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "```html\n<html><body><p>识别出的文字</p></body></html>\n```"}}]}
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["headers"] = kwargs["headers"]
+        captured["json"] = kwargs["json"]
+        return FakeResponse()
+
+    monkeypatch.setattr("declaration_qa.indexing.documents.requests.post", fake_post)
+    client = HttpOcrClient(
+        url="https://dashscope.aliyuncs.com/api/v1",
+        api_key="sk-test",
+        model="qwen-vl-ocr-2025-11-20",
+    )
+
+    text = client.extract_text(filename="page.png", content_type="image/png", data=b"fake-png")
+
+    assert text == "识别出的文字"
+    assert captured["url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer sk-test"
+    assert captured["json"]["model"] == "qwen-vl-ocr-2025-11-20"
+    content = captured["json"]["messages"][0]["content"]
+    assert content[0]["type"] == "image_url"
+    assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert "只输出识别到的正文" in content[1]["text"]
 
 
 def make_docx(document_xml: str) -> bytes:

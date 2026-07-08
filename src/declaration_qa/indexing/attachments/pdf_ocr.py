@@ -52,9 +52,9 @@ def extract_pdf_pages_with_ocr(
                 if normalized:
                     page_texts.append(f"## OCR PDF 第 {page_index + 1} 页\n{normalized}")
             except Exception as exc:
-                failed_pages.append({"page": page_index + 1, "error": type(exc).__name__})
+                failed_pages.append({"page": page_index + 1, "error": page_ocr_error(exc)})
         if not page_texts:
-            raise DocumentParseError("pdf_ocr_fallback_produced_no_text")
+            raise DocumentParseError(pdf_ocr_no_text_reason(failed_pages))
         return PdfOcrResult(
             text="\n\n".join(page_texts),
             page_count=page_count,
@@ -103,3 +103,20 @@ def page_image_filename(filename: str, page_index: int) -> str:
     """构建传给 OCR 服务的页面图片文件名。"""
     stem = Path(filename or "document.pdf").stem or "document"
     return f"{stem}-page-{page_index + 1}.png"
+
+
+def page_ocr_error(exc: Exception) -> str:
+    """压缩单页 OCR 失败原因。"""
+    message = str(exc or "").strip()
+    prefix = type(exc).__name__
+    if not message:
+        return prefix
+    return f"{prefix}: {message[:240]}"
+
+
+def pdf_ocr_no_text_reason(failed_pages: list[dict[str, Any]]) -> str:
+    """构建 PDF OCR 没有产出文本时的诊断原因。"""
+    if not failed_pages:
+        return "pdf_ocr_fallback_produced_no_text"
+    details = "; ".join(f"page {item.get('page')}: {item.get('error')}" for item in failed_pages[:3])
+    return f"pdf_ocr_fallback_produced_no_text: {details}"
