@@ -1016,6 +1016,58 @@ def test_multi_retrieve_uses_batch_retrieval_and_dedupes():
     assert [item["query"] for item in result.status["queries"]] == ["办理时限", "承诺办结时限", "法定办结时限"]
 
 
+def test_image_only_query_skips_text_retrieval_and_rewrite():
+    class FailIfCalledRewriter:
+        name = "fail"
+
+        def rewrite(self, state):
+            raise AssertionError("image-only query should not use text query rewrite")
+
+    class ImageOnlyRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.image_calls = []
+
+        def retrieve_image(self, image_path, text, filters, *, top_k=4, retrieval_plan=None):
+            self.image_calls.append((image_path, text, filters, top_k, retrieval_plan))
+            return RetrievalResult(sources=[], filter=filters, status={"cache": {"hit": False}, "channels": {"dense": 0}})
+
+        def retrieve_rewrites(self, original_query, retrieval_queries, filters, *, top_k=6, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text rewrite retrieval")
+
+        def retrieve_many(self, queries, filters, *, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text batch retrieval")
+
+        def retrieve(self, query, filters, *, top_k=4, retrieval_plan=None):
+            raise AssertionError("image-only query should not use text fallback retrieval")
+
+    engine = ImageOnlyRAGEngine()
+    workflow = DeclarationQAWorkflow(rag_engine=engine, query_rewriter=FailIfCalledRewriter())
+    state = {
+        "query": "请根据这张图片检索相关申报材料",
+        "normalized_query": "请根据这张图片检索相关申报材料",
+        "query_image": {"file_path": "C:/tmp/material.png", "text_present": False},
+        "retrieval_queries": [{"id": "rq1", "text": "请根据这张图片检索相关申报材料", "strategy": "fallback", "top_k": 4}],
+        "retrieval_plan": {},
+        "route": "ticket_context_unrelated",
+    }
+
+    rewritten_state = workflow.query_rewrite(state)
+    result = workflow.multi_retrieve(rewritten_state, {"policy_version": "2025"})
+
+    assert rewritten_state["retrieval_queries"] == []
+    assert rewritten_state["query_rewrite"]["provider"] == "image_only"
+    assert rewritten_state["query_rewrite"]["reason"] == "image_only_skip_text_rewrite"
+    assert engine.image_calls
+    assert engine.image_calls[0][0] == "C:/tmp/material.png"
+    assert engine.image_calls[0][1] == ""
+    assert result.status["retrieval_mode"] == "image_only"
+    assert result.status["query_modalities"] == ["image"]
+    assert result.status["query_count"] == 0
+    assert result.status["text_retrieval_skipped"] is True
+    assert result.status["queries"][0]["strategy"] == "image_query"
+
+
 def test_multi_retrieve_falls_back_to_parallel_when_batch_fails():
     class SlowRAGEngine(InMemoryRAGEngine):
         def retrieve_rewrites(self, original_query, retrieval_queries, filters, *, top_k=6, retrieval_plan=None):

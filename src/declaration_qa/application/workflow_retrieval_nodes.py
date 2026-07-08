@@ -54,8 +54,20 @@ class WorkflowRetrievalNodes:
             },
             metadata=retrieval_observation_metadata(next_state),
         ) as span:
-            rewrite = self.query_rewriter.rewrite(next_state)
-            payload = rewrite.payload()
+            if is_image_only_query(next_state):
+                payload = {
+                    "base_query": str(next_state.get("normalized_query") or next_state.get("query") or ""),
+                    "scope_text": "",
+                    "fact_text": "",
+                    "requires_ticket_context": bool(next_state.get("requires_ticket_context")),
+                    "ticket_fact_type": str(next_state.get("ticket_fact_type") or "none"),
+                    "queries": [],
+                    "provider": "image_only",
+                    "reason": "image_only_skip_text_rewrite",
+                }
+            else:
+                rewrite = self.query_rewriter.rewrite(next_state)
+                payload = rewrite.payload()
             next_state["query_rewrite"] = payload
             next_state["retrieval_queries"] = payload.get("queries") or []
             next_state["rag_query"] = "\n".join(str(query.get("text") or "") for query in next_state["retrieval_queries"])
@@ -91,10 +103,13 @@ class WorkflowRetrievalNodes:
         retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
         query_image = state.get("query_image") or {}
         query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
-        image_query_text = answer_query if not isinstance(query_image, dict) or query_image.get("text_present", True) else ""
-        if not retrieval_queries:
+        image_only = is_image_only_query(state)
+        image_query_text = "" if image_only else answer_query
+        if image_only:
+            retrieval_queries = []
+        elif not retrieval_queries:
             retrieval_queries = [{"id": "rq1", "text": answer_query, "strategy": "fallback", "top_k": 4}]
-        executable_queries = dedupe_retrieval_queries(retrieval_queries)
+        executable_queries = [] if image_only else dedupe_retrieval_queries(retrieval_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
         image_query_status: dict[str, Any] | None = None
@@ -145,7 +160,9 @@ class WorkflowRetrievalNodes:
 
         batch_degraded = ""
         results: list[RetrievalResult] = []
-        if len(executable_queries) > 1:
+        if not executable_queries and image_only:
+            retrieval_mode = "image_only"
+        elif len(executable_queries) > 1:
             try:
                 result = self.rag_engine.retrieve_rewrites(
                     answer_query,
@@ -180,7 +197,7 @@ class WorkflowRetrievalNodes:
                     query_statuses = [None] * len(executable_queries)
                     results = []
 
-        if not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
+        if not image_only and not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
             retrieval_mode = "parallel_multi_query_rewrite"
             results_by_index: list[RetrievalResult | None] = [None] * len(executable_queries)
             with ThreadPoolExecutor(max_workers=min(self.max_retrieval_workers, len(executable_queries))) as executor:
@@ -194,7 +211,7 @@ class WorkflowRetrievalNodes:
                     query_statuses[index] = query_status
                     results_by_index[index] = result
             results = [result for result in results_by_index if result is not None]
-        elif not results:
+        elif not image_only and not results:
             retrieval_mode = "multi_query_rewrite"
             results = []
             for index, retrieval_query in enumerate(executable_queries):
@@ -222,7 +239,9 @@ class WorkflowRetrievalNodes:
             "filter": filters,
             "metadata_filtering": bool(filters),
             "retrieval_mode": retrieval_mode,
-            "query_modalities": ["text", "image"] if query_image_path else ["text"],
+            "query_modalities": ["image"] if image_only else (["text", "image"] if query_image_path else ["text"]),
+            "text_retrieval_skipped": image_only,
+            "text_retrieval_skip_reason": "image_only_query" if image_only else "",
             "retrieval_parallelism": min(self.max_retrieval_workers, max(1, len(executable_queries))),
             "batch_degraded": batch_degraded,
             "score_cutoff": {
@@ -299,3 +318,11 @@ def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "retrieval_plan": state.get("retrieval_plan") or {},
         }
     )
+
+
+def is_image_only_query(state: dict[str, Any]) -> bool:
+    """判断本次请求是否只有图片、没有用户输入文本。"""
+    query_image = state.get("query_image") or {}
+    if not isinstance(query_image, dict) or not query_image:
+        return False
+    return not bool(query_image.get("text_present", True))
