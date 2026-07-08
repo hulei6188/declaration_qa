@@ -102,13 +102,20 @@ def build_attachment_chunks_for_document(
                 input={"name": ref.name, "type": ref.extension, "role": ref.role, "bytes": len(downloaded.data)},
                 metadata={"document_id": document_id, "attachment_type": ref.extension, "attachment_role": ref.role},
             ) as extract_span:
-                extracted = extract_attachment(downloaded, ocr_client=ocr_client)
+                extracted = extract_attachment(
+                    downloaded,
+                    ocr_client=ocr_client,
+                    pdf_ocr_fallback_enabled=bool(settings.attachment_pdf_ocr_fallback_enabled),
+                    pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
+                    pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),
+                )
                 extracted_items.append(extracted)
                 extract_span.update(
                     output={
                         "status": extracted.status,
                         "text_length": len(extracted.text),
                         "semantic_chunk_type": extracted.metadata.get("semantic_chunk_type") or "",
+                        "extraction_method": extracted.metadata.get("extraction_method") or "native",
                         "error_reason": extracted.error_reason,
                     }
                 )

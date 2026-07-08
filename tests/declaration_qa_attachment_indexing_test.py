@@ -1,13 +1,15 @@
 import hashlib
 import io
+import sys
+import types
 import zipfile
 from pathlib import Path
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.indexing.attachments.downloader import content_type_from_extension
-from declaration_qa.indexing.attachments.extractor import attachment_text_quality_error
-from declaration_qa.indexing.attachments.models import DownloadedAttachment
+from declaration_qa.indexing.attachments.extractor import attachment_text_quality_error, extract_attachment
+from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
 from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
 from declaration_qa.rag.engine.chunking import split_document
@@ -207,6 +209,69 @@ def test_attachment_quality_gate_rejects_pdf_mojibake():
     assert attachment_text_quality_error(good_form_text, "docx") == ""
 
 
+def test_pdf_low_quality_text_falls_back_to_page_ocr(monkeypatch):
+    downloaded = make_pdf_downloaded()
+
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.extractor.parse_document_bytes",
+        lambda **kwargs: types.SimpleNamespace(text="## PDF 第 1 页\n" + "\x8b\x95\xaa\x89E\x8c\x94\x82\xca" * 5),
+    )
+    monkeypatch.setitem(sys.modules, "fitz", fake_fitz_module())
+
+    class FakeOcrClient:
+        def __init__(self):
+            self.calls = []
+
+        def extract_text(self, *, filename, content_type, data):
+            self.calls.append({"filename": filename, "content_type": content_type, "bytes": len(data)})
+            return "取水许可申请书\n取水用途：制水供水。"
+
+    ocr_client = FakeOcrClient()
+
+    extracted = extract_attachment(downloaded, ocr_client=ocr_client, pdf_ocr_max_pages=2, pdf_ocr_dpi=144)
+
+    assert extracted.status == "success"
+    assert "取水用途" in extracted.text
+    assert extracted.metadata["extraction_method"] == "pdf_ocr_fallback"
+    assert extracted.metadata["native_extraction_error"] == "low_quality_extracted_text"
+    assert extracted.metadata["pdf_ocr_rendered_page_count"] == 2
+    assert len(ocr_client.calls) == 2
+
+
+def test_pdf_low_quality_text_records_missing_ocr_client(monkeypatch):
+    downloaded = make_pdf_downloaded()
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.extractor.parse_document_bytes",
+        lambda **kwargs: types.SimpleNamespace(text="## PDF 第 1 页\n" + "\x8b\x95\xaa\x89E\x8c\x94\x82\xca" * 5),
+    )
+
+    extracted = extract_attachment(downloaded, ocr_client=None)
+
+    assert extracted.status == "failed"
+    assert "low_quality_extracted_text" in extracted.error_reason
+    assert "pdf_ocr_client_not_configured" in extracted.error_reason
+    assert extracted.metadata["pdf_ocr_fallback_attempted"] is True
+
+
+def test_pdf_ocr_fallback_records_missing_render_backend(monkeypatch):
+    downloaded = make_pdf_downloaded()
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.extractor.parse_document_bytes",
+        lambda **kwargs: types.SimpleNamespace(text="## PDF 第 1 页\n" + "\x8b\x95\xaa\x89E\x8c\x94\x82\xca" * 5),
+    )
+    monkeypatch.setitem(sys.modules, "fitz", None)
+
+    class FakeOcrClient:
+        def extract_text(self, *, filename, content_type, data):
+            return "不会调用到这里"
+
+    extracted = extract_attachment(downloaded, ocr_client=FakeOcrClient())
+
+    assert extracted.status == "failed"
+    assert "pdf_render_backend_unavailable" in extracted.error_reason
+    assert extracted.metadata["pdf_ocr_fallback_attempted"] is True
+
+
 def make_docx() -> bytes:
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <w:document xmlns:w="{WORD_NS}">
@@ -229,3 +294,58 @@ def make_docx() -> bytes:
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("word/document.xml", xml)
     return buffer.getvalue()
+
+
+def make_pdf_downloaded() -> DownloadedAttachment:
+    data = b"%PDF-1.4 fake"
+    ref = AttachmentRef(
+        index=0,
+        name="示例样表-取水许可申请书.pdf",
+        url="https://example.test/form.pdf",
+        extension="pdf",
+        section_path="取水许可办事指南 > 申请材料 > 5. 取水许可申请书",
+        section_title="申请材料",
+        node_title="5. 取水许可申请书",
+        parent_section_id="doc-water#申请材料",
+        material_name="取水许可申请书",
+        role="sample_file",
+    )
+    return DownloadedAttachment(
+        ref=ref,
+        data=data,
+        content_type="application/pdf",
+        cache_path="",
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
+def fake_fitz_module():
+    class Matrix:
+        def __init__(self, x_scale, y_scale):
+            self.x_scale = x_scale
+            self.y_scale = y_scale
+
+    class Pixmap:
+        def tobytes(self, image_type):
+            assert image_type == "png"
+            return b"fake png bytes"
+
+    class Page:
+        def get_pixmap(self, *, matrix, alpha):
+            assert matrix.x_scale == 2
+            assert matrix.y_scale == 2
+            assert alpha is False
+            return Pixmap()
+
+    class Document:
+        def __len__(self):
+            return 3
+
+        def load_page(self, page_index):
+            assert page_index in {0, 1}
+            return Page()
+
+        def close(self):
+            pass
+
+    return types.SimpleNamespace(Matrix=Matrix, open=lambda **kwargs: Document())
