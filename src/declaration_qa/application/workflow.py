@@ -79,7 +79,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         """同步执行问答工作流并返回最终响应。"""
         initial_state = self._initial_state(request)
         with observation(
-            "declaration_qa.chat",
+            "workflow.invoke",
             input=chat_trace_input(request),
             metadata=chat_trace_metadata(initial_state),
             trace_id=str(initial_state.get("langfuse_trace_id") or ""),
@@ -121,7 +121,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         """通过 LangGraph 流式执行问答工作流并产出 SSE 事件。"""
         state: DeclarationQAState = self._initial_state(request)
         with observation(
-            "declaration_qa.chat.stream",
+            "workflow.stream",
             input=chat_trace_input(request),
             metadata=chat_trace_metadata(state),
             trace_id=str(state.get("langfuse_trace_id") or ""),

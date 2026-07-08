@@ -113,24 +113,45 @@ class WorkflowRetrievalNodes:
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
         image_query_status: dict[str, Any] | None = None
+        observation_metadata = retrieval_observation_metadata(state)
         if query_image_path:
             try:
-                image_result = self.rag_engine.retrieve_image(
-                    query_image_path,
-                    image_query_text,
-                    filters,
-                    top_k=4,
-                    retrieval_plan={**retrieval_plan, "query_modality": "image"},
-                )
-                image_query_status = {
-                    "id": "image",
-                    "strategy": "image_query",
-                    "query": image_query_text or "图片查询",
-                    "top_k": 4,
-                    "source_count": len(image_result.sources),
-                    "cache": (image_result.status or {}).get("cache") or {},
-                    "channels": (image_result.status or {}).get("channels") or {},
-                }
+                with observation(
+                    "workflow.retrieve.image_query",
+                    input={
+                        "query": image_query_text,
+                        "image_only": image_only,
+                        "text_present": not image_only,
+                        "top_k": 4,
+                        "filter": filters,
+                        "retrieval_plan": {**retrieval_plan, "query_modality": "image"},
+                    },
+                    metadata=observation_metadata,
+                ) as span:
+                    image_result = self.rag_engine.retrieve_image(
+                        query_image_path,
+                        image_query_text,
+                        filters,
+                        top_k=4,
+                        retrieval_plan={**retrieval_plan, "query_modality": "image"},
+                    )
+                    image_query_status = {
+                        "id": "image",
+                        "strategy": "image_query",
+                        "query": image_query_text or "图片查询",
+                        "top_k": 4,
+                        "source_count": len(image_result.sources),
+                        "cache": (image_result.status or {}).get("cache") or {},
+                        "channels": (image_result.status or {}).get("channels") or {},
+                    }
+                    span.update(
+                        output=safe_value(
+                            {
+                                "source_count": len(image_result.sources),
+                                "status": image_result.status or {},
+                            }
+                        )
+                    )
             except Exception as exc:
                 image_query_status = {
                     "id": "image",
@@ -144,7 +165,27 @@ class WorkflowRetrievalNodes:
         def retrieve_one(retrieval_query: dict[str, Any]) -> tuple[dict[str, Any], RetrievalResult]:
             text = str(retrieval_query.get("text") or "").strip()
             top_k = int(retrieval_query.get("top_k") or 3)
-            result = self.rag_engine.retrieve(text, filters, top_k=top_k, retrieval_plan=retrieval_plan)
+            with observation(
+                "workflow.retrieve.text_query",
+                input={
+                    "id": retrieval_query.get("id") or "",
+                    "strategy": retrieval_query.get("strategy") or "",
+                    "query": text,
+                    "top_k": top_k,
+                    "filter": filters,
+                    "retrieval_plan": retrieval_plan,
+                },
+                metadata=observation_metadata,
+            ) as span:
+                result = self.rag_engine.retrieve(text, filters, top_k=top_k, retrieval_plan=retrieval_plan)
+                span.update(
+                    output=safe_value(
+                        {
+                            "source_count": len(result.sources),
+                            "status": result.status or {},
+                        }
+                    )
+                )
             return (
                 {
                     "id": retrieval_query.get("id") or "",
@@ -164,13 +205,33 @@ class WorkflowRetrievalNodes:
             retrieval_mode = "image_only"
         elif len(executable_queries) > 1:
             try:
-                result = self.rag_engine.retrieve_rewrites(
-                    answer_query,
-                    executable_queries,
-                    filters,
-                    top_k=6,
-                    retrieval_plan=retrieval_plan,
-                )
+                with observation(
+                    "workflow.retrieve.text_rewrites",
+                    input={
+                        "query": answer_query,
+                        "query_count": len(executable_queries),
+                        "queries": executable_queries,
+                        "top_k": 6,
+                        "filter": filters,
+                        "retrieval_plan": retrieval_plan,
+                    },
+                    metadata=observation_metadata,
+                ) as span:
+                    result = self.rag_engine.retrieve_rewrites(
+                        answer_query,
+                        executable_queries,
+                        filters,
+                        top_k=6,
+                        retrieval_plan=retrieval_plan,
+                    )
+                    span.update(
+                        output=safe_value(
+                            {
+                                "source_count": len(result.sources),
+                                "status": result.status or {},
+                            }
+                        )
+                    )
                 status = {
                     **(result.status or {}),
                     "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
@@ -188,7 +249,26 @@ class WorkflowRetrievalNodes:
             try:
                 if not (image_result is not None and results):
                     retrieval_mode = "batch_multi_query_rewrite"
-                    results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
+                    with observation(
+                        "workflow.retrieve.text_batch",
+                        input={
+                            "query_count": len(executable_queries),
+                            "queries": executable_queries,
+                            "filter": filters,
+                            "retrieval_plan": retrieval_plan,
+                        },
+                        metadata=observation_metadata,
+                    ) as span:
+                        results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
+                        span.update(
+                            output=safe_value(
+                                {
+                                    "result_count": len(results),
+                                    "source_count": sum(len(result.sources) for result in results),
+                                    "statuses": [result.status for result in results],
+                                }
+                            )
+                        )
                     for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
                         query_statuses[index] = query_status_from_result(retrieval_query, result)
             except Exception as exc:

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Play, ThumbsUp, ThumbsDown, Package } from 'lucide-react';
+import { Copy, ExternalLink, Image, Play, ThumbsUp, ThumbsDown, Package } from 'lucide-react';
 import { API_BASE, escapeHtml } from '../utils.js';
 
 export default function Inspector({
@@ -41,18 +41,41 @@ export default function Inspector({
           {sources.length === 0 ? (
             <p className="hint">暂无来源</p>
           ) : (
-            sources.map((s, i) => (
-              <div key={i} className="source-card">
-                <strong>{escapeHtml(s.title || '未命名来源')}</strong>
-                {isImageSource(s) && (
-                  <a className="source-media" href={assetHref(s)} target="_blank" rel="noreferrer">
-                    <img src={assetHref(s)} alt={escapeHtml(sourceImageAlt(s))} loading="lazy" />
-                  </a>
-                )}
-                <code>{escapeHtml(s.snippet || '')}</code>
-                <code>score={s.score} · {s.region_code} · {s.policy_version || '-'}</code>
-              </div>
-            ))
+            sources.map((s, i) => {
+              const image = sourceImage(s);
+              const facts = sourceFacts(s);
+              return (
+                <div key={i} className={`source-card${image ? ' image-source' : ''}`}>
+                  <div className="source-heading">
+                    <strong>{escapeHtml(s.title || '未命名来源')}</strong>
+                    {image && (
+                      <span className="source-badge">
+                        <Image size={12} />
+                        图片证据
+                      </span>
+                    )}
+                  </div>
+                  {image && (
+                    <a className="source-media" href={image.original} target="_blank" rel="noreferrer" title="查看原图">
+                      <img src={image.thumbnail} alt={sourceImageAlt(s)} loading="lazy" />
+                      <span className="source-media-action">
+                        <ExternalLink size={12} />
+                        查看原图
+                      </span>
+                    </a>
+                  )}
+                  {facts.length > 0 && (
+                    <div className="source-facts">
+                      {facts.map((fact) => (
+                        <span key={fact} className="source-fact">{escapeHtml(fact)}</span>
+                      ))}
+                    </div>
+                  )}
+                  <code>{escapeHtml(s.snippet || '')}</code>
+                  <code className="source-score">score={s.score} · {s.retrieval_channel || '-'} · {s.region_code} · {s.policy_version || '-'}</code>
+                </div>
+              );
+            })
           )}
         </div>
       </section>
@@ -126,11 +149,22 @@ export default function Inspector({
 }
 
 function isImageSource(source) {
-  return source?.metadata?.modality === 'image' && Boolean(source?.metadata?.asset_url || source?.metadata?.thumbnail_url);
+  const metadata = source?.metadata || {};
+  const hasAssetUrl = Boolean(metadata.asset_url || metadata.thumbnail_url);
+  const imageLike = metadata.modality === 'image' || Boolean(metadata.asset_kind);
+  return hasAssetUrl && imageLike;
 }
 
-function assetHref(source) {
-  const url = source?.metadata?.thumbnail_url || source?.metadata?.asset_url || '';
+function sourceImage(source) {
+  if (!isImageSource(source)) return null;
+  const metadata = source?.metadata || {};
+  return {
+    thumbnail: absoluteAssetUrl(metadata.thumbnail_url || metadata.asset_url || ''),
+    original: absoluteAssetUrl(metadata.asset_url || metadata.thumbnail_url || ''),
+  };
+}
+
+function absoluteAssetUrl(url) {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
   return `${API_BASE}${url}`;
@@ -139,4 +173,36 @@ function assetHref(source) {
 function sourceImageAlt(source) {
   const metadata = source?.metadata || {};
   return metadata.asset_filename || metadata.attachment_name || source?.title || '证据图片';
+}
+
+function sourceFacts(source) {
+  const metadata = source?.metadata || {};
+  const facts = [];
+  if (isImageSource(source)) facts.push(assetKindLabel(metadata.asset_kind));
+  const pageNo = metadata.attachment_page_no || metadata.page_no;
+  const pageRange = metadata.attachment_page_range;
+  if (pageNo) facts.push(`第 ${pageNo} 页`);
+  else if (pageRange) facts.push(`页码 ${pageRange}`);
+  const role = roleLabel(metadata.attachment_role);
+  if (role) facts.push(role);
+  const filename = metadata.asset_filename || metadata.attachment_name;
+  if (filename) facts.push(filename);
+  return facts.filter(Boolean).slice(0, 4);
+}
+
+function assetKindLabel(value) {
+  return {
+    pdf_page_image: 'PDF 页面',
+    docx_embedded_image: 'DOCX 图片',
+    original_image: '图片附件',
+  }[value] || (value ? String(value) : '图片资产');
+}
+
+function roleLabel(value) {
+  return {
+    blank_form: '空表',
+    sample_file: '样表',
+    flowchart: '流程图',
+    other_attachment: '附件',
+  }[value] || '';
 }

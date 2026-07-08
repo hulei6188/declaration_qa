@@ -28,7 +28,7 @@ docker compose up -d
 启动 API：
 
 ```powershell
-python -m uvicorn declaration_qa.api.server.app:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
 ```
 
 启动前端：
@@ -84,6 +84,8 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_RERANK_PROVIDER` / `DECLARATION_QA_RERANK_MODEL`
 - `DECLARATION_QA_RERANK_SCORE_THRESHOLD`
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND`: `inline` 或 `rq`。
+- `DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED`: 是否解析附件并生成派生 chunk。
+- `DECLARATION_QA_CHAT_IMAGE_DIR`: 聊天图片查询的临时落盘目录。
 
 ## Langfuse
 
@@ -138,6 +140,34 @@ ChatRequest
 4. Rerank 重排。
 5. 按 `retrieval_plan` 回填 parent 或同章节 sibling。
 6. 输出 `sources`、`evidence_text` 和 `rag_status`。
+
+## 多模态 RAG
+
+入库侧：
+
+- Markdown 正文按层级/父子策略切分。
+- PDF、DOCX、图片、表格类附件会解析为文本、表格字段和图片资产。
+- PDF 页面会渲染为图片资产，DOCX 内嵌图片和原始图片附件会登记到 `declaration_qa.assets`。
+- 图片资产会生成 `attachment_image` / `page_image` 等派生 chunk，并写入 `asset_id`、`asset_url`、`thumbnail_url`、`ocr_text` 等 metadata。
+- 使用 `qwen3-vl-embedding` 时，文本和图片会写入同一个 Milvus collection。
+
+检索侧：
+
+```text
+文本 query:
+  QueryResolver -> QueryRewriter -> Milvus dense + Elasticsearch BM25
+
+图片 + 文本 query:
+  文本部分 -> Milvus dense + Elasticsearch BM25
+  图片+文本部分 -> qwen3-vl-embedding -> Milvus dense
+  两路结果 -> merge / rerank / backfill
+
+纯图片 query:
+  图片 embedding -> Milvus dense
+  不使用兜底文本做 QueryRewrite / BM25
+```
+
+回答生成目前仍是文本模型：图片命中后不会把原图直接发给回答模型，而是把图片 chunk 中的 OCR、表格字段、视觉摘要等 `evidence_text` 交给模型。前端展示原图或页面缩略图作为可追溯证据。
 
 ## API
 
@@ -194,6 +224,35 @@ DECLARATION_QA_INDEX_QUEUE_BACKEND=rq
 
 worker 会执行解析、元数据提取、层级 chunk、Embedding、索引写入和原子发布。问答默认只召回 `doc_status=published` 的文档。
 
+重新索引前清空本地 Docker 知识库数据：
+
+```powershell
+@'
+from declaration_qa.core.config import get_settings
+from declaration_qa.search.vector.milvus import MilvusVectorIndex
+from declaration_qa.search.keyword.elasticsearch_keyword_index import ElasticsearchKeywordIndex
+
+settings = get_settings()
+MilvusVectorIndex(
+    uri=settings.milvus_uri,
+    token=settings.milvus_token,
+    collection_name=settings.milvus_collection,
+    dimension=settings.embedding_dimensions,
+    allow_fallback=False,
+).clear()
+ElasticsearchKeywordIndex(
+    url=settings.elasticsearch_url,
+    api_key=settings.elasticsearch_api_key,
+    index_name=settings.elasticsearch_index,
+    timeout_seconds=settings.external_request_timeout_seconds,
+).clear()
+'@ | python -
+
+docker exec declaration-qa-postgres-1 psql -U agentbase -d agentbase -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE declaration_qa.assets, declaration_qa.chunks, declaration_qa.index_jobs, declaration_qa.documents RESTART IDENTITY CASCADE;"
+```
+
+该操作只清空知识文档、chunk、附件资产和索引任务，不清空业务表和 `knowledge_bases`。
+
 ## 测试
 
 ```powershell
@@ -203,9 +262,10 @@ python -m pytest
 常用测试：
 
 ```powershell
-python -m pytest tests/declaration_qa_workflow_test.py -q
-python -m pytest tests/declaration_qa_production_test.py -q
-python -m pytest tests/declaration_qa_vector_index_test.py -q
+python -m pytest tests\declaration_qa_workflow_test.py -q
+python -m pytest tests\declaration_qa_production_test.py -q
+python -m pytest tests\declaration_qa_vector_index_test.py -q
+python -m pytest tests\declaration_qa_chat_image_test.py tests\declaration_qa_qwen3_vl_embedding_test.py -q
 ```
 
 如果 `.env` 指向真实 PostgreSQL / Milvus / Elasticsearch，测试结果会受真实配置影响。需要纯内存测试时，临时覆盖相关环境变量。
