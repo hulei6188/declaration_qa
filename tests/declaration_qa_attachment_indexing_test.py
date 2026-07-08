@@ -7,10 +7,11 @@ from pathlib import Path
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.indexing.attachments.chunks import build_attachment_chunk_specs
 from declaration_qa.indexing.attachments.downloader import content_type_from_extension
 from declaration_qa.indexing.attachments.extractor import attachment_text_quality_error, extract_attachment
 from declaration_qa.indexing.attachments.form_fields import extract_form_fields
-from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment
+from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
 from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
 from declaration_qa.rag.engine.chunking import split_document
@@ -173,6 +174,118 @@ def test_split_document_indexes_derived_attachment_chunks_as_child_siblings():
     assert derived.metadata["chunk_type"] == "attachment_form"
     assert derived.metadata["parent_section_id"] == "doc-water#申请材料"
     assert derived.metadata["sibling_ids"]
+
+
+def test_attachment_non_table_text_uses_hierarchical_parent_child_chunks():
+    extracted = ExtractedAttachment(
+        ref=AttachmentRef(
+            index=0,
+            name="空白样表-取水许可申请书.docx",
+            url="https://example.test/water-form.docx",
+            extension="docx",
+            section_path="取水许可办事指南 > 申请材料 > 5. 取水许可申请书",
+            section_title="申请材料",
+            node_title="5. 取水许可申请书",
+            parent_section_id="doc-water#申请材料",
+            material_name="取水许可申请书",
+            role="blank_form",
+        ),
+        text=(
+            "填表说明\n\n"
+            "- 申请人：申请取水的单位或个人名称，应与注册登记信息一致。\n\n"
+            "- 取水用途：指取水的使用范围、方面，主要包括制水供水、原水供水、生活用水、工业用水、农业用水、生态用水等。"
+            "按实际取水用途填写，该取水同时具有多种用途时，应逐项点选。\n\n"
+            "- 计量方式：包括管道计量方式、明渠计量方式、其他折算方式。管道计量可选择机械水表、电子远传水表、"
+            "电磁流量计、超声波流量计等。明渠计量可选择水工建筑物法、堰槽、规则断面单水位推流等。"
+        ),
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        metadata={"semantic_chunk_type": "attachment_text", "text_length": 260},
+    )
+
+    specs = build_attachment_chunk_specs(
+        [extracted],
+        document_id="doc-water",
+        document_metadata={"item_name": "取水许可", "chunking_strategy": "hierarchical"},
+        max_chunk_size=160,
+        overlap=20,
+    )
+    document = KnowledgeDocument(
+        id="doc-water",
+        title="取水许可",
+        content="# 取水许可办事指南\n\n## 申请材料\n\n正文",
+        metadata={"chunking_strategy": "hierarchical", "item_name": "取水许可"},
+        derived_chunks=specs,
+    )
+
+    chunks = split_document(document)
+    text_chunks = [chunk for chunk in chunks if chunk.metadata.get("chunk_type") == "attachment_text"]
+    parent_chunks = [chunk for chunk in text_chunks if chunk.chunk_type == "parent"]
+    child_chunks = [chunk for chunk in text_chunks if chunk.chunk_type == "child"]
+
+    assert parent_chunks
+    assert child_chunks
+    assert all(chunk.metadata["attachment_text_chunking_strategy"] == "hierarchical" for chunk in text_chunks)
+    assert all(chunk.metadata.get("indexable") is False for chunk in parent_chunks)
+    assert all(chunk.metadata.get("indexable") is True for chunk in child_chunks)
+    assert any(chunk.parent_id in {parent.id for parent in parent_chunks} for chunk in child_chunks)
+
+
+def test_attachment_text_child_retrieval_backfills_parent_context():
+    parent_content = (
+        "附件：空白样表-取水许可申请书.docx\n"
+        "所属章节：取水许可办事指南 > 申请材料 > 5. 取水许可申请书\n\n"
+        "填表说明\n"
+        "申请人应填写申请取水的单位或个人名称。\n"
+        "取水用途应填写取水的使用范围、方面，包括制水供水、原水供水、生活用水、工业用水、农业用水、生态用水。"
+    )
+    document = KnowledgeDocument(
+        id="doc-water-text",
+        title="取水许可",
+        content="# 取水许可办事指南\n\n## 申请材料\n\n### 5. 取水许可申请书\n申请书需要申请人自备。",
+        metadata={"chunking_strategy": "hierarchical", "item_name": "取水许可"},
+        derived_chunks=[
+            {
+                "id_suffix": "att_text_parent:0:fill:0:0",
+                "parent_id": "doc-water-text:att_text_parent:0:fill:0:0",
+                "chunk_type": "parent",
+                "content": parent_content,
+                "source_url": "https://example.test/form.docx",
+                "metadata": {
+                    "chunk_type": "attachment_text",
+                    "attachment_name": "空白样表-取水许可申请书.docx",
+                    "attachment_text_chunking_strategy": "hierarchical",
+                    "section_title": "申请材料",
+                    "node_title": "填表说明",
+                    "parent_section_id": "doc-water-text#申请材料",
+                    "indexable": False,
+                },
+            },
+            {
+                "id_suffix": "att_text_child:0:fill:0:0:0",
+                "parent_id": "doc-water-text:att_text_parent:0:fill:0:0",
+                "chunk_type": "child",
+                "content": "取水用途应填写取水的使用范围、方面，包括制水供水、原水供水、生活用水、工业用水。",
+                "source_url": "https://example.test/form.docx",
+                "metadata": {
+                    "chunk_type": "attachment_text",
+                    "attachment_name": "空白样表-取水许可申请书.docx",
+                    "attachment_text_chunking_strategy": "hierarchical",
+                    "section_title": "申请材料",
+                    "node_title": "填表说明",
+                    "parent_section_id": "doc-water-text#申请材料",
+                    "indexable": True,
+                },
+            },
+        ],
+    )
+
+    engine = InMemoryRAGEngine()
+    engine.index_document(document)
+    result = engine.retrieve("制水供水 原水供水 生活用水 工业用水", {}, top_k=1)
+
+    assert any(source.chunk.metadata.get("expanded_parent_chunk_id") for source in result.sources)
+    assert any("申请人应填写" in source.chunk.content for source in result.sources)
+    assert any(source.chunk.metadata.get("chunk_type") == "attachment_text" for source in result.sources)
 
 
 def test_form_question_backfills_attachment_form_from_material_section():

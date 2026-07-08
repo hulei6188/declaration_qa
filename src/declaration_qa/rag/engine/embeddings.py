@@ -11,22 +11,33 @@ def embed_chunk_batch(
     embedding_provider: Any,
     texts: list[str],
     *,
-    batch_size: int = 32,
+    batch_size: int | None = None,
     max_retries: int = 3,
     base_delay_seconds: float = 1.0,
 ) -> list[list[float]]:
     """按批创建向量，并使用有限重试和随机抖动。"""
     vectors: list[list[float]] = []
-    for index in range(0, len(texts), batch_size):
+    effective_batch_size = embedding_batch_size(embedding_provider, batch_size)
+    for index in range(0, len(texts), effective_batch_size):
         vectors.extend(
             embed_batch_with_retry(
                 embedding_provider,
-                texts[index : index + batch_size],
+                texts[index : index + effective_batch_size],
                 max_retries=max_retries,
                 base_delay_seconds=base_delay_seconds,
             )
         )
     return vectors
+
+
+def embedding_batch_size(embedding_provider: Any, requested_batch_size: int | None = None) -> int:
+    """返回当前向量化 provider 的安全批大小。"""
+    if requested_batch_size is not None:
+        return max(1, int(requested_batch_size))
+    provider_batch_size = getattr(embedding_provider, "document_batch_size", None)
+    if provider_batch_size is not None:
+        return max(1, int(provider_batch_size))
+    return 10
 
 
 def embed_batch_with_retry(

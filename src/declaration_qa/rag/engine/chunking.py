@@ -378,12 +378,17 @@ def derived_chunks_from_document(document: KnowledgeDocument) -> list[KnowledgeC
         if not content:
             continue
         id_suffix = str(spec.get("id_suffix") or f"derived:{index}")
+        chunk_type = normalize_derived_chunk_type(spec.get("chunk_type"))
+        chunk_id = f"{document.id}:{id_suffix}"
+        parent_id = str(spec.get("parent_id") or "")
+        if chunk_type == "parent" and not parent_id:
+            parent_id = chunk_id
         metadata = dict(spec.get("metadata") or {})
         chunk = knowledge_chunk_from_document(
             document,
-            chunk_id=f"{document.id}:{id_suffix}",
-            parent_id=str(spec.get("parent_id") or ""),
-            chunk_type="child",
+            chunk_id=chunk_id,
+            parent_id=parent_id,
+            chunk_type=chunk_type,
             content=content,
             extra_metadata={
                 **metadata,
@@ -396,6 +401,11 @@ def derived_chunks_from_document(document: KnowledgeDocument) -> list[KnowledgeC
             chunk = replace(chunk, source_url=source_url)
         chunks.append(chunk)
     return chunks
+
+
+def normalize_derived_chunk_type(value: Any) -> str:
+    """归一化派生片段的物理 chunk 类型。"""
+    return "parent" if str(value or "").strip().lower() == "parent" else "child"
 
 
 def attach_sibling_ids(chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:

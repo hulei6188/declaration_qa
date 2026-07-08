@@ -9,6 +9,7 @@ class OpenAIEmbeddingProvider:
     """基于 OpenAI Embeddings API 的向量化实现。"""
 
     name = "openai"
+    document_batch_size = 10
 
     def __init__(
         self,
