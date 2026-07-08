@@ -9,6 +9,7 @@ from declaration_qa.rag.model_providers.answers import OpenAIAnswerGenerator
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.openai_embedding_provider import OpenAIEmbeddingProvider
+from declaration_qa.rag.model_providers.embeddings.qwen3_vl_embedding_provider import Qwen3VLEmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker
 from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
@@ -22,6 +23,13 @@ from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
 def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvider:
     """按配置创建向量化提供方。"""
     provider = settings.embedding_provider.strip().lower()
+    if provider in {"qwen3-vl", "qwen3_vl", "qwen3-vl-embedding", "dashscope-qwen3-vl"}:
+        return Qwen3VLEmbeddingProvider(
+            api_key=settings.openai_api_key,
+            model=settings.embedding_model or "qwen3-vl-embedding",
+            dimension=settings.embedding_dimensions,
+            image_res_level=settings.embedding_image_res_level,
+        )
     if provider in {"openai", "dashscope"}:
         return OpenAIEmbeddingProvider(
             api_key=settings.openai_api_key,

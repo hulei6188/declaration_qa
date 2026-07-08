@@ -207,10 +207,21 @@ class MilvusVectorIndex:
         expected_fields = {"id", "doc_id", "vector", MILVUS_JSON_METADATA_FIELD, *MILVUS_TEXT_METADATA_FIELDS}
         if set(fields) != expected_fields:
             return False
-        for field in description.get("fields", []):
-            if field.get("name") == "id" and field.get("is_primary"):
-                field_type = field.get("type")
-                field_type_name = str(getattr(field_type, "name", "") or field_type or "").upper()
-                return field_type_name in {"VARCHAR", "STRING"} or field_type_name.endswith(".VARCHAR")
-        return False
+        if not milvus_vector_dim_matches(fields["vector"], self.dimension):
+            return False
+        id_field = fields["id"]
+        if not id_field.get("is_primary"):
+            return False
+        field_type = id_field.get("type")
+        field_type_name = str(getattr(field_type, "name", "") or field_type or "").upper()
+        return field_type_name in {"VARCHAR", "STRING"} or field_type_name.endswith(".VARCHAR")
+
+
+def milvus_vector_dim_matches(field: dict[str, Any], expected_dimension: int) -> bool:
+    """判断 Milvus 向量字段维度是否符合当前配置。"""
+    for container_name in ("params", "type_params", "element_type_params"):
+        params = field.get(container_name)
+        if isinstance(params, dict) and "dim" in params:
+            return int(params["dim"]) == int(expected_dimension)
+    return True
 

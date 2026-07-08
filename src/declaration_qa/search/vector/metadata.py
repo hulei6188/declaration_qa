@@ -30,6 +30,7 @@ MILVUS_TEXT_METADATA_FIELDS: dict[str, int] = {
     "status": 40,
     "doc_status": 40,
     "chunking_strategy": 40,
+    "modality": 40,
     "effective_start_time": 32,
     "effective_end_time": 32,
 }
@@ -61,6 +62,7 @@ def milvus_metadata_row(chunk: KnowledgeChunk) -> dict[str, Any]:
         "status": chunk.status or metadata.get("status") or "published",
         "doc_status": metadata.get("doc_status") or chunk.status or metadata.get("status") or "published",
         "chunking_strategy": metadata.get("chunking_strategy") or "",
+        "modality": metadata.get("modality") or "text",
         "effective_start_time": metadata.get("effective_start_time") or "",
         "effective_end_time": metadata.get("effective_end_time") or "",
     }
@@ -114,4 +116,3 @@ def milvus_escape_string(value: Any) -> str:
     """转义 Milvus 过滤表达式字符串。"""
     text = str(value or "").replace("\\", "\\\\").replace('"', '\\"')
     return f'"{text}"'
-

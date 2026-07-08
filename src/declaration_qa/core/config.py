@@ -34,6 +34,7 @@ class DeclarationQASettings(BaseSettings):
     embedding_provider: str = Field(default="hashing", alias="DECLARATION_QA_EMBEDDING_PROVIDER")
     embedding_model: str = Field(default="text-embedding-3-large", alias="DECLARATION_QA_EMBEDDING_MODEL")
     embedding_dimensions: int = Field(default=96, alias="DECLARATION_QA_EMBEDDING_DIMENSIONS")
+    embedding_image_res_level: int = Field(default=0, alias="DECLARATION_QA_EMBEDDING_IMAGE_RES_LEVEL")
 
     rerank_provider: str = Field(default="heuristic", alias="DECLARATION_QA_RERANK_PROVIDER")
     rerank_api_key: str = Field(default="", alias="DECLARATION_QA_RERANK_API_KEY")

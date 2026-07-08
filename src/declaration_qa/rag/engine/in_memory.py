@@ -6,7 +6,7 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.rag.engine.base import BaseRAGEngine
-from declaration_qa.rag.engine.embeddings import embed_chunk_batch
+from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
 from declaration_qa.rag.engine.scoring import bm25_retrieve, dense_retrieve, matches_filter
 from declaration_qa.rag.engine.structured_context import expand_parent_context, expand_structured_section_context
 from declaration_qa.rag.engine.text import unique_ordered_strings
@@ -62,7 +62,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         """将片段写入本地内存和本地索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
-        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
         for chunk, vector in zip(chunks, vectors):
             self._chunks[chunk.id] = chunk
             self._vectors[chunk.embedding_id] = vector
@@ -95,7 +95,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         if self.keyword_index:
             self.keyword_index.clear()
         self._documents = {document.id: document for document in documents}
-        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
         for chunk, vector in zip(chunks, vectors):
             self._chunks[chunk.id] = chunk
             self._vectors[chunk.embedding_id] = vector

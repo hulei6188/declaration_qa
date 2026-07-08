@@ -7,7 +7,7 @@ from typing import Any
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
 from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore
-from declaration_qa.rag.engine.embeddings import embed_chunk_batch
+from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
 from declaration_qa.rag.engine.structured_context import (
     expand_parent_context,
     expand_structured_section_context,
@@ -68,7 +68,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         """将片段写入外部向量和关键词索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
-        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
         for chunk, vector in zip(chunks, vectors):
             if chunk.chunk_type == "child":
                 self.vector_index.upsert(chunk, vector)
@@ -89,7 +89,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         self._documents = {document.id: document for document in documents}
         self.vector_index.clear()
         self.keyword_index.clear()
-        vectors = embed_chunk_batch(self.embedding_provider, [chunk.content for chunk in chunks])
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
         for chunk, vector in zip(chunks, vectors):
             if chunk.chunk_type == "child":
                 self.vector_index.upsert(chunk, vector)
