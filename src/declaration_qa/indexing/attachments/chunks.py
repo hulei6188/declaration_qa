@@ -167,6 +167,7 @@ def build_parent_child_attachment_text_specs(
         parent_metadata = attachment_text_metadata(
             extracted,
             document_metadata,
+            text=parent_text,
             semantic_type=semantic_type,
             source_attachment_chunk_type=source_attachment_chunk_type,
             chunking_strategy=CHUNKING_PARENT_CHILD,
@@ -209,6 +210,7 @@ def build_parent_child_attachment_text_specs(
                     "metadata": attachment_text_metadata(
                         extracted,
                         document_metadata,
+                        text=child_text,
                         semantic_type=semantic_type,
                         source_attachment_chunk_type=source_attachment_chunk_type,
                         chunking_strategy=CHUNKING_PARENT_CHILD,
@@ -260,6 +262,7 @@ def build_hierarchical_attachment_text_specs(
                     "metadata": attachment_text_metadata(
                         extracted,
                         document_metadata,
+                        text=section_text,
                         semantic_type=semantic_type,
                         source_attachment_chunk_type=source_attachment_chunk_type,
                         chunking_strategy=CHUNKING_HIERARCHICAL,
@@ -291,6 +294,7 @@ def build_hierarchical_attachment_text_specs(
                         "metadata": attachment_text_metadata(
                             extracted,
                             document_metadata,
+                            text=parent_text,
                             semantic_type=semantic_type,
                             source_attachment_chunk_type=source_attachment_chunk_type,
                             chunking_strategy=CHUNKING_HIERARCHICAL,
@@ -325,6 +329,7 @@ def build_hierarchical_attachment_text_specs(
                     "metadata": attachment_text_metadata(
                         extracted,
                         document_metadata,
+                        text=parent_text,
                         semantic_type=semantic_type,
                         source_attachment_chunk_type=source_attachment_chunk_type,
                         chunking_strategy=CHUNKING_HIERARCHICAL,
@@ -358,6 +363,7 @@ def build_hierarchical_attachment_text_specs(
                         "metadata": attachment_text_metadata(
                             extracted,
                             document_metadata,
+                            text=child_text,
                             semantic_type=semantic_type,
                             source_attachment_chunk_type=source_attachment_chunk_type,
                             chunking_strategy=CHUNKING_HIERARCHICAL,
@@ -443,6 +449,7 @@ def attachment_text_metadata(
     extracted: ExtractedAttachment,
     document_metadata: dict[str, Any],
     *,
+    text: str,
     semantic_type: str,
     source_attachment_chunk_type: str,
     chunking_strategy: str,
@@ -470,10 +477,62 @@ def attachment_text_metadata(
         metadata["parent_window_index"] = parent_index
     if child_index is not None:
         metadata["child_window_index"] = child_index
+    page_metadata = attachment_page_metadata("\n".join([section_title, section_path, text]))
+    if page_metadata:
+        metadata.update(page_metadata)
     if not indexable:
         metadata["context_only"] = True
         metadata["context_role"] = "attachment_text_context"
     return metadata
+
+
+def attachment_page_metadata(text: str) -> dict[str, Any]:
+    """从附件正文标题中提取 PDF 页码元数据。"""
+    page_numbers = attachment_page_numbers(text)
+    if not page_numbers:
+        return {}
+    metadata: dict[str, Any] = {
+        "attachment_page_numbers": page_numbers,
+        "attachment_page_start": page_numbers[0],
+        "attachment_page_end": page_numbers[-1],
+        "attachment_page_range": compact_page_range(page_numbers),
+    }
+    if len(page_numbers) == 1:
+        metadata["attachment_page_no"] = page_numbers[0]
+    return metadata
+
+
+def attachment_page_numbers(text: str) -> list[int]:
+    """识别 OCR/PDF 页标题中的页码。"""
+    numbers: list[int] = []
+    patterns = [
+        r"(?:OCR\s*)?PDF\s*第\s*([0-9]+)\s*页",
+        r"第\s*([0-9]+)\s*页",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, str(text or ""), flags=re.IGNORECASE):
+            page_no = int(match.group(1))
+            if page_no > 0 and page_no not in numbers:
+                numbers.append(page_no)
+    return sorted(numbers)
+
+
+def compact_page_range(page_numbers: list[int]) -> str:
+    """将页码列表压缩成人类可读范围。"""
+    numbers = sorted({int(number) for number in page_numbers if int(number) > 0})
+    if not numbers:
+        return ""
+    ranges: list[str] = []
+    start = numbers[0]
+    previous = numbers[0]
+    for number in numbers[1:]:
+        if number == previous + 1:
+            previous = number
+            continue
+        ranges.append(f"{start}-{previous}" if start != previous else str(start))
+        start = previous = number
+    ranges.append(f"{start}-{previous}" if start != previous else str(start))
+    return ",".join(ranges)
 
 
 def split_attachment_text(text: str, *, semantic_type: str, max_chunk_size: int, overlap: int) -> list[str]:

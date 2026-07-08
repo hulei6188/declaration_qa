@@ -230,6 +230,78 @@ def test_attachment_non_table_text_uses_hierarchical_parent_child_chunks():
     assert any(chunk.parent_id in {parent.id for parent in parent_chunks} for chunk in child_chunks)
 
 
+def test_attachment_pdf_ocr_text_chunks_include_page_metadata():
+    extracted = ExtractedAttachment(
+        ref=AttachmentRef(
+            index=0,
+            name="示例样表-水资源论证报告样本.pdf",
+            url="https://example.test/report.pdf",
+            extension="pdf",
+            section_path="取水许可办事指南 > 申请材料 > 建设项目水资源论证报告书（表）",
+            section_title="申请材料",
+            node_title="建设项目水资源论证报告书（表）",
+            parent_section_id="doc-water#申请材料",
+            material_name="建设项目水资源论证报告书（表）",
+            role="sample_file",
+        ),
+        text=(
+            "## OCR PDF 第 1 页\n"
+            "水资源论证报告封面\n\n"
+            "## OCR PDF 第 2 页\n"
+            "目录\n1. 总论\n2. 建设项目概况"
+        ),
+        content_type="application/pdf",
+        metadata={"semantic_chunk_type": "attachment_text", "extraction_method": "pdf_ocr_fallback"},
+    )
+
+    specs = build_attachment_chunk_specs(
+        [extracted],
+        document_id="doc-water",
+        document_metadata={"item_name": "取水许可", "chunking_strategy": "hierarchical"},
+        max_chunk_size=900,
+        overlap=20,
+    )
+
+    child_specs = [spec for spec in specs if spec.get("chunk_type") == "child"]
+    page_metadata = {spec["metadata"]["attachment_page_no"]: spec["metadata"] for spec in child_specs}
+    assert set(page_metadata) == {1, 2}
+    assert page_metadata[1]["attachment_page_range"] == "1"
+    assert page_metadata[2]["attachment_page_numbers"] == [2]
+
+
+def test_attachment_parent_child_chunk_records_cross_page_range():
+    extracted = ExtractedAttachment(
+        ref=AttachmentRef(
+            index=0,
+            name="示例样表-水资源论证报告样本.pdf",
+            url="https://example.test/report.pdf",
+            extension="pdf",
+            section_path="取水许可办事指南 > 申请材料 > 建设项目水资源论证报告书（表）",
+            section_title="申请材料",
+            node_title="建设项目水资源论证报告书（表）",
+            parent_section_id="doc-water#申请材料",
+            material_name="建设项目水资源论证报告书（表）",
+            role="sample_file",
+        ),
+        text="## OCR PDF 第 1 页\n第一页内容\n\n## OCR PDF 第 2 页\n第二页内容",
+        content_type="application/pdf",
+        metadata={"semantic_chunk_type": "attachment_text", "extraction_method": "pdf_ocr_fallback"},
+    )
+
+    specs = build_attachment_chunk_specs(
+        [extracted],
+        document_id="doc-water",
+        document_metadata={"item_name": "取水许可", "chunking_strategy": "parent_child"},
+        max_chunk_size=900,
+        overlap=20,
+    )
+
+    parent_spec = next(spec for spec in specs if spec.get("chunk_type") == "parent")
+    assert parent_spec["metadata"]["attachment_page_numbers"] == [1, 2]
+    assert parent_spec["metadata"]["attachment_page_range"] == "1-2"
+    assert "attachment_page_no" not in parent_spec["metadata"]
+
+
 def test_attachment_text_child_retrieval_backfills_parent_context():
     parent_content = (
         "附件：空白样表-取水许可申请书.docx\n"
