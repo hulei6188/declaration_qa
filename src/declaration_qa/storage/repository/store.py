@@ -230,6 +230,10 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """按用户和会话 ID 查询完整会话详情。"""
         return self.sessions.get_session(user_id=user_id, session_id=session_id)
 
+    def recent_messages(self, *, user_id: int, session_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """按用户和会话 ID 查询最近消息。"""
+        return self.sessions.recent_messages(user_id=user_id, session_id=session_id, limit=limit)
+
     def delete_session(self, *, user_id: int, session_id: str) -> bool:
         """按用户删除指定历史会话。"""
         return self.sessions.delete_session(user_id=user_id, session_id=session_id)

@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
+from declaration_qa.rag.context_engineering import format_short_term_context
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 from declaration_qa.rag.prompting import (
     ANSWER_PROMPT,
@@ -49,6 +50,7 @@ class OpenAIAnswerGenerator:
         if state.get("multi_question"):
             return MULTI_QUESTION_ANSWER_PROMPT.format(
                 query=state.get("query") or "",
+                short_term_context=format_short_term_context(state),
                 sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
             )
         sources = state.get("retrieved_sources") or []
@@ -58,6 +60,7 @@ class OpenAIAnswerGenerator:
             query=state.get("query") or "",
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
+            short_term_context=format_short_term_context(state),
             business_snapshot=state.get("business_snapshot") or {},
             business_payload=business_payload,
             source_payload=source_text,

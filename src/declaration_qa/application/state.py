@@ -12,6 +12,8 @@ class DeclarationQAState(TypedDict, total=False):
     query: str
     normalized_query: str
     query_image: dict[str, Any] | None
+    session_messages: list[dict[str, Any]]
+    short_term_context: dict[str, Any]
 
     region_code: str
     app_version: str

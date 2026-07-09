@@ -53,7 +53,14 @@ class WorkflowPlanningNodes:
         apply_context = next_state.get("apply_context") or {}
         next_state["biz_type"] = next_state.get("biz_type") or apply_context.get("biz_type")
         next_state["region_code"] = apply_context.get("region_code") or next_state.get("region_code") or "340000"
-        add_event(next_state, "context_built", {"has_apply_context": bool(next_state.get("apply_context"))})
+        add_event(
+            next_state,
+            "context_built",
+            {
+                "has_apply_context": bool(next_state.get("apply_context")),
+                "recent_message_count": len(next_state.get("session_messages") or []),
+            },
+        )
         return next_state
 
     def query_preprocess(self, state: DeclarationQAState) -> DeclarationQAState:

@@ -604,6 +604,7 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
             self.state = dict(state)
             prompt = MULTI_QUESTION_ANSWER_PROMPT.format(
                 query=state.get("query") or "",
+                short_term_context="{}",
                 sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
             )
             return "多问题最终回答", prompt
@@ -639,6 +640,26 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
     assert "办理居住证需要哪些材料" in audit["final_prompt"]
     assert audit["multi_question"] is True
     assert len(audit["sub_tasks"]) == 2
+
+
+def test_answer_prompt_uses_recent_session_context_only():
+    workflow = DeclarationQAWorkflow()
+    first = workflow.invoke(ChatRequest(query="取水许可是什么", user_id=1, region_code="340000"))
+
+    second = workflow.invoke(
+        ChatRequest(
+            query="刚才我问的事项办理要多久",
+            user_id=1,
+            region_code="340000",
+            session_id=first.session_id,
+        )
+    )
+    audit = workflow.audit_store.get(second.audit_id)
+
+    assert audit["short_term_context"]["metrics"]["recent_message_count"] == 2
+    assert "短期上下文" in audit["final_prompt"]
+    assert "取水许可是什么" in audit["final_prompt"]
+    assert "刚才我问的事项办理要多久" in audit["final_prompt"]
 
 
 def test_multi_question_uses_resolver_retrieval_query_for_short_followup():

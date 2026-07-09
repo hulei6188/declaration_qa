@@ -69,6 +69,27 @@ class SessionRepository(EngineBackedRepository):
         payload["messages"] = [normalize_message_row(message) for message in messages]
         return payload
 
+    def recent_messages(self, *, user_id: int, session_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """按用户和会话 ID 查询最近消息。"""
+        with self.engine.begin() as connection:
+            messages = connection.execute(
+                text(
+                    """
+                    SELECT role, content, intent, refused, refuse_reason, sources,
+                           suggested_actions, meta, created_at
+                    FROM declaration_qa.messages
+                    WHERE session_id = (
+                        SELECT id FROM declaration_qa.sessions
+                        WHERE session_uid = :session_id AND user_id = :user_id
+                    )
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT :limit
+                    """
+                ),
+                {"session_id": session_id, "user_id": user_id, "limit": max(1, int(limit or 10))},
+            ).mappings().all()
+        return [normalize_message_row(message) for message in reversed(messages)]
+
     def delete_session(self, *, user_id: int, session_id: str) -> bool:
         """按用户删除指定历史会话。"""
         with self.engine.begin() as connection:

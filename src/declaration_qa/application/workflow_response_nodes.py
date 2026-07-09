@@ -9,6 +9,7 @@ from declaration_qa.application.workflow_helpers.actions import suggested_action
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
 from declaration_qa.observability.langfuse import observation, safe_value
+from declaration_qa.rag.context_engineering import build_short_term_context
 
 
 class WorkflowResponseNodes:
@@ -46,6 +47,9 @@ class WorkflowResponseNodes:
     def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
         """调用回答生成器生成最终回答。"""
         next_state = dict(state)
+        next_state["short_term_context"] = build_short_term_context(next_state)
+        short_term_metrics = (next_state.get("short_term_context") or {}).get("metrics") or {}
+        add_event(next_state, "short_term_context", short_term_metrics)
         with observation(
             "workflow.answer_generation",
             input={
@@ -53,6 +57,7 @@ class WorkflowResponseNodes:
                 "intent": next_state.get("intent") or "",
                 "source_count": len(next_state.get("retrieved_sources") or []),
                 "multi_question": bool(next_state.get("multi_question")),
+                "short_term_context": short_term_metrics,
             },
             metadata=response_observation_metadata(next_state),
         ) as span:
@@ -80,6 +85,7 @@ class WorkflowResponseNodes:
             next_state["answer"] = answer
             audit_payload = dict(next_state.get("audit_payload") or {})
             audit_payload["final_prompt"] = prompt
+            audit_payload["short_term_context"] = next_state.get("short_term_context") or {}
             next_state["audit_payload"] = audit_payload
             span.update(
                 output=safe_value(
@@ -87,6 +93,7 @@ class WorkflowResponseNodes:
                         "answer": answer,
                         "prompt_length": len(prompt),
                         "streamed": streamed,
+                        "short_term_context": short_term_metrics,
                     }
                 )
             )
@@ -143,6 +150,7 @@ class WorkflowResponseNodes:
             "suggested_actions": next_state.get("suggested_actions") or [],
             "events": next_state.get("events") or [],
             "langfuse_trace_id": next_state.get("langfuse_trace_id") or "",
+            "short_term_context": next_state.get("short_term_context") or {},
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
@@ -164,5 +172,6 @@ def response_observation_metadata(state: dict[str, object]) -> dict[str, object]
             "retrieval_chain": state.get("retrieval_chain") or "",
             "source_count": len(state.get("retrieved_sources") or []),
             "multi_question": bool(state.get("multi_question")),
+            "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
         }
     )

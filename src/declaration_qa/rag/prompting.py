@@ -6,6 +6,8 @@ import hashlib
 from html import escape
 from typing import Any
 
+from declaration_qa.rag.context_engineering import format_short_term_context
+
 try:
     from langchain_core.prompts import PromptTemplate
 except ModuleNotFoundError:
@@ -30,6 +32,7 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 问题：{query}
 意图：{intent}
 链路：{retrieval_chain}
+短期上下文（仅用于理解多轮省略、当前工单和附件，不得替代检索证据作为政策依据）：{short_term_context}
 业务快照：{business_snapshot}
 业务数据：{business_payload}
 检索证据：{source_payload}
@@ -52,6 +55,7 @@ MULTI_QUESTION_ANSWER_PROMPT = PromptTemplate.from_template(
 不要向用户输出 Ref、Evidence id 或 XML 标签本身，只输出自然语言答案。
 
 用户原始问题：{query}
+短期上下文（仅用于理解多轮省略、当前工单和附件，不得替代各子问题证据）：{short_term_context}
 {sub_task_payload}
 
 请按用户自然提问方式组织最终答案。
@@ -79,6 +83,7 @@ class DeterministicAnswerGenerator:
             query=state.get("query") or "",
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
+            short_term_context=format_short_term_context(state),
             business_snapshot=state.get("business_snapshot") or {},
             business_payload=business_payload,
             source_payload=source_text,
@@ -129,6 +134,7 @@ def multi_question_answer(state: dict[str, Any]) -> tuple[str, str]:
     sub_tasks = state.get("sub_tasks") or []
     prompt = MULTI_QUESTION_ANSWER_PROMPT.format(
         query=state.get("query") or "",
+        short_term_context=format_short_term_context(state),
         sub_task_payload=format_sub_task_payload(sub_tasks),
     )
     lines = []

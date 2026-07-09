@@ -61,6 +61,7 @@ src/declaration_qa/indexing/service/processor.py
 src/declaration_qa/indexing/service/reindex.py
 src/declaration_qa/indexing/service/workflow_index.py
 src/declaration_qa/rag/__init__.py
+src/declaration_qa/rag/context_engineering.py
 src/declaration_qa/rag/evidence.py
 src/declaration_qa/rag/prompting.py
 src/declaration_qa/rag/retrieval.py

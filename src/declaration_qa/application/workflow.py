@@ -26,6 +26,7 @@ from declaration_qa.application.workflow_nodes import WorkflowNodes
 from declaration_qa.application.workflow_retrieval_nodes import is_image_only_query
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
+from declaration_qa.rag.context_engineering import RECENT_MESSAGE_LIMIT, recent_messages_from_session
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
@@ -198,12 +199,15 @@ class DeclarationQAWorkflow(WorkflowNodes):
         """根据请求构造工作流初始状态。"""
         apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
         session_id = request.session_id or uuid4().hex
+        session_messages = self._recent_session_messages(request)
         return {
             "user_id": request.user_id,
             "session_id": session_id,
             "query": request.query,
             "normalized_query": "",
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
+            "session_messages": session_messages,
+            "short_term_context": {},
             "region_code": request.region_code,
             "app_version": request.app_version,
             "policy_version": request.policy_version,
@@ -245,6 +249,27 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "audit_payload": {},
             "langfuse_trace_id": create_trace_id(f"{session_id}:{request.query}"),
         }
+
+    def _recent_session_messages(self, request: ChatRequest) -> list[dict[str, Any]]:
+        """读取当前会话最近消息，避免把全量历史送入模型。"""
+        session_id = str(request.session_id or "").strip()
+        if not session_id:
+            return []
+        try:
+            recent_messages = getattr(self.audit_store, "recent_messages", None)
+            if callable(recent_messages):
+                return list(
+                    recent_messages(
+                        user_id=int(request.user_id),
+                        session_id=session_id,
+                        limit=RECENT_MESSAGE_LIMIT,
+                    )
+                    or []
+                )
+            session = self.audit_store.get_session(user_id=int(request.user_id), session_id=session_id)
+            return recent_messages_from_session(session, limit=RECENT_MESSAGE_LIMIT)
+        except Exception:
+            return []
 
     def _build_graph(self):
         """构建 LangGraph 节点和边。"""
@@ -434,6 +459,8 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "retrieval_chain": state.get("retrieval_chain") or "",
             "multi_question": bool(state.get("multi_question")),
             "has_query_image": bool(state.get("query_image")),
+            "recent_message_count": len(state.get("session_messages") or []),
+            "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "need_ticket_selection": bool(state.get("need_ticket_selection")),
             "refused": bool(state.get("refused")),
             "source_count": len(state.get("retrieved_sources") or []),
@@ -455,6 +482,7 @@ def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
             "intent": state.get("intent") or "",
             "multi_question": bool(state.get("multi_question")),
             "source_count": len(state.get("retrieved_sources") or []),
+            "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "rag_status": state.get("rag_status") or {},
             "evidence_decision": state.get("evidence_decision") or {},
             "suggested_actions": state.get("suggested_actions") or [],

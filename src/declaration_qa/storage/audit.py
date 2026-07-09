@@ -119,6 +119,38 @@ class InMemoryAuditStore:
             "messages": messages,
         }
 
+    def recent_messages(self, *, user_id: int, session_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """按用户和会话 ID 查询最近消息。"""
+        items = [
+            item
+            for item in self._items.values()
+            if int(item.get("user_id") or 0) == int(user_id) and str(item.get("session_id") or "") == session_id
+        ]
+        if not items:
+            return []
+        items = sorted(items, key=lambda item: item.get("created_at") or "")
+        messages = []
+        for item in items:
+            messages.append(
+                user_message_payload(
+                    content=str(item.get("query") or ""),
+                    created_at=str(item.get("created_at") or ""),
+                    query_image=item.get("query_image") if isinstance(item.get("query_image"), dict) else None,
+                )
+            )
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": item.get("answer") or "",
+                    "intent": item.get("intent") or "",
+                    "refused": bool(item.get("refused")),
+                    "sources": item.get("retrieved_sources") or [],
+                    "suggested_actions": item.get("suggested_actions") or [],
+                    "created_at": item.get("created_at") or "",
+                }
+            )
+        return messages[-max(0, int(limit or 10)) :]
+
     def delete_session(self, *, user_id: int, session_id: str) -> bool:
         """按用户删除指定历史会话。"""
         keys = [

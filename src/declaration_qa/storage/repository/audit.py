@@ -52,6 +52,7 @@ class AuditRepository(EngineBackedRepository):
                     "evidence_ok": payload.get("evidence_ok"),
                     "evidence_decision": payload.get("evidence_decision") or {},
                     "rag_status": payload.get("rag_status") or {},
+                    "short_term_context": payload.get("short_term_context") or {},
                     "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
                 },
             )
