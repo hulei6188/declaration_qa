@@ -6,7 +6,7 @@ import hashlib
 from html import escape
 from typing import Any
 
-from declaration_qa.rag.context_engineering import format_long_term_context, format_short_term_context
+from declaration_qa.memory.context import format_long_term_context, format_short_term_context
 
 try:
     from langchain_core.prompts import PromptTemplate

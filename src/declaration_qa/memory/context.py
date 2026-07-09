@@ -1,4 +1,4 @@
-"""短期上下文工程工具。"""
+"""上下文记忆格式化工具。"""
 
 from __future__ import annotations
 

@@ -27,7 +27,7 @@ from declaration_qa.application.workflow_retrieval_nodes import is_image_only_qu
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
-from declaration_qa.rag.context_engineering import RECENT_MESSAGE_LIMIT, recent_messages_from_session
+from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, recent_messages_from_session
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator

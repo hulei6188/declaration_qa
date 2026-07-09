@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
-from declaration_qa.rag.context_engineering import format_long_term_context, format_short_term_context
+from declaration_qa.memory.context import format_long_term_context, format_short_term_context
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 from declaration_qa.rag.prompting import (
     ANSWER_PROMPT,

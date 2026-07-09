@@ -9,7 +9,7 @@ from declaration_qa.application.workflow_helpers.actions import suggested_action
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
 from declaration_qa.observability.langfuse import observation, safe_value
-from declaration_qa.rag.context_engineering import build_short_term_context
+from declaration_qa.memory.context import build_short_term_context
 
 
 class WorkflowResponseNodes:

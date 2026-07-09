@@ -11,7 +11,7 @@ from declaration_qa.memory.models import ContextMemoryItem, context_memory_from_
 from declaration_qa.memory.retrieval import ContextMemoryRetriever
 from declaration_qa.memory.store import ContextMemoryStore
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
-from declaration_qa.rag.context_engineering import normalize_recent_messages
+from declaration_qa.memory.context import normalize_recent_messages
 from declaration_qa.storage.cache import CacheStore
 
 

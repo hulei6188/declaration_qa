@@ -1,4 +1,4 @@
-from declaration_qa.rag.context_engineering import build_short_term_context, normalize_recent_messages
+from declaration_qa.memory.context import build_short_term_context, normalize_recent_messages
 
 
 def test_normalize_recent_messages_keeps_last_five_turns_and_truncates():

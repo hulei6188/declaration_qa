@@ -1,0 +1,192 @@
+"""办件业务数据访问协议和本地内存示例实现。"""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+
+class BusinessDataAdapter(Protocol):
+    """办件业务数据访问适配器协议。"""
+    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        """查询用户可访问的办件列表。"""
+        ...
+
+    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        """查询指定办件的业务上下文。"""
+        ...
+
+    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        """校验用户是否有权访问指定办件。"""
+        ...
+
+    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取状态信息。"""
+        ...
+
+    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取退回和补正信息。"""
+        ...
+
+
+class InMemoryBusinessDataAdapter:
+    """独立问答应用使用的业务数据适配器。
+
+    生产环境通过 PostgresDeclarationQAStore 使用 PostgreSQL 适配器；
+    这里保留给没有数据库的本地开发场景。
+    """
+
+    def __init__(self) -> None:
+        """初始化内存业务适配器。"""
+        self._applications: dict[str, dict[str, Any]] = {
+            "A1001": {
+                "apply_id": "A1001",
+                "user_id": 1,
+                "biz_type": "health_certificate",
+                "region_code": "340000",
+                "status": "in_review",
+                "current_node": "DEPT_REVIEW",
+                "node_name": "部门审核中",
+                "submitted_at": "2026-06-15T09:00:00+08:00",
+                "updated_at": "2026-06-15T10:20:00+08:00",
+                "payload": {"channel": "wanshitong", "sla_hours": 72},
+            },
+            "A2002": {
+                "apply_id": "A2002",
+                "user_id": 1,
+                "biz_type": "residence_permit",
+                "region_code": "340000",
+                "status": "rejected",
+                "current_node": "MATERIAL_REVIEW",
+                "node_name": "材料审核",
+                "reject_code": "MISSING_RESIDENCE_PROOF",
+                "reject_reason": "缺少有效居住证明材料",
+                "material_code": "RESIDENCE_PROOF",
+                "material_name": "居住证明",
+                "audit_node": "材料初审",
+                "submitted_at": "2026-06-14T14:00:00+08:00",
+                "updated_at": "2026-06-15T09:30:00+08:00",
+                "payload": {"channel": "wanshitong", "review_batch": "MATERIAL-20260615"},
+            },
+            "A3003": {
+                "apply_id": "A3003",
+                "user_id": 1,
+                "biz_type": "id_card_replace",
+                "region_code": "340000",
+                "status": "rejected",
+                "current_node": "PHOTO_REVIEW",
+                "node_name": "照片审核",
+                "reject_code": "PHOTO_BLUR",
+                "reject_reason": "身份证正面照片不清晰",
+                "material_code": "ID_CARD_FRONT",
+                "material_name": "身份证正面照片",
+                "audit_node": "人工初审",
+                "submitted_at": "2026-06-14T16:10:00+08:00",
+                "updated_at": "2026-06-15T08:40:00+08:00",
+                "payload": {"channel": "wanshitong", "review_batch": "PHOTO-20260615"},
+            },
+        }
+
+    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
+        """查询用户可访问的办件列表。"""
+        rows = []
+        for item in self._applications.values():
+            if int(item.get("user_id") or 0) != int(user_id):
+                continue
+            if biz_type and item.get("biz_type") != biz_type:
+                continue
+            if region_code and not region_code_matches(item.get("region_code"), region_code):
+                continue
+            rows.append(ticket_summary(item))
+        return sorted(rows, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
+
+    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
+        """查询指定办件的业务上下文。"""
+        item = self._applications.get(str(apply_id or "").strip())
+        if not item or int(item.get("user_id") or 0) != int(user_id):
+            return None
+        return dict(item)
+
+    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
+        """校验用户是否有权访问指定办件。"""
+        return self.get_apply_context(user_id=user_id, apply_id=apply_id) is not None
+
+    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取状态信息。"""
+        return {
+            "apply_id": apply_context.get("apply_id"),
+            "biz_type": apply_context.get("biz_type"),
+            "region_code": apply_context.get("region_code"),
+            "status": apply_context.get("status"),
+            "current_node": apply_context.get("current_node"),
+            "node_name": apply_context.get("node_name"),
+            "submitted_at": apply_context.get("submitted_at"),
+            "completed_at": apply_context.get("completed_at"),
+            "updated_at": apply_context.get("updated_at"),
+            "payload": apply_context.get("payload") or {},
+        }
+
+    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
+        """从办件上下文提取退回和补正信息。"""
+        return {
+            "apply_id": apply_context.get("apply_id"),
+            "biz_type": apply_context.get("biz_type"),
+            "region_code": apply_context.get("region_code"),
+            "reject_code": apply_context.get("reject_code"),
+            "reject_reason": apply_context.get("reject_reason"),
+            "material_code": apply_context.get("material_code"),
+            "material_name": apply_context.get("material_name"),
+            "audit_node": apply_context.get("audit_node"),
+            "status": apply_context.get("status"),
+            "current_node": apply_context.get("current_node"),
+            "node_name": apply_context.get("node_name"),
+            "submitted_at": apply_context.get("submitted_at"),
+            "updated_at": apply_context.get("updated_at"),
+            "payload": apply_context.get("payload") or {},
+        }
+
+
+def ticket_summary(item: dict[str, Any]) -> dict[str, Any]:
+    """将办件记录转换为列表摘要。"""
+    return {
+        "ticket_id": str(item.get("apply_id") or ""),
+        "biz_type": str(item.get("biz_type") or ""),
+        "region_code": str(item.get("region_code") or ""),
+        "status": str(item.get("status") or ""),
+        "current_node": str(item.get("current_node") or ""),
+        "node_name": str(item.get("node_name") or ""),
+        "title": ticket_title(item),
+        "updated_at": str(item.get("updated_at") or ""),
+    }
+
+
+def ticket_title(item: dict[str, Any]) -> str:
+    """根据业务类型生成办件标题。"""
+    names = {
+        "health_certificate": "健康证办理",
+        "residence_permit": "居住证办理",
+        "id_card_replace": "身份证换领",
+    }
+    return names.get(str(item.get("biz_type") or ""), str(item.get("biz_type") or "政务服务事项"))
+
+
+def region_code_variants(value: Any) -> list[str]:
+    """生成行政区划编码的等价匹配形式。"""
+    code = str(value or "").strip()
+    if not code:
+        return []
+    variants = {code}
+    if code.isdigit():
+        if len(code) == 6:
+            variants.add(f"{code}000000")
+        elif len(code) == 12 and code.endswith("000000"):
+            variants.add(code[:6])
+    return sorted(variants)
+
+
+def region_code_matches(candidate: Any, requested: Any) -> bool:
+    """判断候选行政区划是否匹配请求编码。"""
+    requested_variants = set(region_code_variants(requested))
+    if not requested_variants:
+        return True
+    return str(candidate or "").strip() in requested_variants
+
