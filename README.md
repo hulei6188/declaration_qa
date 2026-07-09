@@ -4,8 +4,7 @@
 
 核心设计：
 
-- `QuestionResolver`：拆问题，判断是否需要工单上下文，输出 `retrieval_plan`。
-- `QueryRewriter`：只根据 `retrieval_plan` 生成 1 到 3 条检索 query。
+- `query_rewrite`：两阶段改写器；第一阶段消解上下文、拆问题并生成 query 草稿，第二阶段结合 metadata filter 和工单事实生成最终检索 query。
 - `RAGEngine`：按 metadata filter 和 `retrieval_plan` 检索，并做 section-aware backfill。
 - `AnswerGenerator`：只基于证据和业务事实回答。
 
@@ -77,8 +76,7 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_KEYWORD_BACKEND`: `memory` 或 `elasticsearch`。
 - `DECLARATION_QA_ELASTICSEARCH_URL` / `DECLARATION_QA_ELASTICSEARCH_INDEX`
 - `DECLARATION_QA_LLM_PROVIDER` / `DECLARATION_QA_LLM_MODEL`
-- `DECLARATION_QA_QUESTION_RESOLVER_MODEL`
-- `DECLARATION_QA_QUERY_REWRITER_MODEL`
+- `DECLARATION_QA_QUERY_REWRITE_MODEL`
 - `DECLARATION_QA_EMBEDDING_PROVIDER` / `DECLARATION_QA_EMBEDDING_MODEL`
 - `DECLARATION_QA_EMBEDDING_DIMENSIONS`: 使用 `qwen3-vl-embedding` 时建议设为 `1024`。
 - `DECLARATION_QA_EMBEDDING_IMAGE_RES_LEVEL`: 图片向量分辨率等级，`0` 表示不传该参数。
@@ -126,7 +124,7 @@ LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_BASE_URL=http://localhost:3000
 ```
 
-本地 Langfuse 可用 Docker Compose 部署，Cloud 版则把 `LANGFUSE_BASE_URL` 改成 `https://cloud.langfuse.com`。系统会上报一次问答主 trace，并记录 `QuestionResolver`、`QueryRewriter`、RAG 检索、答案生成和 LangChain LLM 调用。`POST /api/declaration-qa/feedback` 会把用户反馈写成 Langfuse score。
+本地 Langfuse 可用 Docker Compose 部署，Cloud 版则把 `LANGFUSE_BASE_URL` 改成 `https://cloud.langfuse.com`。系统会上报一次问答主 trace，并记录两阶段 `query_rewrite`、RAG 检索、答案生成和 LangChain LLM 调用。`POST /api/declaration-qa/feedback` 会把用户反馈写成 Langfuse score。
 
 ## 问答链路
 
@@ -134,11 +132,11 @@ LANGFUSE_BASE_URL=http://localhost:3000
 ChatRequest
   -> context_build
   -> query_preprocess
-  -> QuestionResolver
+  -> query_rewrite stage1
   -> prepare_task
   -> ticket selection / ticket context
   -> metadata filter
-  -> QueryRewriter
+  -> query_rewrite stage2
   -> RAG retrieval
   -> evidence gate
   -> answer generation
@@ -182,7 +180,7 @@ ChatRequest
 
 ```text
 文本 query:
-  QueryResolver -> QueryRewriter -> Milvus dense + Elasticsearch BM25
+  query_rewrite stage1 -> query_rewrite stage2 -> Milvus dense + Elasticsearch BM25
 
 图片 + 文本 query:
   文本部分 -> Milvus dense + Elasticsearch BM25
@@ -306,7 +304,7 @@ src/declaration_qa/
   application/          LangGraph workflow 和节点
   core/                 配置、领域模型、业务适配
   indexing/             知识入库、任务队列、worker
-  rag/                  RAG 引擎、QuestionResolver、QueryRewriter、模型适配
+  rag/                  RAG 引擎、两阶段 query_rewrite、模型适配
   search/               Milvus / Elasticsearch / memory 索引
   storage/              PostgreSQL repository、审计、缓存
 frontend/               React 前端
@@ -318,8 +316,7 @@ tests/                  测试
 常改文件：
 
 - workflow 节点：`src/declaration_qa/application/*nodes.py`
-- 问题解析：`src/declaration_qa/rag/question_resolver/`
-- query 改写：`src/declaration_qa/rag/query_rewriter/`
+- 两阶段 query 改写：`src/declaration_qa/rag/query_rewrite/`
 - 检索计划：`src/declaration_qa/rag/retrieval_plan.py`
 - RAG 引擎：`src/declaration_qa/rag/engine/`
 - API 路由：`src/declaration_qa/api/server/routes/`
@@ -328,8 +325,8 @@ tests/                  测试
 
 - 默认不保留向后兼容。重构、接口改名、参数调整或行为修正时，直接更新所有调用方、测试和文档。
 - 不新增旧入口、旧参数、兼容分支或兼容 shim，除非用户明确要求。
-- `QuestionResolver` 不生成答案。
-- `QueryRewriter` 不生成 metadata filter，也不决定回填策略。
+- `query_rewrite` 不生成答案。
+- `query_rewrite` 不生成 metadata filter，也不决定回填策略。
 - `biz_type` 不参与知识库过滤。
 - 工单状态、退回原因、补正信息必须来自业务数据。
 - 最终回答必须基于证据和工单事实。

@@ -14,10 +14,8 @@ from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import Dash
 from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.question_resolver.llm import LLMQuestionResolver
-from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
-from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
-from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
+from declaration_qa.rag.query_rewrite.llm import LLMTwoStageQueryRewriter
+from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
 
 
 def build_embedding_provider(settings: DeclarationQASettings) -> EmbeddingProvider:
@@ -72,37 +70,19 @@ def build_answer_generator(settings: DeclarationQASettings):
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
 
 
-def build_question_resolver(settings: DeclarationQASettings):
-    """按配置创建问题解析器。"""
+def build_query_rewrite(settings: DeclarationQASettings):
+    """按配置创建两阶段 Query Rewrite。"""
     if settings.llm_provider.strip().lower() in {"openai", "dashscope"} and settings.openai_api_key:
         from langchain_openai import ChatOpenAI
 
         kwargs: dict[str, Any] = {
             "api_key": settings.openai_api_key,
-            "model": settings.question_resolver_model or settings.llm_model,
+            "model": settings.query_rewrite_model or settings.llm_model,
             "temperature": 0.0,
             "timeout": settings.external_request_timeout_seconds,
             "max_retries": 1,
         }
         if settings.openai_api_base:
             kwargs["base_url"] = settings.openai_api_base
-        return LLMQuestionResolver(ChatOpenAI(**kwargs), fallback_resolver=RuleQuestionResolver())
-    return RuleQuestionResolver()
-
-
-def build_query_rewriter(settings: DeclarationQASettings):
-    """按配置创建多路 Query Rewrite。"""
-    if settings.llm_provider.strip().lower() in {"openai", "dashscope"} and settings.openai_api_key:
-        from langchain_openai import ChatOpenAI
-
-        kwargs: dict[str, Any] = {
-            "api_key": settings.openai_api_key,
-            "model": settings.query_rewriter_model or settings.llm_model,
-            "temperature": 0.0,
-            "timeout": settings.external_request_timeout_seconds,
-            "max_retries": 1,
-        }
-        if settings.openai_api_base:
-            kwargs["base_url"] = settings.openai_api_base
-        return LLMQueryRewriter(ChatOpenAI(**kwargs), fallback_rewriter=RuleQueryRewriter())
-    return RuleQueryRewriter()
+        return LLMTwoStageQueryRewriter(ChatOpenAI(**kwargs), fallback_rewriter=RuleTwoStageQueryRewriter())
+    return RuleTwoStageQueryRewriter()

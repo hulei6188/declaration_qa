@@ -5,12 +5,9 @@ import time
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.rag.prompting import MULTI_QUESTION_ANSWER_PROMPT, format_sub_task_payload
-from declaration_qa.rag.query_rewriter.llm import LLMQueryRewriter
-from declaration_qa.rag.query_rewriter.prompts import build_query_rewriter_prompt
-from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
-from declaration_qa.rag.question_resolver.llm import LLMQuestionResolver
-from declaration_qa.rag.question_resolver.prompts import QUESTION_RESOLVER_PROMPT
-from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
+from declaration_qa.rag.query_rewrite.llm import LLMTwoStageQueryRewriter
+from declaration_qa.rag.query_rewrite.prompts import TWO_STAGE_QUERY_REWRITE_PROMPT, build_two_stage_query_rewrite_prompt
+from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.repository.business import BusinessRepository
@@ -186,8 +183,8 @@ def test_ticket_rag_query_prefers_ticket_chinese_title():
     assert "办这个需要哪些材料" in query
 
 
-def test_query_rewriter_scopes_unrelated_query_without_ticket_facts():
-    rewriter = RuleQueryRewriter()
+def test_query_rewrite_scopes_unrelated_query_without_ticket_facts():
+    rewriter = RuleTwoStageQueryRewriter()
 
     rewrite = rewriter.rewrite(
         {
@@ -215,8 +212,8 @@ def test_query_rewriter_scopes_unrelated_query_without_ticket_facts():
     assert any("法定办结时限" in item.text for item in rewrite.queries)
 
 
-def test_query_rewriter_allows_ticket_facts_for_rejection_query():
-    rewriter = RuleQueryRewriter()
+def test_query_rewrite_allows_ticket_facts_for_rejection_query():
+    rewriter = RuleTwoStageQueryRewriter()
 
     rewrite = rewriter.rewrite(
         {
@@ -241,8 +238,8 @@ def test_query_rewriter_allows_ticket_facts_for_rejection_query():
     assert all("申请表缺少防火措施说明" in item.text for item in rewrite.queries)
 
 
-def test_query_rewriter_without_complete_sections_uses_scoped_original_only():
-    rewrite = RuleQueryRewriter().rewrite(
+def test_query_rewrite_without_complete_sections_uses_scoped_original_only():
+    rewrite = RuleTwoStageQueryRewriter().rewrite(
         {
             "query": "这是什么意思",
             "normalized_query": "这是什么意思",
@@ -259,8 +256,8 @@ def test_query_rewriter_without_complete_sections_uses_scoped_original_only():
     assert rewrite.queries[0].text == "示例事项A 这是什么意思"
 
 
-def test_question_resolver_does_not_request_complete_sections():
-    resolution = RuleQuestionResolver().resolve(
+def test_query_rewrite_does_not_request_complete_sections():
+    resolution = RuleTwoStageQueryRewriter().resolve(
         {
             "query": "防火期在草原施工需要办理什么",
             "normalized_query": "防火期在草原施工需要办理什么",
@@ -272,43 +269,62 @@ def test_question_resolver_does_not_request_complete_sections():
     assert retrieval_plan["ticket_fact_type"] == "none"
 
 
-def test_llm_query_rewriter_uses_model_queries():
+def test_llm_query_rewrite_uses_model_queries_from_stage1():
     class FakeLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             self.prompt = prompt
             return """
             {
-              "queries": [
-                {"text": "申请材料 材料清单 示例事项A", "strategy": "semantic_rewrite", "top_k": 4},
-                {"text": "必要材料 原件 复印件 示例事项A", "strategy": "focus_terms", "top_k": 3}
+              "is_multi_question": false,
+              "questions": [
+                {
+                  "original_query": "要哪些材料",
+                  "query": "要哪些材料",
+                  "retrieval_query": "示例事项A 要哪些材料",
+                  "requires_ticket_context": false,
+                  "ticket_fact_type": "none",
+                  "retrieval_queries": [
+                    {"text": "申请材料 材料清单 示例事项A", "strategy": "semantic_rewrite", "top_k": 4},
+                    {"text": "必要材料 原件 复印件 示例事项A", "strategy": "focus_terms", "top_k": 3}
+                  ]
+                }
               ],
               "reason": "material_query_rewrite"
             }
             """
 
     llm = FakeLLM()
-    rewrite = LLMQueryRewriter(llm).rewrite(
+    rewriter = LLMTwoStageQueryRewriter(llm)
+    state = {
+        "query": "要哪些材料",
+        "normalized_query": "要哪些材料",
+        "requires_ticket_context": False,
+        "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+    }
+    resolution = rewriter.resolve(state)
+    state.update(
         {
-            "query": "要哪些材料",
-            "normalized_query": "要哪些材料",
-            "requires_ticket_context": False,
-            "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+            "retrieval_query": resolution.questions[0]["retrieval_query"],
+            "planned_retrieval_queries": resolution.questions[0]["retrieval_queries"],
+            "query_rewrite_provider": resolution.questions[0]["query_rewrite_provider"],
+            "query_rewrite_reason": resolution.questions[0]["query_rewrite_reason"],
         }
     )
+    rewrite = rewriter.rewrite(state)
 
-    assert rewrite.provider == "llm"
+    assert rewrite.provider == "llm_two_stage"
     assert rewrite.reason == "material_query_rewrite"
     assert [item.text for item in rewrite.queries] == ["申请材料 材料清单 示例事项A", "必要材料 原件 复印件 示例事项A"]
     assert rewrite.queries[0].top_k == 4
-    assert "metadata_filter_has_item_scope" in llm.prompt
+    assert "recent_messages" in llm.prompt
 
 
-def test_llm_query_rewriter_falls_back_to_rule_on_invalid_json():
+def test_llm_query_rewrite_falls_back_to_rule_on_invalid_json():
     class BadLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             return "not-json"
 
-    rewrite = LLMQueryRewriter(BadLLM()).rewrite(
+    resolution = LLMTwoStageQueryRewriter(BadLLM()).resolve(
         {
             "query": "要哪些材料",
             "normalized_query": "要哪些材料",
@@ -317,27 +333,27 @@ def test_llm_query_rewriter_falls_back_to_rule_on_invalid_json():
         }
     )
 
-    assert rewrite.provider == "rule_fallback"
-    assert rewrite.queries
-    assert rewrite.reason.startswith("llm_query_rewriter_fallback")
+    assert resolution.provider == "rule_two_stage_fallback"
+    assert resolution.questions
+    assert resolution.reason.startswith("llm_two_stage_fallback")
 
 
-def test_query_rewriter_prompt_hides_scope_when_item_metadata_filter_exists():
-    prompt = build_query_rewriter_prompt(
+def test_query_rewrite_prompt_includes_conversation_context():
+    prompt = build_two_stage_query_rewrite_prompt(
         {
-            "query": "这个事情最快几天能拿结果",
-            "normalized_query": "这个事情最快几天能拿结果",
+            "query": "办理要多长时间",
+            "normalized_query": "办理要多长时间",
+            "session_messages": [{"role": "user", "content": "身份证如何办理"}],
             "requires_ticket_context": False,
-            "retrieval_filter": {"item_code": "ITEM001"},
-            "apply_context": {"payload": {"official_item_name": "示例事项A"}},
+            "short_memory": {"summary": "用户最近在问身份证办理。"},
         }
     )
 
-    assert '"metadata_filter_has_item_scope": true' in prompt
-    assert '"scope_text": ""' in prompt
-    assert "retrieval_plan" not in prompt
+    assert "办理要多长时间" in prompt
+    assert "身份证如何办理" in prompt
+    assert "short_memory_summary" in prompt
+    assert "不要输出思维链" in prompt
     assert "need_complete_sections" not in prompt
-    assert "示例事项A" not in prompt
 
 
 def test_knowledge_chain_ignores_removed_metadata_filter_keys():
@@ -368,8 +384,8 @@ def test_knowledge_chain_ignores_removed_metadata_filter_keys():
     assert "reject_code" not in audit["retrieval_filter"]
 
 
-def test_rule_question_resolver_splits_multi_question():
-    resolver = RuleQuestionResolver()
+def test_rule_query_rewrite_splits_multi_question():
+    resolver = RuleTwoStageQueryRewriter()
 
     plan = resolver.resolve(
         {
@@ -383,8 +399,8 @@ def test_rule_question_resolver_splits_multi_question():
     assert [item["query"] for item in plan.questions] == ["办理居住证需要哪些材料", "多久能办完，收费吗"]
 
 
-def test_rule_question_resolver_keeps_single_question_in_questions():
-    resolver = RuleQuestionResolver()
+def test_rule_query_rewrite_keeps_single_question_in_questions():
+    resolver = RuleTwoStageQueryRewriter()
 
     plan = resolver.resolve(
         {
@@ -398,34 +414,23 @@ def test_rule_question_resolver_keeps_single_question_in_questions():
     assert [item["query"] for item in plan.questions] == ["办理健康证需要哪些材料"]
 
 
-def test_question_resolver_prompt_limits_over_splitting_and_markdown():
-    assert "如果只有一个意图，同样返回 questions 数组" in QUESTION_RESOLVER_PROMPT
-    assert "只能返回 JSON 对象" in QUESTION_RESOLVER_PROMPT
-    assert "同一个业务问题中的限定条件" in QUESTION_RESOLVER_PROMPT
-    assert "requires_ticket_context" in QUESTION_RESOLVER_PROMPT
-    assert "ticket_fact_type" in QUESTION_RESOLVER_PROMPT
-    assert "retrieval_plan" in QUESTION_RESOLVER_PROMPT
-    assert "need_complete_sections" not in QUESTION_RESOLVER_PROMPT
-    assert ("retrieval" "_focus") not in QUESTION_RESOLVER_PROMPT
-    assert ("evidence" "_types") not in QUESTION_RESOLVER_PROMPT
-    assert "retrieval_query" in QUESTION_RESOLVER_PROMPT
-    assert "query 字段不负责对内容进行语义补全或改写" in QUESTION_RESOLVER_PROMPT
-    assert "retrieval_query 才允许为了检索而补上下文" in QUESTION_RESOLVER_PROMPT
-    assert "不负责对内容进行语义补全或改写" in QUESTION_RESOLVER_PROMPT
-    assert "直接提取用户原始片段赋予 query 字段" in QUESTION_RESOLVER_PROMPT
-    assert "补全原则" not in QUESTION_RESOLVER_PROMPT
-    assert "示例事项甲" not in QUESTION_RESOLVER_PROMPT
-    assert "示例证照乙" not in QUESTION_RESOLVER_PROMPT
-    assert "示例事项A" in QUESTION_RESOLVER_PROMPT
-    assert "草原" not in QUESTION_RESOLVER_PROMPT
-    assert "施工" not in QUESTION_RESOLVER_PROMPT
-    assert "防火办事流程" not in QUESTION_RESOLVER_PROMPT
-    assert "健康证" not in QUESTION_RESOLVER_PROMPT
+def test_query_rewrite_prompt_limits_markdown_and_private_fields():
+    assert "两阶段 Query Rewrite" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "只能返回 JSON 对象" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "不要输出思维链" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "requires_ticket_context" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "ticket_fact_type" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "retrieval_plan" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "retrieval_queries" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "metadata filter 由 Python" in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert "need_complete_sections" not in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert ("retrieval" "_focus") not in TWO_STAGE_QUERY_REWRITE_PROMPT
+    assert ("evidence" "_types") not in TWO_STAGE_QUERY_REWRITE_PROMPT
 
 
-def test_llm_question_resolver_keeps_raw_query_when_model_expands():
+def test_llm_query_rewrite_keeps_raw_query_when_model_expands_retrieval_query():
     class FakeLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             return """
             {
               "is_multi_question": false,
@@ -433,6 +438,7 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
                 {
                   "original_query": "防火办事流程",
                   "query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
+                  "retrieval_query": "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么？",
                   "requires_ticket_context": false,
                   "ticket_fact_type": "none",
                   "retrieval_plan": {"metadata_needs": ["item_scope"]},
@@ -446,21 +452,21 @@ def test_llm_question_resolver_keeps_raw_query_when_model_expands():
             }
             """
 
-    plan = LLMQuestionResolver(FakeLLM()).resolve({"query": "防火办事流程", "normalized_query": "防火办事流程"})
+    plan = LLMTwoStageQueryRewriter(FakeLLM()).resolve({"query": "防火办事流程", "normalized_query": "防火办事流程"})
 
     assert plan.is_multi_question is False
     assert plan.questions[0]["original_query"] == "防火办事流程"
     assert plan.questions[0]["query"] == "防火办事流程"
+    assert plan.questions[0]["retrieval_query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
     assert "need_complete_sections" not in plan.questions[0]["retrieval_plan"]
-    assert plan.questions[0]["is_expanded"] is False
-    assert plan.questions[0]["expansion_reason"] == ""
+    assert plan.questions[0]["is_expanded"] is True
     assert "intent" not in plan.questions[0]
     assert "route" not in plan.questions[0]
 
 
-def test_llm_question_resolver_allows_retrieval_query_context_without_changing_query():
+def test_llm_query_rewrite_allows_retrieval_query_context_without_changing_query():
     class FakeLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             self.prompt = prompt
             return """
             {
@@ -486,7 +492,7 @@ def test_llm_question_resolver_allows_retrieval_query_context_without_changing_q
             """
 
     llm = FakeLLM()
-    plan = LLMQuestionResolver(llm).resolve(
+    plan = LLMTwoStageQueryRewriter(llm).resolve(
         {"query": "华侨回国定居审批多久能办完？收费吗？", "normalized_query": "华侨回国定居审批多久能办完？收费吗？"}
     )
 
@@ -496,9 +502,9 @@ def test_llm_question_resolver_allows_retrieval_query_context_without_changing_q
     assert "retrieval_query" in llm.prompt
 
 
-def test_llm_question_resolver_keeps_ticket_related_query_unexpanded():
+def test_llm_query_rewrite_uses_ticket_context_only_for_retrieval_query():
     class FakeLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             return """
             {
               "is_multi_question": false,
@@ -515,7 +521,7 @@ def test_llm_question_resolver_keeps_ticket_related_query_unexpanded():
             }
             """
 
-    plan = LLMQuestionResolver(FakeLLM()).resolve(
+    plan = LLMTwoStageQueryRewriter(FakeLLM()).resolve(
         {
             "query": "这个要哪些材料",
             "normalized_query": "这个要哪些材料",
@@ -529,13 +535,13 @@ def test_llm_question_resolver_keeps_ticket_related_query_unexpanded():
     )
 
     assert plan.questions[0]["query"] == "这个要哪些材料"
+    assert plan.questions[0]["retrieval_query"] == "涉外收养登记需要哪些材料"
     assert plan.questions[0]["requires_ticket_context"] is True
-    assert plan.questions[0]["is_expanded"] is False
-    assert plan.questions[0]["expansion_reason"] == ""
+    assert plan.questions[0]["is_expanded"] is True
 
 
-def test_single_question_workflow_keeps_resolver_raw_query_without_resolver_route():
-    class ExpandingResolver:
+def test_single_question_workflow_keeps_query_rewrite_raw_query_without_router_route():
+    class ExpandingResolver(RuleTwoStageQueryRewriter):
         def resolve(self, state):
             return type(
                 "Plan",
@@ -563,7 +569,7 @@ def test_single_question_workflow_keeps_resolver_raw_query_without_resolver_rout
                 },
             )()
 
-    workflow = DeclarationQAWorkflow(question_resolver=ExpandingResolver())
+    workflow = DeclarationQAWorkflow(query_rewrite=ExpandingResolver())
     response = workflow.invoke(ChatRequest(query="防火办事流程", user_id=1, region_code="340000"))
 
     assert response.multi_question is False
@@ -665,7 +671,7 @@ def test_answer_prompt_uses_recent_session_context_only():
 
 def test_multi_question_uses_resolver_retrieval_query_for_short_followup():
     class FakeLLM:
-        def invoke(self, prompt):
+        def invoke(self, prompt, *args, **kwargs):
             return """
             {
               "is_multi_question": true,
@@ -721,7 +727,7 @@ def test_multi_question_uses_resolver_retrieval_query_for_short_followup():
     )
     workflow = DeclarationQAWorkflow(
         rag_engine=engine,
-        question_resolver=LLMQuestionResolver(FakeLLM()),
+        query_rewrite=LLMTwoStageQueryRewriter(FakeLLM()),
         max_sub_question_workers=1,
     )
 
@@ -813,8 +819,8 @@ def test_ticket_question_requires_selection_when_multiple_candidates():
     assert "多个可能相关的申请单" in response.answer
 
 
-def test_question_resolver_drives_ticket_context_route_without_router():
-    class TicketRelatedresolver:
+def test_query_rewrite_drives_ticket_context_route_without_router():
+    class TicketRelatedRewriter(RuleTwoStageQueryRewriter):
         def resolve(self, state):
             return type(
                 "Plan",
@@ -842,7 +848,7 @@ def test_question_resolver_drives_ticket_context_route_without_router():
                 },
             )()
 
-    workflow = DeclarationQAWorkflow(question_resolver=TicketRelatedresolver())
+    workflow = DeclarationQAWorkflow(query_rewrite=TicketRelatedRewriter())
 
     response = workflow.invoke(
         ChatRequest(query="麻烦看一下这单现在什么情况", user_id=1, region_code="340000", apply_id="A1001")
@@ -850,18 +856,18 @@ def test_question_resolver_drives_ticket_context_route_without_router():
 
     assert response.route == "ticket_context_related"
     assert response.intent == "ticket_status"
-    assert response.route_decision["entities"]["router_provider"] == "question_resolver"
+    assert response.route_decision["entities"]["router_provider"] == "query_rewrite"
     assert "部门审核中" in response.answer
 
 
-def test_question_resolver_drives_knowledge_route_without_router():
+def test_query_rewrite_drives_knowledge_route_without_router():
     workflow = DeclarationQAWorkflow()
 
     response = workflow.invoke(ChatRequest(query="办理居住证需要哪些材料", user_id=1, region_code="340000"))
 
     assert response.route == "ticket_context_unrelated"
     assert response.intent == "material_requirements"
-    assert response.route_decision["entities"]["router_provider"] == "question_resolver"
+    assert response.route_decision["entities"]["router_provider"] == "query_rewrite"
 
 
 def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context():
@@ -925,7 +931,7 @@ def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context()
         )
     )
 
-    class Knowledgeresolver:
+    class KnowledgeRewriter(RuleTwoStageQueryRewriter):
         def resolve(self, state):
             return type(
                 "Plan",
@@ -956,7 +962,7 @@ def test_bound_ticket_scopes_knowledge_retrieval_without_ticket_status_context()
     workflow = DeclarationQAWorkflow(
         rag_engine=engine,
         business_adapter=FireAdapter(),
-        question_resolver=Knowledgeresolver(),
+        query_rewrite=KnowledgeRewriter(),
     )
 
     response = workflow.invoke(
@@ -1063,7 +1069,7 @@ def test_image_only_query_skips_text_retrieval_and_rewrite():
             raise AssertionError("image-only query should not use text fallback retrieval")
 
     engine = ImageOnlyRAGEngine()
-    workflow = DeclarationQAWorkflow(rag_engine=engine, query_rewriter=FailIfCalledRewriter())
+    workflow = DeclarationQAWorkflow(rag_engine=engine, query_rewrite=FailIfCalledRewriter())
     state = {
         "query": "请根据这张图片检索相关申报材料",
         "normalized_query": "请根据这张图片检索相关申报材料",
@@ -1132,11 +1138,7 @@ def test_image_only_graph_skips_text_resolution_and_rewrite():
             raise AssertionError("image-only query should not use text fallback retrieval")
 
     engine = ImageOnlyRAGEngine()
-    workflow = DeclarationQAWorkflow(
-        rag_engine=engine,
-        question_resolver=FailIfCalledResolver(),
-        query_rewriter=FailIfCalledRewriter(),
-    )
+    workflow = DeclarationQAWorkflow(rag_engine=engine, query_rewrite=FailIfCalledRewriter())
 
     response = workflow.invoke(
         ChatRequest(

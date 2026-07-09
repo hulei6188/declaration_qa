@@ -96,7 +96,7 @@ class WorkflowRetrievalNodes:
                     "reason": "image_only_skip_text_rewrite",
                 }
             else:
-                rewrite = self.query_rewriter.rewrite(next_state)
+                rewrite = self.query_rewrite_service.rewrite(next_state)
                 payload = rewrite.payload()
             next_state["query_rewrite"] = payload
             next_state["retrieval_queries"] = payload.get("queries") or []

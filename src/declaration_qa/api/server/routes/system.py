@@ -26,8 +26,11 @@ def register_system_routes(app):
             "embedding_provider": workflow.rag_engine.embedding_provider.name,
             "rerank_provider": workflow.rag_engine.reranker.name,
             "rerank_model": getattr(workflow.rag_engine.reranker, "model", ""),
-            "question_resolver": getattr(workflow.question_resolver, "name", workflow.question_resolver.__class__.__name__),
-            "query_rewriter": getattr(workflow.query_rewriter, "name", workflow.query_rewriter.__class__.__name__),
+            "query_rewrite": getattr(
+                workflow.query_rewrite_service,
+                "name",
+                workflow.query_rewrite_service.__class__.__name__,
+            ),
             "answer_generator": workflow.answer_generator.__class__.__name__,
             "max_sub_question_workers": workflow.max_sub_question_workers,
             "max_retrieval_workers": workflow.max_retrieval_workers,

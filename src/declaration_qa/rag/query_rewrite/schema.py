@@ -1,4 +1,4 @@
-"""查询改写数据结构。"""
+"""两阶段 Query Rewrite 数据结构。"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class RetrievalQuery:
 
 @dataclass(frozen=True)
 class QueryRewrite:
-    """多查询改写结果。"""
+    """第二阶段检索 query 改写结果。"""
 
     base_query: str
     scope_text: str
@@ -39,7 +39,7 @@ class QueryRewrite:
     requires_ticket_context: bool
     ticket_fact_type: str
     queries: list[RetrievalQuery]
-    provider: str = "rule"
+    provider: str = "rule_two_stage"
     reason: str = ""
 
     def payload(self) -> dict[str, Any]:
@@ -53,4 +53,23 @@ class QueryRewrite:
             "queries": [query.payload() for query in self.queries],
             "provider": self.provider,
             "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class QuestionResolution:
+    """第一阶段问题消解和拆分结果。"""
+
+    is_multi_question: bool
+    questions: list[dict[str, Any]]
+    reason: str = ""
+    provider: str = "rule_two_stage"
+
+    def payload(self) -> dict[str, Any]:
+        """转换为 API 和审计载荷。"""
+        return {
+            "is_multi_question": self.is_multi_question,
+            "questions": [dict(item) for item in self.questions],
+            "reason": self.reason,
+            "provider": self.provider,
         }

@@ -12,8 +12,7 @@ from declaration_qa.memory.retrieval import ContextMemoryRetriever
 from declaration_qa.rag.model_providers.factories import (
     build_answer_generator,
     build_embedding_provider,
-    build_query_rewriter,
-    build_question_resolver,
+    build_query_rewrite,
     build_reranker,
 )
 from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
@@ -32,8 +31,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
     answer_generator = build_answer_generator(settings)
-    question_resolver = build_question_resolver(settings)
-    query_rewriter = build_query_rewriter(settings)
+    query_rewrite = build_query_rewrite(settings)
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,
@@ -157,8 +155,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         business_adapter=business_adapter,
         audit_store=audit_store,
         answer_generator=answer_generator,
-        question_resolver=question_resolver,
-        query_rewriter=query_rewriter,
+        query_rewrite=query_rewrite,
         context_memory_manager=context_memory_manager,
         max_sub_question_workers=settings.max_sub_question_workers,
         max_retrieval_workers=settings.max_retrieval_workers,

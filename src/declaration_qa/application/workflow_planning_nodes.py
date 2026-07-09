@@ -1,4 +1,4 @@
-"""申报问答工作流的 QuestionResolver 和路由节点。"""
+"""申报问答工作流的两阶段 Query Rewrite 和路由节点。"""
 
 from __future__ import annotations
 
@@ -73,14 +73,14 @@ class WorkflowPlanningNodes:
         return next_state
 
     def question_resolution(self, state: DeclarationQAState) -> DeclarationQAState:
-        """拆解多问题请求。"""
+        """执行两阶段 Query Rewrite 的第一阶段：问题消解和 query 草稿生成。"""
         next_state = dict(state)
         with observation(
             "workflow.question_resolution",
             input={"query": next_state.get("normalized_query") or next_state.get("query") or ""},
             metadata=workflow_observation_metadata(next_state),
         ) as span:
-            resolution = self.question_resolver.resolve(next_state)
+            resolution = self.query_rewrite_service.resolve(next_state)
             questions = []
             for index, item in enumerate(resolution.questions, start=1):
                 question = dict(item)
@@ -229,6 +229,9 @@ class WorkflowPlanningNodes:
             "requires_ticket_context": bool(question.get("requires_ticket_context")),
             "biz_type": inherited_biz_type,
             "retrieval_plan": normalize_retrieval_plan(question.get("retrieval_plan") or {}),
+            "planned_retrieval_queries": list(question.get("retrieval_queries") or []),
+            "query_rewrite_provider": question.get("query_rewrite_provider") or "",
+            "query_rewrite_reason": question.get("query_rewrite_reason") or "",
             "multi_question": False,
             "sub_tasks": [],
             "question_resolution": {},
@@ -246,6 +249,9 @@ class WorkflowPlanningNodes:
             "rag_query": "",
             "query_rewrite": {},
             "retrieval_queries": [],
+            "planned_retrieval_queries": list(question.get("retrieval_queries") or []),
+            "query_rewrite_provider": question.get("query_rewrite_provider") or "",
+            "query_rewrite_reason": question.get("query_rewrite_reason") or "",
             "business_status": None,
             "reject_info": None,
             "business_snapshot": None,
@@ -294,6 +300,7 @@ class WorkflowPlanningNodes:
             "rag_query": state.get("rag_query") or state.get("normalized_query") or "",
             "query_rewrite": state.get("query_rewrite") or {},
             "retrieval_queries": state.get("retrieval_queries") or [],
+            "planned_retrieval_queries": state.get("planned_retrieval_queries") or question.get("retrieval_queries") or [],
             "sources": state.get("retrieved_sources") or [],
             "rag_status": state.get("rag_status") or {},
             "evidence_decision": state.get("evidence_decision") or {},
@@ -303,7 +310,7 @@ class WorkflowPlanningNodes:
         }
 
     def prepare_task(self, state: DeclarationQAState) -> DeclarationQAState:
-        """根据 QuestionResolver 任务字段准备展示字段和链路开关。"""
+        """根据两阶段 Query Rewrite 任务字段准备展示字段和链路开关。"""
         next_state = dict(state)
         if next_state.get("refuse_reason"):
             next_state["route"] = ROUTE_REFUSE
@@ -337,9 +344,9 @@ class WorkflowPlanningNodes:
             "ticket_fact_type": ticket_fact_type,
             "retrieval_plan": retrieval_plan,
             "can_answer_from_knowledge": route == ROUTE_TICKET_CONTEXT_UNRELATED or intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON},
-            "reason": "question_resolver_task_fields",
+            "reason": "query_rewrite_task_fields",
             "risk_level": "block" if route == ROUTE_REFUSE else "pass",
-            "entities": {"task_provider": "question_resolver", "router_provider": "question_resolver"},
+            "entities": {"task_provider": "query_rewrite", "router_provider": "query_rewrite"},
         }
         next_state["route_decision"] = route_decision
         next_state["route"] = route

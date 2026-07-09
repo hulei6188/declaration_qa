@@ -31,8 +31,7 @@ from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, recent_messages_
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.question_resolver.rule import RuleQuestionResolver
-from declaration_qa.rag.query_rewriter.rule import RuleQueryRewriter
+from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
 from declaration_qa.rag.router import (
     ROUTE_CLARIFICATION,
     ROUTE_REFUSE,
@@ -61,8 +60,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
-        question_resolver: RuleQuestionResolver | None = None,
-        query_rewriter: RuleQueryRewriter | None = None,
+        query_rewrite: Any | None = None,
         context_memory_manager: ContextMemoryManager | None = None,
         max_sub_question_workers: int = 4,
         max_retrieval_workers: int = 4,
@@ -72,8 +70,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
-        self.question_resolver = question_resolver or RuleQuestionResolver()
-        self.query_rewriter = query_rewriter or RuleQueryRewriter()
+        self.query_rewrite_service = query_rewrite or RuleTwoStageQueryRewriter()
         self.context_memory_manager = context_memory_manager
         self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
@@ -241,6 +238,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "tickets": [],
             "ticket_context": None,
             "retrieval_query": "",
+            "planned_retrieval_queries": [],
+            "query_rewrite_provider": "",
+            "query_rewrite_reason": "",
             "rag_query": "",
             "query_rewrite": {},
             "retrieval_queries": [],

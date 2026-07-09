@@ -42,6 +42,9 @@ class DeclarationQAState(TypedDict, total=False):
     tickets: list[dict[str, Any]]
     ticket_context: dict[str, Any] | None
     retrieval_query: str
+    planned_retrieval_queries: list[dict[str, Any]]
+    query_rewrite_provider: str
+    query_rewrite_reason: str
     rag_query: str
     query_rewrite: dict[str, Any]
     retrieval_queries: list[dict[str, Any]]

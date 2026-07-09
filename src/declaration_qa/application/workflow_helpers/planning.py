@@ -21,4 +21,7 @@ def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> N
     state["requires_ticket_context"] = bool(question.get("requires_ticket_context"))
     state["ticket_fact_type"] = question.get("ticket_fact_type") or "none"
     state["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
+    state["planned_retrieval_queries"] = list(question.get("retrieval_queries") or [])
+    state["query_rewrite_provider"] = question.get("query_rewrite_provider") or ""
+    state["query_rewrite_reason"] = question.get("query_rewrite_reason") or ""
     state["biz_type"] = state.get("biz_type") or infer_biz_type(retrieval_query) or infer_biz_type(planned_query)
