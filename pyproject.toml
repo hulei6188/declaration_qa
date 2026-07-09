@@ -11,8 +11,17 @@ dependencies = [
     "dashscope",
     "langfuse>=4.0.0",
     "pymupdf>=1.24",
+    "pypdf>=4.2",
     "python-calamine>=0.4.0",
     "redis>=5.0.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+parsing = [
+    "docling>=2.0.0",
+    "llama-cloud-services>=0.6.0",
+    "marker-pdf>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]

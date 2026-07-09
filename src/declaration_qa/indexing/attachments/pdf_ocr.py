@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from declaration_qa.indexing.documents import DocumentParseError, HttpOcrClient, normalize_extracted_text
+from declaration_qa.indexing.documents import DocumentParseError, HttpOcrClient, ParsedBlock, normalize_extracted_text
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,7 @@ class PdfOcrResult:
     rendered_page_count: int
     ocr_success_count: int
     ocr_failed_pages: list[dict[str, Any]] = field(default_factory=list)
+    blocks: list[ParsedBlock] = field(default_factory=list)
 
 
 def extract_pdf_pages_with_ocr(
@@ -39,6 +40,7 @@ def extract_pdf_pages_with_ocr(
         page_count = len(document)
         render_count = min(page_count, max_pages)
         page_texts: list[str] = []
+        blocks: list[ParsedBlock] = []
         failed_pages: list[dict[str, Any]] = []
         for page_index in range(render_count):
             try:
@@ -50,7 +52,10 @@ def extract_pdf_pages_with_ocr(
                 )
                 normalized = normalize_extracted_text(text)
                 if normalized:
-                    page_texts.append(f"## OCR PDF 第 {page_index + 1} 页\n{normalized}")
+                    page_no = page_index + 1
+                    page_text = f"## OCR PDF 第 {page_no} 页\n{normalized}"
+                    page_texts.append(page_text)
+                    blocks.append(ParsedBlock(block_type="page_image_ocr", text=page_text, page_no=page_no))
             except Exception as exc:
                 failed_pages.append({"page": page_index + 1, "error": page_ocr_error(exc)})
         if not page_texts:
@@ -61,6 +66,7 @@ def extract_pdf_pages_with_ocr(
             rendered_page_count=render_count,
             ocr_success_count=len(page_texts),
             ocr_failed_pages=failed_pages,
+            blocks=blocks,
         )
     finally:
         close_pdf(document)

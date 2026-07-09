@@ -85,7 +85,22 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_RERANK_SCORE_THRESHOLD`
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND`: `inline` 或 `rq`。
 - `DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED`: 是否解析附件并生成派生 chunk。
+- `DECLARATION_QA_DOCUMENT_PARSER_PROVIDER`: 文档解析器，支持 `auto`、`docling`、`marker`、`llamaparse`、`native`。
+- `DECLARATION_QA_DOCUMENT_PARSER_ORDER`: `auto` 模式下的尝试顺序，默认 `docling,marker,native`。
+- `DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED`: 指定外部解析器失败时是否回退到 `native`。
+- `DECLARATION_QA_LLAMAPARSE_API_KEY`: 使用 `llamaparse` 时需要配置。
 - `DECLARATION_QA_CHAT_IMAGE_DIR`: 聊天图片查询的临时落盘目录。
+
+## 文档解析
+
+入库解析层已改为可插拔解析器：
+
+- `docling`：本地结构化解析 PDF、Word、PPT、Excel、图片等文档，适合默认生产方案。
+- `marker`：本地 PDF/图片解析器，适合复杂版面和表格较多的 PDF。
+- `llamaparse`：云端高精度解析器，适合数据允许出网且需要更强版面理解的场景。
+- `native`：项目内置解析器，支持文本、Markdown、PDF、DOCX、CSV、XLS/XLSX、图片 OCR。
+
+解析结果统一为 `ParsedDocument` 和 `ParsedBlock`。表格不会只压成纯文本；解析器识别到表格时会保留 `text`、`html`、`json` 三种表达，并为附件生成 `attachment_table` 证据 chunk，方便检索和回答时保留行列结构。
 
 ## 上下文工程
 

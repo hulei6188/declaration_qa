@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any
 
@@ -28,6 +29,7 @@ def build_attachment_chunk_specs(
         if extracted.status != "success":
             continue
         specs.extend(build_attachment_asset_chunk_specs(extracted, document_metadata=document_metadata))
+        specs.extend(build_attachment_table_chunk_specs(extracted, document_metadata=document_metadata))
         if not extracted.text.strip():
             continue
         semantic_type = str(extracted.metadata.get("semantic_chunk_type") or "attachment_text")
@@ -72,6 +74,53 @@ def build_attachment_chunk_specs(
                 overlap=overlap,
             )
         )
+    return specs
+
+
+def build_attachment_table_chunk_specs(
+    extracted: ExtractedAttachment,
+    *,
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """将结构化表格 block 转换为独立证据 chunk。"""
+    specs: list[dict[str, Any]] = []
+    table_blocks = [block for block in extracted.blocks if getattr(block, "block_type", "") == "table"]
+    for table_index, block in enumerate(table_blocks):
+        metadata = dict(getattr(block, "metadata", {}) or {})
+        content = attachment_table_chunk_content(extracted, block, table_index=table_index)
+        specs.append(
+            {
+                "id_suffix": attachment_table_chunk_suffix(extracted, block, table_index),
+                "chunk_type": "child",
+                "content": content,
+                "source_url": extracted.ref.url,
+                "metadata": {
+                    **attachment_base_metadata(extracted, document_metadata, semantic_type="attachment_table"),
+                    "chunk_type": "attachment_table",
+                    "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
+                    "table_index": metadata.get("table_index", table_index),
+                    "table_source": metadata.get("table_source") or extracted.metadata.get("document_parser") or "",
+                    "table_row_count": metadata.get("row_count"),
+                    "table_column_count": metadata.get("column_count"),
+                    "table_html": getattr(block, "html", "") or "",
+                    "table_json": getattr(block, "json_value", None),
+                    "extraction_method": extracted.metadata.get("document_parser") or extracted.metadata.get("extraction_method") or "native",
+                    "indexable": True,
+                    **metadata,
+                },
+            }
+        )
+        page_no = getattr(block, "page_no", None)
+        if page_no is not None:
+            specs[-1]["metadata"].update(
+                {
+                    "attachment_page_no": page_no,
+                    "attachment_page_numbers": [page_no],
+                    "attachment_page_start": page_no,
+                    "attachment_page_end": page_no,
+                    "attachment_page_range": str(page_no),
+                }
+            )
     return specs
 
 
@@ -754,6 +803,40 @@ def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: Attach
     return "\n".join(lines)
 
 
+def attachment_table_chunk_content(extracted: ExtractedAttachment, block: Any, *, table_index: int) -> str:
+    """生成结构化表格证据文本。"""
+    ref = extracted.ref
+    metadata = dict(getattr(block, "metadata", {}) or {})
+    json_text = json.dumps(getattr(block, "json_value", None), ensure_ascii=False, default=str)
+    lines = [
+        "结构化表格证据",
+        f"来源附件：{ref.name}",
+        f"附件角色：{role_label(ref.role)}",
+        f"所属章节：{ref.section_path}",
+        f"表格序号：{table_index + 1}",
+    ]
+    if ref.material_name:
+        lines.append(f"关联材料：{ref.material_name}")
+    if metadata.get("sheet_name"):
+        lines.append(f"工作表：{metadata['sheet_name']}")
+    if metadata.get("row_count") is not None or metadata.get("column_count") is not None:
+        lines.append(f"表格规模：{metadata.get('row_count') or 0} 行 x {metadata.get('column_count') or 0} 列")
+    lines.extend(
+        [
+            "",
+            "表格文本：",
+            str(getattr(block, "text", "") or "").strip(),
+            "",
+            "表格 HTML：",
+            str(getattr(block, "html", "") or "").strip(),
+            "",
+            "表格 JSON：",
+            json_text,
+        ]
+    )
+    return "\n".join(line for line in lines if line is not None).strip()
+
+
 def asset_semantic_chunk_type(asset: AttachmentAsset) -> str:
     """返回视觉资产的语义 chunk 类型。"""
     if asset.asset_kind == "pdf_page_image":
@@ -829,3 +912,20 @@ def attachment_asset_chunk_suffix(extracted: ExtractedAttachment, asset: Attachm
     key = f"{extracted.ref.url}|{asset.asset_id}|{asset.asset_kind}|{asset.page_no or ''}|{asset_index}"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
     return f"asset:{extracted.ref.index}:{digest}:{asset_index}"
+
+
+def attachment_table_chunk_suffix(extracted: ExtractedAttachment, block: Any, table_index: int) -> str:
+    """构建稳定的结构化表格 chunk 后缀。"""
+    metadata = dict(getattr(block, "metadata", {}) or {})
+    key = "|".join(
+        [
+            extracted.ref.url,
+            extracted.ref.name,
+            "table",
+            str(metadata.get("sheet_name") or ""),
+            str(metadata.get("table_index", table_index)),
+            str(getattr(block, "text", "") or "")[:200],
+        ]
+    )
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"att_table:{extracted.ref.index}:{digest}:{table_index}"

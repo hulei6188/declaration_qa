@@ -14,6 +14,12 @@ def extract_attachment(
     downloaded: DownloadedAttachment,
     *,
     ocr_client: HttpOcrClient | None = None,
+    parser_provider: str = "auto",
+    parser_order: str = "",
+    parser_fallback_enabled: bool = True,
+    llamaparse_api_key: str = "",
+    llamaparse_base_url: str = "",
+    llamaparse_result_type: str = "markdown",
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -27,6 +33,12 @@ def extract_attachment(
             content_type=downloaded.content_type,
             data=downloaded.data,
             ocr_client=ocr_client,
+            parser_provider=parser_provider,
+            parser_order=parser_order,
+            parser_fallback_enabled=parser_fallback_enabled,
+            llamaparse_api_key=llamaparse_api_key,
+            llamaparse_base_url=llamaparse_base_url,
+            llamaparse_result_type=llamaparse_result_type,
         )
         text = parsed.text
         quality_error = attachment_text_quality_error(text, ref.extension)
@@ -42,6 +54,7 @@ def extract_attachment(
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
+        metadata.update(parsed.metadata)
         assets, asset_metadata = safe_extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
@@ -60,6 +73,7 @@ def extract_attachment(
             status="success",
             metadata=metadata,
             assets=assets,
+            blocks=parsed.blocks,
         )
     except DocumentParseError as exc:
         if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -145,6 +159,7 @@ def extract_pdf_attachment_with_ocr(
         status="success",
         metadata=metadata,
         assets=assets,
+        blocks=result.blocks,
     )
 
 

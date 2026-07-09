@@ -76,6 +76,13 @@ class DeclarationQASettings(BaseSettings):
     ocr_api_key: str = Field(default="", alias="DECLARATION_QA_OCR_API_KEY")
     ocr_model: str = Field(default="", alias="DECLARATION_QA_OCR_MODEL")
 
+    document_parser_provider: str = Field(default="auto", alias="DECLARATION_QA_DOCUMENT_PARSER_PROVIDER")
+    document_parser_order: str = Field(default="docling,marker,native", alias="DECLARATION_QA_DOCUMENT_PARSER_ORDER")
+    document_parser_fallback_enabled: bool = Field(default=True, alias="DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED")
+    llamaparse_api_key: str = Field(default="", alias="DECLARATION_QA_LLAMAPARSE_API_KEY")
+    llamaparse_base_url: str = Field(default="", alias="DECLARATION_QA_LLAMAPARSE_BASE_URL")
+    llamaparse_result_type: str = Field(default="markdown", alias="DECLARATION_QA_LLAMAPARSE_RESULT_TYPE")
+
     attachment_indexing_enabled: bool = Field(default=True, alias="DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED")
     attachment_cache_dir: str = Field(default="data/declaration_qa/attachments", alias="DECLARATION_QA_ATTACHMENT_CACHE_DIR")
     attachment_asset_dir: str = Field(default="data/declaration_qa/assets", alias="DECLARATION_QA_ATTACHMENT_ASSET_DIR")

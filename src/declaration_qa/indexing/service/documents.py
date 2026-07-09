@@ -46,18 +46,28 @@ def process_document_index(
             content_type=str(payload.get("content_type") or "application/octet-stream"),
             data=data,
             ocr_client=ocr_client,
+            parser_provider=settings.document_parser_provider,
+            parser_order=settings.document_parser_order,
+            parser_fallback_enabled=settings.document_parser_fallback_enabled,
+            llamaparse_api_key=settings.llamaparse_api_key,
+            llamaparse_base_url=settings.llamaparse_base_url,
+            llamaparse_result_type=settings.llamaparse_result_type,
         )
         content = parsed.text
         filename = parsed.filename
         content_type = parsed.content_type
+        parse_metadata = parsed.metadata
     else:
         content = str(payload.get("content") or "")
         filename = str(payload.get("filename") or "")
         content_type = str(payload.get("content_type") or "text/plain")
+        parse_metadata = {}
     title = str(payload.get("title") or filename or payload["document_id"])
     source_url = str(payload.get("source_url") or "")
     parsed_metadata = extract_document_metadata(content, title=title, source_url=source_url)
     metadata = {**parsed_metadata, **sanitize_metadata(dict(payload.get("metadata") or {}))}
+    if parse_metadata:
+        metadata["document_parse"] = sanitize_metadata(parse_metadata)
     metadata["chunking_strategy"] = normalize_chunking_strategy(payload.get("chunking_strategy") or metadata.get("chunking_strategy"))
     for key in ["region_code", "policy_version", "effective_start_time", "effective_end_time"]:
         if payload.get(key) not in ("", None) and key not in metadata:

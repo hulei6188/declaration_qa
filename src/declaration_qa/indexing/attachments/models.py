@@ -62,3 +62,4 @@ class ExtractedAttachment:
     error_reason: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
     assets: list[AttachmentAsset] = field(default_factory=list)
+    blocks: list[Any] = field(default_factory=list)
