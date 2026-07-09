@@ -10,6 +10,11 @@ from declaration_qa.indexing.attachments.form_fields import FormField, extract_f
 from declaration_qa.indexing.attachments.assets import asset_url
 from declaration_qa.indexing.attachments.models import AttachmentAsset, ExtractedAttachment
 from declaration_qa.indexing.document_parsing.text import compact_table_context
+from declaration_qa.indexing.document_parsing.table_semantics import (
+    build_table_semantic_chunk_specs,
+    coerce_table_index,
+    table_semantic_id_prefix,
+)
 from declaration_qa.rag.engine.chunking import markdown_sections, normalize_chunking_strategy, split_windows
 from declaration_qa.rag.engine.constants import CHUNKING_HIERARCHICAL, CHUNKING_PARENT_CHILD
 
@@ -89,34 +94,20 @@ def build_attachment_table_chunk_specs(
         metadata = dict(getattr(block, "metadata", {}) or {})
         table_json_value = getattr(block, "json_value", None)
         llm_table_context = metadata.get("llm_table_context") or compact_table_context(table_json_value)
-        content = attachment_table_chunk_content(extracted, block, table_index=table_index)
-        specs.append(
-            {
-                "id_suffix": attachment_table_chunk_suffix(extracted, block, table_index),
-                "chunk_type": "child",
-                "content": content,
-                "source_url": extracted.ref.url,
-                "metadata": {
-                    **attachment_base_metadata(extracted, document_metadata, semantic_type="attachment_table"),
-                    "chunk_type": "attachment_table",
-                    "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
-                    "table_index": metadata.get("table_index", table_index),
-                    "table_source": metadata.get("table_source") or extracted.metadata.get("document_parser") or "",
-                    "table_row_count": metadata.get("row_count"),
-                    "table_column_count": metadata.get("column_count"),
-                    "table_text": str(getattr(block, "text", "") or "").strip(),
-                    "table_html": getattr(block, "html", "") or "",
-                    "table_json": table_json_value,
-                    "llm_table_context": llm_table_context,
-                    "extraction_method": extracted.metadata.get("document_parser") or extracted.metadata.get("extraction_method") or "native",
-                    "indexable": True,
-                    **metadata,
-                },
-            }
-        )
+        base_metadata = {
+            **attachment_base_metadata(extracted, document_metadata, semantic_type="attachment_table"),
+            "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
+            "table_index": metadata.get("table_index", table_index),
+            "table_source": metadata.get("table_source") or extracted.metadata.get("document_parser") or "",
+            "table_row_count": metadata.get("row_count"),
+            "table_column_count": metadata.get("column_count"),
+            "llm_table_context": llm_table_context,
+            "extraction_method": extracted.metadata.get("document_parser") or extracted.metadata.get("extraction_method") or "native",
+            **metadata,
+        }
         page_no = getattr(block, "page_no", None)
         if page_no is not None:
-            specs[-1]["metadata"].update(
+            base_metadata.update(
                 {
                     "attachment_page_no": page_no,
                     "attachment_page_numbers": [page_no],
@@ -125,6 +116,27 @@ def build_attachment_table_chunk_specs(
                     "attachment_page_range": str(page_no),
                 }
             )
+        id_prefix = table_semantic_id_prefix(
+            "attachment",
+            extracted.ref.url,
+            extracted.ref.name,
+            metadata.get("sheet_name"),
+            metadata.get("table_index", table_index),
+            str(getattr(block, "text", "") or "")[:300],
+        )
+        specs.extend(
+            build_table_semantic_chunk_specs(
+                id_prefix=id_prefix,
+                table_index=coerce_table_index(metadata.get("table_index"), table_index),
+                table_json_value=table_json_value,
+                table_text_value=str(getattr(block, "text", "") or "").strip(),
+                table_html_value=getattr(block, "html", "") or "",
+                base_metadata=base_metadata,
+                source_lines=attachment_table_source_lines(extracted, table_index=table_index, metadata=metadata),
+                source_url=extracted.ref.url,
+                table_source=str(metadata.get("table_source") or extracted.metadata.get("document_parser") or "native"),
+            )
+        )
     return specs
 
 
@@ -807,12 +819,10 @@ def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: Attach
     return "\n".join(lines)
 
 
-def attachment_table_chunk_content(extracted: ExtractedAttachment, block: Any, *, table_index: int) -> str:
-    """生成结构化表格证据文本。"""
+def attachment_table_source_lines(extracted: ExtractedAttachment, *, table_index: int, metadata: dict[str, Any]) -> list[str]:
+    """生成表格派生 chunk 的来源上下文。"""
     ref = extracted.ref
-    metadata = dict(getattr(block, "metadata", {}) or {})
     lines = [
-        "结构化表格证据",
         f"来源附件：{ref.name}",
         f"附件角色：{role_label(ref.role)}",
         f"所属章节：{ref.section_path}",
@@ -822,16 +832,7 @@ def attachment_table_chunk_content(extracted: ExtractedAttachment, block: Any, *
         lines.append(f"关联材料：{ref.material_name}")
     if metadata.get("sheet_name"):
         lines.append(f"工作表：{metadata['sheet_name']}")
-    if metadata.get("row_count") is not None or metadata.get("column_count") is not None:
-        lines.append(f"表格规模：{metadata.get('row_count') or 0} 行 x {metadata.get('column_count') or 0} 列")
-    lines.extend(
-        [
-            "",
-            "表格文本：",
-            str(getattr(block, "text", "") or "").strip(),
-        ]
-    )
-    return "\n".join(line for line in lines if line is not None).strip()
+    return lines
 
 
 def asset_semantic_chunk_type(asset: AttachmentAsset) -> str:
@@ -909,20 +910,3 @@ def attachment_asset_chunk_suffix(extracted: ExtractedAttachment, asset: Attachm
     key = f"{extracted.ref.url}|{asset.asset_id}|{asset.asset_kind}|{asset.page_no or ''}|{asset_index}"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
     return f"asset:{extracted.ref.index}:{digest}:{asset_index}"
-
-
-def attachment_table_chunk_suffix(extracted: ExtractedAttachment, block: Any, table_index: int) -> str:
-    """构建稳定的结构化表格 chunk 后缀。"""
-    metadata = dict(getattr(block, "metadata", {}) or {})
-    key = "|".join(
-        [
-            extracted.ref.url,
-            extracted.ref.name,
-            "table",
-            str(metadata.get("sheet_name") or ""),
-            str(metadata.get("table_index", table_index)),
-            str(getattr(block, "text", "") or "")[:200],
-        ]
-    )
-    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
-    return f"att_table:{extracted.ref.index}:{digest}:{table_index}"

@@ -108,7 +108,13 @@ python -m declaration_qa.indexing.worker
 - `table_json`：原生行列、单元格、跨行跨列、页码和 bbox 等结构，存入 metadata。
 - `table_html`：前端证据详情展示使用。
 
-回答生成时，模型接收 `table_text` 和精简后的 `llm_table_context`，不会把完整 HTML/JSON 混进检索文本。
+入库时会为表格额外生成三类语义 chunk：
+
+- `table_parent`：物理父块，保存整表上下文，不进入向量/关键词索引。
+- `table_summary`：整表摘要，适合“这个表讲什么、需要哪些字段”类召回。
+- `table_row` / `table_kv`：行级或字段-内容级 chunk，适合精确召回表单字段、材料要求、办理时限等。
+
+命中 `table_summary/table_row/table_kv` 后，父子回填会带回整表上下文。回答生成时，模型接收自然语言化的表格内容和精简后的 `llm_table_context`，不会把完整 HTML/JSON 混进检索文本。
 
 ## 上下文工程
 

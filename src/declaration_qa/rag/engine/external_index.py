@@ -63,10 +63,10 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         """将片段写入外部向量和关键词索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
-        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
-        for chunk, vector in zip(chunks, vectors):
-            if chunk.chunk_type == "child":
-                self.vector_index.upsert(chunk, vector)
+        child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
+        for chunk, vector in zip(child_chunks, vectors):
+            self.vector_index.upsert(chunk, vector)
         self.keyword_index.upsert_chunks(chunks)
         self._flush_vector_index()
         self.cache_store.clear()
@@ -84,10 +84,10 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         self._documents = {document.id: document for document in documents}
         self.vector_index.clear()
         self.keyword_index.clear()
-        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
-        for chunk, vector in zip(chunks, vectors):
-            if chunk.chunk_type == "child":
-                self.vector_index.upsert(chunk, vector)
+        child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
+        for chunk, vector in zip(child_chunks, vectors):
+            self.vector_index.upsert(chunk, vector)
         self.keyword_index.upsert_chunks(chunks)
         self._flush_vector_index()
         self.cache_store.clear()

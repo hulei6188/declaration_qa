@@ -18,6 +18,11 @@ from declaration_qa.indexing.document_parsing.text import (
     table_json,
     table_text,
 )
+from declaration_qa.indexing.document_parsing.table_semantics import (
+    build_table_semantic_chunk_specs,
+    coerce_table_index,
+    table_semantic_id_prefix,
+)
 
 
 class DoclingDocumentParser:
@@ -85,6 +90,10 @@ def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
             continue
         metadata = docling_chunk_metadata(chunk)
         metadata.update(docling_table_metadata(metadata, table_lookup))
+        semantic_type = docling_semantic_chunk_type(metadata)
+        if semantic_type == "docling_table" and metadata.get("table_json"):
+            specs.extend(docling_table_chunk_specs(index=index, content=content, metadata=metadata))
+            continue
         specs.append(
             {
                 "id_suffix": docling_chunk_suffix(index, content, metadata),
@@ -92,7 +101,7 @@ def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
                 "content": content,
                 "metadata": {
                     **metadata,
-                    "chunk_type": docling_semantic_chunk_type(metadata),
+                    "chunk_type": semantic_type,
                     "chunking_strategy": "docling",
                     "docling_chunker": "hybrid",
                     "docling_chunk_index": index,
@@ -103,6 +112,40 @@ def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
     if not specs:
         raise DocumentParseError("Docling chunker returned no chunks")
     return specs
+
+
+def docling_table_chunk_specs(*, index: int, content: str, metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    """为 Docling 原生表格构建语义化父子 chunk。"""
+    table_index = coerce_table_index(metadata.get("table_index"), index)
+    id_prefix = table_semantic_id_prefix(
+        "docling",
+        table_index,
+        metadata.get("section_path"),
+        ",".join(metadata.get("docling_item_refs") or []),
+        content[:300],
+    )
+    base_metadata = {
+        **metadata,
+        "chunking_strategy": "docling",
+        "docling_chunker": "hybrid",
+        "docling_chunk_index": index,
+        "source_table_chunk_type": "docling_table",
+    }
+    source_lines = [
+        "主文档表格",
+        f"所属章节：{metadata.get('section_path') or 'Document'}",
+        f"Docling chunk：{index}",
+    ]
+    return build_table_semantic_chunk_specs(
+        id_prefix=id_prefix,
+        table_index=table_index,
+        table_json_value=metadata.get("table_json"),
+        table_text_value=str(metadata.get("table_text") or content or ""),
+        table_html_value=str(metadata.get("table_html") or ""),
+        base_metadata=base_metadata,
+        source_lines=source_lines,
+        table_source=str(metadata.get("table_source") or "docling_native"),
+    )
 
 
 def docling_table_lookup(document: Any) -> dict[str, dict[str, Any]]:
@@ -194,6 +237,7 @@ def docling_table_metadata(metadata: dict[str, Any], table_lookup: dict[str, dic
     table_payload = table_lookup[table_refs[0]]
     return {
         "table_index": table_payload["table_index"],
+        "table_ref": table_refs[0],
         "table_text": table_payload["table_text"],
         "table_html": table_payload["table_html"],
         "table_json": table_payload["table_json"],

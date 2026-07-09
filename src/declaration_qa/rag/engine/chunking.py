@@ -388,6 +388,9 @@ def derived_chunks_from_document(document: KnowledgeDocument) -> list[KnowledgeC
         chunk_type = normalize_derived_chunk_type(spec.get("chunk_type"))
         chunk_id = f"{document.id}:{id_suffix}"
         parent_id = str(spec.get("parent_id") or "")
+        parent_id_suffix = str(spec.get("parent_id_suffix") or "")
+        if not parent_id and parent_id_suffix:
+            parent_id = f"{document.id}:{parent_id_suffix}"
         if chunk_type == "parent" and not parent_id:
             parent_id = chunk_id
         metadata = dict(spec.get("metadata") or {})

@@ -62,11 +62,14 @@ class InMemoryRAGEngine(BaseRAGEngine):
         """将片段写入本地内存和本地索引。"""
         self.delete_document(document.id)
         self._documents[document.id] = document
-        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
-        for chunk, vector in zip(chunks, vectors):
+        child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
+        vectors_by_chunk_id = {chunk.id: vector for chunk, vector in zip(child_chunks, vectors)}
+        for chunk in chunks:
             self._chunks[chunk.id] = chunk
-            self._vectors[chunk.embedding_id] = vector
             if chunk.chunk_type == "child":
+                vector = vectors_by_chunk_id[chunk.id]
+                self._vectors[chunk.embedding_id] = vector
                 self.vector_index.upsert(chunk, vector)
         if self.keyword_index:
             self.keyword_index.upsert_chunks(chunks)
@@ -95,11 +98,14 @@ class InMemoryRAGEngine(BaseRAGEngine):
         if self.keyword_index:
             self.keyword_index.clear()
         self._documents = {document.id: document for document in documents}
-        vectors = embed_knowledge_chunk_batch(self.embedding_provider, chunks)
-        for chunk, vector in zip(chunks, vectors):
+        child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+        vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
+        vectors_by_chunk_id = {chunk.id: vector for chunk, vector in zip(child_chunks, vectors)}
+        for chunk in chunks:
             self._chunks[chunk.id] = chunk
-            self._vectors[chunk.embedding_id] = vector
             if chunk.chunk_type == "child":
+                vector = vectors_by_chunk_id[chunk.id]
+                self._vectors[chunk.embedding_id] = vector
                 self.vector_index.upsert(chunk, vector)
         if self.keyword_index:
             self.keyword_index.upsert_chunks(chunks)
