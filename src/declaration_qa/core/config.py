@@ -21,6 +21,17 @@ class DeclarationQASettings(BaseSettings):
     redis_url: str | None = Field(default=None, alias="DECLARATION_QA_REDIS_URL")
     redis_ttl_seconds: int = Field(default=600, alias="DECLARATION_QA_REDIS_TTL_SECONDS")
 
+    context_memory_enabled: bool = Field(default=True, alias="DECLARATION_QA_CONTEXT_MEMORY_ENABLED")
+    short_memory_ttl_seconds: int = Field(default=3600, alias="DECLARATION_QA_SHORT_MEMORY_TTL_SECONDS")
+    long_memory_ttl_seconds: int = Field(default=604800, alias="DECLARATION_QA_LONG_MEMORY_TTL_SECONDS")
+    long_memory_retrieval_cache_ttl_seconds: int = Field(default=300, alias="DECLARATION_QA_LONG_MEMORY_RETRIEVAL_CACHE_TTL_SECONDS")
+    long_memory_async_workers: int = Field(default=2, alias="DECLARATION_QA_LONG_MEMORY_ASYNC_WORKERS")
+    long_memory_top_k: int = Field(default=5, alias="DECLARATION_QA_LONG_MEMORY_TOP_K")
+    long_memory_distance_threshold: float = Field(default=0.4, alias="DECLARATION_QA_LONG_MEMORY_DISTANCE_THRESHOLD")
+    long_memory_keyword_min_score: float = Field(default=0.2, alias="DECLARATION_QA_LONG_MEMORY_KEYWORD_MIN_SCORE")
+    memory_milvus_collection: str = Field(default="declaration_qa_context_memories", alias="DECLARATION_QA_MEMORY_MILVUS_COLLECTION")
+    memory_elasticsearch_index: str = Field(default="declaration_qa_context_memories", alias="DECLARATION_QA_MEMORY_ELASTICSEARCH_INDEX")
+
     vector_backend: str = Field(default="memory", alias="DECLARATION_QA_VECTOR_BACKEND")
     milvus_uri: str = Field(default="http://127.0.0.1:19530", alias="DECLARATION_QA_MILVUS_URI")
     milvus_token: str = Field(default="", alias="DECLARATION_QA_MILVUS_TOKEN")

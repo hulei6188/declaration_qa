@@ -60,6 +60,12 @@ src/declaration_qa/indexing/service/metadata.py
 src/declaration_qa/indexing/service/processor.py
 src/declaration_qa/indexing/service/reindex.py
 src/declaration_qa/indexing/service/workflow_index.py
+src/declaration_qa/memory/__init__.py
+src/declaration_qa/memory/extraction.py
+src/declaration_qa/memory/manager.py
+src/declaration_qa/memory/models.py
+src/declaration_qa/memory/retrieval.py
+src/declaration_qa/memory/store.py
 src/declaration_qa/rag/__init__.py
 src/declaration_qa/rag/context_engineering.py
 src/declaration_qa/rag/evidence.py
@@ -126,6 +132,7 @@ src/declaration_qa/storage/repository/business.py
 src/declaration_qa/storage/repository/evaluation.py
 src/declaration_qa/storage/repository/jobs.py
 src/declaration_qa/storage/repository/knowledge.py
+src/declaration_qa/storage/repository/memory.py
 src/declaration_qa/storage/repository/normalizers.py
 src/declaration_qa/storage/repository/sessions.py
 src/declaration_qa/storage/repository/store.py

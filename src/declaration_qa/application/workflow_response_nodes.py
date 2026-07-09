@@ -47,9 +47,14 @@ class WorkflowResponseNodes:
     def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
         """调用回答生成器生成最终回答。"""
         next_state = dict(state)
+        memory_manager = getattr(self, "context_memory_manager", None)
+        if memory_manager is not None:
+            next_state["long_term_context"] = memory_manager.retrieve_long_term_context(next_state)
         next_state["short_term_context"] = build_short_term_context(next_state)
         short_term_metrics = (next_state.get("short_term_context") or {}).get("metrics") or {}
+        long_term_metrics = long_term_context_metrics(next_state.get("long_term_context") or {})
         add_event(next_state, "short_term_context", short_term_metrics)
+        add_event(next_state, "long_term_context", long_term_metrics)
         with observation(
             "workflow.answer_generation",
             input={
@@ -58,6 +63,7 @@ class WorkflowResponseNodes:
                 "source_count": len(next_state.get("retrieved_sources") or []),
                 "multi_question": bool(next_state.get("multi_question")),
                 "short_term_context": short_term_metrics,
+                "long_term_context": long_term_metrics,
             },
             metadata=response_observation_metadata(next_state),
         ) as span:
@@ -86,6 +92,7 @@ class WorkflowResponseNodes:
             audit_payload = dict(next_state.get("audit_payload") or {})
             audit_payload["final_prompt"] = prompt
             audit_payload["short_term_context"] = next_state.get("short_term_context") or {}
+            audit_payload["long_term_context"] = next_state.get("long_term_context") or {}
             next_state["audit_payload"] = audit_payload
             span.update(
                 output=safe_value(
@@ -94,6 +101,7 @@ class WorkflowResponseNodes:
                         "prompt_length": len(prompt),
                         "streamed": streamed,
                         "short_term_context": short_term_metrics,
+                        "long_term_context": long_term_metrics,
                     }
                 )
             )
@@ -151,10 +159,15 @@ class WorkflowResponseNodes:
             "events": next_state.get("events") or [],
             "langfuse_trace_id": next_state.get("langfuse_trace_id") or "",
             "short_term_context": next_state.get("short_term_context") or {},
+            "long_term_context": next_state.get("long_term_context") or {},
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
         next_state["audit_id"] = audit_id
+        memory_manager = getattr(self, "context_memory_manager", None)
+        if memory_manager is not None:
+            memory_status = memory_manager.after_interaction(payload, audit_id=audit_id)
+            add_event(next_state, "context_memory", memory_status)
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
 
@@ -173,5 +186,19 @@ def response_observation_metadata(state: dict[str, object]) -> dict[str, object]
             "source_count": len(state.get("retrieved_sources") or []),
             "multi_question": bool(state.get("multi_question")),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
+            "long_term_context": long_term_context_metrics(state.get("long_term_context") or {}),
         }
     )
+
+
+def long_term_context_metrics(context: dict[str, object]) -> dict[str, object]:
+    """提取长期记忆上下文指标。"""
+    items = context.get("items") if isinstance(context, dict) else []
+    status = context.get("status") if isinstance(context, dict) else {}
+    cache = context.get("cache") if isinstance(context, dict) else {}
+    return {
+        "memory_count": len(items or []) if isinstance(items, list) else 0,
+        "retrieval_mode": (status or {}).get("retrieval_mode") if isinstance(status, dict) else "",
+        "distance_threshold": (status or {}).get("distance_threshold") if isinstance(status, dict) else None,
+        "cache_hit": bool((cache or {}).get("hit")) if isinstance(cache, dict) else False,
+    }

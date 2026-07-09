@@ -100,7 +100,9 @@ def milvus_filter_expr(filters: dict[str, Any]) -> str:
     """将检索过滤条件转换为 Milvus 表达式。"""
     expressions = []
     for key, value in (filters or {}).items():
-        if key not in MILVUS_TEXT_METADATA_FIELDS or value in ("", None, []):
+        if key not in MILVUS_TEXT_METADATA_FIELDS and key != "doc_id":
+            continue
+        if value in ("", None, []):
             continue
         if isinstance(value, list):
             values = [milvus_escape_string(item) for item in value if str(item or "").strip()]

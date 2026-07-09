@@ -10,6 +10,7 @@ TICKET_AUGMENTED_CHAIN = "ticket_augmented"
 
 
 SUPPORTED_FILTER_KEYS = {
+    "doc_id",
     "region_code",
     "region_key",
     "policy_version",

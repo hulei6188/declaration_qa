@@ -25,6 +25,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import ticket_ra
 from declaration_qa.application.workflow_nodes import WorkflowNodes
 from declaration_qa.application.workflow_retrieval_nodes import is_image_only_query
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
+from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
 from declaration_qa.rag.context_engineering import RECENT_MESSAGE_LIMIT, recent_messages_from_session
 from declaration_qa.rag.engine.base import RAGEngine
@@ -62,6 +63,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         answer_generator: DeterministicAnswerGenerator | None = None,
         question_resolver: RuleQuestionResolver | None = None,
         query_rewriter: RuleQueryRewriter | None = None,
+        context_memory_manager: ContextMemoryManager | None = None,
         max_sub_question_workers: int = 4,
         max_retrieval_workers: int = 4,
     ) -> None:
@@ -72,6 +74,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.question_resolver = question_resolver or RuleQuestionResolver()
         self.query_rewriter = query_rewriter or RuleQueryRewriter()
+        self.context_memory_manager = context_memory_manager
         self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
         self.sub_question_graph = self._build_sub_question_graph()
@@ -180,6 +183,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
             yield from token_events(str(state.get("answer") or ""))
             return
 
+        if self.context_memory_manager is not None:
+            state["long_term_context"] = self.context_memory_manager.retrieve_long_term_context(state)
         token_stream, prompt = stream_generate(dict(state))
         answer_parts = []
         for token in token_stream:
@@ -199,7 +204,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
         """根据请求构造工作流初始状态。"""
         apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
         session_id = request.session_id or uuid4().hex
-        session_messages = self._recent_session_messages(request)
+        fallback_messages = self._recent_session_messages(request)
+        short_memory = self._load_short_memory(request, session_id=session_id, fallback_messages=fallback_messages)
+        session_messages = list(short_memory.get("recent_messages") or fallback_messages)
         return {
             "user_id": request.user_id,
             "session_id": session_id,
@@ -207,7 +214,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "normalized_query": "",
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
             "session_messages": session_messages,
+            "short_memory": short_memory,
             "short_term_context": {},
+            "long_term_context": {},
             "region_code": request.region_code,
             "app_version": request.app_version,
             "policy_version": request.policy_version,
@@ -249,6 +258,25 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "audit_payload": {},
             "langfuse_trace_id": create_trace_id(f"{session_id}:{request.query}"),
         }
+
+    def _load_short_memory(
+        self,
+        request: ChatRequest,
+        *,
+        session_id: str,
+        fallback_messages: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """从 Redis 加载短期上下文记忆，异常时回退到会话消息。"""
+        if self.context_memory_manager is None:
+            return {"recent_messages": fallback_messages, "summary": "", "backend": "none", "cache_hit": False}
+        try:
+            return self.context_memory_manager.load_short_memory(
+                user_id=int(request.user_id),
+                session_id=session_id,
+                fallback_messages=fallback_messages,
+            )
+        except Exception:
+            return {"recent_messages": fallback_messages, "summary": "", "backend": "error", "cache_hit": False}
 
     def _recent_session_messages(self, request: ChatRequest) -> list[dict[str, Any]]:
         """读取当前会话最近消息，避免把全量历史送入模型。"""
@@ -461,6 +489,7 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "has_query_image": bool(state.get("query_image")),
             "recent_message_count": len(state.get("session_messages") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
+            "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),
             "need_ticket_selection": bool(state.get("need_ticket_selection")),
             "refused": bool(state.get("refused")),
             "source_count": len(state.get("retrieved_sources") or []),
@@ -483,8 +512,21 @@ def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
             "multi_question": bool(state.get("multi_question")),
             "source_count": len(state.get("retrieved_sources") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
+            "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),
             "rag_status": state.get("rag_status") or {},
             "evidence_decision": state.get("evidence_decision") or {},
             "suggested_actions": state.get("suggested_actions") or [],
         }
     )
+
+
+def long_term_trace_metrics(context: dict[str, Any]) -> dict[str, Any]:
+    """构建长期记忆 trace 指标。"""
+    items = context.get("items") if isinstance(context, dict) else []
+    status = context.get("status") if isinstance(context, dict) else {}
+    cache = context.get("cache") if isinstance(context, dict) else {}
+    return {
+        "memory_count": len(items or []) if isinstance(items, list) else 0,
+        "retrieval_mode": (status or {}).get("retrieval_mode") if isinstance(status, dict) else "",
+        "cache_hit": bool((cache or {}).get("hit")) if isinstance(cache, dict) else False,
+    }

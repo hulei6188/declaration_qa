@@ -68,6 +68,8 @@ def test_milvus_metadata_row_supplies_all_text_fields_with_defaults():
         assert field_name in row
         if field_name in {"status", "doc_status"}:
             assert row[field_name] == "published"
+        elif field_name == "modality":
+            assert row[field_name] == "text"
         else:
             assert row[field_name] == ""
     assert row["metadata"] == {}
@@ -97,12 +99,13 @@ def test_milvus_filter_expr_uses_supported_metadata_fields_only():
             "region_code": ["340000", "340000000000"],
             "audit_node": "材料初审",
             "doc_status": "published",
+            "doc_id": "context-memory:user:7",
         }
     )
 
     assert (
         expr
-        == 'item_code == "ITEM001" and region_code in ["340000", "340000000000"] and audit_node == "材料初审" and doc_status == "published"'
+        == 'item_code == "ITEM001" and region_code in ["340000", "340000000000"] and audit_node == "材料初审" and doc_status == "published" and doc_id == "context-memory:user:7"'
     )
 
 

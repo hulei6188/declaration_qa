@@ -46,9 +46,11 @@ def normalize_message(message: dict[str, Any]) -> dict[str, Any]:
 
 def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
     """构建答案生成使用的短期上下文。"""
-    recent_messages = normalize_recent_messages(state.get("session_messages") or [])
+    short_memory = state.get("short_memory") if isinstance(state.get("short_memory"), dict) else {}
+    recent_messages = normalize_recent_messages(short_memory.get("recent_messages") or state.get("session_messages") or [])
     context = {
         "current_question": current_question_context(state),
+        "summary": truncate_text(short_memory.get("summary") or "", 1200),
         "recent_messages": recent_messages,
         "ticket_context": ticket_context_summary(state),
         "query_image": query_image_summary(state.get("query_image")),
@@ -57,6 +59,9 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
     context["metrics"] = {
         "recent_message_count": len(recent_messages),
         "recent_turn_limit": RECENT_TURN_LIMIT,
+        "short_memory_backend": short_memory.get("backend") or "",
+        "short_memory_cache_hit": bool(short_memory.get("cache_hit")),
+        "has_short_memory_summary": bool(context.get("summary")),
         "has_ticket_context": bool(context["ticket_context"]),
         "has_query_image": bool(context["query_image"]),
         "source_count": len(state.get("retrieved_sources") or []),
@@ -70,6 +75,14 @@ def format_short_term_context(state: dict[str, Any]) -> str:
     context = state.get("short_term_context")
     if not isinstance(context, dict) or not context:
         context = build_short_term_context(state)
+    return json.dumps(context, ensure_ascii=False, indent=2)
+
+
+def format_long_term_context(state: dict[str, Any]) -> str:
+    """格式化长期上下文记忆，供提示词使用。"""
+    context = state.get("long_term_context") if isinstance(state.get("long_term_context"), dict) else {}
+    if not context:
+        context = {"items": [], "status": {"retrieval_mode": "none", "reason": "not_loaded"}}
     return json.dumps(context, ensure_ascii=False, indent=2)
 
 

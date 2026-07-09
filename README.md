@@ -89,6 +89,32 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED`: 是否解析附件并生成派生 chunk。
 - `DECLARATION_QA_CHAT_IMAGE_DIR`: 聊天图片查询的临时落盘目录。
 
+## 上下文工程
+
+系统采用分层上下文记忆：
+
+- 短期记忆：Redis 保存最近 5 轮消息和抽取式摘要，供多轮省略、当前附件和当前工单理解使用。
+- 长期记忆：每轮问答审计落库后，通过后台线程异步抽取长期记忆，写入 PostgreSQL `declaration_qa.context_memories`，同时写入独立的 Milvus collection 和 Elasticsearch index。
+- 长期检索：回答生成前按用户隔离执行语义向量 + BM25 混合检索，并通过 `DECLARATION_QA_LONG_MEMORY_DISTANCE_THRESHOLD` 过滤向量距离。
+- Prompt 约束：长期记忆只用于理解历史上下文；如与检索证据或业务数据冲突，以证据和业务数据为准。
+
+首次启用长期记忆表：
+
+```powershell
+Get-Content sql\postgresql\007_declaration_qa_context_memories.sql | docker exec -i declaration-qa-postgres-1 psql -U agentbase -d agentbase -v ON_ERROR_STOP=1
+```
+
+常用配置：
+
+- `DECLARATION_QA_CONTEXT_MEMORY_ENABLED`
+- `DECLARATION_QA_SHORT_MEMORY_TTL_SECONDS`
+- `DECLARATION_QA_LONG_MEMORY_TTL_SECONDS`
+- `DECLARATION_QA_LONG_MEMORY_ASYNC_WORKERS`
+- `DECLARATION_QA_LONG_MEMORY_TOP_K`
+- `DECLARATION_QA_LONG_MEMORY_DISTANCE_THRESHOLD`
+- `DECLARATION_QA_MEMORY_MILVUS_COLLECTION`
+- `DECLARATION_QA_MEMORY_ELASTICSEARCH_INDEX`
+
 ## Langfuse
 
 打开 Langfuse 可观测：

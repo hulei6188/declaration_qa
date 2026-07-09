@@ -605,6 +605,7 @@ def test_multi_question_workflow_groups_sub_question_evidence_for_one_final_answ
             prompt = MULTI_QUESTION_ANSWER_PROMPT.format(
                 query=state.get("query") or "",
                 short_term_context="{}",
+                long_term_context="{}",
                 sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
             )
             return "多问题最终回答", prompt

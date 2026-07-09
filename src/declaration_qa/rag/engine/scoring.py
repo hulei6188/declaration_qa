@@ -120,6 +120,8 @@ def matches_filter(chunk: KnowledgeChunk, filters: dict[str, Any]) -> bool:
 
 def chunk_filter_value(chunk: KnowledgeChunk, metadata: dict[str, Any], key: str) -> Any:
     """返回用于元数据过滤匹配的值。"""
+    if key == "doc_id":
+        return chunk.doc_id
     if key == "status":
         return chunk.status
     if key == "doc_status":

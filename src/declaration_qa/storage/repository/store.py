@@ -12,6 +12,7 @@ from declaration_qa.storage.repository.business import BusinessRepository
 from declaration_qa.storage.repository.evaluation import EvaluationRepository
 from declaration_qa.storage.repository.jobs import IndexJobRepository
 from declaration_qa.storage.repository.knowledge import KnowledgeRepository
+from declaration_qa.storage.repository.memory import ContextMemoryRepository
 from declaration_qa.storage.repository.sessions import SessionRepository
 
 
@@ -25,6 +26,7 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         self.business = BusinessRepository(self.engine)
         self.evaluation = EvaluationRepository(self.engine)
         self.knowledge = KnowledgeRepository(self.engine)
+        self.memory = ContextMemoryRepository(self.engine)
         self.index_jobs = IndexJobRepository(self.engine)
         self.sessions = SessionRepository(self.engine)
 
@@ -193,6 +195,18 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
     def rollback_document(self, *, target_document_uid: str, change_note: str) -> dict[str, Any]:
         """回滚到指定知识文档版本。"""
         return self.knowledge.rollback_document(target_document_uid=target_document_uid, change_note=change_note)
+
+    def upsert_memory(self, memory) -> None:
+        """写入或更新长期上下文记忆。"""
+        self.memory.upsert_memory(memory)
+
+    def get_memories_by_ids(self, memory_ids: list[str]):
+        """按记忆 ID 批量读取长期上下文记忆。"""
+        return self.memory.get_memories_by_ids(memory_ids)
+
+    def list_user_memories(self, *, user_id: int, limit: int = 100):
+        """读取指定用户最近长期上下文记忆。"""
+        return self.memory.list_user_memories(user_id=user_id, limit=limit)
 
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         """创建索引任务。"""
