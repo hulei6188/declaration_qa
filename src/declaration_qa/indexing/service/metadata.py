@@ -11,6 +11,7 @@ from declaration_qa.rag.retrieval import sanitize_metadata
 
 
 METADATA_FIELDS = {
+    "region_code",
     "region_key",
     "region_name",
     "catalog_name",
@@ -20,11 +21,31 @@ METADATA_FIELDS = {
     "item_type",
     "theme_code",
     "service_object",
+    "policy_version",
     "source_version",
     "official_source_url",
     "source_url",
     "basic_code",
     "agency_name",
+}
+
+METADATA_ALIASES = {
+    "Region Code": "region_code",
+    "Region Name": "region_name",
+    "Policy Version": "policy_version",
+    "Source Version": "source_version",
+    "Official Source URL": "official_source_url",
+    "Source URL": "source_url",
+    "主题编码": "theme_code",
+    "目录清单名称": "catalog_name",
+    "目录子项名称": "catalog_subitem_name",
+    "事项名称": "item_name",
+    "事项编码": "item_code",
+    "实施清单编码": "item_code",
+    "基本编码": "basic_code",
+    "事项类型": "item_type",
+    "服务对象": "service_object",
+    "实施主体": "agency_name",
 }
 
 
@@ -85,10 +106,18 @@ def extract_json_key_values(content: str) -> dict[str, Any]:
 def normalize_metadata_values(values: dict[str, Any]) -> dict[str, Any]:
     """保留标准元数据键。"""
     normalized: dict[str, Any] = {}
+    aliased = {}
+    for key, value in values.items():
+        target_key = METADATA_ALIASES.get(str(key).strip(), str(key).strip())
+        aliased[target_key] = value
     for target_key in METADATA_FIELDS:
-        value = values.get(target_key)
+        value = aliased.get(target_key)
         if value not in ("", None):
             normalized[target_key] = str(value).strip()
+    if normalized.get("region_code") and not normalized.get("region_key"):
+        normalized["region_key"] = normalized["region_code"]
+    if normalized.get("policy_version") and not normalized.get("source_version"):
+        normalized["source_version"] = normalized["policy_version"]
     return normalized
 
 
@@ -110,4 +139,3 @@ def normalize_item_title(title: str) -> str:
     """清理事项标题中的指南后缀。"""
     text = str(title or "").strip()
     return re.sub(r"(办事指南|流程文档)$", "", text).strip()
-

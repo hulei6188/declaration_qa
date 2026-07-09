@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from html import escape
 from typing import Any
 
@@ -181,7 +182,26 @@ def format_source_payload(sources: list[dict[str, Any]]) -> str:
 
 def source_evidence_text(source: dict[str, Any]) -> str:
     """返回完整证据文本，缺失时退回展示摘要。"""
-    return str(source.get("evidence_text") or source.get("content") or source.get("snippet") or "")
+    text = str(source.get("evidence_text") or source.get("content") or source.get("snippet") or "")
+    table_context = table_context_for_llm(source)
+    if table_context:
+        return f"{text}\n\n表格结构（精简）：{table_context}".strip()
+    return text
+
+
+def table_context_for_llm(source: dict[str, Any]) -> str:
+    """返回表格证据的精简结构上下文。"""
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    semantic_type = str(metadata.get("chunk_type") or "")
+    if semantic_type not in {"attachment_table", "docling_table"}:
+        return ""
+    context = metadata.get("llm_table_context")
+    if not context:
+        return ""
+    try:
+        return json.dumps(context, ensure_ascii=False, default=str)[:3000]
+    except (TypeError, ValueError):
+        return str(context)[:3000]
 
 
 def format_sub_task_payload(sub_tasks: list[dict[str, Any]]) -> str:

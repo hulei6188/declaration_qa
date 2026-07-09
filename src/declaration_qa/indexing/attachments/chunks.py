@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from typing import Any
 
 from declaration_qa.indexing.attachments.form_fields import FormField, extract_form_fields
 from declaration_qa.indexing.attachments.assets import asset_url
 from declaration_qa.indexing.attachments.models import AttachmentAsset, ExtractedAttachment
+from declaration_qa.indexing.document_parsing.text import compact_table_context
 from declaration_qa.rag.engine.chunking import markdown_sections, normalize_chunking_strategy, split_windows
 from declaration_qa.rag.engine.constants import CHUNKING_HIERARCHICAL, CHUNKING_PARENT_CHILD
 
@@ -87,6 +87,8 @@ def build_attachment_table_chunk_specs(
     table_blocks = [block for block in extracted.blocks if getattr(block, "block_type", "") == "table"]
     for table_index, block in enumerate(table_blocks):
         metadata = dict(getattr(block, "metadata", {}) or {})
+        table_json_value = getattr(block, "json_value", None)
+        llm_table_context = metadata.get("llm_table_context") or compact_table_context(table_json_value)
         content = attachment_table_chunk_content(extracted, block, table_index=table_index)
         specs.append(
             {
@@ -102,8 +104,10 @@ def build_attachment_table_chunk_specs(
                     "table_source": metadata.get("table_source") or extracted.metadata.get("document_parser") or "",
                     "table_row_count": metadata.get("row_count"),
                     "table_column_count": metadata.get("column_count"),
+                    "table_text": str(getattr(block, "text", "") or "").strip(),
                     "table_html": getattr(block, "html", "") or "",
-                    "table_json": getattr(block, "json_value", None),
+                    "table_json": table_json_value,
+                    "llm_table_context": llm_table_context,
                     "extraction_method": extracted.metadata.get("document_parser") or extracted.metadata.get("extraction_method") or "native",
                     "indexable": True,
                     **metadata,
@@ -807,7 +811,6 @@ def attachment_table_chunk_content(extracted: ExtractedAttachment, block: Any, *
     """生成结构化表格证据文本。"""
     ref = extracted.ref
     metadata = dict(getattr(block, "metadata", {}) or {})
-    json_text = json.dumps(getattr(block, "json_value", None), ensure_ascii=False, default=str)
     lines = [
         "结构化表格证据",
         f"来源附件：{ref.name}",
@@ -826,12 +829,6 @@ def attachment_table_chunk_content(extracted: ExtractedAttachment, block: Any, *
             "",
             "表格文本：",
             str(getattr(block, "text", "") or "").strip(),
-            "",
-            "表格 HTML：",
-            str(getattr(block, "html", "") or "").strip(),
-            "",
-            "表格 JSON：",
-            json_text,
         ]
     )
     return "\n".join(line for line in lines if line is not None).strip()

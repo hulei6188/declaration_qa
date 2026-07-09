@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedDocument
@@ -10,6 +11,12 @@ from declaration_qa.indexing.document_parsing.structured import (
     object_to_plain_data,
     parsed_document_from_markdown,
     temp_document_file,
+)
+from declaration_qa.indexing.document_parsing.text import (
+    compact_table_context,
+    html_table,
+    table_json,
+    table_text,
 )
 
 
@@ -31,6 +38,7 @@ class DoclingDocumentParser:
                 document = getattr(result, "document", result)
                 markdown = export_document_markdown(document)
                 structured_payload = object_to_plain_data(document)
+                chunk_specs = docling_chunk_specs(document)
             except Exception as exc:
                 raise DocumentParseError(f"Docling parse failed: {type(exc).__name__}: {str(exc)[:240]}") from exc
         if not markdown.strip():
@@ -42,6 +50,9 @@ class DoclingDocumentParser:
             markdown=markdown,
             metadata={
                 "parser_output_format": "markdown",
+                "docling_chunker": "hybrid",
+                "docling_chunk_count": len(chunk_specs),
+                "docling_chunk_specs": chunk_specs,
                 **metadata_summary(structured_payload),
             },
         )
@@ -57,3 +68,236 @@ def export_document_markdown(document: Any) -> str:
             except Exception:
                 continue
     return str(document or "")
+
+
+def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
+    """使用 Docling HybridChunker 生成主文档 chunk 描述。"""
+    try:
+        from docling_core.transforms.chunker import HybridChunker
+    except ImportError as exc:
+        raise DocumentParseError("docling-core chunker is not installed") from exc
+    chunker = HybridChunker()
+    table_lookup = docling_table_lookup(document)
+    specs: list[dict[str, Any]] = []
+    for index, chunk in enumerate(chunker.chunk(document)):
+        content = normalize_docling_chunk_text(chunker.serialize(chunk))
+        if not content:
+            continue
+        metadata = docling_chunk_metadata(chunk)
+        metadata.update(docling_table_metadata(metadata, table_lookup))
+        specs.append(
+            {
+                "id_suffix": docling_chunk_suffix(index, content, metadata),
+                "chunk_type": "child",
+                "content": content,
+                "metadata": {
+                    **metadata,
+                    "chunk_type": docling_semantic_chunk_type(metadata),
+                    "chunking_strategy": "docling",
+                    "docling_chunker": "hybrid",
+                    "docling_chunk_index": index,
+                    "indexable": True,
+                },
+            }
+        )
+    if not specs:
+        raise DocumentParseError("Docling chunker returned no chunks")
+    return specs
+
+
+def docling_table_lookup(document: Any) -> dict[str, dict[str, Any]]:
+    """从 DoclingDocument 中抽取原生表格结构。"""
+    output: dict[str, dict[str, Any]] = {}
+    for table_index, table in enumerate(list(getattr(document, "tables", None) or [])):
+        rows = docling_table_rows(table)
+        if not rows:
+            continue
+        cells = docling_table_cells(table)
+        json_value = table_json(
+            rows,
+            cells=cells,
+            title=str(getattr(table, "caption_text", "") or ""),
+            page_no=docling_table_page_no(table),
+            bbox=docling_table_bbox(table),
+        )
+        output[str(getattr(table, "self_ref", "") or f"#/tables/{table_index}")] = {
+            "table_index": table_index,
+            "table_text": table_text(rows, title=str(getattr(table, "caption_text", "") or "")),
+            "table_html": html_table(rows),
+            "table_json": json_value,
+            "llm_table_context": compact_table_context(json_value),
+            "table_row_count": len(rows),
+            "table_column_count": max((len(row) for row in rows), default=0),
+        }
+    return output
+
+
+def docling_table_rows(table: Any) -> list[list[str]]:
+    """把 Docling TableItem 转成二维文本行。"""
+    data = getattr(table, "data", None)
+    grid = getattr(data, "grid", None)
+    rows = []
+    for row in list(grid or []):
+        cells = [str(getattr(cell, "text", "") or "").strip() for cell in list(row or [])]
+        if any(cells):
+            rows.append(cells)
+    return rows
+
+
+def docling_table_cells(table: Any) -> list[dict[str, Any]]:
+    """提取 Docling 表格单元格坐标和跨行跨列信息。"""
+    data = getattr(table, "data", None)
+    cells = []
+    for cell in list(getattr(data, "table_cells", None) or []):
+        cells.append(
+            {
+                "row": int(getattr(cell, "start_row_offset_idx", 0) or 0),
+                "col": int(getattr(cell, "start_col_offset_idx", 0) or 0),
+                "rowspan": int(getattr(cell, "row_span", 1) or 1),
+                "colspan": int(getattr(cell, "col_span", 1) or 1),
+                "text": str(getattr(cell, "text", "") or "").strip(),
+                "column_header": bool(getattr(cell, "column_header", False)),
+                "row_header": bool(getattr(cell, "row_header", False)),
+                "bbox": object_to_plain_data(getattr(cell, "bbox", None)),
+            }
+        )
+    return cells
+
+
+def docling_table_page_no(table: Any) -> int | None:
+    """返回 Docling 表格所在页码。"""
+    for prov in list(getattr(table, "prov", None) or []):
+        try:
+            number = int(getattr(prov, "page_no", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            return number
+    return None
+
+
+def docling_table_bbox(table: Any) -> list[float] | None:
+    """返回 Docling 表格 bbox。"""
+    for prov in list(getattr(table, "prov", None) or []):
+        bbox = object_to_plain_data(getattr(prov, "bbox", None))
+        if isinstance(bbox, list):
+            return bbox
+    return None
+
+
+def docling_table_metadata(metadata: dict[str, Any], table_lookup: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """根据 Docling item ref 为表格 chunk 补充结构化表格元数据。"""
+    refs = list(metadata.get("docling_item_refs") or [])
+    table_refs = [ref for ref in refs if ref in table_lookup]
+    if not table_refs:
+        return {}
+    table_payload = table_lookup[table_refs[0]]
+    return {
+        "table_index": table_payload["table_index"],
+        "table_text": table_payload["table_text"],
+        "table_html": table_payload["table_html"],
+        "table_json": table_payload["table_json"],
+        "llm_table_context": table_payload["llm_table_context"],
+        "table_row_count": table_payload["table_row_count"],
+        "table_column_count": table_payload["table_column_count"],
+        "table_source": "docling_native",
+    }
+
+
+def docling_chunk_metadata(chunk: Any) -> dict[str, Any]:
+    """提取 Docling chunk 的紧凑元数据。"""
+    meta = getattr(chunk, "meta", None)
+    headings = [str(item).strip() for item in list(getattr(meta, "headings", None) or []) if str(item).strip()]
+    doc_items = list(getattr(meta, "doc_items", None) or [])
+    labels = unique_ordered_strings(docling_item_label(item) for item in doc_items)
+    refs = unique_ordered_strings(docling_item_ref(item) for item in doc_items)
+    page_numbers = unique_page_numbers(doc_items)
+    metadata: dict[str, Any] = {
+        "section_path": " > ".join(headings) if headings else "Document",
+        "heading_path": headings,
+        "section_title": headings[-2] if len(headings) >= 2 else (headings[-1] if headings else "Document"),
+        "node_title": headings[-1] if headings else "Document",
+        "parent_section_id": "docling:" + hashlib.sha1(" > ".join(headings).encode("utf-8")).hexdigest()[:12],
+        "docling_labels": labels,
+        "docling_item_refs": refs[:20],
+    }
+    if page_numbers:
+        metadata.update(
+            {
+                "attachment_page_numbers": page_numbers,
+                "attachment_page_start": min(page_numbers),
+                "attachment_page_end": max(page_numbers),
+                "attachment_page_range": ",".join(str(item) for item in page_numbers),
+            }
+        )
+    return metadata
+
+
+def docling_item_label(item: Any) -> str:
+    """返回 Docling doc item 的标签。"""
+    label = getattr(item, "label", "")
+    return str(getattr(label, "value", label) or "")
+
+
+def docling_item_ref(item: Any) -> str:
+    """返回 Docling doc item 的 self_ref。"""
+    return str(getattr(item, "self_ref", "") or "")
+
+
+def unique_page_numbers(doc_items: list[Any]) -> list[int]:
+    """从 Docling provenance 中提取页码。"""
+    output: list[int] = []
+    for item in doc_items:
+        for prov in list(getattr(item, "prov", None) or []):
+            page_no = getattr(prov, "page_no", None)
+            try:
+                number = int(page_no)
+            except (TypeError, ValueError):
+                continue
+            if number > 0 and number not in output:
+                output.append(number)
+    return output
+
+
+def docling_semantic_chunk_type(metadata: dict[str, Any]) -> str:
+    """根据 Docling 标签推断语义 chunk 类型。"""
+    labels = set(metadata.get("docling_labels") or [])
+    if "table" in labels:
+        return "docling_table"
+    if "picture" in labels:
+        return "docling_picture"
+    if "list_item" in labels:
+        return "docling_list"
+    return "docling_text"
+
+
+def docling_chunk_suffix(index: int, content: str, metadata: dict[str, Any]) -> str:
+    """生成稳定的 Docling chunk 后缀。"""
+    key = "|".join(
+        [
+            str(index),
+            str(metadata.get("section_path") or ""),
+            ",".join(metadata.get("docling_item_refs") or []),
+            content[:500],
+        ]
+    )
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"docling:{index}:{digest}"
+
+
+def normalize_docling_chunk_text(text: str) -> str:
+    """清理 Docling chunk 序列化文本。"""
+    return "\n".join(line.rstrip() for line in str(text or "").splitlines() if line.strip()).strip()
+
+
+def unique_ordered_strings(values) -> list[str]:
+    """按首次出现顺序返回非空字符串。"""
+    seen = set()
+    output = []
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output

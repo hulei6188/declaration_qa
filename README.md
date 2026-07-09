@@ -100,7 +100,15 @@ python -m declaration_qa.indexing.worker
 - `llamaparse`：云端高精度解析器，适合数据允许出网且需要更强版面理解的场景。
 - `native`：项目内置解析器，支持文本、Markdown、PDF、DOCX、CSV、XLS/XLSX、图片 OCR。
 
-解析结果统一为 `ParsedDocument` 和 `ParsedBlock`。表格不会只压成纯文本；解析器识别到表格时会保留 `text`、`html`、`json` 三种表达，并为附件生成 `attachment_table` 证据 chunk，方便检索和回答时保留行列结构。
+解析结果统一为 `ParsedDocument` 和 `ParsedBlock`。Docling 解析成功时，主文档不再使用项目内置 `parent_child` / `hierarchical` 切分，而是直接使用 Docling `HybridChunker` 生成主文档 chunk；前端上传时选择的切分策略只影响非 Docling 解析结果和部分附件文本兜底。
+
+表格不会只压成纯文本。系统会为表格保留三种表达：
+
+- `table_text`：自然语言化表格文本，用于 embedding、BM25 和 rerank。
+- `table_json`：原生行列、单元格、跨行跨列、页码和 bbox 等结构，存入 metadata。
+- `table_html`：前端证据详情展示使用。
+
+回答生成时，模型接收 `table_text` 和精简后的 `llm_table_context`，不会把完整 HTML/JSON 混进检索文本。
 
 ## 上下文工程
 

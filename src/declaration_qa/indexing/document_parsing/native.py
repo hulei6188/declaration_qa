@@ -21,7 +21,9 @@ from declaration_qa.indexing.document_parsing.text import (
     markdown_table_row,
     normalize_extracted_text,
     normalized_table_rows,
+    compact_table_context,
     table_json,
+    table_text,
 )
 
 WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -371,17 +373,20 @@ def table_blocks(
     """将表格二维结构转换为标准表格块。"""
     if not rows:
         return []
+    json_value = table_json(rows)
     return [
         ParsedBlock(
             block_type="table",
-            text=markdown_table(rows),
+            text=table_text(rows),
             html=html_table(rows),
-            json_value=table_json(rows),
+            json_value=json_value,
             metadata={
                 "table_source": source,
                 "table_index": table_index,
                 "row_count": len(rows),
                 "column_count": max(len(row) for row in rows),
+                "table_text_format": "natural_language",
+                "llm_table_context": compact_table_context(json_value),
                 **(metadata or {}),
             },
         )
