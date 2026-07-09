@@ -132,11 +132,11 @@ LANGFUSE_BASE_URL=http://localhost:3000
 ChatRequest
   -> context_build
   -> query_preprocess
-  -> query_rewrite stage1
+  -> query_rewrite.stage1
   -> prepare_task
   -> ticket selection / ticket context
   -> metadata filter
-  -> query_rewrite stage2
+  -> query_rewrite.stage2
   -> RAG retrieval
   -> evidence gate
   -> answer generation
@@ -180,7 +180,7 @@ ChatRequest
 
 ```text
 文本 query:
-  query_rewrite stage1 -> query_rewrite stage2 -> Milvus dense + Elasticsearch BM25
+  query_rewrite.stage1 -> query_rewrite.stage2 -> Milvus dense + Elasticsearch BM25
 
 图片 + 文本 query:
   文本部分 -> Milvus dense + Elasticsearch BM25
@@ -218,10 +218,10 @@ SSE 常见事件：
 - `run_started`
 - `context_built`
 - `query_preprocessed`
-- `question_resolution`
+- `query_rewrite.stage1`
 - `ticket_selected`
 - `knowledge_filter`
-- `query_rewrite`
+- `query_rewrite.stage2`
 - `rag_status`
 - `sources`
 - `token`

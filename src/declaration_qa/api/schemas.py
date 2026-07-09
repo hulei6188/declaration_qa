@@ -118,7 +118,7 @@ class ChatResponse(BaseModel):
     sub_intent: str = ""
     route_decision: dict[str, Any] = Field(default_factory=dict)
     multi_question: bool = False
-    question_resolution: dict[str, Any] = Field(default_factory=dict)
+    query_rewrite_stage1: dict[str, Any] = Field(default_factory=dict, serialization_alias="query_rewrite.stage1")
     sub_tasks: list[dict[str, Any]] = Field(default_factory=list)
     need_ticket_selection: bool = False
     ticket_selection_reason: str = ""

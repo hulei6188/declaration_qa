@@ -72,11 +72,11 @@ class WorkflowPlanningNodes:
         add_event(next_state, "query_preprocessed", {"normalized_query": query, "biz_type": next_state.get("biz_type")})
         return next_state
 
-    def question_resolution(self, state: DeclarationQAState) -> DeclarationQAState:
+    def query_rewrite_stage1(self, state: DeclarationQAState) -> DeclarationQAState:
         """执行两阶段 Query Rewrite 的第一阶段：问题消解和 query 草稿生成。"""
         next_state = dict(state)
         with observation(
-            "workflow.question_resolution",
+            "workflow.query_rewrite.stage1",
             input={"query": next_state.get("normalized_query") or next_state.get("query") or ""},
             metadata=workflow_observation_metadata(next_state),
         ) as span:
@@ -90,7 +90,7 @@ class WorkflowPlanningNodes:
                 )
                 question["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
                 questions.append(question)
-            next_state["question_resolution"] = {**resolution.payload(), "questions": questions}
+            next_state["query_rewrite.stage1"] = {**resolution.payload(), "questions": questions}
             next_state["multi_question"] = bool(resolution.is_multi_question and len(questions) > 1)
             next_state["sub_tasks"] = questions if next_state["multi_question"] else []
             if not next_state["multi_question"] and questions:
@@ -108,7 +108,7 @@ class WorkflowPlanningNodes:
             )
         add_event(
             next_state,
-            "question_resolution",
+            "query_rewrite.stage1",
             {
                 "multi_question": next_state["multi_question"],
                 "count": len(questions),
@@ -234,7 +234,7 @@ class WorkflowPlanningNodes:
             "query_rewrite_reason": question.get("query_rewrite_reason") or "",
             "multi_question": False,
             "sub_tasks": [],
-            "question_resolution": {},
+            "query_rewrite.stage1": {},
             "intent": "unknown",
             "sub_intent": "",
             "route": "",

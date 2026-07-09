@@ -57,8 +57,8 @@ class QueryRewrite:
 
 
 @dataclass(frozen=True)
-class QuestionResolution:
-    """第一阶段问题消解和拆分结果。"""
+class QueryRewriteStage1:
+    """第一阶段上下文消解、问题拆分和 query 草稿结果。"""
 
     is_multi_question: bool
     questions: list[dict[str, Any]]

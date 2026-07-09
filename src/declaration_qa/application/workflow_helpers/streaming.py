@@ -67,7 +67,7 @@ def done_event(state: DeclarationQAState) -> dict[str, Any]:
             "route": state.get("route"),
             "sub_intent": state.get("sub_intent"),
             "multi_question": bool(state.get("multi_question")),
-            "question_resolution": state.get("question_resolution") or {},
+            "query_rewrite.stage1": state.get("query_rewrite.stage1") or {},
             "sub_tasks": state.get("sub_tasks") or [],
             "need_ticket_selection": bool(state.get("need_ticket_selection")),
             "ticket_selection_reason": state.get("ticket_selection_reason"),
@@ -89,4 +89,3 @@ def is_declaration_qa_stream_run() -> bool:
         return False
     configurable = config.get("configurable") or {}
     return bool(configurable.get("declaration_qa_stream"))
-

@@ -86,7 +86,7 @@ h2 {
 /* ----- Workspace ----- */
 .workspace {
   display: grid;
-  grid-template-columns: minmax(286px, 326px) minmax(520px, 1fr) minmax(306px, 360px);
+  grid-template-columns: minmax(286px, 326px) minmax(560px, 1fr);
   gap: 16px;
   min-height: 0;
   height: 100%;
@@ -506,16 +506,6 @@ select {
   background: var(--bg);
 }
 
-.message-meta {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
 /* Ticket selection in chat */
 .ticket-selection {
   display: grid;
@@ -524,6 +514,40 @@ select {
   padding-top: 14px;
   border-top: 1px solid var(--border-light);
   white-space: normal;
+}
+
+.message-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  white-space: normal;
+}
+
+.message-feedback button {
+  height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.message-feedback button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  background: var(--accent-light);
+}
+
+.message-feedback span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .ticket-selection > strong {
@@ -1287,49 +1311,9 @@ select {
 .upload-queue-item.succeeded .upload-state-dot { background: #16a34a; }
 .upload-queue-item.failed .upload-state-dot    { background: #dc2626; }
 
-/* ============================================================
-   AUDIT & FEEDBACK
-   ============================================================ */
-.audit-grid {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 7px 10px;
-  font-size: 13px;
-}
-
-.audit-grid dt {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.audit-grid dd {
-  margin: 0;
-  min-width: 0;
-  word-break: break-all;
-  color: var(--text-secondary);
-}
-
-.feedback-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.feedback-row button {
-  flex: 1;
-  border-radius: var(--radius);
-  font-size: 13px;
-}
-
 .timeline,
 .sources {
   max-height: 184px;
-}
-
-.eval-items {
-  max-height: 190px;
 }
 
 /* ============================================================
@@ -1337,7 +1321,7 @@ select {
    ============================================================ */
 @media (max-width: 1320px) {
   .workspace {
-    grid-template-columns: minmax(266px, 290px) minmax(460px, 1fr) minmax(272px, 316px);
+    grid-template-columns: minmax(266px, 290px) minmax(480px, 1fr);
     gap: 14px;
   }
 }
@@ -1361,13 +1345,6 @@ select {
     min-height: calc(100vh - 28px);
   }
 
-  .inspect-pane {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    height: auto;
-    overflow: visible;
-  }
-
   .context-pane {
     height: auto;
     overflow: visible;
@@ -1381,11 +1358,6 @@ select {
     grid-template-columns: 1fr;
     gap: 14px;
     height: auto;
-  }
-
-  .inspect-pane {
-    grid-column: auto;
-    grid-template-columns: 1fr;
   }
 
   .chat-pane {

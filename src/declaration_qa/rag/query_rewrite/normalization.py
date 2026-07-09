@@ -18,14 +18,14 @@ from declaration_qa.rag.query_rewrite.helpers import (
 from declaration_qa.rag.query_rewrite.schema import (
     MAX_RETRIEVAL_QUERY_COUNT,
     QueryRewrite,
-    QuestionResolution,
+    QueryRewriteStage1,
     RetrievalQuery,
 )
 from declaration_qa.rag.retrieval_plan import infer_retrieval_plan
 from declaration_qa.rag.router import ticket_context_related
 
 
-def normalize_question_resolution(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QuestionResolution:
+def normalize_stage1_rewrite(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QueryRewriteStage1:
     """归一化第一阶段问题消解和拆分结果。"""
     raw_questions = payload.get("questions") if isinstance(payload.get("questions"), list) else []
     questions = []
@@ -79,7 +79,7 @@ def normalize_question_resolution(payload: dict[str, Any], state: dict[str, Any]
         fallback["query_rewrite_provider"] = provider
         fallback["query_rewrite_reason"] = "fallback_single_question"
         questions = [fallback]
-    return QuestionResolution(
+    return QueryRewriteStage1(
         is_multi_question=len(questions) > 1,
         questions=questions,
         reason=normalize_text(payload.get("reason") or "")[:160],

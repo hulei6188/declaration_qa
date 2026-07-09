@@ -573,14 +573,14 @@ def test_single_question_workflow_keeps_query_rewrite_raw_query_without_router_r
     response = workflow.invoke(ChatRequest(query="防火办事流程", user_id=1, region_code="340000"))
 
     assert response.multi_question is False
-    assert response.question_resolution["questions"][0]["original_query"] == "防火办事流程"
-    assert response.question_resolution["questions"][0]["query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
+    assert response.query_rewrite_stage1["questions"][0]["original_query"] == "防火办事流程"
+    assert response.query_rewrite_stage1["questions"][0]["query"] == "草原防火期内在草原上进行爆破、勘察和施工等活动审批的办理流程是什么"
     assert response.events[1]["data"]["normalized_query"] == "防火办事流程"
-    assert response.question_resolution["questions"][0]["is_expanded"] is True
+    assert response.query_rewrite_stage1["questions"][0]["is_expanded"] is True
     assert response.route in {"ticket_context_unrelated", "clarification", "refuse"}
     assert response.route_decision.get("route") == response.route
-    question_resolution_event = next(event for event in response.events if event["event"] == "question_resolution")
-    assert question_resolution_event["data"]["expanded"] is True
+    query_rewrite_stage1_event = next(event for event in response.events if event["event"] == "query_rewrite.stage1")
+    assert query_rewrite_stage1_event["data"]["expanded"] is True
 
 
 def test_parse_json_object_strips_uppercase_json_markdown_fence():
@@ -741,8 +741,8 @@ def test_multi_question_uses_resolver_retrieval_query_for_short_followup():
     )
 
     assert response.multi_question is True
-    assert response.question_resolution["questions"][1]["query"] == "收费吗"
-    assert response.question_resolution["questions"][1]["retrieval_query"] == "华侨回国定居审批 收费吗"
+    assert response.query_rewrite_stage1["questions"][1]["query"] == "收费吗"
+    assert response.query_rewrite_stage1["questions"][1]["retrieval_query"] == "华侨回国定居审批 收费吗"
     assert response.sub_tasks[1]["query"] == "收费吗"
     assert response.sub_tasks[1]["retrieval_query"] == "华侨回国定居审批 收费吗"
     assert any("华侨回国定居审批 收费吗" in query for query in engine.queries)
@@ -1149,12 +1149,12 @@ def test_image_only_graph_skips_text_resolution_and_rewrite():
 
     assert engine.image_calls
     assert engine.image_calls[0][1] == ""
-    assert response.question_resolution == {}
+    assert response.query_rewrite_stage1 == {}
     assert response.rag_status["retrieval_mode"] == "image_only"
     assert response.rag_status["text_retrieval_skipped"] is True
     assert any(event["event"] == "image_only_prepare" for event in response.events)
-    assert not any(event["event"] == "question_resolution" for event in response.events)
-    assert not any(event["event"] == "query_rewrite" for event in response.events)
+    assert not any(event["event"] == "query_rewrite.stage1" for event in response.events)
+    assert not any(event["event"] == "query_rewrite.stage2" for event in response.events)
 
 
 def test_multi_retrieve_falls_back_to_parallel_when_batch_fails():

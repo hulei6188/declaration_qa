@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ImagePlus, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
+import { ImagePlus, Maximize2, Minimize2, Send, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
 import { escapeHtml, ticketLabel } from '../utils.js';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
 
 export default function ChatPane({
   messages, streaming, sendState, currentTicket, ticketPickerOpen, ticketList,
   pendingTicketQuery, onSend, onClear, onOpenTicketPicker, onCloseTicketPicker,
-  onSelectTicket, onClearTicket, ctx, setCtx, expanded = false, onToggleExpanded,
+  onSelectTicket, onClearTicket, ctx, setCtx, audit, feedbackResult, onFeedback,
+  expanded = false, onToggleExpanded,
 }) {
   const [input, setInput] = useState('');
   const [imageDraft, setImageDraft] = useState(null);
@@ -76,6 +77,8 @@ export default function ChatPane({
 
   const ticketId = currentTicket?.ticket_id || ctx.applyId;
   const ticketDisplay = ticketId ? ticketLabel(currentTicket || { ticket_id: ticketId }) : null;
+  const lastAssistantIndex = findLastAssistantIndex(messages);
+  const canFeedback = Boolean(audit?.auditId && audit.auditId !== '-');
 
   return (
     <section className={`chat-pane${expanded ? ' is-expanded' : ''}`}>
@@ -127,7 +130,6 @@ export default function ChatPane({
       <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
-            <span className="message-meta">{m.meta}</span>
             {String(m.content || '').trim() && (
               <div className="message-content">{m.content}</div>
             )}
@@ -154,6 +156,19 @@ export default function ChatPane({
                     <code>{escapeHtml(t.ticket_id || '-')} · {escapeHtml(t.node_name || t.current_node || t.status || '-')} · {escapeHtml(t.updated_at || '-')}</code>
                   </button>
                 ))}
+              </div>
+            )}
+            {m.role === 'assistant' && i === lastAssistantIndex && (
+              <div className="message-feedback" aria-label="回答反馈">
+                <button type="button" onClick={() => onFeedback?.('up')} disabled={!canFeedback}>
+                  <ThumbsUp size={14} />
+                  有帮助
+                </button>
+                <button type="button" onClick={() => onFeedback?.('down')} disabled={!canFeedback}>
+                  <ThumbsDown size={14} />
+                  需改进
+                </button>
+                {feedbackResult && <span>{feedbackResult}</span>}
               </div>
             )}
           </article>
@@ -212,6 +227,13 @@ export default function ChatPane({
       </form>
     </section>
   );
+}
+
+function findLastAssistantIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'assistant') return index;
+  }
+  return -1;
 }
 
 function formatBytes(value) {

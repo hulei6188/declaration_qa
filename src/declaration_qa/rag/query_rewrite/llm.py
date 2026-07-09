@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.observability.langfuse import invoke_with_langfuse
-from declaration_qa.rag.query_rewrite.normalization import normalize_question_resolution, query_rewrite_from_payloads
+from declaration_qa.rag.query_rewrite.normalization import normalize_stage1_rewrite, query_rewrite_from_payloads
 from declaration_qa.rag.query_rewrite.prompts import build_two_stage_query_rewrite_prompt
 from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
-from declaration_qa.rag.query_rewrite.schema import QueryRewrite, QuestionResolution
+from declaration_qa.rag.query_rewrite.schema import QueryRewrite, QueryRewriteStage1
 from declaration_qa.rag.router import parse_json_object
 
 
@@ -21,7 +21,7 @@ class LLMTwoStageQueryRewriter:
         self.llm = llm
         self.fallback_rewriter = fallback_rewriter or RuleTwoStageQueryRewriter()
 
-    def resolve(self, state: dict[str, Any]) -> QuestionResolution:
+    def resolve(self, state: dict[str, Any]) -> QueryRewriteStage1:
         """第一阶段：调用 LLM 完成问题消解、拆分和 query 草稿生成。"""
         try:
             response = invoke_with_langfuse(
@@ -31,13 +31,13 @@ class LLMTwoStageQueryRewriter:
                 run_name="query_rewrite.stage1",
             )
             payload = parse_json_object(str(getattr(response, "content", response)))
-            resolution = normalize_question_resolution(payload, state, provider=self.name)
+            resolution = normalize_stage1_rewrite(payload, state, provider=self.name)
             if not resolution.questions:
                 raise ValueError("empty_two_stage_resolution")
             return resolution
         except Exception as exc:
             fallback = self.fallback_rewriter.resolve(state)
-            return QuestionResolution(
+            return QueryRewriteStage1(
                 is_multi_question=fallback.is_multi_question,
                 questions=fallback.questions,
                 reason=f"llm_two_stage_fallback:{type(exc).__name__}:{fallback.reason}",

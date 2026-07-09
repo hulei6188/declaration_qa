@@ -101,7 +101,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
             multi_question=bool(final_state.get("multi_question")),
-            question_resolution=final_state.get("question_resolution") or {},
+            query_rewrite_stage1=final_state.get("query_rewrite.stage1") or {},
             sub_tasks=final_state.get("sub_tasks") or [],
             need_ticket_selection=bool(final_state.get("need_ticket_selection")),
             ticket_selection_reason=str(final_state.get("ticket_selection_reason") or ""),
@@ -226,7 +226,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "sub_intent": "",
             "route": "",
             "route_decision": {},
-            "question_resolution": {},
+            "query_rewrite.stage1": {},
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
             "retrieval_plan": {},
@@ -305,14 +305,14 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("image_only_prepare", self.image_only_prepare)
-        builder.add_node("question_resolution", self.question_resolution)
+        builder.add_node("query_rewrite.stage1", self.query_rewrite_stage1)
         builder.add_node("multi_question_collect", self.multi_question_collect)
         builder.add_node("prepare_task", self.prepare_task)
         builder.add_node("ticket_list_query", self.ticket_list_query)
         builder.add_node("ticket_selection", self.ticket_selection)
         builder.add_node("ticket_detail_query", self.ticket_detail_query)
         builder.add_node("ticket_context_build", self.ticket_context_build)
-        builder.add_node("query_rewrite", self.query_rewrite)
+        builder.add_node("query_rewrite.stage2", self.query_rewrite)
         builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
         builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
         builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
@@ -327,11 +327,11 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_conditional_edges(
             "query_preprocess",
             lambda state: "image" if is_image_only_query(state) else "text",
-            {"image": "image_only_prepare", "text": "question_resolution"},
+            {"image": "image_only_prepare", "text": "query_rewrite.stage1"},
         )
         builder.add_edge("image_only_prepare", "knowledge_filter_build")
         builder.add_conditional_edges(
-            "question_resolution",
+            "query_rewrite.stage1",
             lambda state: "multi" if state.get("multi_question") else "single",
             {"multi": "multi_question_collect", "single": "prepare_task"},
         )
@@ -369,10 +369,10 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_conditional_edges(
             "knowledge_filter_build",
             lambda state: "image" if is_image_only_query(state) else "text",
-            {"image": "hybrid_retrieve", "text": "query_rewrite"},
+            {"image": "hybrid_retrieve", "text": "query_rewrite.stage2"},
         )
         builder.add_conditional_edges(
-            "query_rewrite",
+            "query_rewrite.stage2",
             lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
             {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
         )
@@ -398,7 +398,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_node("ticket_detail_query", self.ticket_detail_query)
         builder.add_node("ticket_context_build", self.ticket_context_build)
         builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
-        builder.add_node("query_rewrite", self.query_rewrite)
+        builder.add_node("query_rewrite.stage2", self.query_rewrite)
         builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
         builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
         builder.add_node("evidence_check", self.evidence_check)
@@ -431,9 +431,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
             {"ok": "ticket_context_build", "missing": "refuse_or_human"},
         )
         builder.add_edge("ticket_context_build", "knowledge_filter_build")
-        builder.add_edge("knowledge_filter_build", "query_rewrite")
+        builder.add_edge("knowledge_filter_build", "query_rewrite.stage2")
         builder.add_conditional_edges(
-            "query_rewrite",
+            "query_rewrite.stage2",
             lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
             {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
         )

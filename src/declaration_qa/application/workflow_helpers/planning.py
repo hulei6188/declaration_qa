@@ -10,7 +10,7 @@ from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
 
 def apply_planned_question(state: dict[str, Any], question: dict[str, Any]) -> None:
-    """将 resolver 理解后的单问题写回状态，保留原始问题在 question_resolution 中。"""
+    """将两阶段改写后的单问题写回状态，保留原始问题在 query_rewrite.stage1 中。"""
     planned_query = normalize_text(str(question.get("original_query") or question.get("query") or ""))
     if not planned_query:
         return

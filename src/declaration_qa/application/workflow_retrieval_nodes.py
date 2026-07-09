@@ -74,7 +74,7 @@ class WorkflowRetrievalNodes:
         """生成多路检索 query。"""
         next_state = dict(state)
         with observation(
-            "workflow.query_rewrite",
+            "workflow.query_rewrite.stage2",
             input={
                 "query": next_state.get("retrieval_query")
                 or next_state.get("normalized_query")
@@ -113,7 +113,7 @@ class WorkflowRetrievalNodes:
             )
         add_event(
             next_state,
-            "query_rewrite",
+            "query_rewrite.stage2",
             {
                 "count": len(next_state["retrieval_queries"]),
                 "ticket_fact_type": payload.get("ticket_fact_type"),

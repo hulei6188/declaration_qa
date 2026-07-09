@@ -13,7 +13,7 @@ from declaration_qa.rag.query_rewrite.helpers import (
     split_questions,
 )
 from declaration_qa.rag.query_rewrite.normalization import query_rewrite_from_payloads
-from declaration_qa.rag.query_rewrite.schema import DEFAULT_RETRIEVAL_TOP_K, MAX_RETRIEVAL_QUERY_COUNT, QueryRewrite, QuestionResolution
+from declaration_qa.rag.query_rewrite.schema import DEFAULT_RETRIEVAL_TOP_K, MAX_RETRIEVAL_QUERY_COUNT, QueryRewrite, QueryRewriteStage1
 
 
 class RuleTwoStageQueryRewriter:
@@ -21,7 +21,7 @@ class RuleTwoStageQueryRewriter:
 
     name = "rule_two_stage"
 
-    def resolve(self, state: dict[str, Any]) -> QuestionResolution:
+    def resolve(self, state: dict[str, Any]) -> QueryRewriteStage1:
         """第一阶段：拆问题、消解检索文本，并生成 query 草稿。"""
         query = normalize_text(str(state.get("normalized_query") or state.get("query") or ""))
         parts = split_questions(query)
@@ -33,7 +33,7 @@ class RuleTwoStageQueryRewriter:
             item["query_rewrite_provider"] = self.name
             item["query_rewrite_reason"] = "rule_two_stage"
             questions.append(item)
-        return QuestionResolution(
+        return QueryRewriteStage1(
             is_multi_question=len(questions) > 1,
             questions=questions,
             reason="rule_two_stage_split" if len(questions) > 1 else "single_question",
