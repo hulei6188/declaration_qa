@@ -78,11 +78,16 @@ def parse_attachment_bullet(line: str) -> tuple[str, str, str] | None:
     if not match:
         return None
     name = match.group(1).strip()
-    url = match.group(2).strip()
+    url = normalize_attachment_url(match.group(2))
     extension = attachment_extension(name, url)
     if not extension:
         return None
     return name, url, extension
+
+
+def normalize_attachment_url(value: str) -> str:
+    """还原 Markdown 为 URL 中标点加入的反斜杠转义。"""
+    return re.sub(r"\\([_()\[\]])", r"\1", str(value or "").strip())
 
 
 def attachment_extension(name: str, url: str) -> str:

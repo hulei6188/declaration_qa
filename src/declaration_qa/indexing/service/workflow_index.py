@@ -76,7 +76,7 @@ def index_document_for_workflow(
     )
     if hasattr(workflow.audit_store, "persist_document"):
         workflow.audit_store.persist_document(final_document, final_chunks)
-    chunks_indexed = workflow.rag_engine.index_chunks(final_document, final_chunks)
+    chunks_indexed = workflow.rag_engine.promote_indexed_chunks(final_document, final_chunks)
     return chunks_indexed
 
 

@@ -38,6 +38,8 @@ def test_parse_item_28_markdown_attachments_with_section_context():
     flow_ref = next(ref for ref in refs if ref.name == "1.png")
     assert flow_ref.role == "flowchart"
     assert flow_ref.section_title == "办理流程"
+    assert "\\_" not in flow_ref.url
+    assert "wKhoJmCU_oSAPG8PABGK" in flow_ref.url
 
 
 def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_blocking(monkeypatch, tmp_path):

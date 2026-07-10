@@ -88,6 +88,7 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_RERANK_SCORE_THRESHOLD`
 - `DECLARATION_QA_INDEX_QUEUE_BACKEND`: `inline` 或 `rq`。
 - `DECLARATION_QA_ATTACHMENT_INDEXING_ENABLED`: 是否解析附件并生成派生 chunk。
+- `DECLARATION_QA_ATTACHMENT_MAX_PER_DOCUMENT`: 单个办事指南最多解析的附件数，默认 `30`。
 - `DECLARATION_QA_DOCUMENT_PARSER_PROVIDER`: 文档解析器，支持 `auto`、`docling`、`marker`、`llamaparse`、`native`。
 - `DECLARATION_QA_DOCUMENT_PARSER_ORDER`: `auto` 模式下的尝试顺序，默认 `docling,marker,native`。
 - `DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED`: 指定外部解析器失败时是否回退到 `native`。

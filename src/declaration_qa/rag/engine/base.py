@@ -65,6 +65,10 @@ class RAGEngine(Protocol):
         """索引预先计算好的片段。"""
         ...
 
+    def promote_indexed_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
+        """将已完成暂存索引的片段切换为可见版本。"""
+        ...
+
     def delete_document(self, doc_id: str) -> None:
         """从索引中删除文档。"""
         ...
@@ -167,6 +171,13 @@ class BaseRAGEngine:
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         """返回文档片段。"""
         return split_document(document)
+
+    def _clear_cache(self) -> None:
+        """清理检索缓存；缓存故障不能阻断知识索引发布。"""
+        try:
+            self.cache_store.clear()
+        except Exception:
+            return
 
     def retrieve(
         self,

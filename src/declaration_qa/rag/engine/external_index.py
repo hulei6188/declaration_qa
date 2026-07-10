@@ -38,6 +38,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         if vector_index is None or keyword_index is None or chunk_store is None:
             raise ValueError("ExternalIndexRAGEngine requires vector_index, keyword_index and chunk_store")
         self._documents: dict[str, KnowledgeDocument] = {}
+        self._staged_vectors: dict[str, dict[str, list[float]]] = {}
         super().__init__(
             cache_store=cache_store,
             vector_index=vector_index,
@@ -62,22 +63,43 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
     def index_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
         """将片段写入外部向量和关键词索引。"""
         self.delete_document(document.id)
-        self._documents[document.id] = document
         child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
         vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
-        for chunk, vector in zip(child_chunks, vectors):
-            self.vector_index.upsert(chunk, vector)
+        vectors_by_chunk_id = {chunk.id: vector for chunk, vector in zip(child_chunks, vectors)}
+        self._staged_vectors[document.id] = vectors_by_chunk_id
+        return self._write_indexed_chunks(document, chunks, vectors_by_chunk_id)
+
+    def promote_indexed_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
+        """复用暂存阶段已计算的向量，更新发布版本的可见性元数据。"""
+        vectors_by_chunk_id = self._staged_vectors.get(document.id)
+        child_ids = {chunk.id for chunk in chunks if chunk.chunk_type == "child"}
+        if vectors_by_chunk_id is None or set(vectors_by_chunk_id) != child_ids:
+            raise RuntimeError("Staged vectors are unavailable for knowledge revision promotion")
+        return self._write_indexed_chunks(document, chunks, vectors_by_chunk_id)
+
+    def _write_indexed_chunks(
+        self,
+        document: KnowledgeDocument,
+        chunks: list[KnowledgeChunk],
+        vectors_by_chunk_id: dict[str, list[float]],
+    ) -> int:
+        """使用已计算向量写入外部索引。"""
+        self._documents[document.id] = document
+        for chunk in chunks:
+            if chunk.chunk_type == "child":
+                self.vector_index.upsert(chunk, vectors_by_chunk_id[chunk.id])
         self.keyword_index.upsert_chunks(chunks)
         self._flush_vector_index()
-        self.cache_store.clear()
+        self._clear_cache()
         return len(chunks)
 
     def delete_document(self, doc_id: str) -> None:
         """从外部索引中删除单个文档。"""
         self._documents.pop(doc_id, None)
+        self._staged_vectors.pop(doc_id, None)
         self.vector_index.delete_by_doc(doc_id)
         self.keyword_index.delete_by_doc(doc_id)
-        self.cache_store.clear()
+        self._clear_cache()
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
         """根据片段重建外部向量和关键词索引。"""
@@ -90,13 +112,13 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             self.vector_index.upsert(chunk, vector)
         self.keyword_index.upsert_chunks(chunks)
         self._flush_vector_index()
-        self.cache_store.clear()
+        self._clear_cache()
         return len(chunks)
 
     def load_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
         """加载文档元数据，不回表片段正文。"""
         self._documents = {document.id: document for document in documents}
-        self.cache_store.clear()
+        self._clear_cache()
         return len(chunks)
 
     def _candidate_source(self) -> str:

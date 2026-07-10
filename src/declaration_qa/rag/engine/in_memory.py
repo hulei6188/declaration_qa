@@ -74,7 +74,23 @@ class InMemoryRAGEngine(BaseRAGEngine):
         if self.keyword_index:
             self.keyword_index.upsert_chunks(chunks)
         self._flush_vector_index()
-        self.cache_store.clear()
+        self._clear_cache()
+        return len(chunks)
+
+    def promote_indexed_chunks(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> int:
+        """复用暂存阶段的内存向量更新发布状态。"""
+        self._documents[document.id] = document
+        for chunk in chunks:
+            self._chunks[chunk.id] = chunk
+            if chunk.chunk_type == "child":
+                vector = self._vectors.get(chunk.embedding_id)
+                if vector is None:
+                    raise RuntimeError("Staged vector is unavailable for knowledge revision promotion")
+                self.vector_index.upsert(chunk, vector)
+        if self.keyword_index:
+            self.keyword_index.upsert_chunks(chunks)
+        self._flush_vector_index()
+        self._clear_cache()
         return len(chunks)
 
     def delete_document(self, doc_id: str) -> None:
@@ -87,7 +103,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         self.vector_index.delete_by_doc(doc_id)
         if self.keyword_index:
             self.keyword_index.delete_by_doc(doc_id)
-        self.cache_store.clear()
+        self._clear_cache()
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
         """根据片段重建本地内存、向量和关键词索引。"""
