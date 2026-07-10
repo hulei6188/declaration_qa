@@ -2,6 +2,7 @@ import sys
 import types
 
 from declaration_qa.core.config import DeclarationQASettings
+from declaration_qa.indexing.attachments.extractor import attachment_parser_metadata
 from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser
 from declaration_qa.indexing.document_parsing.factory import build_document_parser
 
@@ -63,3 +64,18 @@ def test_index_timeout_is_longer_than_docling_timeout():
     assert settings.docling_document_timeout_seconds == 3600
     assert settings.index_job_timeout_seconds == 7200
     assert settings.index_job_timeout_seconds > settings.docling_document_timeout_seconds
+
+
+def test_attachment_metadata_drops_docling_chunk_specs():
+    metadata = attachment_parser_metadata(
+        {
+            "document_parser": "docling",
+            "docling_chunk_count": 2,
+            "docling_chunk_specs": [{"content": "large internal chunk payload"}],
+        }
+    )
+
+    assert metadata == {
+        "document_parser": "docling",
+        "docling_chunk_count": 2,
+    }

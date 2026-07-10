@@ -58,7 +58,7 @@ def extract_attachment(
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
-        metadata.update(parsed.metadata)
+        metadata.update(attachment_parser_metadata(parsed.metadata))
         assets, asset_metadata = safe_extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
@@ -217,6 +217,13 @@ def failed_attachment(downloaded: DownloadedAttachment, *, reason: str, metadata
         error_reason=reason,
         metadata={"extraction_error": reason, **(metadata or {})},
     )
+
+
+def attachment_parser_metadata(value: dict[str, object] | None) -> dict[str, object]:
+    """移除只供解析阶段使用、不可复制到每个附件 chunk 的大型字段。"""
+    metadata = dict(value or {})
+    metadata.pop("docling_chunk_specs", None)
+    return metadata
 
 
 def analyze_extracted_attachment(*, text: str, extension: str, role: str) -> dict[str, object]:
