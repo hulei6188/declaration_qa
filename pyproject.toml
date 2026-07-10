@@ -8,13 +8,29 @@ version = "0.1.0"
 description = "Declaration QA workflow service"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi==0.115.6",
+    "starlette==0.41.3",
+    "uvicorn==0.34.0",
+    "python-multipart==0.0.20",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.14.1",
+    "eval_type_backport==0.2.2",
+    "SQLAlchemy==2.0.36",
+    "psycopg[binary]==3.3.4",
+    "python-jose[cryptography]==3.3.0",
+    "pymilvus==2.6.15",
+    "redis==5.2.1",
+    "rq==2.1.0",
+    "requests==2.34.2",
+    "elasticsearch==8.19.2",
+    "langchain-core==1.4.6",
+    "langchain-openai==1.2.1",
+    "langgraph==1.2.4",
     "dashscope",
     "langfuse>=4.0.0",
     "pymupdf>=1.24",
-    "pypdf>=4.2",
+    "pypdf==5.1.0",
     "python-calamine>=0.4.0",
-    "redis>=5.0.0",
-    "requests>=2.31",
 ]
 
 [project.optional-dependencies]

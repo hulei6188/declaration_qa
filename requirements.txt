@@ -19,5 +19,12 @@ elasticsearch==8.19.2
 langchain-core==1.4.6
 langchain-openai==1.2.1
 langgraph==1.2.4
+dashscope
 langfuse>=4.0.0
+pymupdf>=1.24
 pypdf==5.1.0
+python-calamine>=0.4.0
+
+docling>=2.0.0
+llama-cloud-services>=0.6.0
+marker-pdf>=1.0.0
