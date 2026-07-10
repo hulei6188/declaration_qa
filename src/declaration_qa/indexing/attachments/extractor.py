@@ -21,6 +21,7 @@ def extract_attachment(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
+    docling_document_timeout_seconds: int = 3600,
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -40,6 +41,7 @@ def extract_attachment(
             llamaparse_api_key=llamaparse_api_key,
             llamaparse_base_url=llamaparse_base_url,
             llamaparse_result_type=llamaparse_result_type,
+            docling_document_timeout_seconds=docling_document_timeout_seconds,
         )
         text = parsed.text
         quality_error = attachment_text_quality_error(text, ref.extension)

@@ -53,6 +53,7 @@ def process_document_index(
             llamaparse_api_key=settings.llamaparse_api_key,
             llamaparse_base_url=settings.llamaparse_base_url,
             llamaparse_result_type=settings.llamaparse_result_type,
+            docling_document_timeout_seconds=settings.docling_document_timeout_seconds,
         )
         content = parsed.text
         filename = parsed.filename

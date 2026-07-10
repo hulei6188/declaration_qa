@@ -30,6 +30,10 @@ class DoclingDocumentParser:
 
     name = "docling"
 
+    def __init__(self, *, document_timeout_seconds: int = 3600) -> None:
+        """初始化 Docling，并设置单个 PDF 的处理时限。"""
+        self.document_timeout_seconds = max(1, int(document_timeout_seconds or 3600))
+
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
         """调用 Docling 并转换为标准解析结果。"""
         try:
@@ -39,7 +43,7 @@ class DoclingDocumentParser:
 
         with temp_document_file(filename=filename, data=data) as path:
             try:
-                result = DocumentConverter().convert(str(path))
+                result = self._document_converter(filename=filename, content_type=content_type).convert(str(path))
                 document = getattr(result, "document", result)
                 markdown = export_document_markdown(document)
                 structured_payload = object_to_plain_data(document)
@@ -60,6 +64,24 @@ class DoclingDocumentParser:
                 "docling_chunk_specs": chunk_specs,
                 **metadata_summary(structured_payload),
             },
+        )
+
+    def _document_converter(self, *, filename: str, content_type: str):
+        """为 PDF 创建带显式超时的转换器，其他格式使用默认转换器。"""
+        from docling.document_converter import DocumentConverter
+
+        suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+        if suffix != "pdf" and str(content_type or "").lower() != "application/pdf":
+            return DocumentConverter()
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import PdfFormatOption
+
+        pipeline_options = PdfPipelineOptions(document_timeout=float(self.document_timeout_seconds))
+        return DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            }
         )
 
 

@@ -90,6 +90,7 @@ class DeclarationQASettings(BaseSettings):
     document_parser_provider: str = Field(default="auto", alias="DECLARATION_QA_DOCUMENT_PARSER_PROVIDER")
     document_parser_order: str = Field(default="docling,marker,native", alias="DECLARATION_QA_DOCUMENT_PARSER_ORDER")
     document_parser_fallback_enabled: bool = Field(default=True, alias="DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED")
+    docling_document_timeout_seconds: int = Field(default=3600, alias="DECLARATION_QA_DOCLING_DOCUMENT_TIMEOUT_SECONDS")
     llamaparse_api_key: str = Field(default="", alias="DECLARATION_QA_LLAMAPARSE_API_KEY")
     llamaparse_base_url: str = Field(default="", alias="DECLARATION_QA_LLAMAPARSE_BASE_URL")
     llamaparse_result_type: str = Field(default="markdown", alias="DECLARATION_QA_LLAMAPARSE_RESULT_TYPE")
@@ -107,7 +108,7 @@ class DeclarationQASettings(BaseSettings):
 
     index_queue_backend: str = Field(default="inline", alias="DECLARATION_QA_INDEX_QUEUE_BACKEND")
     index_queue_name: str = Field(default="declaration-qa-index", alias="DECLARATION_QA_INDEX_QUEUE_NAME")
-    index_job_timeout_seconds: int = Field(default=1800, alias="DECLARATION_QA_INDEX_JOB_TIMEOUT_SECONDS")
+    index_job_timeout_seconds: int = Field(default=7200, alias="DECLARATION_QA_INDEX_JOB_TIMEOUT_SECONDS")
     upload_dir: str = Field(default="data/declaration_qa/uploads", alias="DECLARATION_QA_UPLOAD_DIR")
     chat_image_dir: str = Field(default="data/declaration_qa/query_images", alias="DECLARATION_QA_CHAT_IMAGE_DIR")
     chat_image_max_bytes: int = Field(default=8 * 1024 * 1024, alias="DECLARATION_QA_CHAT_IMAGE_MAX_BYTES")

@@ -113,6 +113,7 @@ def build_attachment_chunks_for_document(
                     llamaparse_api_key=settings.llamaparse_api_key,
                     llamaparse_base_url=settings.llamaparse_base_url,
                     llamaparse_result_type=settings.llamaparse_result_type,
+                    docling_document_timeout_seconds=settings.docling_document_timeout_seconds,
                     pdf_ocr_fallback_enabled=bool(settings.attachment_pdf_ocr_fallback_enabled),
                     pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
                     pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),

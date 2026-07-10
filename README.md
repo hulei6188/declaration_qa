@@ -91,6 +91,8 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_DOCUMENT_PARSER_PROVIDER`: 文档解析器，支持 `auto`、`docling`、`marker`、`llamaparse`、`native`。
 - `DECLARATION_QA_DOCUMENT_PARSER_ORDER`: `auto` 模式下的尝试顺序，默认 `docling,marker,native`。
 - `DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED`: 指定外部解析器失败时是否回退到 `native`。
+- `DECLARATION_QA_DOCLING_DOCUMENT_TIMEOUT_SECONDS`: 单个 Docling PDF 的处理时限，默认 `3600` 秒。
+- `DECLARATION_QA_INDEX_JOB_TIMEOUT_SECONDS`: RQ 整体索引任务时限，默认 `7200` 秒，必须大于单文档解析时限。
 - `DECLARATION_QA_LLAMAPARSE_API_KEY`: 使用 `llamaparse` 时需要配置。
 - `DECLARATION_QA_CHAT_IMAGE_DIR`: 聊天图片查询的临时落盘目录。
 

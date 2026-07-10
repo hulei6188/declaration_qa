@@ -59,6 +59,7 @@ def parse_document_bytes(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
+    docling_document_timeout_seconds: int = 3600,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
     parser = build_document_parser(
@@ -69,6 +70,7 @@ def parse_document_bytes(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
+        docling_document_timeout_seconds=docling_document_timeout_seconds,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
 
@@ -82,6 +84,7 @@ def build_document_parser(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
+    docling_document_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
     normalized_provider = normalize_provider(provider)
@@ -95,6 +98,7 @@ def build_document_parser(
                     llamaparse_api_key=llamaparse_api_key,
                     llamaparse_base_url=llamaparse_base_url,
                     llamaparse_result_type=llamaparse_result_type,
+                    docling_document_timeout_seconds=docling_document_timeout_seconds,
                 )
                 for name in names
             ]
@@ -105,6 +109,7 @@ def build_document_parser(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
+        docling_document_timeout_seconds=docling_document_timeout_seconds,
     )
     if normalized_provider == "native" or not fallback_enabled:
         return parser
@@ -118,11 +123,12 @@ def parser_by_name(
     llamaparse_api_key: str,
     llamaparse_base_url: str,
     llamaparse_result_type: str,
+    docling_document_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据名称返回解析器实例。"""
     normalized = normalize_provider(name)
     if normalized == "docling":
-        return DoclingDocumentParser()
+        return DoclingDocumentParser(document_timeout_seconds=docling_document_timeout_seconds)
     if normalized == "marker":
         return MarkerDocumentParser()
     if normalized == "llamaparse":
