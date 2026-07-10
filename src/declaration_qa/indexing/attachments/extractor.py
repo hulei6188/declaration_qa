@@ -22,6 +22,11 @@ def extract_attachment(
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
     docling_document_timeout_seconds: int = 3600,
+    docling_accelerator_device: str = "auto",
+    docling_accelerator_num_threads: int = 4,
+    docling_layout_batch_size: int = 4,
+    docling_table_batch_size: int = 4,
+    docling_ocr_batch_size: int = 4,
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -42,6 +47,11 @@ def extract_attachment(
             llamaparse_base_url=llamaparse_base_url,
             llamaparse_result_type=llamaparse_result_type,
             docling_document_timeout_seconds=docling_document_timeout_seconds,
+            docling_accelerator_device=docling_accelerator_device,
+            docling_accelerator_num_threads=docling_accelerator_num_threads,
+            docling_layout_batch_size=docling_layout_batch_size,
+            docling_table_batch_size=docling_table_batch_size,
+            docling_ocr_batch_size=docling_ocr_batch_size,
         )
         text = parsed.text
         quality_error = attachment_text_quality_error(text, ref.extension)

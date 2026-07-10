@@ -54,6 +54,11 @@ def process_document_index(
             llamaparse_base_url=settings.llamaparse_base_url,
             llamaparse_result_type=settings.llamaparse_result_type,
             docling_document_timeout_seconds=settings.docling_document_timeout_seconds,
+            docling_accelerator_device=settings.docling_accelerator_device,
+            docling_accelerator_num_threads=settings.docling_accelerator_num_threads,
+            docling_layout_batch_size=settings.docling_layout_batch_size,
+            docling_table_batch_size=settings.docling_table_batch_size,
+            docling_ocr_batch_size=settings.docling_ocr_batch_size,
         )
         content = parsed.text
         filename = parsed.filename

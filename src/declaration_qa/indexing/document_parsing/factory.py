@@ -60,6 +60,11 @@ def parse_document_bytes(
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
     docling_document_timeout_seconds: int = 3600,
+    docling_accelerator_device: str = "auto",
+    docling_accelerator_num_threads: int = 4,
+    docling_layout_batch_size: int = 4,
+    docling_table_batch_size: int = 4,
+    docling_ocr_batch_size: int = 4,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
     parser = build_document_parser(
@@ -71,6 +76,11 @@ def parse_document_bytes(
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
         docling_document_timeout_seconds=docling_document_timeout_seconds,
+        docling_accelerator_device=docling_accelerator_device,
+        docling_accelerator_num_threads=docling_accelerator_num_threads,
+        docling_layout_batch_size=docling_layout_batch_size,
+        docling_table_batch_size=docling_table_batch_size,
+        docling_ocr_batch_size=docling_ocr_batch_size,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
 
@@ -85,6 +95,11 @@ def build_document_parser(
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
     docling_document_timeout_seconds: int = 3600,
+    docling_accelerator_device: str = "auto",
+    docling_accelerator_num_threads: int = 4,
+    docling_layout_batch_size: int = 4,
+    docling_table_batch_size: int = 4,
+    docling_ocr_batch_size: int = 4,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
     normalized_provider = normalize_provider(provider)
@@ -99,6 +114,11 @@ def build_document_parser(
                     llamaparse_base_url=llamaparse_base_url,
                     llamaparse_result_type=llamaparse_result_type,
                     docling_document_timeout_seconds=docling_document_timeout_seconds,
+                    docling_accelerator_device=docling_accelerator_device,
+                    docling_accelerator_num_threads=docling_accelerator_num_threads,
+                    docling_layout_batch_size=docling_layout_batch_size,
+                    docling_table_batch_size=docling_table_batch_size,
+                    docling_ocr_batch_size=docling_ocr_batch_size,
                 )
                 for name in names
             ]
@@ -110,6 +130,11 @@ def build_document_parser(
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
         docling_document_timeout_seconds=docling_document_timeout_seconds,
+        docling_accelerator_device=docling_accelerator_device,
+        docling_accelerator_num_threads=docling_accelerator_num_threads,
+        docling_layout_batch_size=docling_layout_batch_size,
+        docling_table_batch_size=docling_table_batch_size,
+        docling_ocr_batch_size=docling_ocr_batch_size,
     )
     if normalized_provider == "native" or not fallback_enabled:
         return parser
@@ -124,11 +149,23 @@ def parser_by_name(
     llamaparse_base_url: str,
     llamaparse_result_type: str,
     docling_document_timeout_seconds: int = 3600,
+    docling_accelerator_device: str = "auto",
+    docling_accelerator_num_threads: int = 4,
+    docling_layout_batch_size: int = 4,
+    docling_table_batch_size: int = 4,
+    docling_ocr_batch_size: int = 4,
 ) -> DocumentParser:
     """根据名称返回解析器实例。"""
     normalized = normalize_provider(name)
     if normalized == "docling":
-        return DoclingDocumentParser(document_timeout_seconds=docling_document_timeout_seconds)
+        return DoclingDocumentParser(
+            document_timeout_seconds=docling_document_timeout_seconds,
+            accelerator_device=docling_accelerator_device,
+            accelerator_num_threads=docling_accelerator_num_threads,
+            layout_batch_size=docling_layout_batch_size,
+            table_batch_size=docling_table_batch_size,
+            ocr_batch_size=docling_ocr_batch_size,
+        )
     if normalized == "marker":
         return MarkerDocumentParser()
     if normalized == "llamaparse":

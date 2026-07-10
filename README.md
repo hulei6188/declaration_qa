@@ -1,4 +1,4 @@
-# Declaration QA
+0# Declaration QA
 
 政务申报辅助问答系统，用来回答办事指南、申请材料、办理流程、办理条件、办理时限、咨询电话，以及工单进度、驳回原因、补正建议等问题。
 
@@ -93,6 +93,9 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_DOCUMENT_PARSER_ORDER`: `auto` 模式下的尝试顺序，默认 `docling,marker,native`。
 - `DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED`: 指定外部解析器失败时是否回退到 `native`。
 - `DECLARATION_QA_DOCLING_DOCUMENT_TIMEOUT_SECONDS`: 单个 Docling PDF 的处理时限，默认 `3600` 秒。
+- `DECLARATION_QA_DOCLING_ACCELERATOR_DEVICE`: Docling 加速设备，支持 `auto`、`cpu`、`cuda`、`mps`、`xpu`。
+- `DECLARATION_QA_DOCLING_ACCELERATOR_NUM_THREADS`: Docling CPU 线程数，默认 `4`。
+- `DECLARATION_QA_DOCLING_LAYOUT_BATCH_SIZE` / `DECLARATION_QA_DOCLING_TABLE_BATCH_SIZE` / `DECLARATION_QA_DOCLING_OCR_BATCH_SIZE`: Docling PDF pipeline 批大小，显存较小时建议从 `4` 或 `8` 起步。
 - `DECLARATION_QA_INDEX_JOB_TIMEOUT_SECONDS`: RQ 整体索引任务时限，默认 `7200` 秒，必须大于单文档解析时限。
 - `DECLARATION_QA_LLAMAPARSE_API_KEY`: 使用 `llamaparse` 时需要配置。
 - `DECLARATION_QA_CHAT_IMAGE_DIR`: 聊天图片查询的临时落盘目录。

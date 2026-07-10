@@ -30,9 +30,23 @@ class DoclingDocumentParser:
 
     name = "docling"
 
-    def __init__(self, *, document_timeout_seconds: int = 3600) -> None:
+    def __init__(
+        self,
+        *,
+        document_timeout_seconds: int = 3600,
+        accelerator_device: str = "auto",
+        accelerator_num_threads: int = 4,
+        layout_batch_size: int = 4,
+        table_batch_size: int = 4,
+        ocr_batch_size: int = 4,
+    ) -> None:
         """初始化 Docling，并设置单个 PDF 的处理时限。"""
         self.document_timeout_seconds = max(1, int(document_timeout_seconds or 3600))
+        self.accelerator_device = normalize_docling_accelerator_device(accelerator_device)
+        self.accelerator_num_threads = max(1, int(accelerator_num_threads or 4))
+        self.layout_batch_size = max(1, int(layout_batch_size or 4))
+        self.table_batch_size = max(1, int(table_batch_size or 4))
+        self.ocr_batch_size = max(1, int(ocr_batch_size or 4))
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
         """调用 Docling 并转换为标准解析结果。"""
@@ -67,21 +81,36 @@ class DoclingDocumentParser:
         )
 
     def _document_converter(self, *, filename: str, content_type: str):
-        """为 PDF 创建带显式超时的转换器，其他格式使用默认转换器。"""
+        """为 PDF/图片创建带显式 pipeline 配置的转换器，其他格式使用默认转换器。"""
         from docling.document_converter import DocumentConverter
 
         suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-        if suffix != "pdf" and str(content_type or "").lower() != "application/pdf":
+        normalized_content_type = str(content_type or "").lower()
+        is_pdf = suffix == "pdf" or normalized_content_type == "application/pdf"
+        is_image = suffix in {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"} or normalized_content_type.startswith("image/")
+        if not is_pdf and not is_image:
             return DocumentConverter()
         from docling.datamodel.base_models import InputFormat
-        from docling.datamodel.pipeline_options import PdfPipelineOptions
-        from docling.document_converter import PdfFormatOption
+        from docling.datamodel.pipeline_options import AcceleratorOptions, PdfPipelineOptions
+        from docling.document_converter import ImageFormatOption, PdfFormatOption
 
-        pipeline_options = PdfPipelineOptions(document_timeout=float(self.document_timeout_seconds))
+        pipeline_options = PdfPipelineOptions(
+            document_timeout=float(self.document_timeout_seconds),
+            accelerator_options=AcceleratorOptions(
+                num_threads=self.accelerator_num_threads,
+                device=self.accelerator_device,
+            ),
+            layout_batch_size=self.layout_batch_size,
+            table_batch_size=self.table_batch_size,
+            ocr_batch_size=self.ocr_batch_size,
+        )
+        format_options = {}
+        if is_pdf:
+            format_options[InputFormat.PDF] = PdfFormatOption(pipeline_options=pipeline_options)
+        if is_image:
+            format_options[InputFormat.IMAGE] = ImageFormatOption(pipeline_options=pipeline_options)
         return DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
-            }
+            format_options=format_options
         )
 
 
@@ -354,6 +383,21 @@ def docling_chunk_suffix(index: int, content: str, metadata: dict[str, Any]) -> 
 def normalize_docling_chunk_text(text: str) -> str:
     """清理 Docling chunk 序列化文本。"""
     return "\n".join(line.rstrip() for line in str(text or "").splitlines() if line.strip()).strip()
+
+
+def normalize_docling_accelerator_device(value: str) -> str:
+    """标准化 Docling accelerator device。"""
+    normalized = str(value or "auto").strip().lower().replace("_", "-")
+    aliases = {
+        "gpu": "cuda",
+        "nvidia": "cuda",
+        "default": "auto",
+        "": "auto",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"auto", "cpu", "cuda", "mps", "xpu"}:
+        return "auto"
+    return normalized
 
 
 def unique_ordered_strings(values) -> list[str]:
