@@ -59,6 +59,7 @@ class DeclarationQAState(TypedDict, total=False):
     evidence_ok: bool
     evidence_decision: dict[str, Any]
     refuse_reason: str | None
+    answer_generation_plan: dict[str, Any]
 
     answer: str
     refused: bool

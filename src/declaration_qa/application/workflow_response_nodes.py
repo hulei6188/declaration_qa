@@ -53,8 +53,11 @@ class WorkflowResponseNodes:
         next_state["short_term_context"] = build_short_term_context(next_state)
         short_term_metrics = (next_state.get("short_term_context") or {}).get("metrics") or {}
         long_term_metrics = long_term_context_metrics(next_state.get("long_term_context") or {})
+        generation_plan = answer_generation_plan(self.answer_generator, next_state)
+        next_state["answer_generation_plan"] = generation_plan
         add_event(next_state, "short_term_context", short_term_metrics)
         add_event(next_state, "long_term_context", long_term_metrics)
+        add_event(next_state, "answer_generation_routed", generation_plan)
         with observation(
             "workflow.answer_generation",
             input={
@@ -64,6 +67,7 @@ class WorkflowResponseNodes:
                 "multi_question": bool(next_state.get("multi_question")),
                 "short_term_context": short_term_metrics,
                 "long_term_context": long_term_metrics,
+                "generation_plan": generation_plan,
             },
             metadata=response_observation_metadata(next_state),
         ) as span:
@@ -93,6 +97,7 @@ class WorkflowResponseNodes:
             audit_payload["final_prompt"] = prompt
             audit_payload["short_term_context"] = next_state.get("short_term_context") or {}
             audit_payload["long_term_context"] = next_state.get("long_term_context") or {}
+            audit_payload["answer_generation_plan"] = generation_plan
             next_state["audit_payload"] = audit_payload
             span.update(
                 output=safe_value(
@@ -102,6 +107,7 @@ class WorkflowResponseNodes:
                         "streamed": streamed,
                         "short_term_context": short_term_metrics,
                         "long_term_context": long_term_metrics,
+                        "generation_plan": generation_plan,
                     }
                 )
             )
@@ -187,8 +193,25 @@ def response_observation_metadata(state: dict[str, object]) -> dict[str, object]
             "multi_question": bool(state.get("multi_question")),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "long_term_context": long_term_context_metrics(state.get("long_term_context") or {}),
+            "answer_generation_plan": state.get("answer_generation_plan") or {},
         }
     )
+
+
+def answer_generation_plan(answer_generator: object, state: dict[str, object]) -> dict[str, object]:
+    """获取回答生成器的文本或多模态路由计划。"""
+    planner = getattr(answer_generator, "generation_plan", None)
+    if not callable(planner):
+        return {"mode": "text", "model": getattr(answer_generator, "name", type(answer_generator).__name__)}
+    try:
+        plan = planner(state)
+    except Exception as exc:
+        return {
+            "mode": "text",
+            "model": getattr(answer_generator, "name", type(answer_generator).__name__),
+            "route_error": f"{type(exc).__name__}: {str(exc)[:160]}",
+        }
+    return plan if isinstance(plan, dict) else {"mode": "text"}
 
 
 def long_term_context_metrics(context: dict[str, object]) -> dict[str, object]:

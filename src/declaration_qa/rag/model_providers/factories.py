@@ -64,6 +64,12 @@ def build_answer_generator(settings: DeclarationQASettings):
             base_url=settings.openai_api_base,
             temperature=settings.llm_temperature,
             timeout_seconds=settings.external_request_timeout_seconds,
+            vl_enabled=settings.vl_answer_enabled,
+            vl_model=settings.vl_answer_model,
+            vl_max_evidence_images=settings.vl_answer_max_evidence_images,
+            vl_min_image_score=settings.vl_answer_min_image_score,
+            vl_max_image_bytes=settings.vl_answer_max_image_bytes,
+            allowed_image_dirs=[settings.chat_image_dir, settings.attachment_asset_dir],
         )
     if provider == "deterministic":
         return DeterministicAnswerGenerator()

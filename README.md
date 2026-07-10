@@ -76,6 +76,9 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_KEYWORD_BACKEND`: `memory` 或 `elasticsearch`。
 - `DECLARATION_QA_ELASTICSEARCH_URL` / `DECLARATION_QA_ELASTICSEARCH_INDEX`
 - `DECLARATION_QA_LLM_PROVIDER` / `DECLARATION_QA_LLM_MODEL`
+- `DECLARATION_QA_VL_ANSWER_ENABLED` / `DECLARATION_QA_VL_ANSWER_MODEL`: 有用户图片或高相关图片证据时启用 VL 回答生成。
+- `DECLARATION_QA_VL_ANSWER_MAX_EVIDENCE_IMAGES`: 单次回答最多发送给 VL 的知识库图片数，默认 `3`。
+- `DECLARATION_QA_VL_ANSWER_MIN_IMAGE_SCORE`: 图片证据进入回答模型的最低相关分，默认 `0.7`。
 - `DECLARATION_QA_QUERY_REWRITE_MODEL`
 - `DECLARATION_QA_EMBEDDING_PROVIDER` / `DECLARATION_QA_EMBEDDING_MODEL`
 - `DECLARATION_QA_EMBEDDING_DIMENSIONS`: 使用 `qwen3-vl-embedding` 时建议设为 `1024`。
@@ -230,7 +233,7 @@ ChatRequest
   不使用兜底文本做 QueryRewrite / BM25
 ```
 
-回答生成目前仍是文本模型：图片命中后不会把原图直接发给回答模型，而是把图片 chunk 中的 OCR、表格字段、视觉摘要等 `evidence_text` 交给模型。前端展示原图或页面缩略图作为可追溯证据。
+回答生成采用条件式多模态路由：纯文本证据继续使用 `DECLARATION_QA_LLM_MODEL`；存在用户上传图片或高相关图片证据时，使用 `DECLARATION_QA_VL_ANSWER_MODEL`。VL 输入包含用户原图、按 `asset_id` 去重后的 Top 3 知识库图片、完整文本证据、OCR 和视觉摘要。用户图片只用于理解查询对象，不能单独作为政策依据。
 
 ## API
 

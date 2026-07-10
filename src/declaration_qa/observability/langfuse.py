@@ -311,7 +311,7 @@ def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | 
     }
 
 
-def invoke_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
+def invoke_with_langfuse(llm: Any, prompt: Any, state: dict[str, Any], *, run_name: str) -> Any:
     """启用时通过 Langfuse 回调调用 LangChain LLM。"""
     config = langchain_config(state, run_name=run_name)
     if config:
@@ -319,7 +319,7 @@ def invoke_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_na
     return llm.invoke(prompt)
 
 
-def stream_with_langfuse(llm: Any, prompt: str, state: dict[str, Any], *, run_name: str) -> Any:
+def stream_with_langfuse(llm: Any, prompt: Any, state: dict[str, Any], *, run_name: str) -> Any:
     """启用时通过 Langfuse 回调流式调用 LangChain LLM。"""
     config = langchain_config(state, run_name=run_name)
     if config:
