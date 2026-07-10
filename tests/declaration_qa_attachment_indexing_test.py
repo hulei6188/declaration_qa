@@ -521,11 +521,26 @@ def test_docx_embedded_image_generates_visual_asset_chunk(tmp_path):
             assert content_type == "image/png"
             return "流程图图片文字"
 
-    extracted = extract_attachment(downloaded, ocr_client=FakeOcrClient(), asset_dir=tmp_path)
+    class FakeVisionSummaryClient:
+        model = "qwen3-vl-plus"
+
+        def summarize_image(self, *, filename, content_type, data, ocr_text):
+            assert filename == "image1.png"
+            assert ocr_text == "流程图图片文字"
+            return "这是一张取水许可办理流程图，包含受理、承办和决定节点。"
+
+    extracted = extract_attachment(
+        downloaded,
+        ocr_client=FakeOcrClient(),
+        vision_summary_client=FakeVisionSummaryClient(),
+        asset_dir=tmp_path,
+    )
 
     assert extracted.status == "success"
     assert len(extracted.assets) == 1
     assert extracted.assets[0].asset_kind == "docx_embedded_image"
+    assert extracted.assets[0].summary.startswith("这是一张取水许可办理流程图")
+    assert extracted.assets[0].metadata["visual_summary_status"] == "success"
     assert Path(extracted.assets[0].path).is_file()
 
     specs = build_attachment_chunk_specs([extracted], document_id="doc-media", document_metadata={})
@@ -534,6 +549,9 @@ def test_docx_embedded_image_generates_visual_asset_chunk(tmp_path):
     assert len(image_specs) == 1
     assert image_specs[0]["metadata"]["modality"] == "image"
     assert image_specs[0]["metadata"]["asset_url"].startswith("/api/declaration-qa/assets/")
+    assert image_specs[0]["metadata"]["visual_summary"].startswith("这是一张取水许可办理流程图")
+    assert "视觉摘要：" in image_specs[0]["content"]
+    assert "OCR文本：流程图图片文字" in image_specs[0]["content"]
     assert "流程图图片文字" in image_specs[0]["content"]
 
 

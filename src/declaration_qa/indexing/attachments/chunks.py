@@ -169,6 +169,8 @@ def build_attachment_asset_chunk_specs(
                     "thumbnail_url": asset_url(asset.asset_id, asset.path),
                     "asset_index": asset_index,
                     "asset_text": asset.text,
+                    "ocr_text": asset.text,
+                    "visual_summary": asset.summary,
                     "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
                     "extraction_method": extracted.metadata.get("extraction_method") or "native",
                     "indexable": True,
@@ -811,10 +813,12 @@ def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: Attach
         lines.append(f"关联材料：{ref.material_name}")
     if asset.page_no is not None:
         lines.append(f"页码：第{asset.page_no}页")
+    if asset.summary:
+        lines.append(f"视觉摘要：{asset.summary}")
     if asset.text:
-        lines.append(f"识别文本：{asset.text}")
-    else:
-        lines.append("识别文本：无")
+        lines.append(f"OCR文本：{asset.text}")
+    if not asset.summary and not asset.text:
+        lines.append("视觉内容：未提取到可用文本或摘要")
     lines.append(f"资产序号：{asset_index + 1}")
     return "\n".join(lines)
 

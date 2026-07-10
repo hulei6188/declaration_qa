@@ -3,6 +3,7 @@
 from declaration_qa.indexing.document_parsing import (
     DocumentParseError,
     HttpOcrClient,
+    HttpVisionSummaryClient,
     ParsedBlock,
     ParsedDocument,
     build_document_parser,
@@ -13,6 +14,7 @@ from declaration_qa.indexing.document_parsing import (
 __all__ = [
     "DocumentParseError",
     "HttpOcrClient",
+    "HttpVisionSummaryClient",
     "ParsedBlock",
     "ParsedDocument",
     "build_document_parser",

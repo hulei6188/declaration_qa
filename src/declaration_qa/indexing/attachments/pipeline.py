@@ -16,7 +16,7 @@ from declaration_qa.indexing.attachments.downloader import (
 from declaration_qa.indexing.attachments.extractor import extract_attachment
 from declaration_qa.indexing.attachments.models import ExtractedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
-from declaration_qa.indexing.documents import HttpOcrClient
+from declaration_qa.indexing.documents import HttpOcrClient, HttpVisionSummaryClient
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
 
 
@@ -69,6 +69,7 @@ def build_attachment_chunks_for_document(
         if settings.ocr_api_url
         else None
     )
+    vision_summary_client = build_vision_summary_client(settings)
     extracted_items: list[ExtractedAttachment] = []
     failures: list[dict[str, str]] = []
     seen_attachment_keys: set[tuple[str, str, str]] = set()
@@ -105,6 +106,7 @@ def build_attachment_chunks_for_document(
                 extracted = extract_attachment(
                     downloaded,
                     ocr_client=ocr_client,
+                    vision_summary_client=vision_summary_client,
                     parser_provider=settings.document_parser_provider,
                     parser_order=settings.document_parser_order,
                     parser_fallback_enabled=settings.document_parser_fallback_enabled,
@@ -122,6 +124,12 @@ def build_attachment_chunks_for_document(
                         "status": extracted.status,
                         "text_length": len(extracted.text),
                         "asset_count": len(extracted.assets),
+                        "visual_summary_success_count": sum(
+                            1 for asset in extracted.assets if asset.metadata.get("visual_summary_status") == "success"
+                        ),
+                        "visual_summary_failed_count": sum(
+                            1 for asset in extracted.assets if asset.metadata.get("visual_summary_status") == "failed"
+                        ),
                         "semantic_chunk_type": extracted.metadata.get("semantic_chunk_type") or "",
                         "extraction_method": extracted.metadata.get("extraction_method") or "native",
                         "error_reason": extracted.error_reason,
@@ -152,4 +160,21 @@ def build_attachment_chunks_for_document(
         failed_count=failed_count,
         skipped_count=total_skipped_count,
         failures=failures,
+    )
+
+
+def build_vision_summary_client(settings: DeclarationQASettings) -> HttpVisionSummaryClient | None:
+    """根据配置构建视觉摘要客户端。"""
+    if not settings.image_summary_enabled:
+        return None
+    url = settings.image_summary_api_url or settings.ocr_api_url
+    api_key = settings.image_summary_api_key or settings.ocr_api_key
+    if not url or not api_key or not settings.image_summary_model:
+        return None
+    return HttpVisionSummaryClient(
+        url=url,
+        api_key=api_key,
+        model=settings.image_summary_model,
+        timeout_seconds=settings.image_summary_timeout_seconds,
+        max_tokens=settings.image_summary_max_tokens,
     )

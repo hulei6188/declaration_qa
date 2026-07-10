@@ -10,7 +10,8 @@ from pathlib import Path
 
 from declaration_qa.indexing.attachments.models import AttachmentAsset, DownloadedAttachment
 from declaration_qa.indexing.attachments.pdf_ocr import close_pdf, import_pymupdf, open_pdf, render_page_png
-from declaration_qa.indexing.documents import HttpOcrClient, normalize_extracted_text
+from declaration_qa.indexing.documents import HttpOcrClient, HttpVisionSummaryClient, normalize_extracted_text
+from declaration_qa.observability.langfuse import observation, record_error
 
 
 IMAGE_CONTENT_TYPES = {
@@ -30,6 +31,7 @@ def extract_visual_assets(
     asset_dir: Path | None,
     extracted_text: str,
     ocr_client: HttpOcrClient | None = None,
+    vision_summary_client: HttpVisionSummaryClient | None = None,
     pdf_max_pages: int = 8,
     pdf_dpi: int = 144,
 ) -> list[AttachmentAsset]:
@@ -42,6 +44,7 @@ def extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
             extracted_text=extracted_text,
+            vision_summary_client=vision_summary_client,
             max_pages=pdf_max_pages,
             dpi=pdf_dpi,
         )
@@ -50,9 +53,17 @@ def extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
             ocr_client=ocr_client,
+            vision_summary_client=vision_summary_client,
         )
     if extension in IMAGE_CONTENT_TYPES:
-        return [persist_original_image_asset(downloaded, asset_dir=asset_dir, ocr_client=ocr_client)]
+        return [
+            persist_original_image_asset(
+                downloaded,
+                asset_dir=asset_dir,
+                ocr_client=ocr_client,
+                vision_summary_client=vision_summary_client,
+            )
+        ]
     return []
 
 
@@ -61,6 +72,7 @@ def extract_pdf_page_assets(
     *,
     asset_dir: Path,
     extracted_text: str,
+    vision_summary_client: HttpVisionSummaryClient | None,
     max_pages: int,
     dpi: int,
 ) -> list[AttachmentAsset]:
@@ -79,6 +91,14 @@ def extract_pdf_page_assets(
             image_data = render_page_png(fitz, document, page_index, dpi=dpi)
             asset_id = stable_asset_id(downloaded, "pdf-page", str(page_no))
             path = write_asset(asset_dir, asset_id=asset_id, extension="png", data=image_data)
+            page_text = page_texts.get(page_no, "")
+            summary, summary_metadata = summarize_image_asset(
+                vision_summary_client,
+                filename=f"{Path(downloaded.ref.name).stem or 'document'}-page-{page_no}.png",
+                content_type="image/png",
+                data=image_data,
+                ocr_text=page_text,
+            )
             assets.append(
                 AttachmentAsset(
                     asset_id=asset_id,
@@ -87,12 +107,14 @@ def extract_pdf_page_assets(
                     path=str(path),
                     content_type="image/png",
                     filename=f"{Path(downloaded.ref.name).stem or 'document'}-page-{page_no}.png",
-                    text=page_texts.get(page_no, ""),
+                    text=page_text,
+                    summary=summary,
                     page_no=page_no,
                     bbox=None,
                     metadata={
                         "pdf_page_count": page_count,
                         "pdf_render_dpi": dpi,
+                        **summary_metadata,
                     },
                 )
             )
@@ -106,6 +128,7 @@ def extract_docx_media_assets(
     *,
     asset_dir: Path,
     ocr_client: HttpOcrClient | None,
+    vision_summary_client: HttpVisionSummaryClient | None,
 ) -> list[AttachmentAsset]:
     """抽取 DOCX 内嵌图片资产。"""
     try:
@@ -129,6 +152,13 @@ def extract_docx_media_assets(
                 content_type=content_type,
                 data=data,
             )
+            summary, summary_metadata = summarize_image_asset(
+                vision_summary_client,
+                filename=Path(media_name).name,
+                content_type=content_type,
+                data=data,
+                ocr_text=text,
+            )
             assets.append(
                 AttachmentAsset(
                     asset_id=asset_id,
@@ -138,9 +168,11 @@ def extract_docx_media_assets(
                     content_type=content_type,
                     filename=Path(media_name).name,
                     text=text,
+                    summary=summary,
                     metadata={
                         "docx_media_path": media_name,
                         "docx_media_index": media_index,
+                        **summary_metadata,
                     },
                 )
             )
@@ -152,6 +184,7 @@ def persist_original_image_asset(
     *,
     asset_dir: Path,
     ocr_client: HttpOcrClient | None,
+    vision_summary_client: HttpVisionSummaryClient | None,
 ) -> AttachmentAsset:
     """将图片附件本身登记为视觉资产。"""
     extension = downloaded.ref.extension.lower().strip(".") or "png"
@@ -164,6 +197,13 @@ def persist_original_image_asset(
         content_type=content_type,
         data=downloaded.data,
     )
+    summary, summary_metadata = summarize_image_asset(
+        vision_summary_client,
+        filename=downloaded.ref.name,
+        content_type=content_type,
+        data=downloaded.data,
+        ocr_text=text,
+    )
     return AttachmentAsset(
         asset_id=asset_id,
         asset_kind="original_image",
@@ -172,6 +212,8 @@ def persist_original_image_asset(
         content_type=content_type,
         filename=downloaded.ref.name,
         text=text,
+        summary=summary,
+        metadata=summary_metadata,
     )
 
 
@@ -189,6 +231,47 @@ def ocr_image_asset(
         return normalize_extracted_text(ocr_client.extract_text(filename=filename, content_type=content_type, data=data))
     except Exception:
         return ""
+
+
+def summarize_image_asset(
+    client: HttpVisionSummaryClient | None,
+    *,
+    filename: str,
+    content_type: str,
+    data: bytes,
+    ocr_text: str,
+) -> tuple[str, dict[str, object]]:
+    """生成图片视觉摘要，并保留可观测的执行状态。"""
+    if not client:
+        return "", {"visual_summary_status": "skipped", "visual_summary_model": ""}
+    with observation(
+        "index.image_summary",
+        input={"filename": filename, "content_type": content_type, "bytes": len(data), "ocr_text_length": len(ocr_text)},
+        metadata={"filename": filename, "model": client.model},
+        as_type="generation",
+        model=client.model,
+    ) as span:
+        try:
+            summary = normalize_extracted_text(
+                client.summarize_image(
+                    filename=filename,
+                    content_type=content_type,
+                    data=data,
+                    ocr_text=ocr_text,
+                )
+            )
+            span.update(output={"summary": summary, "summary_length": len(summary)})
+            return summary, {
+                "visual_summary_status": "success",
+                "visual_summary_model": client.model,
+            }
+        except Exception as exc:
+            record_error(span, exc, stage="index.image_summary", extra={"filename": filename, "model": client.model})
+            return "", {
+                "visual_summary_status": "failed",
+                "visual_summary_model": client.model,
+                "visual_summary_error": f"{type(exc).__name__}: {str(exc)[:240]}",
+            }
 
 
 def write_asset(asset_dir: Path, *, asset_id: str, extension: str, data: bytes) -> Path:

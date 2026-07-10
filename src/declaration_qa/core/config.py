@@ -75,6 +75,12 @@ class DeclarationQASettings(BaseSettings):
     ocr_api_url: str = Field(default="", alias="DECLARATION_QA_OCR_API_URL")
     ocr_api_key: str = Field(default="", alias="DECLARATION_QA_OCR_API_KEY")
     ocr_model: str = Field(default="", alias="DECLARATION_QA_OCR_MODEL")
+    image_summary_enabled: bool = Field(default=True, alias="DECLARATION_QA_IMAGE_SUMMARY_ENABLED")
+    image_summary_api_url: str = Field(default="", alias="DECLARATION_QA_IMAGE_SUMMARY_API_URL")
+    image_summary_api_key: str = Field(default="", alias="DECLARATION_QA_IMAGE_SUMMARY_API_KEY")
+    image_summary_model: str = Field(default="qwen3-vl-plus", alias="DECLARATION_QA_IMAGE_SUMMARY_MODEL")
+    image_summary_max_tokens: int = Field(default=1200, alias="DECLARATION_QA_IMAGE_SUMMARY_MAX_TOKENS")
+    image_summary_timeout_seconds: int = Field(default=60, alias="DECLARATION_QA_IMAGE_SUMMARY_TIMEOUT_SECONDS")
 
     document_parser_provider: str = Field(default="auto", alias="DECLARATION_QA_DOCUMENT_PARSER_PROVIDER")
     document_parser_order: str = Field(default="docling,marker,native", alias="DECLARATION_QA_DOCUMENT_PARSER_ORDER")

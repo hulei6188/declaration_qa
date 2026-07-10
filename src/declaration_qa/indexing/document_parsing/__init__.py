@@ -4,10 +4,12 @@ from declaration_qa.indexing.document_parsing.factory import build_document_pars
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedBlock, ParsedDocument
 from declaration_qa.indexing.document_parsing.ocr import HttpOcrClient
 from declaration_qa.indexing.document_parsing.text import normalize_extracted_text
+from declaration_qa.indexing.document_parsing.vision_summary import HttpVisionSummaryClient
 
 __all__ = [
     "DocumentParseError",
     "HttpOcrClient",
+    "HttpVisionSummaryClient",
     "ParsedBlock",
     "ParsedDocument",
     "build_document_parser",

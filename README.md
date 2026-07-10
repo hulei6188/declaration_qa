@@ -202,8 +202,16 @@ ChatRequest
 - Markdown 正文按层级/父子策略切分。
 - PDF、DOCX、图片、表格类附件会解析为文本、表格字段和图片资产。
 - PDF 页面会渲染为图片资产，DOCX 内嵌图片和原始图片附件会登记到 `declaration_qa.assets`。
-- 图片资产会生成 `attachment_image` / `page_image` 等派生 chunk，并写入 `asset_id`、`asset_url`、`thumbnail_url`、`ocr_text` 等 metadata。
+- 图片资产会同时执行 OCR 和 VL 视觉理解：OCR 保留字段、号码等原文，`qwen3-vl-plus` 生成面向检索的 `visual_summary`。
+- 每张图片只生成一个 `attachment_image` / `page_image` 派生 chunk，避免 OCR 与摘要形成重复证据；chunk metadata 包含 `ocr_text`、`visual_summary`、`asset_url` 和摘要执行状态。
 - 使用 `qwen3-vl-embedding` 时，文本和图片会写入同一个 Milvus collection。
+
+视觉摘要配置：
+
+- `DECLARATION_QA_IMAGE_SUMMARY_ENABLED=true`
+- `DECLARATION_QA_IMAGE_SUMMARY_MODEL=qwen3-vl-plus`
+- `DECLARATION_QA_IMAGE_SUMMARY_API_URL` 和 `DECLARATION_QA_IMAGE_SUMMARY_API_KEY` 留空时复用 OCR 的 DashScope 地址和密钥。
+- VL 摘要失败不会中断文档入库，失败原因会记录在 chunk metadata 和 Langfuse 的 `index.image_summary` 节点中。
 
 检索侧：
 

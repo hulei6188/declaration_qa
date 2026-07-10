@@ -44,6 +44,7 @@ class AttachmentAsset:
     content_type: str
     filename: str
     text: str = ""
+    summary: str = ""
     page_no: int | None = None
     bbox: list[float] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

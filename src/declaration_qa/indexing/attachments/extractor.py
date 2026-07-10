@@ -7,13 +7,14 @@ from pathlib import Path
 from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.models import DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.pdf_ocr import extract_pdf_pages_with_ocr
-from declaration_qa.indexing.documents import DocumentParseError, HttpOcrClient, parse_document_bytes
+from declaration_qa.indexing.documents import DocumentParseError, HttpOcrClient, HttpVisionSummaryClient, parse_document_bytes
 
 
 def extract_attachment(
     downloaded: DownloadedAttachment,
     *,
     ocr_client: HttpOcrClient | None = None,
+    vision_summary_client: HttpVisionSummaryClient | None = None,
     parser_provider: str = "auto",
     parser_order: str = "",
     parser_fallback_enabled: bool = True,
@@ -47,6 +48,7 @@ def extract_attachment(
                 return extract_pdf_attachment_with_ocr(
                     downloaded,
                     ocr_client=ocr_client,
+                    vision_summary_client=vision_summary_client,
                     native_error=quality_error,
                     max_pages=pdf_ocr_max_pages,
                     dpi=pdf_ocr_dpi,
@@ -60,6 +62,7 @@ def extract_attachment(
             asset_dir=asset_dir,
             extracted_text=text,
             ocr_client=ocr_client,
+            vision_summary_client=vision_summary_client,
             pdf_max_pages=pdf_ocr_max_pages,
             pdf_dpi=pdf_ocr_dpi,
         )
@@ -80,6 +83,7 @@ def extract_attachment(
             return extract_pdf_attachment_with_ocr(
                 downloaded,
                 ocr_client=ocr_client,
+                vision_summary_client=vision_summary_client,
                 native_error=str(exc) or type(exc).__name__,
                 max_pages=pdf_ocr_max_pages,
                 dpi=pdf_ocr_dpi,
@@ -94,6 +98,7 @@ def extract_pdf_attachment_with_ocr(
     downloaded: DownloadedAttachment,
     *,
     ocr_client: HttpOcrClient | None,
+    vision_summary_client: HttpVisionSummaryClient | None = None,
     native_error: str,
     max_pages: int,
     dpi: int,
@@ -146,6 +151,7 @@ def extract_pdf_attachment_with_ocr(
         asset_dir=asset_dir,
         extracted_text=result.text,
         ocr_client=ocr_client,
+        vision_summary_client=vision_summary_client,
         pdf_max_pages=max_pages,
         pdf_dpi=dpi,
     )
@@ -169,6 +175,7 @@ def safe_extract_visual_assets(
     asset_dir: Path | None,
     extracted_text: str,
     ocr_client: HttpOcrClient | None,
+    vision_summary_client: HttpVisionSummaryClient | None,
     pdf_max_pages: int,
     pdf_dpi: int,
 ) -> tuple[list, dict[str, object]]:
@@ -179,6 +186,7 @@ def safe_extract_visual_assets(
             asset_dir=asset_dir,
             extracted_text=extracted_text,
             ocr_client=ocr_client,
+            vision_summary_client=vision_summary_client,
             pdf_max_pages=pdf_max_pages,
             pdf_dpi=pdf_dpi,
         )

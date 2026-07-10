@@ -133,7 +133,12 @@ def chunk_is_image(chunk: KnowledgeChunk) -> bool:
 def image_chunk_text(chunk: KnowledgeChunk) -> str:
     """返回图片向量融合时使用的辅助文本。"""
     metadata = chunk.metadata or {}
-    return str(metadata.get("asset_text") or chunk.content or "").strip()
+    values = [
+        str(metadata.get("visual_summary") or "").strip(),
+        str(metadata.get("asset_text") or metadata.get("ocr_text") or "").strip(),
+    ]
+    combined = "\n".join(value for value in values if value)
+    return combined or str(chunk.content or "").strip()
 
 
 def safe_embedding_text(text: str) -> str:
