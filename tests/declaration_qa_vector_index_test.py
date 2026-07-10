@@ -5,7 +5,13 @@ import sys
 from types import SimpleNamespace
 
 from declaration_qa.core.domain import KnowledgeChunk
-from declaration_qa.search.vector.metadata import MILVUS_TEXT_METADATA_FIELDS, milvus_filter_expr, milvus_metadata_row
+from declaration_qa.search.vector.metadata import (
+    MILVUS_METADATA_MAX_BYTES,
+    MILVUS_TEXT_METADATA_FIELDS,
+    milvus_filter_expr,
+    milvus_metadata_row,
+    milvus_metadata_size_bytes,
+)
 from declaration_qa.search.vector.milvus import MilvusVectorIndex
 
 
@@ -89,6 +95,56 @@ def test_milvus_metadata_row_truncates_long_text_fields():
     )
 
     assert len(row["item_name"]) == MILVUS_TEXT_METADATA_FIELDS["item_name"]
+
+
+def test_milvus_metadata_row_keeps_large_table_payload_out_of_milvus():
+    row = milvus_metadata_row(
+        KnowledgeChunk(
+            id="chunk-1",
+            doc_id="doc-1",
+            parent_id="",
+            chunk_type="child",
+            title="测试事项",
+            content="content",
+            metadata={
+                "section_path": "申请材料 > 取水许可申请书",
+                "asset_id": "asset-1",
+                "table_json": {"rows": [["表格单元格" * 20_000]]},
+                "table_html": "<table>" + ("<td>内容</td>" * 20_000) + "</table>",
+                "llm_table_context": "表格摘要" * 20_000,
+            },
+        )
+    )
+
+    assert row["metadata"]["section_path"] == "申请材料 > 取水许可申请书"
+    assert row["metadata"]["asset_id"] == "asset-1"
+    assert "table_json" not in row["metadata"]
+    assert "table_html" not in row["metadata"]
+    assert "llm_table_context" not in row["metadata"]
+    assert milvus_metadata_size_bytes(row["metadata"]) <= MILVUS_METADATA_MAX_BYTES
+
+
+def test_milvus_metadata_row_falls_back_when_other_metadata_is_oversized():
+    row = milvus_metadata_row(
+        KnowledgeChunk(
+            id="chunk-1",
+            doc_id="doc-1",
+            parent_id="",
+            chunk_type="child",
+            title="测试事项",
+            content="content",
+            metadata={
+                "asset_id": "asset-1",
+                "section_path": "申请材料 > 取水许可申请书",
+                "unknown_parser_payload": "原始解析数据" * 20_000,
+            },
+        )
+    )
+
+    assert row["metadata"]["asset_id"] == "asset-1"
+    assert row["metadata"]["section_path"] == "申请材料 > 取水许可申请书"
+    assert row["metadata"]["milvus_metadata_truncated"] is True
+    assert milvus_metadata_size_bytes(row["metadata"]) <= MILVUS_METADATA_MAX_BYTES
 
 
 def test_milvus_filter_expr_uses_supported_metadata_fields_only():
