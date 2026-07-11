@@ -51,6 +51,7 @@ def normalize_message_row(row: Any) -> dict[str, Any]:
         "sources": payload.get("sources") or [],
         "suggested_actions": payload.get("suggested_actions") or [],
         "meta": meta,
+        "run_id": str(payload.get("run_id") or ""),
         "created_at": str(payload.get("created_at") or ""),
     }
     if message["role"] == "user":

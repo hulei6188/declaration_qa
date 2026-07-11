@@ -52,15 +52,17 @@ class SessionRepository(EngineBackedRepository):
             messages = connection.execute(
                 text(
                     """
-                    SELECT role, content, intent, refused, refuse_reason, sources,
-                           suggested_actions, meta, created_at
-                    FROM declaration_qa.messages
-                    WHERE session_id = (
+                    SELECT m.role, m.content, m.intent, m.refused, m.refuse_reason, m.sources,
+                           m.suggested_actions, m.meta, m.created_at,
+                           r.run_uid AS run_id
+                    FROM declaration_qa.messages m
+                    LEFT JOIN declaration_qa.agent_runs r ON r.id = m.agent_run_id
+                    WHERE m.session_id = (
                         SELECT id FROM declaration_qa.sessions
                         WHERE session_uid = :session_id AND user_id = :user_id
                     )
-                      AND visible = TRUE
-                    ORDER BY created_at ASC, id ASC
+                      AND m.visible = TRUE
+                    ORDER BY m.created_at ASC, m.id ASC
                     """
                 ),
                 {"session_id": session_id, "user_id": user_id},
@@ -76,15 +78,17 @@ class SessionRepository(EngineBackedRepository):
             messages = connection.execute(
                 text(
                     """
-                    SELECT role, content, intent, refused, refuse_reason, sources,
-                           suggested_actions, meta, created_at
-                    FROM declaration_qa.messages
-                    WHERE session_id = (
+                    SELECT m.role, m.content, m.intent, m.refused, m.refuse_reason, m.sources,
+                           m.suggested_actions, m.meta, m.created_at,
+                           r.run_uid AS run_id
+                    FROM declaration_qa.messages m
+                    LEFT JOIN declaration_qa.agent_runs r ON r.id = m.agent_run_id
+                    WHERE m.session_id = (
                         SELECT id FROM declaration_qa.sessions
                         WHERE session_uid = :session_id AND user_id = :user_id
                     )
-                      AND visible = TRUE
-                    ORDER BY created_at DESC, id DESC
+                      AND m.visible = TRUE
+                    ORDER BY m.created_at DESC, m.id DESC
                     LIMIT :limit
                     """
                 ),

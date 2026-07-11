@@ -143,6 +143,7 @@ class WorkflowAgentNodes:
                     "call_id": payload["call_id"],
                     "ok": payload["ok"],
                     "status": payload["status"],
+                    "latency_ms": payload.get("latency_ms"),
                     "parallel": len(primary) > 1,
                 },
             )
@@ -158,6 +159,7 @@ class WorkflowAgentNodes:
                     "call_id": payload["call_id"],
                     "ok": payload["ok"],
                     "status": payload["status"],
+                    "latency_ms": payload.get("latency_ms"),
                     "parallel": len(deferred) > 1,
                     "dependency": "ticket_list_query",
                 },
@@ -345,6 +347,7 @@ class WorkflowAgentNodes:
             "knowledge": knowledge_decision.payload() if knowledge_decision else {},
             "tool_result_count": len(next_state.get("tool_results") or []),
             "source_count": len(sources),
+            "iteration": int(next_state.get("agent_iteration") or 0),
             "isolation": "business_and_knowledge_separate",
         }
         if (

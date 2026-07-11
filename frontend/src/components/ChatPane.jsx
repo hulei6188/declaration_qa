@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImagePlus, Maximize2, Minimize2, Send, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
+import ToolCallTimeline from './ToolCallTimeline.jsx';
 
 export default function ChatPane({
   messages, streaming, sendState, onSend, onClear, ctx, setCtx, audit, feedbackResult, onFeedback,
-  expanded = false, onToggleExpanded,
+  expanded = false, onToggleExpanded, onLoadToolTrace,
 }) {
   const [input, setInput] = useState('');
   const [imageDraft, setImageDraft] = useState(null);
@@ -104,6 +105,14 @@ export default function ChatPane({
       <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
+            {m.role === 'assistant' && (m.toolTrace || m.runId) && (
+              <ToolCallTimeline
+                key={m.runId || `live-trace-${i}`}
+                trace={m.toolTrace}
+                runId={m.runId}
+                onLoad={() => onLoadToolTrace?.(i, m.runId)}
+              />
+            )}
             {String(m.content || '').trim() && (
               <div className="message-content">{m.content}</div>
             )}

@@ -8,6 +8,7 @@ import {
   readSSE,
   fetchSessions,
   fetchSession,
+  fetchAgentRun,
   deleteSession,
   fetchDocuments,
   uploadTextDocument,
@@ -24,6 +25,9 @@ import {
   formatJobProgress,
   jobEtl,
   documentRevision,
+  createToolTrace,
+  reduceToolTrace,
+  traceFromAgentRun,
   INDEX_JOB_MAX_ATTEMPTS,
   sleep,
 } from './utils.js';
@@ -73,7 +77,7 @@ export default function App() {
       attachments: queryImage ? [queryImage] : [],
     };
     setMessages((prev) => [...prev, userMsg]);
-    const assistantMsg = { role: 'assistant', content: '', sources: [] };
+    const assistantMsg = { role: 'assistant', content: '', sources: [], toolTrace: createToolTrace() };
     setMessages((prev) => [...prev, assistantMsg]);
     assistantRef.current = '';
     setStreaming(true);
@@ -87,6 +91,9 @@ export default function App() {
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
       for await (const { event, data } of readSSE(response.body)) {
+        if (['agent_decision', 'tool_executed', 'agent_observation', 'evidence', 'answer_generated', 'done', 'error'].includes(event)) {
+          setMessages((prev) => updateLastAssistantTrace(prev, event, data));
+        }
         if (event === 'token') {
           assistantRef.current += (data.content || '');
           setMessages((prev) => {
@@ -117,6 +124,7 @@ export default function App() {
         next[next.length - 1] = {
           ...next[next.length - 1],
           content: (next[next.length - 1].content || '') + `\n请求失败：${e.message}`,
+          toolTrace: reduceToolTrace(next[next.length - 1].toolTrace, 'error', { message: e.message }),
         };
         return next;
       });
@@ -158,6 +166,8 @@ export default function App() {
           content: m.content || '',
           attachments: m.role === 'user' ? (m.attachments || []) : [],
           sources: m.role === 'user' ? [] : (m.sources || []),
+          runId: m.role === 'user' ? '' : (m.run_id || ''),
+          toolTrace: null,
         }))
       );
       setTimeline([]);
@@ -167,6 +177,34 @@ export default function App() {
       addTimeline('session_loaded', { session_id: session.session_id, message_count: session.message_count });
     } catch (e) {
       addTimeline('session_error', { message: `HTTP ${e.message}` });
+    }
+  }
+
+  async function loadToolTrace(messageIndex, runId) {
+    if (!runId) return;
+    setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => (
+      message.runId !== runId
+        ? message
+        : { ...message, toolTrace: { ...createToolTrace('loading'), loaded: false } }
+    )));
+    try {
+      const run = await fetchAgentRun(runId, ctx.userId);
+      setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => (
+        message.runId !== runId ? message : { ...message, toolTrace: traceFromAgentRun(run) }
+      )));
+    } catch (error) {
+      setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => (
+        message.runId !== runId
+          ? message
+          : {
+            ...message,
+            toolTrace: {
+              ...createToolTrace('failed'),
+              loaded: false,
+              error: `执行记录读取失败：${error.message}`,
+            },
+          }
+      )));
     }
   }
 
@@ -472,6 +510,7 @@ export default function App() {
           onFeedback={doFeedback}
           expanded={chatExpanded}
           onToggleExpanded={() => setChatExpanded((value) => !value)}
+          onLoadToolTrace={loadToolTrace}
         />
       </main>
     </div>
@@ -485,5 +524,27 @@ function attachSourcesToLastAssistant(messages, sources) {
     next[index] = { ...next[index], sources: sources || [] };
     break;
   }
+  return next;
+}
+
+function updateLastAssistantTrace(messages, event, data) {
+  const next = [...messages];
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    if (next[index]?.role !== 'assistant') continue;
+    const toolTrace = reduceToolTrace(next[index].toolTrace, event, data);
+    next[index] = {
+      ...next[index],
+      runId: toolTrace.runId || next[index].runId || '',
+      toolTrace,
+    };
+    break;
+  }
+  return next;
+}
+
+function updateMessageAt(messages, index, updater) {
+  if (index < 0 || index >= messages.length) return messages;
+  const next = [...messages];
+  next[index] = updater(next[index]);
   return next;
 }

@@ -165,6 +165,10 @@ export function fetchSession(sessionId, userId) {
   return requestJson(`/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId || 1)}`);
 }
 
+export function fetchAgentRun(runId, userId) {
+  return requestJson(`/api/declaration-qa/agent-runs/${encodeURIComponent(runId)}?user_id=${encodeURIComponent(userId || 1)}`);
+}
+
 export function deleteSession(sessionId, userId) {
   return requestJson(`/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId || 1)}`, {
     method: 'DELETE',
@@ -290,6 +294,162 @@ export async function* readSSE(stream) {
     for (const part of parts) yield parseSSE(part);
   }
   if (buffer.trim()) yield parseSSE(buffer);
+}
+
+export function createToolTrace(status = 'running') {
+  return {
+    status,
+    phase: status === 'running' ? 'planning' : status,
+    loaded: status === 'running',
+    tools: [],
+    gates: [],
+    observation: null,
+    error: '',
+  };
+}
+
+export function reduceToolTrace(current, event, data = {}) {
+  const trace = current ? { ...current } : createToolTrace();
+  trace.tools = [...(trace.tools || [])];
+  trace.gates = [...(trace.gates || [])];
+  trace.loaded = true;
+
+  if (event === 'agent_decision') {
+    trace.phase = data.action === 'tools' ? 'executing' : 'answering';
+    for (const call of data.tool_calls || []) {
+      const callId = String(call.id || call.call_id || '');
+      const existingIndex = trace.tools.findIndex((item) => callId && item.callId === callId);
+      const tool = {
+        callId,
+        toolName: String(call.name || call.tool_name || 'unknown_tool'),
+        arguments: call.arguments || {},
+        iteration: Number(data.iteration || 0),
+        status: 'running',
+        ok: null,
+        latencyMs: null,
+        parallel: false,
+        dependency: '',
+      };
+      if (existingIndex >= 0) trace.tools[existingIndex] = { ...trace.tools[existingIndex], ...tool };
+      else trace.tools.push(tool);
+    }
+  } else if (event === 'tool_executed') {
+    trace.phase = 'checking';
+    const callId = String(data.call_id || '');
+    let index = trace.tools.findIndex((item) => callId && item.callId === callId);
+    if (index < 0) {
+      for (let i = trace.tools.length - 1; i >= 0; i -= 1) {
+        if (trace.tools[i].toolName === data.tool_name && trace.tools[i].status === 'running') {
+          index = i;
+          break;
+        }
+      }
+    }
+    const completed = {
+      status: data.ok ? 'completed' : 'failed',
+      ok: Boolean(data.ok),
+      latencyMs: numberOrNull(data.latency_ms),
+      parallel: Boolean(data.parallel),
+      dependency: String(data.dependency || ''),
+    };
+    if (index >= 0) {
+      trace.tools[index] = {
+        ...trace.tools[index],
+        ...completed,
+        callId: callId || trace.tools[index].callId,
+        toolName: String(data.tool_name || trace.tools[index].toolName || 'unknown_tool'),
+      };
+    } else {
+      trace.tools.push({
+        ...completed,
+        callId,
+        toolName: String(data.tool_name || 'unknown_tool'),
+        arguments: {},
+        iteration: 0,
+      });
+    }
+  } else if (event === 'agent_observation') {
+    trace.phase = 'checking';
+    trace.observation = {
+      toolResultCount: Number(data.tool_result_count || 0),
+      knowledgeSourceCount: Number(data.knowledge_source_count || 0),
+      selectedItemCode: String(data.selected_item_code || ''),
+      selectedApplicationId: data.selected_application_id ?? null,
+    };
+  } else if (event === 'evidence') {
+    trace.phase = data.ok ? 'answering' : 'planning';
+    const gate = normalizeEvidenceGate(data);
+    const index = trace.gates.findIndex((item) => item.iteration === gate.iteration);
+    if (index >= 0) trace.gates[index] = gate;
+    else trace.gates.push(gate);
+  } else if (event === 'answer_generated') {
+    trace.phase = 'answering';
+  } else if (event === 'done') {
+    trace.status = 'completed';
+    trace.phase = 'completed';
+    trace.runId = String(data.run_id || data.audit_id || trace.runId || '');
+  } else if (event === 'error') {
+    trace.status = 'failed';
+    trace.phase = 'failed';
+    trace.error = String(data.message || data.error || '请求失败');
+    trace.tools = trace.tools.map((item) => item.status === 'running' ? { ...item, status: 'failed', ok: false } : item);
+  }
+  return trace;
+}
+
+export function traceFromAgentRun(run) {
+  const iterationByCall = new Map();
+  for (const message of run?.messages || []) {
+    if (message?.message_type !== 'tool_call') continue;
+    const iteration = Number(message.content_json?.iteration || 0);
+    for (const call of message.content_json?.tool_calls || []) {
+      const id = String(call.id || call.call_id || '');
+      if (id) iterationByCall.set(id, iteration);
+    }
+  }
+
+  const tools = (run?.tool_calls || []).map((call) => {
+    const externalId = String(call.external_call_id || call.tool_call_id || '');
+    return {
+      callId: externalId,
+      toolName: String(call.tool_name || 'unknown_tool'),
+      arguments: call.arguments || {},
+      iteration: iterationByCall.get(externalId) || 0,
+      status: call.ok ? 'completed' : (call.status === 'pending' ? 'running' : 'failed'),
+      ok: Boolean(call.ok),
+      latencyMs: numberOrNull(call.latency_ms),
+      parallel: Boolean(call.metadata?.parallel),
+      dependency: String(call.metadata?.dependency || ''),
+    };
+  });
+  const outputMessage = [...(run?.messages || [])].reverse().find((message) => message?.message_type === 'output');
+  const evidence = outputMessage?.content_json?.evidence_decision;
+  return {
+    ...createToolTrace(run?.status === 'failed' ? 'failed' : 'completed'),
+    phase: run?.status === 'failed' ? 'failed' : 'completed',
+    loaded: true,
+    runId: String(run?.run_id || ''),
+    tools,
+    gates: evidence && Object.keys(evidence).length ? [normalizeEvidenceGate(evidence)] : [],
+    error: String(run?.error_message || ''),
+  };
+}
+
+function normalizeEvidenceGate(data = {}) {
+  return {
+    iteration: Number(data.iteration || 0),
+    ok: Boolean(data.ok),
+    required: Array.isArray(data.required_evidence) ? data.required_evidence : [],
+    checks: data.checks && typeof data.checks === 'object' ? data.checks : {},
+    sourceCount: Number(data.source_count || 0),
+    toolResultCount: Number(data.tool_result_count || 0),
+  };
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 export function sleep(ms) {
