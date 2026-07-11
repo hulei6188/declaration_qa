@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
+from declaration_qa.storage.repository.agent_runs import AgentRunRepository
 from declaration_qa.storage.repository.audit import AuditRepository
 from declaration_qa.storage.repository.base import PostgresStoreBase
 from declaration_qa.storage.repository.business import BusinessRepository
@@ -23,6 +24,7 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """初始化PostgreSQL 存储。"""
         super().__init__(database_url)
         self.audit = AuditRepository(self.engine)
+        self.agent_runs = AgentRunRepository(self.engine)
         self.business = BusinessRepository(self.engine)
         self.evaluation = EvaluationRepository(self.engine)
         self.knowledge = KnowledgeRepository(self.engine)
@@ -37,6 +39,10 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
     def get(self, audit_id: str) -> dict[str, Any] | None:
         """按 ID 查询审计记录。"""
         return self.audit.get(audit_id)
+
+    def get_agent_run(self, *, user_id: int, run_id: str) -> dict[str, Any] | None:
+        """按用户读取可重放的完整 Agent 执行记录。"""
+        return self.agent_runs.get(user_id=user_id, run_id=run_id)
 
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""

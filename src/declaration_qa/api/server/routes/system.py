@@ -27,7 +27,7 @@ def register_system_routes(app):
             "rerank_provider": workflow.rag_engine.reranker.name,
             "rerank_model": getattr(workflow.rag_engine.reranker, "model", ""),
             "query_planning": "agent_tool_schema",
-            "agent_planner": workflow.agent_planner.__class__.__name__,
+            "agent": workflow.agent.__class__.__name__,
             "answer_generation": "agent",
             "agent_max_iterations": workflow.agent_max_iterations,
             "registered_tools": [item["function"]["name"] for item in workflow.tool_registry.definitions()],

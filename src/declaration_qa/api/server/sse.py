@@ -44,7 +44,10 @@ def threaded_sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
 
 def sse_response(response: ChatResponse) -> Iterable[str]:
     """包装工作流事件为 SSE 响应。"""
-    yield sse_event("run_started", {"session_id": response.session_id, "audit_id": response.audit_id})
+    yield sse_event(
+        "run_started",
+        {"session_id": response.session_id, "audit_id": response.audit_id, "run_id": response.run_id},
+    )
     for event in response.events:
         yield sse_event(str(event.get("event") or "event"), event.get("data") or {})
     if response.sources:
@@ -56,6 +59,7 @@ def sse_response(response: ChatResponse) -> Iterable[str]:
         {
             "session_id": response.session_id,
             "audit_id": response.audit_id,
+            "run_id": response.run_id,
             "intent": response.intent,
             "route": response.route,
             "sub_intent": response.sub_intent,

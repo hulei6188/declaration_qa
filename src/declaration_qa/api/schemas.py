@@ -81,6 +81,7 @@ class ChatResponse(BaseModel):
     """申报问答响应模型。"""
     session_id: str
     audit_id: str
+    run_id: str = ""
     intent: str
     route: str = ""
     sub_intent: str = ""
@@ -254,6 +255,30 @@ class SessionSummary(BaseModel):
 class SessionDetail(SessionSummary):
     """历史会话详情模型。"""
     messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentRunDetail(BaseModel):
+    """可重放的完整 Agent 执行记录。"""
+    run_id: str
+    session_id: str
+    user_id: int
+    status: str
+    iteration_count: int = 0
+    trace_id: str = ""
+    answer_provider: str = ""
+    idempotency_key: str = ""
+    error_code: str = ""
+    error_message: str = ""
+    prompt_version: str = ""
+    tool_registry_version: str = ""
+    model_snapshot: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    started_at: str = ""
+    completed_at: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DeleteSessionResponse(BaseModel):

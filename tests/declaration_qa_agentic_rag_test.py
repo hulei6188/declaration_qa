@@ -8,7 +8,7 @@ from declaration_qa.application.tools import (
     ToolExecutionContext,
     ToolRegistry,
 )
-from declaration_qa.application.agent_planner import AgentDecision, choose_application_id
+from declaration_qa.application.agent import AgentDecision, choose_application_id
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.application.workflow_agent_nodes import agent_tool_call_allowed, agent_tool_call_denial_reason
 from declaration_qa.core.business import InMemoryBusinessDataAdapter

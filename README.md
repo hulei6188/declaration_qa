@@ -265,7 +265,7 @@ Tool Registry 默认注册：
   OCR 失败时自动降级为纯视觉检索
 ```
 
-最终答案由同一个 Tool-Calling Agent 基于工具观察直接生成。图片查询仍通过 OCR、视觉摘要、图片向量检索和多模态 rerank 进入知识证据；Agent 只把检索返回的公开证据作为政策依据。
+最终答案由同一个 Tool-Calling Agent 基于工具观察直接生成。工具返回后先执行 Evidence Gate：证据不足才回到 Agent 继续选工具，证据齐全则直接执行唯一一次最终回答，不先生成候选答案。工具规划轮次保持文本输入；如果配置的 Agent 模型名包含 `vl`（或显式开启 `DECLARATION_QA_AGENT_VL_ENABLED`）且存在有效图片，最终轮会直接接收用户原图和最多 3 张高分知识证据原图。图片数量、分数和体积可通过 `DECLARATION_QA_AGENT_VL_MAX_EVIDENCE_IMAGES`、`DECLARATION_QA_AGENT_VL_MIN_IMAGE_SCORE` 和 `DECLARATION_QA_AGENT_VL_MAX_IMAGE_BYTES` 调整。用户原图只用于理解问题，公开办理结论仍必须由知识库证据支持。
 
 ## API
 
@@ -276,6 +276,7 @@ Tool Registry 默认注册：
 - `GET /api/declaration-qa/sessions/{session_id}`
 - `DELETE /api/declaration-qa/sessions/{session_id}`
 - `GET /api/declaration-qa/audit/{audit_id}`
+- `GET /api/declaration-qa/agent-runs/{run_id}`
 - `POST /api/declaration-qa/feedback`
 - `POST /api/declaration-qa/knowledge/upload`
 - `POST /api/declaration-qa/knowledge/uploads`
@@ -308,6 +309,14 @@ Get-Content sql\postgresql\008_declaration_qa_agentic_ticket_history.sql | docke
 ```
 
 迁移会把 `item_code/item_name` 提升为申请主表字段，并为状态流水增加 `sequence_no`、`from_status`、原因、材料、上游事件 ID 和实际发生时间。数据库触发器会自动分配顺序、关闭上一条 current、按申请内 `source_event_id` 去重并同步申请主表当前状态；上游仍必须对每次变更执行 INSERT，不能覆盖历史行。
+
+Agent 消息和工具调用持久化迁移：
+
+```powershell
+Get-Content sql\postgresql\009_declaration_qa_agent_message_history.sql | docker exec -i declaration-qa-postgres-1 psql -U agentbase -d agentbase -v ON_ERROR_STOP=1
+```
+
+迁移后，聊天响应中的 `run_id` 与 `audit_id` 相同。使用 `GET /api/declaration-qa/agent-runs/{run_id}` 可按当前用户读取完整的 system/user/assistant/tool 消息、工具调用生命周期、多模态消息组成部分和证据引用；普通会话接口仍只返回可见的用户消息和最终回答。
 
 单文件入库：
 
@@ -397,7 +406,7 @@ tests/                  测试
 常改文件：
 
 - workflow 节点：`src/declaration_qa/application/*nodes.py`
-- Agent 查询规划：`src/declaration_qa/application/agent_planner.py`
+- Agent 工具规划与最终生成：`src/declaration_qa/application/agent.py`
 - Knowledge Tool Schema：`src/declaration_qa/application/tools/knowledge.py`
 - 检索计划：`src/declaration_qa/rag/retrieval_plan.py`
 - RAG 引擎：`src/declaration_qa/rag/engine/`

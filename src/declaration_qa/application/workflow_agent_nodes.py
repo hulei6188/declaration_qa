@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any
 
-from declaration_qa.application.agent_planner import choose_application_id, needs_public_knowledge, rule_knowledge_queries
+from declaration_qa.application.agent import choose_application_id, needs_public_knowledge, rule_knowledge_queries
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
@@ -46,6 +48,9 @@ class WorkflowAgentNodes:
         next_state["agent_final_answer"] = ""
         next_state["agent_final_prompt"] = ""
         next_state["agent_answer_provider"] = ""
+        next_state["agent_final_model"] = ""
+        next_state["agent_final_token_usage"] = {}
+        next_state["agent_final_latency_ms"] = None
         ticket_intent = classify_ticket_intent(query_text)
         if ticket_intent == INTENT_TICKET_LIST:
             required_evidence = ["ticket_list"]
@@ -78,7 +83,7 @@ class WorkflowAgentNodes:
             calls: list[dict[str, Any]] = []
             decision_payload = {"action": "finish", "reason": "max_iterations", "provider": "guardrail"}
         else:
-            decision = self.agent_planner.decide(next_state, self.tool_registry.definitions())
+            decision = self.agent.decide(next_state, self.tool_registry.definitions())
             calls = unique_new_tool_calls(
                 decision.tool_calls,
                 existing_signatures=set(next_state.get("agent_call_signatures") or []),
@@ -91,6 +96,10 @@ class WorkflowAgentNodes:
                 "intent": decision.intent,
                 "tool_calls": [audit_tool_call(call) for call in calls],
                 "iteration": iteration,
+                "assistant_content": decision.assistant_content,
+                "model": decision.model,
+                "token_usage": decision.token_usage,
+                "latency_ms": decision.latency_ms,
             }
             next_state["intent"] = decision.intent
             next_state["sub_intent"] = decision.intent
@@ -186,6 +195,8 @@ class WorkflowAgentNodes:
         prior_results: list[dict[str, Any]],
     ) -> tuple[dict[str, Any], str]:
         """执行单个已规划工具调用。"""
+        started_at = datetime.now(timezone.utc)
+        started_clock = perf_counter()
         name = str(call.get("name") or "")
         arguments = dict(call.get("arguments") or {})
         signature = tool_call_signature(name, arguments)
@@ -233,7 +244,14 @@ class WorkflowAgentNodes:
                         status=result.status,
                         data={**result.data, "agent_query_schema_fallback": True},
                     )
-        return {**result.payload(), "arguments": audit_tool_arguments(name, arguments)}, signature
+        completed_at = datetime.now(timezone.utc)
+        return {
+            **result.payload(),
+            "arguments": audit_tool_arguments(name, arguments),
+            "started_at": started_at.isoformat(),
+            "completed_at": completed_at.isoformat(),
+            "latency_ms": max(0, round((perf_counter() - started_clock) * 1000)),
+        }, signature
 
     def agent_observe(self, state: DeclarationQAState) -> DeclarationQAState:
         """把知识证据和业务工具结果写入彼此隔离的状态槽。"""
@@ -329,7 +347,13 @@ class WorkflowAgentNodes:
             "source_count": len(sources),
             "isolation": "business_and_knowledge_separate",
         }
-        if not next_state["evidence_ok"]:
+        if (
+            not next_state["evidence_ok"]
+            and (
+                next_state.get("refuse_reason")
+                or int(next_state.get("agent_iteration") or 0) >= self.agent_max_iterations
+            )
+        ):
             next_state["refuse_reason"] = next_state.get("refuse_reason") or agent_failure_reason(next_state.get("tool_results") or [])
         add_event(next_state, "evidence", next_state["evidence_decision"])
         return next_state

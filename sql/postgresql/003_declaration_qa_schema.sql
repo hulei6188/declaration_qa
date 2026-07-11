@@ -420,11 +420,62 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_sessions_user
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_sessions_apply
     ON declaration_qa.sessions (apply_id);
 
+CREATE TABLE IF NOT EXISTS declaration_qa.agent_runs (
+    id BIGSERIAL PRIMARY KEY,
+    run_uid VARCHAR(80) NOT NULL UNIQUE,
+    session_id BIGINT NOT NULL REFERENCES declaration_qa.sessions(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'running'
+        CHECK (status IN ('running', 'succeeded', 'failed', 'cancelled')),
+    iteration_count INTEGER NOT NULL DEFAULT 0,
+    trace_id VARCHAR(120) NOT NULL DEFAULT '',
+    answer_provider VARCHAR(120) NOT NULL DEFAULT '',
+    idempotency_key VARCHAR(160) NOT NULL DEFAULT '',
+    error_code VARCHAR(120) NOT NULL DEFAULT '',
+    error_message TEXT NOT NULL DEFAULT '',
+    prompt_version VARCHAR(80) NOT NULL DEFAULT '',
+    tool_registry_version VARCHAR(80) NOT NULL DEFAULT '',
+    model_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_session
+    ON declaration_qa.agent_runs (session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_user
+    ON declaration_qa.agent_runs (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_trace
+    ON declaration_qa.agent_runs (trace_id)
+    WHERE trace_id <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_agent_runs_idempotency
+    ON declaration_qa.agent_runs (session_id, idempotency_key)
+    WHERE idempotency_key <> '';
+
 CREATE TABLE IF NOT EXISTS declaration_qa.messages (
     id BIGSERIAL PRIMARY KEY,
+    message_uid VARCHAR(80) NOT NULL UNIQUE,
     session_id BIGINT NOT NULL REFERENCES declaration_qa.sessions(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+    agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE CASCADE,
+    sequence_no INTEGER NOT NULL DEFAULT 0,
+    parent_message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+    message_type VARCHAR(30) NOT NULL DEFAULT 'conversation',
     content TEXT NOT NULL,
+    content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(20) NOT NULL DEFAULT 'completed'
+        CHECK (status IN ('pending', 'completed', 'failed', 'cancelled')),
+    visible BOOLEAN NOT NULL DEFAULT TRUE,
+    model VARCHAR(160) NOT NULL DEFAULT '',
+    provider VARCHAR(120) NOT NULL DEFAULT '',
+    input_tokens INTEGER NULL CHECK (input_tokens IS NULL OR input_tokens >= 0),
+    output_tokens INTEGER NULL CHECK (output_tokens IS NULL OR output_tokens >= 0),
+    total_tokens INTEGER NULL CHECK (total_tokens IS NULL OR total_tokens >= 0),
+    latency_ms BIGINT NULL CHECK (latency_ms IS NULL OR latency_ms >= 0),
+    pii_level VARCHAR(30) NOT NULL DEFAULT 'none',
+    retention_until TIMESTAMPTZ NULL,
+    idempotency_key VARCHAR(160) NOT NULL DEFAULT '',
     intent VARCHAR(40) NOT NULL DEFAULT '',
     refused BOOLEAN NOT NULL DEFAULT FALSE,
     refuse_reason VARCHAR(120) NOT NULL DEFAULT '',
@@ -433,10 +484,119 @@ CREATE TABLE IF NOT EXISTS declaration_qa.messages (
     meta JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE declaration_qa.messages
+    ADD COLUMN IF NOT EXISTS message_uid VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS sequence_no INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS parent_message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS message_type VARCHAR(30) NOT NULL DEFAULT 'conversation',
+    ADD COLUMN IF NOT EXISTS content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed',
+    ADD COLUMN IF NOT EXISTS visible BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS model VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS latency_ms BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS pii_level VARCHAR(30) NOT NULL DEFAULT 'none',
+    ADD COLUMN IF NOT EXISTS retention_until TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(160) NOT NULL DEFAULT '';
+UPDATE declaration_qa.messages
+SET message_uid = 'legacy_message_' || id::text
+WHERE message_uid IS NULL OR message_uid = '';
+ALTER TABLE declaration_qa.messages
+    ALTER COLUMN message_uid SET NOT NULL,
+    DROP CONSTRAINT IF EXISTS messages_role_check,
+    DROP CONSTRAINT IF EXISTS messages_status_check;
+ALTER TABLE declaration_qa.messages
+    ADD CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+    ADD CONSTRAINT messages_status_check CHECK (status IN ('pending', 'completed', 'failed', 'cancelled'));
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_messages_uid
+    ON declaration_qa.messages (message_uid);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_session
     ON declaration_qa.messages (session_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_messages_run_sequence
+    ON declaration_qa.messages (agent_run_id, sequence_no)
+    WHERE agent_run_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_run
+    ON declaration_qa.messages (agent_run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_parent
+    ON declaration_qa.messages (parent_message_id);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_intent
     ON declaration_qa.messages (intent);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.tool_calls (
+    id BIGSERIAL PRIMARY KEY,
+    tool_call_uid VARCHAR(100) NOT NULL UNIQUE,
+    agent_run_id BIGINT NOT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE CASCADE,
+    assistant_message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    result_message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
+    external_call_id VARCHAR(160) NOT NULL DEFAULT '',
+    sequence_no INTEGER NOT NULL,
+    tool_name VARCHAR(160) NOT NULL,
+    arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(80) NOT NULL DEFAULT 'pending',
+    ok BOOLEAN NOT NULL DEFAULT FALSE,
+    result JSONB NOT NULL DEFAULT '{}'::jsonb,
+    error TEXT NOT NULL DEFAULT '',
+    latency_ms BIGINT NULL CHECK (latency_ms IS NULL OR latency_ms >= 0),
+    started_at TIMESTAMPTZ NULL,
+    completed_at TIMESTAMPTZ NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (agent_run_id, sequence_no)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_run
+    ON declaration_qa.tool_calls (agent_run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_external
+    ON declaration_qa.tool_calls (agent_run_id, external_call_id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_name
+    ON declaration_qa.tool_calls (tool_name, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.message_parts (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    part_index INTEGER NOT NULL,
+    part_type VARCHAR(30) NOT NULL,
+    text_content TEXT NOT NULL DEFAULT '',
+    asset_uri TEXT NOT NULL DEFAULT '',
+    mime_type VARCHAR(160) NOT NULL DEFAULT '',
+    file_name VARCHAR(500) NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (message_id, part_index)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_parts_message
+    ON declaration_qa.message_parts (message_id, part_index);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_parts_type
+    ON declaration_qa.message_parts (part_type);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.message_sources (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    citation_no INTEGER NOT NULL,
+    chunk_uid VARCHAR(160) NOT NULL DEFAULT '',
+    document_uid VARCHAR(160) NOT NULL DEFAULT '',
+    source_asset_id VARCHAR(200) NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    page_no INTEGER NULL,
+    relevance_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (message_id, citation_no)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_message
+    ON declaration_qa.message_sources (message_id, citation_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_chunk
+    ON declaration_qa.message_sources (chunk_uid)
+    WHERE chunk_uid <> '';
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_asset
+    ON declaration_qa.message_sources (source_asset_id)
+    WHERE source_asset_id <> '';
 
 CREATE TABLE IF NOT EXISTS declaration_qa.context_memories (
     id BIGSERIAL PRIMARY KEY,
@@ -469,6 +629,7 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     id BIGSERIAL PRIMARY KEY,
     audit_uid VARCHAR(80) NOT NULL UNIQUE,
     session_id BIGINT NULL REFERENCES declaration_qa.sessions(id) ON DELETE SET NULL,
+    agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL,
     user_id BIGINT NOT NULL,
     query TEXT NOT NULL,
     normalized_query TEXT NOT NULL DEFAULT '',
@@ -504,6 +665,8 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS retrieval_chain VARCHAR(40) NOT NULL DEFAULT '';
 ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL;
+ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -525,6 +688,9 @@ ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS langfuse_trace_id VARCHAR(80) NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_user
     ON declaration_qa.audit_logs (user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_audit_logs_agent_run
+    ON declaration_qa.audit_logs (agent_run_id)
+    WHERE agent_run_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_intent
     ON declaration_qa.audit_logs (intent, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_chain
@@ -547,13 +713,24 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_langfuse_trace
 CREATE TABLE IF NOT EXISTS declaration_qa.feedback (
     id BIGSERIAL PRIMARY KEY,
     audit_log_id BIGINT NOT NULL REFERENCES declaration_qa.audit_logs(id) ON DELETE CASCADE,
+    agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL,
+    message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
     user_id BIGINT NULL,
     rating VARCHAR(20) NOT NULL CHECK (rating IN ('up', 'down')),
     comment TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE declaration_qa.feedback
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_audit
     ON declaration_qa.feedback (audit_log_id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_agent_run
+    ON declaration_qa.feedback (agent_run_id)
+    WHERE agent_run_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_message
+    ON declaration_qa.feedback (message_id)
+    WHERE message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_rating
     ON declaration_qa.feedback (rating, created_at DESC);
 
@@ -802,7 +979,7 @@ COMMENT ON COLUMN declaration_qa.sessions.updated_at IS '更新时间';
 COMMENT ON TABLE declaration_qa.messages IS '问答消息表';
 COMMENT ON COLUMN declaration_qa.messages.id IS '消息自增主键';
 COMMENT ON COLUMN declaration_qa.messages.session_id IS '关联 sessions.id';
-COMMENT ON COLUMN declaration_qa.messages.role IS '消息角色：user/assistant/system';
+COMMENT ON COLUMN declaration_qa.messages.role IS '消息角色：user/assistant/system/tool';
 COMMENT ON COLUMN declaration_qa.messages.content IS '消息内容';
 COMMENT ON COLUMN declaration_qa.messages.intent IS '识别出的问答意图';
 COMMENT ON COLUMN declaration_qa.messages.refused IS '是否拒答';
@@ -937,5 +1114,17 @@ COMMENT ON COLUMN declaration_qa.eval_run_items.annotation_label IS '人工标�
 COMMENT ON COLUMN declaration_qa.eval_run_items.annotation_comment IS '人工标注备注';
 COMMENT ON COLUMN declaration_qa.eval_run_items.annotated_at IS '人工标注时间';
 COMMENT ON COLUMN declaration_qa.eval_run_items.created_at IS '创建时间';
+
+COMMENT ON TABLE declaration_qa.agent_runs IS '一次用户请求对应的 Agent 执行记录';
+COMMENT ON TABLE declaration_qa.tool_calls IS 'Agent 工具调用及其执行生命周期';
+COMMENT ON TABLE declaration_qa.message_parts IS '消息的文本、图片、文件和 OCR 多模态组成部分';
+COMMENT ON TABLE declaration_qa.message_sources IS '最终回答消息与知识证据的引用关系';
+COMMENT ON COLUMN declaration_qa.messages.message_uid IS '消息稳定唯一标识';
+COMMENT ON COLUMN declaration_qa.messages.agent_run_id IS '关联 agent_runs.id';
+COMMENT ON COLUMN declaration_qa.messages.sequence_no IS '消息在单次 Agent run 内的严格顺序';
+COMMENT ON COLUMN declaration_qa.messages.parent_message_id IS '父消息，用于表达工具结果和并行分支关系';
+COMMENT ON COLUMN declaration_qa.messages.message_type IS '消息类型：system/input/model_input/tool_call/tool_result/output';
+COMMENT ON COLUMN declaration_qa.messages.content_json IS '工具调用等结构化消息内容';
+COMMENT ON COLUMN declaration_qa.messages.visible IS '是否出现在普通会话历史中';
 
 COMMIT;

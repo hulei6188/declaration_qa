@@ -6,8 +6,8 @@ from typing import Any
 
 from sqlalchemy import JSON, bindparam, text
 
+from declaration_qa.storage.repository.agent_runs import persist_agent_run
 from declaration_qa.storage.repository.base import EngineBackedRepository
-from declaration_qa.storage.session_payloads import query_image_attachments
 
 
 class AuditRepository(EngineBackedRepository):
@@ -21,52 +21,16 @@ class AuditRepository(EngineBackedRepository):
             audit_uid = uuid4().hex
         with self.engine.begin() as connection:
             session_pk = self._ensure_session(connection, payload)
-            self._insert_message(
+            persisted_run = persist_agent_run(
                 connection,
                 session_id=session_pk,
-                role="user",
-                content=str(payload.get("query") or ""),
-                intent=str(payload.get("intent") or ""),
-                refused=False,
-                refuse_reason="",
-                sources=[],
-                suggested_actions=[],
-                meta={
-                    "query_image": payload.get("query_image") or {},
-                    "attachments": query_image_attachments(payload.get("query_image")),
-                },
-            )
-            self._insert_message(
-                connection,
-                session_id=session_pk,
-                role="assistant",
-                content=str(payload.get("answer") or ""),
-                intent=str(payload.get("intent") or ""),
-                refused=bool(payload.get("refused")),
-                refuse_reason=str(payload.get("refuse_reason") or ""),
-                sources=payload.get("retrieved_sources") or [],
-                suggested_actions=payload.get("suggested_actions") or [],
-                meta={
-                    "retrieval_chain": payload.get("retrieval_chain") or "",
-                    "business_snapshot": payload.get("business_snapshot") or {},
-                    "agent_plan": payload.get("agent_plan") or {},
-                    "agent_query_plan": payload.get("agent_query_plan") or {},
-                    "tool_results": payload.get("tool_results") or [],
-                    "agent_iteration": int(payload.get("agent_iteration") or 0),
-                    "agent_selected_item_code": payload.get("agent_selected_item_code") or "",
-                    "agent_selected_application_id": payload.get("agent_selected_application_id"),
-                    "evidence_ok": payload.get("evidence_ok"),
-                    "evidence_decision": payload.get("evidence_decision") or {},
-                    "rag_status": payload.get("rag_status") or {},
-                    "short_term_context": payload.get("short_term_context") or {},
-                    "long_term_context": payload.get("long_term_context") or {},
-                    "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
-                },
+                run_uid=audit_uid,
+                payload=payload,
             )
             stmt = text(
                 """
                 INSERT INTO declaration_qa.audit_logs (
-                    audit_uid, session_id, user_id, query, normalized_query, intent,
+                    audit_uid, session_id, agent_run_id, user_id, query, normalized_query, intent,
                     retrieval_chain, region_code, biz_type, business_snapshot,
                     agent_plan, agent_query_plan, tool_results, agent_iteration, agent_answer_provider,
                     agent_selected_item_code, agent_selected_application_id,
@@ -75,7 +39,7 @@ class AuditRepository(EngineBackedRepository):
                     events, langfuse_trace_id
                 )
                 VALUES (
-                    :audit_uid, :session_id, :user_id, :query, :normalized_query, :intent,
+                    :audit_uid, :session_id, :agent_run_id, :user_id, :query, :normalized_query, :intent,
                     :retrieval_chain, :region_code, :biz_type, :business_snapshot,
                     :agent_plan, :agent_query_plan, :tool_results, :agent_iteration, :agent_answer_provider,
                     :agent_selected_item_code, :agent_selected_application_id,
@@ -102,6 +66,7 @@ class AuditRepository(EngineBackedRepository):
                 {
                     "audit_uid": audit_uid,
                     "session_id": session_pk,
+                    "agent_run_id": persisted_run.run_id,
                     "user_id": int(payload.get("user_id") or 0),
                     "query": str(payload.get("query") or ""),
                     "normalized_query": str(payload.get("normalized_query") or ""),
@@ -145,7 +110,21 @@ class AuditRepository(EngineBackedRepository):
         """保存用户对问答结果的反馈。"""
         with self.engine.begin() as connection:
             row = connection.execute(
-                text("SELECT id, user_id FROM declaration_qa.audit_logs WHERE audit_uid = :audit_uid"),
+                text(
+                    """
+                    SELECT a.id, a.user_id, a.agent_run_id,
+                           (
+                               SELECT m.id
+                               FROM declaration_qa.messages m
+                               WHERE m.agent_run_id = a.agent_run_id
+                                 AND m.message_type = 'output'
+                               ORDER BY m.sequence_no DESC
+                               LIMIT 1
+                           ) AS message_id
+                    FROM declaration_qa.audit_logs a
+                    WHERE a.audit_uid = :audit_uid
+                    """
+                ),
                 {"audit_uid": audit_id},
             ).mappings().first()
             if not row:
@@ -153,11 +132,22 @@ class AuditRepository(EngineBackedRepository):
             connection.execute(
                 text(
                     """
-                    INSERT INTO declaration_qa.feedback (audit_log_id, user_id, rating, comment)
-                    VALUES (:audit_log_id, :user_id, :rating, :comment)
+                    INSERT INTO declaration_qa.feedback (
+                        audit_log_id, agent_run_id, message_id, user_id, rating, comment
+                    )
+                    VALUES (
+                        :audit_log_id, :agent_run_id, :message_id, :user_id, :rating, :comment
+                    )
                     """
                 ),
-                {"audit_log_id": row["id"], "user_id": row["user_id"], "rating": rating, "comment": comment},
+                {
+                    "audit_log_id": row["id"],
+                    "agent_run_id": row["agent_run_id"],
+                    "message_id": row["message_id"],
+                    "user_id": row["user_id"],
+                    "rating": rating,
+                    "comment": comment,
+                },
             )
         return {"audit_id": audit_id, "rating": rating, "comment": comment}
 
@@ -182,50 +172,4 @@ class AuditRepository(EngineBackedRepository):
             },
         ).mappings().first()
         return int(row["id"])
-
-    def _insert_message(
-        self,
-        connection,
-        *,
-        session_id: int,
-        role: str,
-        content: str,
-        intent: str,
-        refused: bool,
-        refuse_reason: str,
-        sources: list[dict[str, Any]],
-        suggested_actions: list[dict[str, Any]],
-        meta: dict[str, Any],
-    ) -> None:
-        """插入一条会话消息。"""
-        stmt = text(
-            """
-            INSERT INTO declaration_qa.messages (
-                session_id, role, content, intent, refused, refuse_reason,
-                sources, suggested_actions, meta
-            )
-            VALUES (
-                :session_id, :role, :content, :intent, :refused, :refuse_reason,
-                :sources, :suggested_actions, :meta
-            )
-            """
-        ).bindparams(
-            bindparam("sources", type_=JSON),
-            bindparam("suggested_actions", type_=JSON),
-            bindparam("meta", type_=JSON),
-        )
-        connection.execute(
-            stmt,
-            {
-                "session_id": session_id,
-                "role": role,
-                "content": content,
-                "intent": intent,
-                "refused": refused,
-                "refuse_reason": refuse_reason,
-                "sources": sources,
-                "suggested_actions": suggested_actions,
-                "meta": meta,
-            },
-        )
 

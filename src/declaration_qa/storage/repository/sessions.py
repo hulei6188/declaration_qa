@@ -21,7 +21,7 @@ class SessionRepository(EngineBackedRepository):
                     """
                     SELECT s.session_uid AS session_id, s.user_id, s.region_code, s.biz_type,
                            s.title, s.updated_at,
-                           COUNT(m.id)::int AS message_count
+                           COUNT(m.id) FILTER (WHERE m.visible = TRUE)::int AS message_count
                     FROM declaration_qa.sessions s
                     LEFT JOIN declaration_qa.messages m ON m.session_id = s.id
                     WHERE s.user_id = :user_id
@@ -59,6 +59,7 @@ class SessionRepository(EngineBackedRepository):
                         SELECT id FROM declaration_qa.sessions
                         WHERE session_uid = :session_id AND user_id = :user_id
                     )
+                      AND visible = TRUE
                     ORDER BY created_at ASC, id ASC
                     """
                 ),
@@ -82,6 +83,7 @@ class SessionRepository(EngineBackedRepository):
                         SELECT id FROM declaration_qa.sessions
                         WHERE session_uid = :session_id AND user_id = :user_id
                     )
+                      AND visible = TRUE
                     ORDER BY created_at DESC, id DESC
                     LIMIT :limit
                     """

@@ -166,6 +166,18 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         audit_store=audit_store,
         agent_model=agent_model,
         agent_max_iterations=settings.agent_max_iterations,
+        agent_multimodal_enabled=(
+            settings.agent_vl_enabled
+            or "vl" in str(settings.agent_model or settings.llm_model).lower()
+        ),
+        agent_allowed_image_dirs=[
+            settings.chat_image_dir,
+            settings.attachment_asset_dir,
+            settings.upload_dir,
+        ],
+        agent_max_evidence_images=settings.agent_vl_max_evidence_images,
+        agent_min_image_score=settings.agent_vl_min_image_score,
+        agent_max_image_bytes=settings.agent_vl_max_image_bytes,
         query_image_ocr_client=query_image_ocr_client,
         query_image_ocr_max_chars=settings.query_image_ocr_max_chars,
         context_memory_manager=context_memory_manager,

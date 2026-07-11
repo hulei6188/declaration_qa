@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 from declaration_qa.api.schemas import ChatRequest, ChatResponse
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.agent_planner import ToolCallingAgentPlanner
+from declaration_qa.application.agent import ToolCallingAgent
 from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
 from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
 from declaration_qa.application.workflow_helpers.streaming import (
@@ -52,7 +52,13 @@ class DeclarationQAWorkflow(WorkflowNodes):
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         agent_model: Any | None = None,
+        agent: Any | None = None,
         agent_planner: Any | None = None,
+        agent_multimodal_enabled: bool = False,
+        agent_allowed_image_dirs: list[str] | None = None,
+        agent_max_evidence_images: int = 3,
+        agent_min_image_score: float = 0.7,
+        agent_max_image_bytes: int = 10 * 1024 * 1024,
         tool_registry: ToolRegistry | None = None,
         agent_max_iterations: int = 4,
         query_image_ocr_client: Any | None = None,
@@ -65,7 +71,16 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
-        self.agent_planner = agent_planner or ToolCallingAgentPlanner(agent_model)
+        if agent is not None and agent_planner is not None:
+            raise ValueError("agent and legacy agent_planner cannot both be provided")
+        self.agent = agent or agent_planner or ToolCallingAgent(
+            agent_model,
+            multimodal_enabled=agent_multimodal_enabled,
+            allowed_image_dirs=agent_allowed_image_dirs,
+            max_evidence_images=agent_max_evidence_images,
+            min_image_score=agent_min_image_score,
+            max_image_bytes=agent_max_image_bytes,
+        )
         self.agent_max_iterations = max(1, int(agent_max_iterations or 4))
         self.query_image_ocr_client = query_image_ocr_client
         self.query_image_ocr_max_chars = max(1, int(query_image_ocr_max_chars or 4000))
@@ -99,6 +114,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         return ChatResponse(
             session_id=str(final_state["session_id"]),
             audit_id=str(final_state["audit_id"]),
+            run_id=str(final_state["audit_id"]),
             intent=str(final_state.get("intent") or "unknown"),
             route=str(final_state.get("route") or ""),
             sub_intent=str(final_state.get("sub_intent") or ""),
@@ -194,6 +210,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "agent_final_answer": "",
             "agent_final_prompt": "",
             "agent_answer_provider": "",
+            "agent_final_model": "",
+            "agent_final_token_usage": {},
+            "agent_final_latency_ms": None,
             "frozen_knowledge_query": "",
             "agent_selected_item_code": "",
             "agent_selected_application_id": None,
@@ -295,17 +314,33 @@ class DeclarationQAWorkflow(WorkflowNodes):
             {"tools": "agent_execute_tools", "finish": "agent_evidence_check"},
         )
         builder.add_edge("agent_execute_tools", "agent_observe")
-        builder.add_edge("agent_observe", "agent_decide")
+        builder.add_edge("agent_observe", "agent_evidence_check")
         builder.add_conditional_edges(
             "agent_evidence_check",
-            lambda state: "ok" if state.get("evidence_ok") else "refuse",
-            {"ok": "agent_finalize_answer", "refuse": "refuse_or_human"},
+            self._agent_evidence_route,
+            {
+                "ok": "agent_finalize_answer",
+                "retry": "agent_decide",
+                "refuse": "refuse_or_human",
+            },
         )
         builder.add_edge("agent_finalize_answer", "answer_postprocess")
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
         return builder.compile()
+
+    def _agent_evidence_route(self, state: DeclarationQAState) -> str:
+        """Route complete evidence directly to one final model call."""
+        iteration = int(state.get("agent_iteration") or 0)
+        if state.get("evidence_ok"):
+            can_finalize = callable(getattr(self.agent, "finalize", None))
+            if can_finalize or state.get("agent_final_answer") or iteration >= self.agent_max_iterations:
+                return "ok"
+            return "retry"
+        if state.get("refuse_reason") or iteration >= self.agent_max_iterations:
+            return "refuse"
+        return "retry"
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
     """根据聊天请求构建脱敏后的 trace 输入。"""

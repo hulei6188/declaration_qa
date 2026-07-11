@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from declaration_qa.application.agent_planner import rule_knowledge_queries
+from declaration_qa.application.agent import rule_knowledge_queries
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.rag.router import classify_knowledge_intent
 

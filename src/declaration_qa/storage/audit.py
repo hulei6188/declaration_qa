@@ -35,6 +35,97 @@ class InMemoryAuditStore:
         item = self._items.get(audit_id)
         return dict(item) if item else None
 
+    def get_agent_run(self, *, user_id: int, run_id: str) -> dict[str, Any] | None:
+        """返回与 PostgreSQL 结构一致的内存 Agent 运行记录。"""
+        item = self._items.get(run_id)
+        if not item or int(item.get("user_id") or 0) != int(user_id):
+            return None
+        created_at = str(item.get("created_at") or "")
+        messages: list[dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
+        sequence_no = 0
+        parent_message_id = ""
+
+        def append_message(role: str, message_type: str, content: str, *, visible: bool, content_json=None):
+            nonlocal sequence_no, parent_message_id
+            sequence_no += 1
+            message_id = f"{run_id}:message:{sequence_no}"
+            messages.append(
+                {
+                    "message_id": message_id,
+                    "sequence_no": sequence_no,
+                    "parent_message_id": parent_message_id,
+                    "role": role,
+                    "message_type": message_type,
+                    "content": content,
+                    "content_json": content_json or {},
+                    "status": "completed",
+                    "visible": visible,
+                    "parts": [],
+                    "citations": [],
+                    "created_at": created_at,
+                }
+            )
+            parent_message_id = message_id
+            return message_id
+
+        system_prompt = str(item.get("agent_system_prompt") or "")
+        if system_prompt:
+            append_message("system", "system", system_prompt, visible=False)
+        append_message("user", "input", str(item.get("query") or ""), visible=True)
+        results = [value for value in (item.get("tool_results") or []) if isinstance(value, dict)]
+        for index, result in enumerate(results, start=1):
+            call = {
+                "id": str(result.get("call_id") or f"call_{index}"),
+                "name": str(result.get("tool_name") or "unknown_tool"),
+                "arguments": dict(result.get("arguments") or {}),
+            }
+            assistant_message_id = append_message(
+                "assistant",
+                "tool_call",
+                "",
+                visible=False,
+                content_json={"tool_calls": [call]},
+            )
+            result_message_id = append_message(
+                "tool",
+                "tool_result",
+                f"{call['name']}: {result.get('status') or 'completed'}",
+                visible=False,
+                content_json={"result": result},
+            )
+            tool_calls.append(
+                {
+                    "tool_call_id": f"{run_id}:tool:{index}",
+                    "external_call_id": call["id"],
+                    "sequence_no": index,
+                    "tool_name": call["name"],
+                    "arguments": call["arguments"],
+                    "status": result.get("status") or "completed",
+                    "ok": bool(result.get("ok")),
+                    "result": result,
+                    "error": result.get("error") or "",
+                    "assistant_message_id": assistant_message_id,
+                    "result_message_id": result_message_id,
+                }
+            )
+        final_message_id = append_message("assistant", "output", str(item.get("answer") or ""), visible=True)
+        messages[-1]["citations"] = list(item.get("retrieved_sources") or [])
+        return {
+            "run_id": run_id,
+            "session_id": str(item.get("session_id") or ""),
+            "user_id": int(item.get("user_id") or 0),
+            "status": "succeeded",
+            "iteration_count": int(item.get("agent_iteration") or 0),
+            "trace_id": str(item.get("langfuse_trace_id") or ""),
+            "answer_provider": str(item.get("agent_answer_provider") or ""),
+            "started_at": created_at,
+            "completed_at": created_at,
+            "messages": messages,
+            "tool_calls": tool_calls,
+            "final_message_id": final_message_id,
+        }
+
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""
         payload = {

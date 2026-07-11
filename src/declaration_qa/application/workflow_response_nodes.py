@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.actions import suggested_actions
 from declaration_qa.application.workflow_helpers.events import add_event
@@ -38,7 +39,30 @@ class WorkflowResponseNodes:
         answer = str(next_state.get("agent_final_answer") or "").strip()
         prompt = str(next_state.get("agent_final_prompt") or "")
         provider = str(next_state.get("agent_answer_provider") or "")
+        model = ""
+        token_usage: dict[str, int] = {}
+        latency_ms: int | None = None
+        generation_plan: dict[str, object] = {}
         fallback = False
+        finalizer = getattr(self.agent, "finalize", None)
+        if callable(finalizer):
+            try:
+                multimodal_response = finalizer(next_state)
+            except Exception as exc:
+                multimodal_response = None
+                add_event(
+                    next_state,
+                    "agent_final_failed",
+                    {"error_type": type(exc).__name__},
+                )
+            if multimodal_response is not None and str(multimodal_response.answer or "").strip():
+                answer = str(multimodal_response.answer).strip()
+                prompt = str(multimodal_response.prompt or "")
+                provider = str(multimodal_response.provider or "agent_multimodal_final")
+                model = str(multimodal_response.model or "")
+                token_usage = dict(multimodal_response.token_usage or {})
+                latency_ms = multimodal_response.latency_ms
+                generation_plan = dict(multimodal_response.generation_plan or {})
         if not answer:
             answer, prompt = self.answer_generator.generate(next_state)
             provider = f"fallback:{getattr(self.answer_generator, 'name', type(self.answer_generator).__name__)}"
@@ -46,12 +70,17 @@ class WorkflowResponseNodes:
         answer, history_fallback = ensure_complete_application_history(answer, next_state)
         fallback = fallback or history_fallback
         generation_plan = {
-            "mode": "agent",
+            "mode": generation_plan.get("mode") or "agent",
+            **generation_plan,
             "provider": provider or "native_tool_calling",
             "fallback": fallback,
             "history_integrity_fallback": history_fallback,
         }
         next_state["answer"] = answer
+        next_state["agent_answer_provider"] = provider
+        next_state["agent_final_model"] = model
+        next_state["agent_final_token_usage"] = token_usage
+        next_state["agent_final_latency_ms"] = latency_ms
         next_state["answer_generation_plan"] = generation_plan
         audit_payload = dict(next_state.get("audit_payload") or {})
         audit_payload["final_prompt"] = prompt
@@ -75,6 +104,7 @@ class WorkflowResponseNodes:
             "session_id": next_state.get("session_id"),
             "query": next_state.get("query"),
             "query_image": next_state.get("query_image") or None,
+            "query_image_ocr_text": next_state.get("query_image_ocr_text") or "",
             "normalized_query": next_state.get("normalized_query"),
             "intent": next_state.get("intent"),
             "sub_intent": next_state.get("sub_intent"),
@@ -88,6 +118,13 @@ class WorkflowResponseNodes:
             "agent_query_plan": next_state.get("agent_query_plan") or {},
             "agent_iteration": int(next_state.get("agent_iteration") or 0),
             "agent_answer_provider": next_state.get("agent_answer_provider") or "",
+            "agent_final_model": next_state.get("agent_final_model") or "",
+            "agent_final_token_usage": next_state.get("agent_final_token_usage") or {},
+            "agent_final_latency_ms": next_state.get("agent_final_latency_ms"),
+            "agent_system_prompt": AGENT_SYSTEM_PROMPT,
+            "agent_prompt_version": "agentic-rag-v1",
+            "tool_registry_version": "tool-registry-v1",
+            "agent_model_config": agent_model_config(getattr(self, "agent", None)),
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
             "agent_selected_application_id": next_state.get("agent_selected_application_id"),
             "tool_results": next_state.get("tool_results") or [],
@@ -117,6 +154,19 @@ class WorkflowResponseNodes:
             add_event(next_state, "context_memory", memory_status)
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
+
+
+def agent_model_config(agent: object | None) -> dict[str, object]:
+    """Return non-secret model identity fields for run reproducibility."""
+    model = getattr(agent, "model", None)
+    if model is None:
+        return {}
+    return {
+        "class": type(model).__name__,
+        "model": str(getattr(model, "model_name", None) or getattr(model, "model", None) or ""),
+        "multimodal_enabled": bool(getattr(agent, "multimodal_enabled", False)),
+        "max_evidence_images": int(getattr(agent, "max_evidence_images", 0) or 0),
+    }
 
 
 def ensure_complete_application_history(answer: str, state: dict[str, object]) -> tuple[str, bool]:

@@ -29,6 +29,9 @@ class DeclarationQAState(TypedDict, total=False):
     agent_final_answer: str
     agent_final_prompt: str
     agent_answer_provider: str
+    agent_final_model: str
+    agent_final_token_usage: dict[str, int]
+    agent_final_latency_ms: int | None
     frozen_knowledge_query: str
     agent_selected_item_code: str
     agent_selected_application_id: int | None

@@ -61,6 +61,7 @@ def done_event(state: DeclarationQAState) -> dict[str, Any]:
         "data": {
             "session_id": state.get("session_id"),
             "audit_id": state.get("audit_id"),
+            "run_id": state.get("audit_id"),
             "intent": state.get("intent"),
             "route": state.get("route"),
             "sub_intent": state.get("sub_intent"),
