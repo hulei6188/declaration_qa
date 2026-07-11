@@ -16,6 +16,10 @@ MAX_TABLE_SEMANTIC_ROW_CHUNKS = 120
 MAX_TABLE_SUMMARY_FIELDS = 40
 MAX_TABLE_SUMMARY_VALUES = 12
 MAX_TABLE_ROW_VALUE_CHARS = 900
+MAX_TABLE_TITLE_CHARS = 500
+MAX_TABLE_FIELD_NAME_CHARS = 300
+MAX_TABLE_SOURCE_LINE_CHARS = 500
+MAX_INDEXABLE_TABLE_CHUNK_CHARS = 6000
 
 
 def build_table_semantic_chunk_specs(
@@ -71,6 +75,7 @@ def build_table_semantic_chunk_specs(
         table=table,
         table_text_value=table_text_value,
     )
+    summary_content = bounded_chunk_text(summary_content)
     specs.append(
         {
             "id_suffix": f"{id_prefix}:summary",
@@ -100,10 +105,12 @@ def build_table_semantic_chunk_specs(
                 "id_suffix": f"{id_prefix}:{semantic_type}:{row_item['row_index']}",
                 "parent_id_suffix": parent_suffix,
                 "chunk_type": "child",
-                "content": table_row_chunk_content(
-                    source_lines=source_lines,
-                    table=table,
-                    row_item=row_item,
+                "content": bounded_chunk_text(
+                    table_row_chunk_content(
+                        source_lines=source_lines,
+                        table=table,
+                        row_item=row_item,
+                    )
                 ),
                 "source_url": source_url,
                 "metadata": {
@@ -241,6 +248,7 @@ def semantic_table_rows(table: dict[str, Any]) -> list[dict[str, Any]]:
         if not any(values):
             continue
         field_name, field_value = key_value_pair(headers, values)
+        field_name = field_name[:MAX_TABLE_FIELD_NAME_CHARS]
         text = table_row_text(headers, values, row_index=row_index)
         items.append(
             {
@@ -333,7 +341,7 @@ def table_column_count(table: dict[str, Any]) -> int:
 
 def table_identity_line(table: dict[str, Any]) -> str:
     """返回表格标题行。"""
-    title = clean_inline_text(str(table.get("title") or ""))
+    title = clean_inline_text(str(table.get("title") or ""))[:MAX_TABLE_TITLE_CHARS]
     return f"表格标题：{title}" if title else "表格标题：未命名表格"
 
 
@@ -351,7 +359,16 @@ def table_semantic_id_prefix(*parts: Any) -> str:
 
 def non_empty_lines(lines: list[str]) -> list[str]:
     """清理来源上下文行。"""
-    return [clean_inline_text(str(line)) for line in lines if clean_inline_text(str(line))]
+    return [
+        clean_inline_text(str(line))[:MAX_TABLE_SOURCE_LINE_CHARS]
+        for line in lines
+        if clean_inline_text(str(line))
+    ]
+
+
+def bounded_chunk_text(value: str) -> str:
+    """限制发送到 embedding/rerank 的表格子块长度。"""
+    return str(value or "")[:MAX_INDEXABLE_TABLE_CHUNK_CHARS].rstrip()
 
 
 def coerce_table_index(value: Any, fallback: int = 0) -> int:

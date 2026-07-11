@@ -4,7 +4,11 @@ import types
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.indexing.attachments.extractor import attachment_parser_metadata
-from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser, docling_chunk_specs
+from declaration_qa.indexing.document_parsing.docling_parser import (
+    DoclingDocumentParser,
+    docling_chunk_specs,
+    docling_table_lookup,
+)
 from declaration_qa.indexing.document_parsing.factory import CompositeDocumentParser, build_document_parser, parse_document_bytes
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedDocument
 
@@ -206,6 +210,21 @@ def test_docling_chunker_allows_documents_without_text_chunks(monkeypatch):
     monkeypatch.setattr("docling_core.transforms.chunker.HybridChunker", EmptyHybridChunker)
 
     assert docling_chunk_specs(types.SimpleNamespace(tables=[])) == []
+
+
+def test_docling_table_caption_method_is_called_instead_of_serialized():
+    cell = types.SimpleNamespace(text="申请材料")
+    table = types.SimpleNamespace(
+        self_ref="#/tables/0",
+        data=types.SimpleNamespace(grid=[[cell]], table_cells=[]),
+        caption_text=lambda document: f"{document.name}清单",
+        prov=[],
+    )
+
+    lookup = docling_table_lookup(types.SimpleNamespace(name="取水许可", tables=[table]))
+
+    assert lookup["#/tables/0"]["table_json"]["title"] == "取水许可清单"
+    assert "bound method" not in lookup["#/tables/0"]["table_text"]
 
 
 def test_auto_parser_uses_project_ocr_first_for_images():

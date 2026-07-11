@@ -204,17 +204,18 @@ def docling_table_lookup(document: Any) -> dict[str, dict[str, Any]]:
         rows = docling_table_rows(table)
         if not rows:
             continue
+        title = docling_table_caption(table, document)
         cells = docling_table_cells(table)
         json_value = table_json(
             rows,
             cells=cells,
-            title=str(getattr(table, "caption_text", "") or ""),
+            title=title,
             page_no=docling_table_page_no(table),
             bbox=docling_table_bbox(table),
         )
         output[str(getattr(table, "self_ref", "") or f"#/tables/{table_index}")] = {
             "table_index": table_index,
-            "table_text": table_text(rows, title=str(getattr(table, "caption_text", "") or "")),
+            "table_text": table_text(rows, title=title),
             "table_html": html_table(rows),
             "table_json": json_value,
             "llm_table_context": compact_table_context(json_value),
@@ -222,6 +223,22 @@ def docling_table_lookup(document: Any) -> dict[str, dict[str, Any]]:
             "table_column_count": max((len(row) for row in rows), default=0),
         }
     return output
+
+
+def docling_table_caption(table: Any, document: Any) -> str:
+    """安全读取 Docling 表格标题，避免把 bound method 序列化为整表对象。"""
+    value = getattr(table, "caption_text", "")
+    if callable(value):
+        try:
+            value = value(document)
+        except TypeError:
+            try:
+                value = value()
+            except Exception:
+                return ""
+        except Exception:
+            return ""
+    return str(value or "").strip()[:500]
 
 
 def docling_table_rows(table: Any) -> list[list[str]]:
