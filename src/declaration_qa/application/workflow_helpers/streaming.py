@@ -51,9 +51,7 @@ def should_emit_sources(node_name: str, state: DeclarationQAState) -> bool:
     """判断节点完成后是否需要补发检索来源事件。"""
     if not state.get("retrieved_sources"):
         return False
-    if node_name in {"ticket_knowledge_rag", "hybrid_retrieve"}:
-        return True
-    return node_name == "multi_question_collect" and not state.get("need_ticket_selection")
+    return node_name == "agent_observe"
 
 
 def done_event(state: DeclarationQAState) -> dict[str, Any]:
@@ -66,14 +64,12 @@ def done_event(state: DeclarationQAState) -> dict[str, Any]:
             "intent": state.get("intent"),
             "route": state.get("route"),
             "sub_intent": state.get("sub_intent"),
-            "multi_question": bool(state.get("multi_question")),
             "query_rewrite.stage1": state.get("query_rewrite.stage1") or {},
-            "sub_tasks": state.get("sub_tasks") or [],
-            "need_ticket_selection": bool(state.get("need_ticket_selection")),
-            "ticket_selection_reason": state.get("ticket_selection_reason"),
-            "tickets": state.get("tickets") or [],
-            "ticket_context": state.get("ticket_context") or {},
             "retrieval_chain": state.get("retrieval_chain"),
+            "agent_plan": state.get("agent_plan") or {},
+            "agent_iteration": int(state.get("agent_iteration") or 0),
+            "selected_item_code": state.get("agent_selected_item_code") or "",
+            "selected_application_id": state.get("agent_selected_application_id"),
             "refused": bool(state.get("refused")),
             "refuse_reason": state.get("refuse_reason"),
             "suggested_actions": state.get("suggested_actions") or [],

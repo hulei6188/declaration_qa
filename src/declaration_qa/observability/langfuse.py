@@ -293,7 +293,6 @@ def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | 
         "langfuse_session_id": str(state.get("session_id") or ""),
         "route": state.get("route") or "",
         "intent": state.get("intent") or "",
-        "ticket_fact_type": state.get("ticket_fact_type") or "none",
         "retrieval_chain": state.get("retrieval_chain") or "",
     }
     trace_id = str(state.get("langfuse_trace_id") or "")

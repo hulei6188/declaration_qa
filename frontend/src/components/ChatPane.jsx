@@ -1,12 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImagePlus, Maximize2, Minimize2, Send, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
-import { escapeHtml, ticketLabel } from '../utils.js';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
 
 export default function ChatPane({
-  messages, streaming, sendState, currentTicket, ticketPickerOpen, ticketList,
-  pendingTicketQuery, onSend, onClear, onOpenTicketPicker, onCloseTicketPicker,
-  onSelectTicket, onClearTicket, ctx, setCtx, audit, feedbackResult, onFeedback,
+  messages, streaming, sendState, onSend, onClear, ctx, setCtx, audit, feedbackResult, onFeedback,
   expanded = false, onToggleExpanded,
 }) {
   const [input, setInput] = useState('');
@@ -75,8 +72,6 @@ export default function ChatPane({
     if (imageInputRef.current) imageInputRef.current.value = '';
   }
 
-  const ticketId = currentTicket?.ticket_id || ctx.applyId;
-  const ticketDisplay = ticketId ? ticketLabel(currentTicket || { ticket_id: ticketId }) : null;
   const lastAssistantIndex = findLastAssistantIndex(messages);
   const canFeedback = Boolean(audit?.auditId && audit.auditId !== '-');
 
@@ -87,27 +82,6 @@ export default function ChatPane({
         <div>
           <p className="eyebrow">Live SSE Chat</p>
           <h2>问答会话</h2>
-          <div className="current-ticket">
-            <span>{ticketDisplay ? `当前工单：${ticketDisplay}` : '当前工单：未选择'}</span>
-            <button className="ghost compact" onClick={onOpenTicketPicker}>更换</button>
-            <button className="ghost compact" onClick={onClearTicket} disabled={!ticketId}>清除</button>
-          </div>
-          {ticketPickerOpen && (
-            <div className="ticket-picker">
-              <strong>选择当前工单</strong>
-              {ticketList.length === 0 ? (
-                <p className="hint">暂无可选择工单。</p>
-              ) : (
-                ticketList.map((t) => (
-                  <button key={t.ticket_id} className="ticket-option" onClick={() => onSelectTicket(t)}>
-                    <span>{escapeHtml(t.title || t.biz_type || '申报工单')}</span>
-                    <code>{escapeHtml(t.ticket_id || '-')} · {escapeHtml(t.node_name || t.current_node || t.status || '-')} · {escapeHtml(t.updated_at || '-')}</code>
-                  </button>
-                ))
-              )}
-              <button className="ghost compact" onClick={onCloseTicketPicker}>取消</button>
-            </div>
-          )}
         </div>
         <div className="chat-actions">
           <button
@@ -144,17 +118,6 @@ export default function ChatPane({
                     src={item.data_url || item.url}
                     alt={item.filename || '上传图片'}
                   />
-                ))}
-              </div>
-            )}
-            {m.ticketSelection && (
-              <div className="ticket-selection">
-                <strong>{m.ticketSelection.reason === 'multiple_candidates' ? '请选择对应工单' : '候选工单'}</strong>
-                {m.ticketSelection.tickets.map((t) => (
-                  <button key={t.ticket_id} className="ticket-option" onClick={() => onSelectTicket(t)}>
-                    <span>{escapeHtml(t.title || t.biz_type || '申报工单')}</span>
-                    <code>{escapeHtml(t.ticket_id || '-')} · {escapeHtml(t.node_name || t.current_node || t.status || '-')} · {escapeHtml(t.updated_at || '-')}</code>
-                  </button>
                 ))}
               </div>
             )}

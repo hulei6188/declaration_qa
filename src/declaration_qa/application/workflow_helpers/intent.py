@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import re
 
-from declaration_qa.rag.router import (
-    INTENT_CORRECTION_GUIDANCE,
-    INTENT_REJECTION_REASON,
-    INTENT_TICKET_STATUS,
-)
+from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STATUS
 
 
 def mask_sensitive_text(value: str) -> str:
@@ -22,18 +18,6 @@ def mask_sensitive_text(value: str) -> str:
 def is_unsafe_query(query: str) -> bool:
     """判断是否为不应回答的高风险问题。"""
     return any(keyword in str(query or "") for keyword in ["伪造", "造假", "假材料", "绕过审核"])
-
-
-def task_intent(ticket_fact_type: str, requires_ticket_context: bool, query: str = "") -> str:
-    """从两阶段 Query Rewrite 任务字段派生 intent 展示值。"""
-    if requires_ticket_context:
-        if ticket_fact_type == "status":
-            return INTENT_TICKET_STATUS
-        if ticket_fact_type == "rejection":
-            return INTENT_REJECTION_REASON
-        if ticket_fact_type == "correction":
-            return INTENT_CORRECTION_GUIDANCE
-    return classify_intent(query) if query else "knowledge_qa"
 
 
 def classify_intent(query: str) -> str:

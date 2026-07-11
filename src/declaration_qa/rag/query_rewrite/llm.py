@@ -61,8 +61,6 @@ class LLMTwoStageQueryRewriter:
             base_query=fallback.base_query,
             scope_text=fallback.scope_text,
             fact_text=fallback.fact_text,
-            requires_ticket_context=fallback.requires_ticket_context,
-            ticket_fact_type=fallback.ticket_fact_type,
             queries=fallback.queries,
             provider="rule_two_stage_fallback",
             reason=f"missing_stage1_queries:{fallback.reason}",

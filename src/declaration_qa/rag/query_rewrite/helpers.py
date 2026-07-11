@@ -7,7 +7,6 @@ from typing import Any
 
 from declaration_qa.rag.query_rewrite.schema import DEFAULT_RETRIEVAL_TOP_K
 from declaration_qa.rag.retrieval_plan import infer_retrieval_plan
-from declaration_qa.rag.router import ticket_context_related
 
 
 KNOWN_TOPIC_TERMS = (
@@ -82,16 +81,12 @@ def question_item(query: str, state: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_text(query).strip("。；;？?")
     retrieval_query = contextualized_retrieval_query(normalized, state)
     is_expanded = retrieval_query != normalized
-    requires_ticket_context = ticket_context_related(normalized, {**state, "query": normalized, "normalized_query": normalized})
-    ticket_fact_type = normalize_ticket_fact_type("", normalized, requires_ticket_context=requires_ticket_context)
     return {
         "id": "",
         "original_query": normalized,
         "query": normalized,
         "retrieval_query": retrieval_query,
-        "requires_ticket_context": requires_ticket_context,
-        "ticket_fact_type": ticket_fact_type,
-        "retrieval_plan": infer_retrieval_plan(ticket_fact_type=ticket_fact_type),
+        "retrieval_plan": infer_retrieval_plan(),
         "retrieval_queries": [],
         "is_expanded": is_expanded,
         "expansion_reason": "session_context_rewrite" if is_expanded else "",
@@ -136,24 +131,6 @@ def numbered_questions(parts: list[str]) -> list[str]:
     return output
 
 
-def normalize_ticket_fact_type(value: str, query: str, *, requires_ticket_context: bool) -> str:
-    """归一化办件事实类型。"""
-    allowed = {"status", "rejection", "correction", "none"}
-    normalized = str(value or "").strip().lower()
-    if normalized in allowed:
-        return normalized if requires_ticket_context else "none"
-    if not requires_ticket_context:
-        return "none"
-    text = str(query or "")
-    if any(keyword in text for keyword in ["退回", "驳回", "不通过", "被拒", "被退", "为什么"]):
-        return "rejection"
-    if any(keyword in text for keyword in ["补正", "补什么", "还要补", "修改", "重新提交"]):
-        return "correction"
-    if any(keyword in text for keyword in ["进度", "到哪", "状态", "审核到", "办到哪", "什么情况", "怎么样"]):
-        return "status"
-    return "none"
-
-
 def normalize_text(value: Any) -> str:
     """将文本空白归一化为紧凑格式。"""
     return re.sub(r"\s+", " ", str(value or "").strip())
@@ -184,20 +161,7 @@ def needs_context_topic(query: str) -> bool:
 
 
 def current_context_topic(state: dict[str, Any]) -> str:
-    """按优先级从当前工单、最近会话和短期摘要中提取事项主题。"""
-    apply_context = state.get("apply_context") if isinstance(state.get("apply_context"), dict) else {}
-    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
-    for value in [
-        apply_context.get("title"),
-        apply_context.get("item_name"),
-        payload.get("official_item_name"),
-        payload.get("item_name"),
-        payload.get("title"),
-        payload.get("catalog_name"),
-    ]:
-        topic = extract_topic(str(value or ""))
-        if topic:
-            return topic
+    """只从用户会话和摘要中提取事项主题。"""
     current_query = normalize_text(state.get("normalized_query") or state.get("query") or "")
     for message in reversed(list(state.get("session_messages") or [])):
         if not isinstance(message, dict) or message.get("role") != "user":
@@ -248,90 +212,6 @@ def normalize_top_k(value: Any) -> int:
         number = DEFAULT_RETRIEVAL_TOP_K
     return max(1, min(6, number))
 
-
 def join_query_parts(*parts: Any) -> str:
     """拼接非空查询片段。"""
     return normalize_text(" ".join(str(part) for part in parts if str(part or "").strip()))
-
-
-def selected_ticket_scope_text(state: dict[str, Any]) -> str:
-    """从当前办件上下文提取事项范围。"""
-    apply_context = state.get("apply_context") or {}
-    if not isinstance(apply_context, dict) or not apply_context:
-        return ""
-    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
-    parts = [
-        ticket_title(apply_context, state),
-        payload.get("official_item_name"),
-        apply_context.get("item_name"),
-        payload.get("item_name"),
-        apply_context.get("title"),
-        payload.get("title"),
-        payload.get("catalog_name"),
-        apply_context.get("source_file"),
-        payload.get("source_file"),
-        apply_context.get("item_code"),
-        payload.get("item_code"),
-        apply_context.get("biz_type"),
-    ]
-    return normalize_text(" ".join(unique_strings([str(item) for item in parts if item])))
-
-
-def has_item_scope_filter(filters: dict[str, Any]) -> bool:
-    """返回元数据过滤条件是否已包含事项范围。"""
-    return any(filters.get(key) for key in ("item_code", "ssqd_code", "ssqd_id", "item_name"))
-
-
-def selected_ticket_fact_text(state: dict[str, Any]) -> str:
-    """提取允许用于检索的办件事实。"""
-    ticket_fact_type = str(state.get("ticket_fact_type") or "none")
-    if ticket_fact_type == "status":
-        business = state.get("business_status") or state.get("business_snapshot") or {}
-        parts = [business.get("node_name"), business.get("current_node"), business.get("status")]
-    elif ticket_fact_type in {"rejection", "correction"}:
-        business = state.get("reject_info") or state.get("business_snapshot") or {}
-        parts = [
-            business.get("reject_reason"),
-            business.get("material_name"),
-            business.get("reject_code"),
-            business.get("material_code"),
-            business.get("audit_node"),
-        ]
-    else:
-        parts = []
-    return normalize_text(" ".join(str(item) for item in parts if item))
-
-
-def ticket_title(*sources: dict[str, Any]) -> str:
-    """提取当前事项标题。"""
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        for key in ("title", "item_name", "catalog_name"):
-            title = str(source.get(key) or "").strip()
-            if title:
-                return title
-        payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
-        for key in ("official_item_name", "item_name", "title", "catalog_name"):
-            title = str(payload.get(key) or "").strip()
-            if title:
-                return title
-    for source in sources:
-        if isinstance(source, dict):
-            title = str(source.get("biz_type") or "").strip()
-            if title:
-                return title
-    return ""
-
-
-def unique_strings(values: list[str]) -> list[str]:
-    """按首次出现顺序去重字符串。"""
-    seen = set()
-    output = []
-    for value in values:
-        item = str(value or "").strip()
-        if not item or item in seen:
-            continue
-        seen.add(item)
-        output.append(item)
-    return output

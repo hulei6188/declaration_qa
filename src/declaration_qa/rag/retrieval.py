@@ -6,7 +6,6 @@ from datetime import date
 from typing import Any
 
 KNOWLEDGE_RETRIEVAL_CHAIN = "knowledge_retrieval"
-TICKET_AUGMENTED_CHAIN = "ticket_augmented"
 
 
 SUPPORTED_FILTER_KEYS = {
@@ -43,7 +42,6 @@ REMOVED_METADATA_KEYS = {
 
 REQUIRED_METADATA_BY_CHAIN = {
     KNOWLEDGE_RETRIEVAL_CHAIN: [],
-    TICKET_AUGMENTED_CHAIN: [],
 }
 
 
@@ -106,8 +104,3 @@ def metadata_coverage(filters: dict[str, Any], *, chain: str) -> dict[str, Any]:
         "missing": missing,
         "coverage": coverage,
     }
-
-
-def is_ticket_chain(intent: str) -> bool:
-    """判断意图是否属于办件增强链路。"""
-    return intent in {"status", "reject", "ticket_status", "rejection_reason"}

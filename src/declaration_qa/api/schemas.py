@@ -5,39 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
-
-
-class ApplyContext(BaseModel):
-    """办件上下文请求模型。"""
-    apply_id: str = ""
-    biz_type: str | None = None
-    region_code: str | None = None
-    title: str | None = None
-    item_name: str | None = None
-    item_code: str | None = None
-    source_file: str | None = None
-    status: str | None = None
-    current_node: str | None = None
-    node_name: str | None = None
-    reject_code: str | None = None
-    reject_reason: str | None = None
-    material_code: str | None = None
-    material_name: str | None = None
-    audit_node: str | None = None
-    payload: dict[str, Any] | None = None
-
-
-class TicketSummary(BaseModel):
-    """用户办件列表中的摘要模型。"""
-    ticket_id: str
-    biz_type: str = ""
-    region_code: str = ""
-    status: str = ""
-    current_node: str = ""
-    node_name: str = ""
-    title: str = ""
-    updated_at: str = ""
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ChatImagePayload(BaseModel):
@@ -52,6 +20,8 @@ class ChatImagePayload(BaseModel):
 
 class ChatRequest(BaseModel):
     """申报问答请求模型。"""
+    model_config = ConfigDict(extra="forbid")
+
     query: str = Field(default="", max_length=1000)
     user_id: int = Field(default=1, ge=1)
     session_id: str | None = None
@@ -59,8 +29,6 @@ class ChatRequest(BaseModel):
     app_version: str = Field(default="", max_length=40)
     policy_version: str = Field(default="2025", max_length=80)
     biz_type: str | None = Field(default=None, max_length=80)
-    apply_id: str | None = Field(default=None, max_length=80)
-    apply_context: ApplyContext | None = None
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
     query_image: ChatImagePayload | None = None
 
@@ -117,13 +85,7 @@ class ChatResponse(BaseModel):
     route: str = ""
     sub_intent: str = ""
     route_decision: dict[str, Any] = Field(default_factory=dict)
-    multi_question: bool = False
     query_rewrite_stage1: dict[str, Any] = Field(default_factory=dict, serialization_alias="query_rewrite.stage1")
-    sub_tasks: list[dict[str, Any]] = Field(default_factory=list)
-    need_ticket_selection: bool = False
-    ticket_selection_reason: str = ""
-    tickets: list[TicketSummary] = Field(default_factory=list)
-    ticket_context: dict[str, Any] = Field(default_factory=dict)
     retrieval_chain: str = ""
     answer: str
     refused: bool = False
@@ -132,6 +94,8 @@ class ChatResponse(BaseModel):
     business_snapshot: dict[str, Any] = Field(default_factory=dict)
     rag_status: dict[str, Any] = Field(default_factory=dict)
     evidence_decision: dict[str, Any] = Field(default_factory=dict)
+    agent_plan: dict[str, Any] = Field(default_factory=dict)
+    tool_results: list[dict[str, Any]] = Field(default_factory=list)
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -282,7 +246,6 @@ class SessionSummary(BaseModel):
     user_id: int
     region_code: str = ""
     biz_type: str | None = None
-    apply_id: str = ""
     title: str = ""
     message_count: int = 0
     updated_at: str = ""
@@ -308,13 +271,13 @@ class FeedbackRequest(BaseModel):
 
 class EvaluationCaseRequest(BaseModel):
     """评测用例创建请求模型。"""
+    model_config = ConfigDict(extra="forbid")
+
     query: str = Field(min_length=1, max_length=1000)
     user_id: int = Field(default=1, ge=1)
     region_code: str = Field(default="340000", min_length=2, max_length=12)
     policy_version: str = Field(default="2025", max_length=80)
     biz_type: str | None = Field(default=None, max_length=80)
-    apply_id: str | None = Field(default=None, max_length=80)
-    apply_context: ApplyContext | None = None
     expected_intent: str = Field(default="", max_length=40)
     expected_refused: bool | None = None
     expected_doc_ids: list[str] = Field(default_factory=list)

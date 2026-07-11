@@ -24,16 +24,15 @@ class ContextMemoryExtractor:
             return []
         if bool(payload.get("refused")) and str(payload.get("refuse_reason") or "") not in {"clarification_required"}:
             return []
+        if has_business_tool_result(payload):
+            return []
         source_summary = summarize_sources(payload.get("retrieved_sources") or [])
-        ticket_summary = summarize_ticket(payload)
         content_parts = [
             f"用户问题：{query}",
             f"系统回答摘要：{answer}",
         ]
         if source_summary:
             content_parts.append(f"关联办事指南或材料：{source_summary}")
-        if ticket_summary:
-            content_parts.append(f"关联办件上下文：{ticket_summary}")
         content = "\n".join(content_parts)
         memory_type = infer_memory_type(payload)
         memory_id = stable_memory_id(
@@ -69,8 +68,6 @@ class ContextMemoryExtractor:
 def infer_memory_type(payload: dict[str, Any]) -> str:
     """根据问答链路推断记忆类型。"""
     intent = str(payload.get("intent") or "")
-    if intent in {"ticket_status", "status", "rejection_reason", "reject"} or payload.get("ticket_context"):
-        return "business_fact"
     if payload.get("query_image"):
         return "image_query_fact"
     return "qa_fact"
@@ -79,8 +76,6 @@ def infer_memory_type(payload: dict[str, Any]) -> str:
 def memory_importance(payload: dict[str, Any]) -> float:
     """估算记忆重要性，供后续排序使用。"""
     score = 0.45
-    if payload.get("ticket_context") or payload.get("apply_id"):
-        score += 0.2
     if payload.get("retrieved_sources"):
         score += 0.15
     if str(payload.get("intent") or "") in {"material", "process_steps", "time_limit", "status", "reject"}:
@@ -102,24 +97,12 @@ def summarize_sources(sources: list[dict[str, Any]]) -> str:
     return "；".join(dict.fromkeys(labels))
 
 
-def summarize_ticket(payload: dict[str, Any]) -> str:
-    """整理办件上下文摘要。"""
-    ticket_context = payload.get("ticket_context") if isinstance(payload.get("ticket_context"), dict) else {}
-    ticket = ticket_context.get("ticket") if isinstance(ticket_context.get("ticket"), dict) else {}
-    business_snapshot = payload.get("business_snapshot") if isinstance(payload.get("business_snapshot"), dict) else {}
-    parts = [
-        text_field(payload.get("apply_id") or ticket.get("ticket_id") or business_snapshot.get("apply_id"), "申请单"),
-        text_field(payload.get("biz_type") or ticket.get("biz_type") or business_snapshot.get("biz_type"), "业务类型"),
-        text_field(ticket.get("status") or business_snapshot.get("status"), "状态"),
-        text_field(ticket.get("node_name") or business_snapshot.get("node_name"), "节点"),
-    ]
-    return "，".join(part for part in parts if part)
-
-
-def text_field(value: Any, label: str) -> str:
-    """格式化非空字段。"""
-    text = str(value or "").strip()
-    return f"{label}：{text}" if text else ""
+def has_business_tool_result(payload: dict[str, Any]) -> bool:
+    """实时个人工单事实禁止写入可跨轮复用的长期记忆。"""
+    return any(
+        isinstance(result, dict) and str(result.get("tool_name") or "").startswith("ticket_")
+        for result in payload.get("tool_results") or []
+    )
 
 
 def stable_memory_id(*, user_id: int, memory_type: str, content: str) -> str:

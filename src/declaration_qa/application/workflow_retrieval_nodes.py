@@ -7,140 +7,29 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.intent import infer_biz_type, mask_sensitive_text
+from declaration_qa.application.workflow_helpers.intent import mask_sensitive_text
 from declaration_qa.application.workflow_helpers.retrieval_sources import (
     dedupe_retrieval_queries,
     merge_retrieval_sources,
     query_status_from_result,
     select_answer_sources,
 )
-from declaration_qa.application.workflow_helpers.ticket_context import (
-    base_policy_filter,
+from declaration_qa.application.workflow_helpers.knowledge_context import (
     knowledge_rag_query,
-    ticket_rag_query,
 )
 from declaration_qa.core.domain import RetrievalResult
-from declaration_qa.observability.langfuse import observation, safe_value, source_summary
-from declaration_qa.rag.evidence import decide_evidence
+from declaration_qa.observability.langfuse import observation, safe_value
 from declaration_qa.rag.engine.text import normalize_text
-from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
-from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED, ROUTE_TICKET_CONTEXT_UNRELATED
 
 
 class WorkflowRetrievalNodes:
-    """知识检索和证据门控节点。"""
-    def image_only_prepare(self, state: DeclarationQAState) -> DeclarationQAState:
-        """为纯图片查询准备检索状态，不进入文本解析和改写链路。"""
-        next_state = dict(state)
-        ocr_query = query_image_ocr_query(next_state)
-        ocr_queries = (
-            [{"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6}]
-            if ocr_query
-            else []
-        )
-        next_state["route"] = ROUTE_TICKET_CONTEXT_UNRELATED
-        next_state["intent"] = "image_query"
-        next_state["sub_intent"] = "image_only_retrieval"
-        next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
-        next_state["requires_ticket_context"] = False
-        next_state["ticket_fact_type"] = "none"
-        next_state["multi_question"] = False
-        next_state["sub_tasks"] = []
-        next_state["retrieval_queries"] = ocr_queries
-        next_state["rag_query"] = ocr_query
-        next_state["query_rewrite"] = {
-            "base_query": "",
-            "scope_text": "",
-            "fact_text": "",
-            "requires_ticket_context": False,
-            "ticket_fact_type": "none",
-            "queries": ocr_queries,
-            "provider": "image_ocr" if ocr_query else "image_only",
-            "reason": "image_ocr_direct_retrieval" if ocr_query else "image_only_skip_text_chain",
-        }
-        next_state["retrieval_plan"] = {
-            **normalize_retrieval_plan(next_state.get("retrieval_plan") or {}),
-            "query_modality": "image",
-        }
-        add_event(
-            next_state,
-            "image_only_prepare",
-            {"text_chain_skipped": True, "ocr_text_retrieval": bool(ocr_query), "ocr_char_count": len(ocr_query)},
-        )
-        return next_state
-
-    def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
-        """构造普通知识检索过滤条件。"""
-        next_state = dict(state)
-        if not next_state.get("biz_type") and not next_state.get("apply_context"):
-            next_state["biz_type"] = infer_biz_type(next_state.get("normalized_query") or "")
-        filters = base_policy_filter(next_state, allow_request_filter=True)
-        next_state["retrieval_filter"] = filters
-        add_event(next_state, "knowledge_filter", filters)
-        return next_state
-
-    def query_rewrite(self, state: DeclarationQAState) -> DeclarationQAState:
-        """生成多路检索 query。"""
-        next_state = dict(state)
-        with observation(
-            "workflow.query_rewrite.stage2",
-            input={
-                "query": next_state.get("retrieval_query")
-                or next_state.get("normalized_query")
-                or next_state.get("query")
-                or "",
-                "retrieval_plan": next_state.get("retrieval_plan") or {},
-            },
-            metadata=retrieval_observation_metadata(next_state),
-        ) as span:
-            if is_image_only_query(next_state):
-                payload = {
-                    "base_query": str(next_state.get("normalized_query") or next_state.get("query") or ""),
-                    "scope_text": "",
-                    "fact_text": "",
-                    "requires_ticket_context": bool(next_state.get("requires_ticket_context")),
-                    "ticket_fact_type": str(next_state.get("ticket_fact_type") or "none"),
-                    "queries": [],
-                    "provider": "image_only",
-                    "reason": "image_only_skip_text_rewrite",
-                }
-            else:
-                rewrite = self.query_rewrite_service.rewrite(next_state)
-                payload = rewrite.payload()
-            next_state["query_rewrite"] = payload
-            next_state["retrieval_queries"] = payload.get("queries") or []
-            next_state["rag_query"] = "\n".join(str(query.get("text") or "") for query in next_state["retrieval_queries"])
-            span.update(
-                output=safe_value(
-                    {
-                        "count": len(next_state["retrieval_queries"]),
-                        "provider": payload.get("provider"),
-                        "reason": payload.get("reason"),
-                        "queries": next_state["retrieval_queries"],
-                    }
-                )
-            )
-        add_event(
-            next_state,
-            "query_rewrite.stage2",
-            {
-                "count": len(next_state["retrieval_queries"]),
-                "ticket_fact_type": payload.get("ticket_fact_type"),
-                "provider": payload.get("provider"),
-                "reason": payload.get("reason"),
-                "scope_text": payload.get("scope_text") or "",
-                "retrieval_plan": next_state.get("retrieval_plan") or {},
-                "queries": next_state["retrieval_queries"],
-            },
-        )
-        return next_state
+    """只暴露 Agent knowledge_search 内部使用的多路知识检索。"""
 
     def multi_retrieve(self, state: DeclarationQAState, filters: dict[str, Any]) -> RetrievalResult:
         """按 rewrite 结果执行多路检索并去重合并。"""
         retrieval_queries = state.get("retrieval_queries") or []
-        answer_query = ticket_rag_query(state) if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else knowledge_rag_query(state)
+        answer_query = knowledge_rag_query(state)
         retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
         query_image = state.get("query_image") or {}
         query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
@@ -399,55 +288,6 @@ class WorkflowRetrievalNodes:
         }
         return RetrievalResult(sources=sources, filter=filters, status=status)
 
-    def hybrid_retrieve(self, state: DeclarationQAState) -> DeclarationQAState:
-        """执行普通知识问答混合检索。"""
-        next_state = dict(state)
-        filters = next_state.get("retrieval_filter") or {}
-        with observation(
-            "workflow.retrieve",
-            input={
-                "query": knowledge_rag_query(next_state),
-                "retrieval_queries": next_state.get("retrieval_queries") or [],
-                "filter": filters,
-                "retrieval_plan": next_state.get("retrieval_plan") or {},
-            },
-            metadata=retrieval_observation_metadata(next_state),
-        ) as span:
-            result = self.multi_retrieve(next_state, filters)
-            next_state["retrieved_sources"] = [source.payload() for source in result.sources]
-            next_state["rag_status"] = result.status
-            span.update(
-                output=safe_value(
-                    {
-                        "source_count": len(next_state["retrieved_sources"]),
-                        "rag_status": result.status,
-                        "sources": source_summary(next_state["retrieved_sources"]),
-                    }
-                )
-            )
-        add_event(next_state, "rag_status", {**result.status, "rag_query": next_state.get("rag_query") or ""})
-        return next_state
-
-    def evidence_check(self, state: DeclarationQAState) -> DeclarationQAState:
-        """执行证据门控检查。"""
-        next_state = dict(state)
-        if next_state.get("route") == ROUTE_TICKET_CONTEXT_RELATED and next_state.get("evidence_ok"):
-            add_event(next_state, "evidence", next_state.get("evidence_decision") or {})
-            return next_state
-        decision = decide_evidence(
-            next_state.get("retrieved_sources") or [],
-            next_state.get("retrieval_filter") or {},
-            intent=str(next_state.get("intent") or ""),
-            chain=str(next_state.get("retrieval_chain") or KNOWLEDGE_RETRIEVAL_CHAIN),
-            business_payload=next_state.get("business_snapshot") or {},
-        )
-        next_state["evidence_ok"] = decision.ok
-        next_state["evidence_decision"] = decision.payload()
-        if not decision.ok:
-            next_state["refuse_reason"] = decision.reason
-        add_event(next_state, "evidence", decision.payload())
-        return next_state
-
 
 def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
     """构建检索节点观测的紧凑元数据。"""
@@ -458,9 +298,7 @@ def retrieval_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "session_id": state.get("session_id") or "",
             "route": state.get("route") or "",
             "intent": state.get("intent") or "",
-            "ticket_fact_type": state.get("ticket_fact_type") or "none",
             "retrieval_chain": state.get("retrieval_chain") or "",
-            "multi_question": bool(state.get("multi_question")),
             "retrieval_plan": state.get("retrieval_plan") or {},
         }
     )

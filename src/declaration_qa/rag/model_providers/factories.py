@@ -92,3 +92,21 @@ def build_query_rewrite(settings: DeclarationQASettings):
             kwargs["base_url"] = settings.openai_api_base
         return LLMTwoStageQueryRewriter(ChatOpenAI(**kwargs), fallback_rewriter=RuleTwoStageQueryRewriter())
     return RuleTwoStageQueryRewriter()
+
+
+def build_agent_model(settings: DeclarationQASettings):
+    """创建支持原生 Tool Calling 的 Agent 模型；本地模式返回 None。"""
+    if settings.llm_provider.strip().lower() not in {"openai", "dashscope"} or not settings.openai_api_key:
+        return None
+    from langchain_openai import ChatOpenAI
+
+    kwargs: dict[str, Any] = {
+        "api_key": settings.openai_api_key,
+        "model": settings.agent_model or settings.llm_model,
+        "temperature": 0.0,
+        "timeout": settings.external_request_timeout_seconds,
+        "max_retries": 1,
+    }
+    if settings.openai_api_base:
+        kwargs["base_url"] = settings.openai_api_base
+    return ChatOpenAI(**kwargs)

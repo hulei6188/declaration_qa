@@ -5,15 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.rag.query_rewrite.helpers import (
-    has_item_scope_filter,
     join_query_parts,
     normalize_strategy_name,
     normalize_text,
-    normalize_ticket_fact_type,
     normalize_top_k,
     question_item,
-    selected_ticket_fact_text,
-    selected_ticket_scope_text,
 )
 from declaration_qa.rag.query_rewrite.schema import (
     MAX_RETRIEVAL_QUERY_COUNT,
@@ -22,7 +18,6 @@ from declaration_qa.rag.query_rewrite.schema import (
     RetrievalQuery,
 )
 from declaration_qa.rag.retrieval_plan import infer_retrieval_plan
-from declaration_qa.rag.router import ticket_context_related
 
 
 def normalize_stage1_rewrite(payload: dict[str, Any], state: dict[str, Any], *, provider: str) -> QueryRewriteStage1:
@@ -41,20 +36,9 @@ def normalize_stage1_rewrite(payload: dict[str, Any], state: dict[str, Any], *, 
         retrieval_query = normalize_question_text(
             item.get("retrieval_query") or item.get("resolved_query") or item.get("query") or original_query
         )
-        requires_ticket_context = (
-            bool(item.get("requires_ticket_context"))
-            if "requires_ticket_context" in item
-            else ticket_context_related(retrieval_query, {**state, "query": retrieval_query, "normalized_query": retrieval_query})
-        )
-        ticket_fact_type = normalize_ticket_fact_type(
-            str(item.get("ticket_fact_type") or ""),
-            retrieval_query,
-            requires_ticket_context=requires_ticket_context,
-        )
         raw_plan = item.get("retrieval_plan") if isinstance(item.get("retrieval_plan"), dict) else {}
         retrieval_plan = infer_retrieval_plan(
             metadata_needs=raw_plan.get("metadata_needs"),
-            ticket_fact_type=raw_plan.get("ticket_fact_type") or ticket_fact_type,
         )
         raw_retrieval_queries = item.get("retrieval_queries") or item.get("queries") or []
         questions.append(
@@ -63,8 +47,6 @@ def normalize_stage1_rewrite(payload: dict[str, Any], state: dict[str, Any], *, 
                 "original_query": original_query,
                 "query": original_query,
                 "retrieval_query": retrieval_query or original_query,
-                "requires_ticket_context": requires_ticket_context,
-                "ticket_fact_type": ticket_fact_type,
                 "retrieval_plan": retrieval_plan,
                 "retrieval_queries": normalize_retrieval_query_payloads(raw_retrieval_queries),
                 "query_rewrite_provider": provider,
@@ -113,11 +95,8 @@ def query_rewrite_from_payloads(
 ) -> QueryRewrite:
     """从第一阶段 query 草稿生成最终检索 query。"""
     base_query = normalize_text(str(state.get("retrieval_query") or state.get("normalized_query") or state.get("query") or ""))
-    ticket_fact_type = str(state.get("ticket_fact_type") or "none")
-    requires_ticket_context = bool(state.get("requires_ticket_context"))
-    filters = state.get("retrieval_filter") or {}
-    scope_text = "" if has_item_scope_filter(filters) else selected_ticket_scope_text(state)
-    fact_text = selected_ticket_fact_text(state) if requires_ticket_context else ""
+    scope_text = ""
+    fact_text = ""
     queries: list[RetrievalQuery] = []
     seen = set()
     for item in raw_queries:
@@ -142,8 +121,6 @@ def query_rewrite_from_payloads(
         base_query=base_query,
         scope_text=scope_text,
         fact_text=fact_text,
-        requires_ticket_context=requires_ticket_context,
-        ticket_fact_type=ticket_fact_type,
         queries=queries,
         provider=provider,
         reason=normalize_text(reason)[:160],

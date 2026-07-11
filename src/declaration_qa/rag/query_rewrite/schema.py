@@ -36,8 +36,6 @@ class QueryRewrite:
     base_query: str
     scope_text: str
     fact_text: str
-    requires_ticket_context: bool
-    ticket_fact_type: str
     queries: list[RetrievalQuery]
     provider: str = "rule_two_stage"
     reason: str = ""
@@ -48,8 +46,6 @@ class QueryRewrite:
             "base_query": self.base_query,
             "scope_text": self.scope_text,
             "fact_text": self.fact_text,
-            "requires_ticket_context": self.requires_ticket_context,
-            "ticket_fact_type": self.ticket_fact_type,
             "queries": [query.payload() for query in self.queries],
             "provider": self.provider,
             "reason": self.reason,

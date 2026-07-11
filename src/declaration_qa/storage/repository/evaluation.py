@@ -60,21 +60,20 @@ class EvaluationRepository(EngineBackedRepository):
             """
             INSERT INTO declaration_qa.eval_cases (
                 case_uid, dataset_id, query, user_id, region_code, policy_version,
-                biz_type, apply_id, apply_context, expected_intent, expected_refused,
+                biz_type, expected_intent, expected_refused,
                 expected_doc_ids, expected_answer_keywords, tags
             )
             SELECT :case_uid, id, :query, :user_id, :region_code, :policy_version,
-                   :biz_type, :apply_id, :apply_context, :expected_intent, :expected_refused,
+                   :biz_type, :expected_intent, :expected_refused,
                    :expected_doc_ids, :expected_answer_keywords, :tags
             FROM declaration_qa.eval_datasets
             WHERE dataset_uid = :dataset_uid
             RETURNING case_uid AS case_id, :dataset_uid AS dataset_id, query, user_id,
-                      region_code, policy_version, biz_type, apply_id, apply_context,
+                      region_code, policy_version, biz_type,
                       expected_intent, expected_refused, expected_doc_ids,
                       expected_answer_keywords, tags, created_at
             """
         ).bindparams(
-            bindparam("apply_context", type_=JSON),
             bindparam("expected_doc_ids", type_=JSON),
             bindparam("expected_answer_keywords", type_=JSON),
             bindparam("tags", type_=JSON),
@@ -90,8 +89,6 @@ class EvaluationRepository(EngineBackedRepository):
                     "region_code": str(case.get("region_code") or "340000"),
                     "policy_version": str(case.get("policy_version") or "2025"),
                     "biz_type": case.get("biz_type"),
-                    "apply_id": case.get("apply_id"),
-                    "apply_context": case.get("apply_context"),
                     "expected_intent": str(case.get("expected_intent") or ""),
                     "expected_refused": case.get("expected_refused"),
                     "expected_doc_ids": list(case.get("expected_doc_ids") or []),
@@ -111,8 +108,7 @@ class EvaluationRepository(EngineBackedRepository):
                     """
                     SELECT c.case_uid AS case_id, d.dataset_uid AS dataset_id, c.query,
                            c.user_id, c.region_code, c.policy_version, c.biz_type,
-                           c.apply_id, c.apply_context, c.expected_intent,
-                           c.expected_refused, c.expected_doc_ids,
+                           c.expected_intent, c.expected_refused, c.expected_doc_ids,
                            c.expected_answer_keywords, c.tags, c.created_at
                     FROM declaration_qa.eval_cases c
                     JOIN declaration_qa.eval_datasets d ON d.id = c.dataset_id

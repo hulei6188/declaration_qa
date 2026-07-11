@@ -25,7 +25,8 @@ def material_tags(reject: dict[str, Any]) -> list[str]:
 def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
     """根据状态生成后续建议动作。"""
     app_version = state.get("app_version") or ""
-    apply_context = state.get("apply_context") or {}
+    item_code = str(state.get("agent_selected_item_code") or "")
+    application_id = state.get("agent_selected_application_id")
     if state.get("refused"):
         return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version}}]
     if state.get("intent") in {INTENT_TICKET_STATUS}:
@@ -33,17 +34,18 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
             {
                 "type": "open_apply_detail",
                 "label": "查看申请单详情",
-                "payload": {"applyId": apply_context.get("apply_id"), "appVersion": app_version},
+                "payload": {"itemCode": item_code, "applicationId": application_id, "appVersion": app_version},
             }
         ]
     if state.get("intent") in {INTENT_REJECTION_REASON}:
-        reject_info = state.get("reject_info") or {}
+        reject_info = selected_rejection_event(state)
         return [
             {
                 "type": "open_material_reupload",
                 "label": "重新上传补正材料",
                 "payload": {
-                    "applyId": apply_context.get("apply_id"),
+                    "itemCode": item_code,
+                    "applicationId": application_id,
                     "materialCode": reject_info.get("material_code"),
                     "appVersion": app_version,
                 },
@@ -56,4 +58,20 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
             "payload": {"bizType": state.get("biz_type"), "appVersion": app_version},
         }
     ]
+
+
+def selected_rejection_event(state: DeclarationQAState) -> dict[str, Any]:
+    """从 Agent 选择的申请完整状态历史中读取最近一次退回事件。"""
+    selected_id = int(state.get("agent_selected_application_id") or 0)
+    for result in reversed(state.get("tool_results") or []):
+        if not isinstance(result, dict) or result.get("tool_name") != "ticket_detail_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for application in data.get("applications") or []:
+            if not isinstance(application, dict) or int(application.get("application_id") or 0) != selected_id:
+                continue
+            events = [event for event in application.get("status_history") or [] if isinstance(event, dict)]
+            rejected = [event for event in events if event.get("reason") or event.get("reason_code")]
+            return dict(rejected[-1]) if rejected else {}
+    return {}
 

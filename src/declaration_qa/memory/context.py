@@ -52,7 +52,7 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
         "current_question": current_question_context(state),
         "summary": truncate_text(short_memory.get("summary") or "", 1200),
         "recent_messages": recent_messages,
-        "ticket_context": ticket_context_summary(state),
+        "business_tool_context": business_tool_context_summary(state),
         "query_image": query_image_summary(state.get("query_image")),
         "evidence_overview": evidence_overview(state.get("retrieved_sources") or []),
     }
@@ -62,7 +62,7 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
         "short_memory_backend": short_memory.get("backend") or "",
         "short_memory_cache_hit": bool(short_memory.get("cache_hit")),
         "has_short_memory_summary": bool(context.get("summary")),
-        "has_ticket_context": bool(context["ticket_context"]),
+        "has_business_tool_context": bool(context["business_tool_context"]),
         "has_query_image": bool(context["query_image"]),
         "source_count": len(state.get("retrieved_sources") or []),
         "evidence_overview_count": len(context["evidence_overview"]),
@@ -99,42 +99,15 @@ def current_question_context(state: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def ticket_context_summary(state: dict[str, Any]) -> dict[str, Any]:
-    """整理当前工单上下文摘要。"""
-    ticket_context = state.get("ticket_context") if isinstance(state.get("ticket_context"), dict) else {}
-    ticket = ticket_context.get("ticket") if isinstance(ticket_context.get("ticket"), dict) else {}
-    apply_context = state.get("apply_context") if isinstance(state.get("apply_context"), dict) else {}
+def business_tool_context_summary(state: dict[str, Any]) -> dict[str, Any]:
+    """整理本轮 Agent 工具产生的业务摘要，不形成跨轮工单绑定。"""
     business_snapshot = state.get("business_snapshot") if isinstance(state.get("business_snapshot"), dict) else {}
-    reject_info = state.get("reject_info") if isinstance(state.get("reject_info"), dict) else {}
-    payload = apply_context.get("payload") if isinstance(apply_context.get("payload"), dict) else {}
     return compact_dict(
         {
-            "apply_id": first_non_empty(ticket.get("ticket_id"), apply_context.get("apply_id"), state.get("apply_id")),
-            "biz_type": first_non_empty(ticket.get("biz_type"), apply_context.get("biz_type"), state.get("biz_type")),
-            "title": truncate_text(
-                first_non_empty(
-                    ticket.get("title"),
-                    apply_context.get("title"),
-                    apply_context.get("item_name"),
-                    payload.get("official_item_name"),
-                    payload.get("item_name"),
-                ),
-                FIELD_CONTENT_LIMIT,
-            ),
-            "status": truncate_text(first_non_empty(ticket.get("status"), apply_context.get("status")), 120),
-            "node_name": truncate_text(
-                first_non_empty(
-                    ticket.get("node_name"),
-                    ticket.get("current_node"),
-                    apply_context.get("node_name"),
-                    apply_context.get("current_node"),
-                    business_snapshot.get("node_name"),
-                    business_snapshot.get("current_node"),
-                ),
-                120,
-            ),
-            "reject_reason": truncate_text(first_non_empty(reject_info.get("reject_reason"), business_snapshot.get("reject_reason")), FIELD_CONTENT_LIMIT),
-            "material_name": truncate_text(first_non_empty(reject_info.get("material_name"), business_snapshot.get("material_name")), 120),
+            "source": business_snapshot.get("source") or "",
+            "item_code": business_snapshot.get("item_code") or "",
+            "selected_application_id": business_snapshot.get("selected_application_id"),
+            "application_count": len(business_snapshot.get("applications") or []),
         }
     )
 

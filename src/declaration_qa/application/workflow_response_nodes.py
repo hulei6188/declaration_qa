@@ -20,24 +20,16 @@ class WorkflowResponseNodes:
         next_state["refused"] = True
         reason = next_state.get("refuse_reason") or "out_of_scope"
         next_state["refuse_reason"] = reason
-        if reason == "apply_context_required_for_status":
-            answer = "该问题需要绑定具体申请单。请先从办件列表选择对应申请单后再查询进度。"
-        elif reason == "apply_context_required_for_reject":
-            answer = "该问题需要绑定具体申请单。请先选择被退回的申请单后再查看驳回原因。"
-        elif reason == "business_status_not_found":
-            answer = "暂未从办件系统查询到该申请单的实时进度，请确认申请单是否有效，或联系人工客服核验。"
-        elif reason == "business_reject_not_found":
-            answer = "暂未从办件系统查询到该申请单的有效驳回或补正记录，不能根据模型推测驳回原因。建议查看申请单详情或联系人工客服。"
-        elif reason == "ticket_selection_required":
-            answer = "我查到多个可能相关的申请单，请先选择要咨询的工单后再继续查询。"
-        elif reason == "ticket_not_found":
-            answer = "暂未查询到当前用户下可匹配的申请单。你可以切换到通用知识咨询，或联系人工客服核验。"
-        elif reason == "clarification_required":
+        if reason == "clarification_required":
             answer = "请补充你想咨询的事项名称、地区或具体问题，例如材料清单、办理流程、办理进度或驳回原因。"
         elif reason == "unsafe_or_out_of_scope":
             answer = "该问题不属于申报辅助范围，或涉及不合规操作，暂不能提供处理建议。"
-        elif reason == "apply_access_denied":
-            answer = "当前登录用户无权查看该申请单，请确认申请单是否属于本人或重新登录后再试。"
+        elif reason == "agent_tool_not_found":
+            answer = "暂未查询到与该事项匹配的个人申请或公开办理依据。"
+        elif reason == "agent_tool_invalid_arguments":
+            answer = "当前问题中的事项信息不足，暂时无法完成业务查询。"
+        elif reason == "agent_tool_error":
+            answer = "业务查询服务暂时不可用，请稍后重试。"
         else:
             answer = "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
         next_state["answer"] = answer
@@ -64,7 +56,6 @@ class WorkflowResponseNodes:
                 "query": next_state.get("query") or "",
                 "intent": next_state.get("intent") or "",
                 "source_count": len(next_state.get("retrieved_sources") or []),
-                "multi_question": bool(next_state.get("multi_question")),
                 "short_term_context": short_term_metrics,
                 "long_term_context": long_term_metrics,
                 "generation_plan": generation_plan,
@@ -133,22 +124,16 @@ class WorkflowResponseNodes:
             "sub_intent": next_state.get("sub_intent"),
             "route": next_state.get("route"),
             "route_decision": next_state.get("route_decision") or {},
-            "ticket_fact_type": next_state.get("ticket_fact_type") or "none",
             "query_rewrite.stage1": next_state.get("query_rewrite.stage1") or {},
-            "multi_question": next_state.get("multi_question"),
-            "sub_tasks": next_state.get("sub_tasks") or [],
             "retrieval_chain": next_state.get("retrieval_chain"),
             "region_code": next_state.get("region_code"),
             "biz_type": next_state.get("biz_type"),
-            "apply_id": (next_state.get("apply_context") or {}).get("apply_id") if next_state.get("apply_context") else None,
-            "need_ticket_selection": next_state.get("need_ticket_selection"),
-            "ticket_selection_reason": next_state.get("ticket_selection_reason"),
-            "tickets": next_state.get("tickets") or [],
-            "ticket_context": next_state.get("ticket_context") or {},
             "business_snapshot": next_state.get("business_snapshot"),
-            "business_status": next_state.get("business_status"),
-            "reject_info": next_state.get("reject_info"),
-            "material_mapping": next_state.get("material_mapping"),
+            "agent_plan": next_state.get("agent_plan") or {},
+            "agent_iteration": int(next_state.get("agent_iteration") or 0),
+            "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
+            "agent_selected_application_id": next_state.get("agent_selected_application_id"),
+            "tool_results": next_state.get("tool_results") or [],
             "retrieval_filter": next_state.get("retrieval_filter"),
             "retrieval_query": next_state.get("retrieval_query") or "",
             "rag_query": next_state.get("rag_query") or "",
@@ -187,10 +172,8 @@ def response_observation_metadata(state: dict[str, object]) -> dict[str, object]
             "session_id": state.get("session_id") or "",
             "route": state.get("route") or "",
             "intent": state.get("intent") or "",
-            "ticket_fact_type": state.get("ticket_fact_type") or "none",
             "retrieval_chain": state.get("retrieval_chain") or "",
             "source_count": len(state.get("retrieved_sources") or []),
-            "multi_question": bool(state.get("multi_question")),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "long_term_context": long_term_context_metrics(state.get("long_term_context") or {}),
             "answer_generation_plan": state.get("answer_generation_plan") or {},

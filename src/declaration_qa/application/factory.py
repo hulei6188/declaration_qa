@@ -10,6 +10,7 @@ from declaration_qa.search.keyword import ElasticsearchKeywordIndex
 from declaration_qa.memory import ContextMemoryManager, InMemoryContextMemoryStore
 from declaration_qa.memory.retrieval import ContextMemoryRetriever
 from declaration_qa.rag.model_providers.factories import (
+    build_agent_model,
     build_answer_generator,
     build_embedding_provider,
     build_query_rewrite,
@@ -33,6 +34,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     reranker = build_reranker(settings)
     answer_generator = build_answer_generator(settings)
     query_rewrite = build_query_rewrite(settings)
+    agent_model = build_agent_model(settings)
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,
@@ -168,10 +170,11 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         audit_store=audit_store,
         answer_generator=answer_generator,
         query_rewrite=query_rewrite,
+        agent_model=agent_model,
+        agent_max_iterations=settings.agent_max_iterations,
         query_image_ocr_client=query_image_ocr_client,
         query_image_ocr_max_chars=settings.query_image_ocr_max_chars,
         context_memory_manager=context_memory_manager,
-        max_sub_question_workers=settings.max_sub_question_workers,
         max_retrieval_workers=settings.max_retrieval_workers,
     )
 

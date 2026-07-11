@@ -17,7 +17,6 @@ def normalize_session_row(row) -> dict[str, Any]:
         "user_id": int(row["user_id"] or 0),
         "region_code": str(row["region_code"] or ""),
         "biz_type": row["biz_type"],
-        "apply_id": str(row["apply_id"] or ""),
         "title": str(row["title"] or "申报智能问答"),
         "message_count": int(row.get("message_count") or 0) if hasattr(row, "get") else int(row["message_count"] or 0),
         "updated_at": str(row["updated_at"] or ""),
@@ -46,83 +45,6 @@ def normalize_document_record(row) -> dict[str, Any]:
         "created_at": str(row["created_at"] or ""),
         "updated_at": str(row["updated_at"] or ""),
     }
-
-
-def normalize_business_row(row) -> dict[str, Any]:
-    """标准化办件业务数据行。"""
-    if not row:
-        return {}
-    values = dict(row)
-    application_payload = values.get("application_payload") if isinstance(values.get("application_payload"), dict) else {}
-    status_payload = values.get("status_payload") if isinstance(values.get("status_payload"), dict) else {}
-    reject_payload = values.get("reject_payload") if isinstance(values.get("reject_payload"), dict) else {}
-    payload = {**application_payload, **status_payload, **reject_payload}
-    return {
-        "application_id": int(values.get("application_id") or 0),
-        "apply_id": str(values.get("apply_id") or ""),
-        "user_id": int(values.get("user_id") or 0) if values.get("user_id") is not None else None,
-        "item_code": str(values.get("item_code") or payload.get("item_code") or ""),
-        "item_name": str(values.get("item_name") or payload.get("item_name") or payload.get("official_item_name") or ""),
-        "biz_type": str(values.get("biz_type") or ""),
-        "title": business_ticket_title({**values, "payload": payload}),
-        "region_code": str(values.get("region_code") or ""),
-        "status": str(values.get("status") or ""),
-        "current_node": str(values.get("current_node") or ""),
-        "node_name": str(values.get("node_name") or ""),
-        "reject_code": str(values.get("reject_code") or ""),
-        "reject_reason": str(values.get("reject_reason") or ""),
-        "material_code": str(values.get("material_code") or ""),
-        "material_name": str(values.get("material_name") or ""),
-        "audit_node": str(values.get("audit_node") or ""),
-        "submitted_at": isoformat_or_empty(values.get("submitted_at")),
-        "completed_at": isoformat_or_empty(values.get("completed_at")),
-        "updated_at": isoformat_or_empty(values.get("updated_at")),
-        "payload": payload,
-    }
-
-
-def business_ticket_summary(row) -> dict[str, Any]:
-    """将业务数据行转换为办件摘要。"""
-    values = dict(row or {})
-    return {
-        "ticket_id": str(values.get("apply_id") or ""),
-        "application_id": int(values.get("application_id") or 0),
-        "item_code": str(values.get("item_code") or ""),
-        "item_name": str(values.get("item_name") or business_ticket_title(values)),
-        "biz_type": str(values.get("biz_type") or ""),
-        "region_code": str(values.get("region_code") or ""),
-        "status": str(values.get("status") or ""),
-        "current_node": str(values.get("current_node") or ""),
-        "node_name": str(values.get("node_name") or ""),
-        "title": business_ticket_title(values),
-        "updated_at": isoformat_or_empty(values.get("updated_at")),
-    }
-
-
-def business_ticket_title(values: dict[str, Any]) -> str:
-    """根据业务类型生成业务办件标题。"""
-    payload = values.get("payload") if isinstance(values.get("payload"), dict) else {}
-    if not payload and isinstance(values.get("application_payload"), dict):
-        payload = values["application_payload"]
-    for key in ("item_name", "title", "catalog_name"):
-        title = str(payload.get(key) or "").strip()
-        if title:
-            return title
-    names = {
-        "health_certificate": "健康证办理",
-        "residence_permit": "居住证办理",
-        "id_card_replace": "身份证换领",
-    }
-    return names.get(str(values.get("biz_type") or ""), str(values.get("biz_type") or "政务服务事项"))
-
-
-def isoformat_or_empty(value: Any) -> str:
-    """将日期时间值转换为 ISO 字符串。"""
-    if not value:
-        return ""
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return str(value)
 
 
 def parse_metadata_date(value: Any) -> date | None:
@@ -158,8 +80,6 @@ def normalize_eval_case(row) -> dict[str, Any]:
         "region_code": str(row["region_code"] or "340000"),
         "policy_version": str(row["policy_version"] or "2025"),
         "biz_type": row["biz_type"],
-        "apply_id": row["apply_id"],
-        "apply_context": row["apply_context"],
         "expected_intent": str(row["expected_intent"] or ""),
         "expected_refused": row["expected_refused"],
         "expected_doc_ids": list(row["expected_doc_ids"] or []),

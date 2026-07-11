@@ -9,7 +9,6 @@ import {
   fetchSessions,
   fetchSession,
   deleteSession,
-  fetchTickets,
   fetchDocuments,
   uploadTextDocument,
   uploadFileDocuments,
@@ -20,11 +19,7 @@ import {
   rollbackDocument,
   fetchIndexJob,
   sendFeedback,
-  loadTicket,
-  saveTicket,
-  clearTicket,
   etlStageLabel,
-  ticketLabel,
   compactJson,
   formatJobProgress,
   jobEtl,
@@ -44,12 +39,6 @@ export default function App() {
   const [sendState, setSendState] = useState('等待输入');
   const [chatExpanded, setChatExpanded] = useState(false);
   const assistantRef = useRef(null);
-
-  // ---- Ticket ----
-  const [currentTicket, setCurrentTicket] = useState(null);
-  const [ticketPickerOpen, setTicketPickerOpen] = useState(false);
-  const [ticketList, setTicketList] = useState([]);
-  const [pendingTicketQuery, setPendingTicketQuery] = useState('');
 
   // ---- Timeline / Audit ----
   const [timeline, setTimeline] = useState([]);
@@ -72,16 +61,6 @@ export default function App() {
 
   // ---- Init ----
   useEffect(() => {
-    const saved = loadTicket();
-    if (saved) {
-      setCurrentTicket(saved.ticket);
-      setCtx((prev) => ({
-        ...prev,
-        applyId: saved.requestContext?.applyId || saved.ticket.ticket_id,
-        bizType: saved.requestContext?.bizType || saved.ticket.biz_type || '',
-        regionCode: saved.requestContext?.regionCode || saved.ticket.region_code || prev.regionCode,
-      }));
-    }
     loadSessions();
     loadDocuments();
   }, []);
@@ -126,19 +105,6 @@ export default function App() {
             auditId: data.audit_id || '-',
             refused: data.refused ? (data.refuse_reason || '是') : '否',
           });
-          if (data.need_ticket_selection && (data.tickets || []).length) {
-            setPendingTicketQuery(query);
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = {
-                ...next[next.length - 1],
-                ticketSelection: { tickets: data.tickets, reason: data.ticket_selection_reason },
-              };
-              return next;
-            });
-          } else {
-            setPendingTicketQuery('');
-          }
           addTimeline(event, data);
           loadSessions();
         } else {
@@ -171,70 +137,7 @@ export default function App() {
     setTimeline([]);
     setAudit({ intent: '-', auditId: '-', refused: '-' });
     setFeedbackResult('');
-    setCurrentTicket(null);
-    setPendingTicketQuery('');
-    clearTicket();
-    setCtx((prev) => ({ ...prev, applyId: '', bizType: '' }));
     setSendState('等待输入');
-  }
-
-  // ---- Tickets ----
-  async function openTicketPicker() {
-    setTicketPickerOpen(true);
-    try {
-      const tickets = await fetchTickets(ctx.userId, ctx.regionCode, ctx.bizType);
-      setTicketList(tickets || []);
-    } catch (e) {
-      setTicketList([]);
-    }
-  }
-
-  function closeTicketPicker() {
-    setTicketPickerOpen(false);
-    setTicketList([]);
-  }
-
-  async function selectTicket(ticket) {
-    const ticketId = String(ticket?.ticket_id || '').trim();
-    if (!ticketId) return;
-    const newCtx = {
-      ...ctx,
-      applyId: ticketId,
-      bizType: ticket.biz_type || ctx.bizType,
-      regionCode: ticket.region_code || ctx.regionCode,
-    };
-    setCtx(newCtx);
-    const t = {
-      ticket_id: ticketId,
-      title: ticket?.title || ticket?.biz_type || '',
-      biz_type: ticket?.biz_type || newCtx.bizType || '',
-      region_code: ticket?.region_code || newCtx.regionCode || '',
-      node_name: ticket?.node_name || ticket?.current_node || ticket?.status || '',
-    };
-    setCurrentTicket(t);
-    saveTicket(t, { applyId: ticketId, bizType: newCtx.bizType, regionCode: newCtx.regionCode });
-    closeTicketPicker();
-    setSendState('已选择工单');
-
-    const query = pendingTicketQuery;
-    setPendingTicketQuery('');
-    if (query) {
-      setMessages((prev) =>
-        prev.map((message) => (
-          message.ticketSelection ? { ...message, ticketSelection: null } : message
-        ))
-      );
-      await sendMessage(query, `${query}\n已选择工单：${ticketLabel(t)}`, '用户选择', newCtx);
-    }
-  }
-
-  function clearCurrentTicket() {
-    setCurrentTicket(null);
-    setPendingTicketQuery('');
-    clearTicket();
-    setCtx((prev) => ({ ...prev, applyId: '', bizType: '' }));
-    closeTicketPicker();
-    setSendState('当前工单已清除');
   }
 
   // ---- Sessions ----
@@ -261,24 +164,6 @@ export default function App() {
       setAudit({ intent: '-', auditId: '-', refused: '-' });
       setFeedbackResult('');
 
-      const applyId = String(session?.apply_id || '').trim();
-      if (applyId) {
-        const newCtx = {
-          ...ctx,
-          applyId,
-          bizType: session.biz_type || '',
-          regionCode: session.region_code || ctx.regionCode,
-        };
-        setCtx(newCtx);
-        const t = {
-          ticket_id: applyId,
-          title: session.title || session.biz_type || '申报工单',
-          biz_type: session.biz_type || '',
-          region_code: session.region_code || '',
-        };
-        setCurrentTicket(t);
-        saveTicket(t, { applyId, bizType: newCtx.bizType, regionCode: newCtx.regionCode });
-      }
       addTimeline('session_loaded', { session_id: session.session_id, message_count: session.message_count });
     } catch (e) {
       addTimeline('session_error', { message: `HTTP ${e.message}` });
@@ -578,16 +463,8 @@ export default function App() {
           streaming={streaming}
           sendState={sendState}
           sessionId={sessionId}
-          currentTicket={currentTicket}
-          ticketPickerOpen={ticketPickerOpen}
-          ticketList={ticketList}
-          pendingTicketQuery={pendingTicketQuery}
           onSend={sendMessage}
           onClear={clearChat}
-          onOpenTicketPicker={openTicketPicker}
-          onCloseTicketPicker={closeTicketPicker}
-          onSelectTicket={selectTicket}
-          onClearTicket={clearCurrentTicket}
           ctx={ctx}
           setCtx={setCtx}
           audit={audit}

@@ -1,7 +1,6 @@
 // ---- Constants ----
 export const API_BASE = '';
 export const INDEX_JOB_MAX_ATTEMPTS = 180;
-export const CURRENT_TICKET_STORAGE_KEY = 'declarationQaCurrentTicket';
 
 export const DEFAULT_CONTEXT = {
   userId: 1,
@@ -9,7 +8,6 @@ export const DEFAULT_CONTEXT = {
   bizType: '',
   appVersion: '2.0.0',
   policyVersion: '2025',
-  applyId: '',
 };
 
 // ---- Formatters ----
@@ -112,33 +110,6 @@ export async function copyText(value) {
   }
 }
 
-export function ticketLabel(ticket) {
-  return [
-    ticket.title || ticket.biz_type || '申报工单',
-    ticket.ticket_id,
-    ticket.node_name || ticket.current_node || ticket.status,
-  ].filter(Boolean).join(' / ');
-}
-
-// ---- Persistence ----
-export function loadTicket() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(CURRENT_TICKET_STORAGE_KEY) || 'null');
-    return saved?.ticket?.ticket_id ? saved : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveTicket(ticket, ctx) {
-  if (!ticket?.ticket_id) return;
-  localStorage.setItem(CURRENT_TICKET_STORAGE_KEY, JSON.stringify({ ticket, requestContext: ctx }));
-}
-
-export function clearTicket() {
-  localStorage.removeItem(CURRENT_TICKET_STORAGE_KEY);
-}
-
 // ---- API ----
 async function request(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
@@ -165,7 +136,6 @@ export function buildChatRequest(query, sessionId, ctx, queryImage) {
     session_id: sessionId,
   };
   if (ctx.bizType) payload.biz_type = ctx.bizType;
-  if (ctx.applyId) payload.apply_id = ctx.applyId;
   if (queryImage?.data_url) {
     payload.query_image = {
       filename: queryImage.filename || '',
@@ -199,13 +169,6 @@ export function deleteSession(sessionId, userId) {
   return requestJson(`/api/declaration-qa/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId || 1)}`, {
     method: 'DELETE',
   });
-}
-
-// Tickets
-export function fetchTickets(userId, regionCode, bizType) {
-  return requestJson(
-    `/api/declaration-qa/tickets?user_id=${encodeURIComponent(userId || '1')}&region_code=${encodeURIComponent(regionCode || '340000')}&biz_type=${encodeURIComponent(bizType || '')}`
-  );
 }
 
 // Documents

@@ -13,9 +13,9 @@ from declaration_qa.memory.context import format_long_term_context, format_short
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 from declaration_qa.rag.prompting import (
     ANSWER_PROMPT,
-    MULTI_QUESTION_ANSWER_PROMPT,
+    application_history_answer,
     format_source_payload,
-    format_sub_task_payload,
+    format_tool_result_payload,
 )
 
 
@@ -67,30 +67,23 @@ class OpenAIAnswerGenerator:
 
     def build_prompt(self, state: dict[str, Any]) -> str:
         """根据工作流状态构造回答提示词。"""
-        if state.get("multi_question"):
-            return MULTI_QUESTION_ANSWER_PROMPT.format(
-                query=state.get("query") or "",
-                short_term_context=format_short_term_context(state),
-                long_term_context=format_long_term_context(state),
-                sub_task_payload=format_sub_task_payload(state.get("sub_tasks") or []),
-            )
         sources = state.get("retrieved_sources") or []
         source_text = format_source_payload(sources)
-        business_payload = state.get("business_status") or state.get("reject_info") or {}
         return ANSWER_PROMPT.format(
             query=state.get("query") or "",
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
             short_term_context=format_short_term_context(state),
             long_term_context=format_long_term_context(state),
-            business_snapshot=state.get("business_snapshot") or {},
-            business_payload=business_payload,
+            tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,
         )
 
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:
         """生成非流式回答和提示词。"""
         prompt = self.build_prompt(state)
+        if is_application_history_intent(state):
+            return application_history_answer(state), prompt
         generation_plan = self.generation_plan(state)
         if generation_plan["mode"] == "vl":
             model_input = self.build_multimodal_input(state, prompt)
@@ -103,6 +96,8 @@ class OpenAIAnswerGenerator:
     def stream_generate(self, state: dict[str, Any]) -> tuple[Iterable[str], str]:
         """生成流式回答片段和提示词。"""
         prompt = self.build_prompt(state)
+        if is_application_history_intent(state):
+            return iter([application_history_answer(state)]), prompt
         generation_plan = self.generation_plan(state)
         if generation_plan["mode"] == "vl":
             model_input = self.build_multimodal_input(state, prompt)
@@ -186,6 +181,11 @@ MULTIMODAL_EVIDENCE_RULES = """【多模态证据规则】
 5. 不要在回答中输出内部 chunk_id、图片序号或本规则。"""
 
 
+def is_application_history_intent(state: dict[str, Any]) -> bool:
+    """状态和退回问题必须走完整业务历史渲染，禁止模型摘要。"""
+    return str(state.get("intent") or "") in {"status", "ticket_status", "reject", "rejection_reason"}
+
+
 def valid_query_image(
     value: Any,
     *,
@@ -239,13 +239,8 @@ def select_evidence_images(
 
 
 def answer_sources(state: dict[str, Any]) -> list[dict[str, Any]]:
-    """返回单问题或多问题中的全部回答证据。"""
-    sources = [item for item in (state.get("retrieved_sources") or []) if isinstance(item, dict)]
-    for task in state.get("sub_tasks") or []:
-        if not isinstance(task, dict):
-            continue
-        sources.extend(item for item in (task.get("sources") or []) if isinstance(item, dict))
-    return sources
+    """返回本次 knowledge_search 的回答证据。"""
+    return [item for item in (state.get("retrieved_sources") or []) if isinstance(item, dict)]
 
 
 def source_metadata(source: dict[str, Any]) -> dict[str, Any]:

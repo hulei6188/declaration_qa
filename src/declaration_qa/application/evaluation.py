@@ -41,8 +41,6 @@ def chat_request_from_case(case: dict[str, Any]) -> ChatRequest:
         "region_code": str(case.get("region_code") or "340000"),
         "policy_version": str(case.get("policy_version") or "2025"),
         "biz_type": case.get("biz_type"),
-        "apply_id": case.get("apply_id"),
-        "apply_context": case.get("apply_context"),
     }
     return ChatRequest(**{key: value for key, value in payload.items() if value is not None})
 

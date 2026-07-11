@@ -8,7 +8,6 @@ from typing import Any
 from declaration_qa.core.domain import EvidenceDecision
 from declaration_qa.rag.retrieval import (
     KNOWLEDGE_RETRIEVAL_CHAIN,
-    TICKET_AUGMENTED_CHAIN,
     metadata_coverage,
 )
 
@@ -24,14 +23,12 @@ def decide_evidence(
     *,
     intent: str,
     chain: str = KNOWLEDGE_RETRIEVAL_CHAIN,
-    business_payload: dict[str, Any] | None = None,
 ) -> EvidenceDecision:
     """根据检索来源和链路要求判断证据是否可用。"""
     coverage = metadata_coverage(filters, chain=chain)
     checks: dict[str, Any] = {
         "chain": chain,
         "metadata_coverage": coverage,
-        "business_payload_present": bool(business_payload),
     }
     if not sources:
         return EvidenceDecision(
@@ -74,17 +71,6 @@ def decide_evidence(
         return EvidenceDecision(
             ok=False,
             reason="source_not_traceable",
-            top_score=top_score,
-            source_count=len(sources),
-            required_metadata=coverage["required"],
-            missing_metadata=coverage["missing"],
-            checks=checks,
-        )
-
-    if chain == TICKET_AUGMENTED_CHAIN and not business_payload:
-        return EvidenceDecision(
-            ok=False,
-            reason="missing_business_snapshot",
             top_score=top_score,
             source_count=len(sources),
             required_metadata=coverage["required"],

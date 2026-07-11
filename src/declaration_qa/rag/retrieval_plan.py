@@ -8,7 +8,6 @@ ALLOWED_METADATA_NEEDS = (
     "region_code",
     "policy_version",
     "item_scope",
-    "ticket_scope",
     "as_of",
 )
 
@@ -16,12 +15,10 @@ ALLOWED_METADATA_NEEDS = (
 def infer_retrieval_plan(
     *,
     metadata_needs: Any = None,
-    ticket_fact_type: str = "none",
 ) -> dict[str, Any]:
     """推断并归一化检索计划。"""
     return {
         "metadata_needs": list(normalize_metadata_needs(metadata_needs)),
-        "ticket_fact_type": normalize_ticket_fact_type(ticket_fact_type),
     }
 
 
@@ -30,7 +27,6 @@ def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
     raw = plan or {}
     output = {
         "metadata_needs": list(normalize_metadata_needs(raw.get("metadata_needs"))),
-        "ticket_fact_type": normalize_ticket_fact_type(str(raw.get("ticket_fact_type") or "none")),
     }
     image_rerank_query = str(raw.get("image_rerank_query") or "").strip()
     if image_rerank_query:
@@ -52,12 +48,6 @@ def normalize_metadata_needs(values: Any) -> tuple[str, ...]:
         if normalized in ALLOWED_METADATA_NEEDS and normalized not in output:
             output.append(normalized)
     return tuple(output)
-
-
-def normalize_ticket_fact_type(value: str) -> str:
-    """归一化检索计划中的办件事实类型。"""
-    normalized = str(value or "none").strip().lower()
-    return normalized if normalized in {"status", "rejection", "correction", "none"} else "none"
 
 
 def list_values(values: Any) -> list[Any]:

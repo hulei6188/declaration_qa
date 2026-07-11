@@ -10,6 +10,8 @@ from langgraph.graph import END, START, StateGraph
 
 from declaration_qa.api.schemas import ChatRequest, ChatResponse
 from declaration_qa.application.state import DeclarationQAState
+from declaration_qa.application.agent_planner import ToolCallingAgentPlanner
+from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
 from declaration_qa.application.workflow_helpers.streaming import (
@@ -21,9 +23,7 @@ from declaration_qa.application.workflow_helpers.streaming import (
     should_emit_sources,
     token_events,
 )
-from declaration_qa.application.workflow_helpers.ticket_context import ticket_rag_query
 from declaration_qa.application.workflow_nodes import WorkflowNodes
-from declaration_qa.application.workflow_retrieval_nodes import is_image_only_query
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
@@ -32,12 +32,6 @@ from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
 from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
-from declaration_qa.rag.router import (
-    ROUTE_CLARIFICATION,
-    ROUTE_REFUSE,
-    ROUTE_TICKET_CONTEXT_RELATED,
-    ROUTE_TICKET_CONTEXT_UNRELATED,
-)
 from declaration_qa.storage.audit import InMemoryAuditStore
 
 
@@ -46,7 +40,6 @@ __all__ = [
     "STREAM_TOKEN_SIZE",
     "DeclarationQAWorkflow",
     "select_answer_sources",
-    "ticket_rag_query",
     "token_events",
 ]
 
@@ -61,10 +54,13 @@ class DeclarationQAWorkflow(WorkflowNodes):
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         query_rewrite: Any | None = None,
+        agent_model: Any | None = None,
+        agent_planner: Any | None = None,
+        tool_registry: ToolRegistry | None = None,
+        agent_max_iterations: int = 4,
         query_image_ocr_client: Any | None = None,
         query_image_ocr_max_chars: int = 4000,
         context_memory_manager: ContextMemoryManager | None = None,
-        max_sub_question_workers: int = 4,
         max_retrieval_workers: int = 4,
     ) -> None:
         """初始化申报问答工作流。"""
@@ -73,12 +69,19 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.query_rewrite_service = query_rewrite or RuleTwoStageQueryRewriter()
+        self.agent_planner = agent_planner or ToolCallingAgentPlanner(agent_model)
+        self.agent_max_iterations = max(1, int(agent_max_iterations or 4))
         self.query_image_ocr_client = query_image_ocr_client
         self.query_image_ocr_max_chars = max(1, int(query_image_ocr_max_chars or 4000))
         self.context_memory_manager = context_memory_manager
-        self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
-        self.sub_question_graph = self._build_sub_question_graph()
+        self.tool_registry = tool_registry or ToolRegistry()
+        if self.tool_registry.get("ticket_list_query") is None:
+            self.tool_registry.register(TicketListQueryTool(self.business_adapter))
+        if self.tool_registry.get("ticket_detail_query") is None:
+            self.tool_registry.register(TicketDetailQueryTool(self.business_adapter))
+        if self.tool_registry.get("knowledge_search") is None:
+            self.tool_registry.register(KnowledgeSearchTool(self.execute_knowledge_search))
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
@@ -104,13 +107,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             route=str(final_state.get("route") or ""),
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
-            multi_question=bool(final_state.get("multi_question")),
             query_rewrite_stage1=final_state.get("query_rewrite.stage1") or {},
-            sub_tasks=final_state.get("sub_tasks") or [],
-            need_ticket_selection=bool(final_state.get("need_ticket_selection")),
-            ticket_selection_reason=str(final_state.get("ticket_selection_reason") or ""),
-            tickets=final_state.get("tickets") or [],
-            ticket_context=final_state.get("ticket_context") or {},
             retrieval_chain=str(final_state.get("retrieval_chain") or ""),
             answer=str(final_state.get("answer") or ""),
             refused=bool(final_state.get("refused")),
@@ -119,6 +116,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
             business_snapshot=final_state.get("business_snapshot") or {},
             rag_status=final_state.get("rag_status") or {},
             evidence_decision=final_state.get("evidence_decision") or {},
+            agent_plan=final_state.get("agent_plan") or {},
+            tool_results=final_state.get("tool_results") or [],
             suggested_actions=final_state.get("suggested_actions") or [],
             events=final_state.get("events") or [],
         )
@@ -203,7 +202,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
 
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
-        apply_context = request.apply_context.model_dump(exclude_none=True) if request.apply_context else None
         session_id = request.session_id or uuid4().hex
         fallback_messages = self._recent_session_messages(request)
         short_memory = self._load_short_memory(request, session_id=session_id, fallback_messages=fallback_messages)
@@ -220,29 +218,29 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "short_memory": short_memory,
             "short_term_context": {},
             "long_term_context": {},
+            "agent_iteration": 0,
+            "agent_next": "",
+            "agent_plan": {},
+            "agent_pending_tool_calls": [],
+            "agent_call_signatures": [],
+            "agent_knowledge_query": "",
+            "agent_knowledge_queries": [],
+            "agent_selected_item_code": "",
+            "agent_selected_application_id": None,
+            "tool_results": [],
             "region_code": request.region_code,
             "app_version": request.app_version,
             "policy_version": request.policy_version,
             "biz_type": request.biz_type,
             "request_biz_type": request.biz_type,
-            "apply_id": request.apply_id,
-            "apply_context": apply_context,
             "metadata_filter": request.metadata_filter,
             "intent": "unknown",
             "sub_intent": "",
             "route": "",
             "route_decision": {},
             "query_rewrite.stage1": {},
-            "requires_ticket_context": False,
-            "ticket_fact_type": "none",
             "retrieval_plan": {},
-            "multi_question": False,
-            "sub_tasks": [],
             "retrieval_chain": "",
-            "need_ticket_selection": False,
-            "ticket_selection_reason": "",
-            "tickets": [],
-            "ticket_context": None,
             "retrieval_query": "",
             "planned_retrieval_queries": [],
             "query_rewrite_provider": "",
@@ -306,24 +304,16 @@ class DeclarationQAWorkflow(WorkflowNodes):
             return []
 
     def _build_graph(self):
-        """构建 LangGraph 节点和边。"""
+        """构建受控 Agent Tool-Calling 工作流。"""
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
-        builder.add_node("image_only_prepare", self.image_only_prepare)
-        builder.add_node("query_rewrite.stage1", self.query_rewrite_stage1)
-        builder.add_node("multi_question_collect", self.multi_question_collect)
-        builder.add_node("prepare_task", self.prepare_task)
-        builder.add_node("ticket_list_query", self.ticket_list_query)
-        builder.add_node("ticket_selection", self.ticket_selection)
-        builder.add_node("ticket_detail_query", self.ticket_detail_query)
-        builder.add_node("ticket_context_build", self.ticket_context_build)
-        builder.add_node("query_rewrite.stage2", self.query_rewrite)
-        builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
-        builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
-        builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
-        builder.add_node("evidence_check", self.evidence_check)
+        builder.add_node("agent_prepare", self.agent_prepare)
+        builder.add_node("agent_decide", self.agent_decide)
+        builder.add_node("agent_execute_tools", self.agent_execute_tools)
+        builder.add_node("agent_observe", self.agent_observe)
+        builder.add_node("agent_evidence_check", self.agent_evidence_check)
         builder.add_node("refuse_or_human", self.refuse_or_human)
         builder.add_node("llm_generate", self.llm_generate)
         builder.add_node("answer_postprocess", self.answer_postprocess)
@@ -332,62 +322,17 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_edge(START, "context_build")
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
+        builder.add_edge("query_preprocess", "agent_prepare")
+        builder.add_edge("agent_prepare", "agent_decide")
         builder.add_conditional_edges(
-            "query_preprocess",
-            lambda state: "image" if is_image_only_query(state) else "text",
-            {"image": "image_only_prepare", "text": "query_rewrite.stage1"},
+            "agent_decide",
+            lambda state: state.get("agent_next") or "finish",
+            {"tools": "agent_execute_tools", "finish": "agent_evidence_check"},
         )
-        builder.add_edge("image_only_prepare", "knowledge_filter_build")
+        builder.add_edge("agent_execute_tools", "agent_observe")
+        builder.add_edge("agent_observe", "agent_decide")
         builder.add_conditional_edges(
-            "query_rewrite.stage1",
-            lambda state: "multi" if state.get("multi_question") else "single",
-            {"multi": "multi_question_collect", "single": "prepare_task"},
-        )
-        builder.add_conditional_edges(
-            "multi_question_collect",
-            lambda state: "needs_selection" if state.get("need_ticket_selection") else "ready",
-            {"needs_selection": "refuse_or_human", "ready": "llm_generate"},
-        )
-        builder.add_conditional_edges(
-            "prepare_task",
-            lambda state: state.get("route") or "refuse",
-            {
-                ROUTE_TICKET_CONTEXT_RELATED: "ticket_list_query",
-                ROUTE_TICKET_CONTEXT_UNRELATED: "knowledge_filter_build",
-                ROUTE_CLARIFICATION: "refuse_or_human",
-                ROUTE_REFUSE: "refuse_or_human",
-            },
-        )
-        builder.add_conditional_edges(
-            "ticket_list_query",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "ticket_selection", "missing": "refuse_or_human"},
-        )
-        builder.add_conditional_edges(
-            "ticket_selection",
-            lambda state: "selected" if state.get("apply_context") and not state.get("need_ticket_selection") else "needs_selection",
-            {"selected": "ticket_detail_query", "needs_selection": "refuse_or_human"},
-        )
-        builder.add_conditional_edges(
-            "ticket_detail_query",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "ticket_context_build", "missing": "refuse_or_human"},
-        )
-        builder.add_edge("ticket_context_build", "knowledge_filter_build")
-        builder.add_conditional_edges(
-            "knowledge_filter_build",
-            lambda state: "image" if is_image_only_query(state) else "text",
-            {"image": "hybrid_retrieve", "text": "query_rewrite.stage2"},
-        )
-        builder.add_conditional_edges(
-            "query_rewrite.stage2",
-            lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
-            {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
-        )
-        builder.add_edge("ticket_knowledge_rag", "evidence_check")
-        builder.add_edge("hybrid_retrieve", "evidence_check")
-        builder.add_conditional_edges(
-            "evidence_check",
+            "agent_evidence_check",
             lambda state: "ok" if state.get("evidence_ok") else "refuse",
             {"ok": "llm_generate", "refuse": "refuse_or_human"},
         )
@@ -396,65 +341,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
         return builder.compile()
-
-    def _build_sub_question_graph(self):
-        """构建多问题拆分后单个子问题的 LangGraph 子图。"""
-        builder = StateGraph(DeclarationQAState)
-        builder.add_node("prepare_task", self.prepare_task)
-        builder.add_node("ticket_list_query", self.ticket_list_query)
-        builder.add_node("ticket_selection", self.ticket_selection)
-        builder.add_node("ticket_detail_query", self.ticket_detail_query)
-        builder.add_node("ticket_context_build", self.ticket_context_build)
-        builder.add_node("knowledge_filter_build", self.knowledge_filter_build)
-        builder.add_node("query_rewrite.stage2", self.query_rewrite)
-        builder.add_node("ticket_knowledge_rag", self.ticket_knowledge_rag)
-        builder.add_node("hybrid_retrieve", self.hybrid_retrieve)
-        builder.add_node("evidence_check", self.evidence_check)
-        builder.add_node("refuse_or_human", self.refuse_or_human)
-
-        builder.add_edge(START, "prepare_task")
-        builder.add_conditional_edges(
-            "prepare_task",
-            lambda state: state.get("route") or "refuse",
-            {
-                ROUTE_TICKET_CONTEXT_RELATED: "ticket_list_query",
-                ROUTE_TICKET_CONTEXT_UNRELATED: "knowledge_filter_build",
-                ROUTE_CLARIFICATION: "refuse_or_human",
-                ROUTE_REFUSE: "refuse_or_human",
-            },
-        )
-        builder.add_conditional_edges(
-            "ticket_list_query",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "ticket_selection", "missing": "refuse_or_human"},
-        )
-        builder.add_conditional_edges(
-            "ticket_selection",
-            lambda state: "selected" if state.get("apply_context") and not state.get("need_ticket_selection") else "needs_selection",
-            {"selected": "ticket_detail_query", "needs_selection": "refuse_or_human"},
-        )
-        builder.add_conditional_edges(
-            "ticket_detail_query",
-            lambda state: "missing" if state.get("refuse_reason") else "ok",
-            {"ok": "ticket_context_build", "missing": "refuse_or_human"},
-        )
-        builder.add_edge("ticket_context_build", "knowledge_filter_build")
-        builder.add_edge("knowledge_filter_build", "query_rewrite.stage2")
-        builder.add_conditional_edges(
-            "query_rewrite.stage2",
-            lambda state: "ticket" if state.get("route") == ROUTE_TICKET_CONTEXT_RELATED else "knowledge",
-            {"ticket": "ticket_knowledge_rag", "knowledge": "hybrid_retrieve"},
-        )
-        builder.add_edge("ticket_knowledge_rag", "evidence_check")
-        builder.add_edge("hybrid_retrieve", "evidence_check")
-        builder.add_conditional_edges(
-            "evidence_check",
-            lambda state: "ok" if state.get("evidence_ok") else "refuse",
-            {"ok": END, "refuse": "refuse_or_human"},
-        )
-        builder.add_edge("refuse_or_human", END)
-        return builder.compile()
-
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
     """根据聊天请求构建脱敏后的 trace 输入。"""
@@ -467,10 +353,8 @@ def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
             "app_version": request.app_version,
             "policy_version": request.policy_version,
             "biz_type": request.biz_type,
-            "apply_id": request.apply_id,
             "has_query_image": request.query_image is not None,
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
-            "has_apply_context": request.apply_context is not None,
             "metadata_filter": request.metadata_filter,
         }
     )
@@ -491,14 +375,13 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "route": state.get("route") or "",
             "intent": state.get("intent") or "",
             "sub_intent": state.get("sub_intent") or "",
-            "ticket_fact_type": state.get("ticket_fact_type") or "none",
             "retrieval_chain": state.get("retrieval_chain") or "",
-            "multi_question": bool(state.get("multi_question")),
+            "agent_iteration": int(state.get("agent_iteration") or 0),
+            "tool_result_count": len(state.get("tool_results") or []),
             "has_query_image": bool(state.get("query_image")),
             "recent_message_count": len(state.get("session_messages") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),
-            "need_ticket_selection": bool(state.get("need_ticket_selection")),
             "refused": bool(state.get("refused")),
             "source_count": len(state.get("retrieved_sources") or []),
             "rag_retrieval_mode": rag_status.get("retrieval_mode") or "",
@@ -517,7 +400,8 @@ def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
             "refuse_reason": state.get("refuse_reason"),
             "route": state.get("route") or "",
             "intent": state.get("intent") or "",
-            "multi_question": bool(state.get("multi_question")),
+            "agent_iteration": int(state.get("agent_iteration") or 0),
+            "tool_result_count": len(state.get("tool_results") or []),
             "source_count": len(state.get("retrieved_sources") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),

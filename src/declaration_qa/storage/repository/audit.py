@@ -49,6 +49,11 @@ class AuditRepository(EngineBackedRepository):
                 meta={
                     "retrieval_chain": payload.get("retrieval_chain") or "",
                     "business_snapshot": payload.get("business_snapshot") or {},
+                    "agent_plan": payload.get("agent_plan") or {},
+                    "tool_results": payload.get("tool_results") or [],
+                    "agent_iteration": int(payload.get("agent_iteration") or 0),
+                    "agent_selected_item_code": payload.get("agent_selected_item_code") or "",
+                    "agent_selected_application_id": payload.get("agent_selected_application_id"),
                     "evidence_ok": payload.get("evidence_ok"),
                     "evidence_decision": payload.get("evidence_decision") or {},
                     "rag_status": payload.get("rag_status") or {},
@@ -61,17 +66,19 @@ class AuditRepository(EngineBackedRepository):
                 """
                 INSERT INTO declaration_qa.audit_logs (
                     audit_uid, session_id, user_id, query, normalized_query, intent,
-                    retrieval_chain, region_code, biz_type, apply_id, business_snapshot,
-                    business_status, reject_info,
-                    material_mapping, retrieval_filter, retrieved_sources, rag_status,
+                    retrieval_chain, region_code, biz_type, business_snapshot,
+                    agent_plan, tool_results, agent_iteration,
+                    agent_selected_item_code, agent_selected_application_id,
+                    retrieval_filter, retrieved_sources, rag_status,
                     evidence_ok, evidence_decision, refused, refuse_reason, final_prompt, answer,
                     events, langfuse_trace_id
                 )
                 VALUES (
                     :audit_uid, :session_id, :user_id, :query, :normalized_query, :intent,
-                    :retrieval_chain, :region_code, :biz_type, :apply_id, :business_snapshot,
-                    :business_status, :reject_info,
-                    :material_mapping, :retrieval_filter, :retrieved_sources, :rag_status,
+                    :retrieval_chain, :region_code, :biz_type, :business_snapshot,
+                    :agent_plan, :tool_results, :agent_iteration,
+                    :agent_selected_item_code, :agent_selected_application_id,
+                    :retrieval_filter, :retrieved_sources, :rag_status,
                     :evidence_ok, :evidence_decision, :refused, :refuse_reason, :final_prompt, :answer,
                     :events, :langfuse_trace_id
                 )
@@ -80,9 +87,8 @@ class AuditRepository(EngineBackedRepository):
                 """
             ).bindparams(
                 bindparam("business_snapshot", type_=JSON),
-                bindparam("business_status", type_=JSON),
-                bindparam("reject_info", type_=JSON),
-                bindparam("material_mapping", type_=JSON),
+                bindparam("agent_plan", type_=JSON),
+                bindparam("tool_results", type_=JSON),
                 bindparam("retrieval_filter", type_=JSON),
                 bindparam("retrieved_sources", type_=JSON),
                 bindparam("rag_status", type_=JSON),
@@ -101,11 +107,12 @@ class AuditRepository(EngineBackedRepository):
                     "retrieval_chain": str(payload.get("retrieval_chain") or ""),
                     "region_code": str(payload.get("region_code") or ""),
                     "biz_type": payload.get("biz_type"),
-                    "apply_id": str(payload.get("apply_id") or ""),
                     "business_snapshot": payload.get("business_snapshot") or {},
-                    "business_status": payload.get("business_status") or {},
-                    "reject_info": payload.get("reject_info") or {},
-                    "material_mapping": payload.get("material_mapping") or {},
+                    "agent_plan": payload.get("agent_plan") or {},
+                    "tool_results": payload.get("tool_results") or [],
+                    "agent_iteration": int(payload.get("agent_iteration") or 0),
+                    "agent_selected_item_code": str(payload.get("agent_selected_item_code") or ""),
+                    "agent_selected_application_id": payload.get("agent_selected_application_id"),
                     "retrieval_filter": payload.get("retrieval_filter") or {},
                     "retrieved_sources": payload.get("retrieved_sources") or [],
                     "rag_status": payload.get("rag_status") or {},
@@ -155,12 +162,11 @@ class AuditRepository(EngineBackedRepository):
         row = connection.execute(
             text(
                 """
-                INSERT INTO declaration_qa.sessions (session_uid, user_id, region_code, biz_type, apply_id)
-                VALUES (:session_uid, :user_id, :region_code, :biz_type, :apply_id)
+                INSERT INTO declaration_qa.sessions (session_uid, user_id, region_code, biz_type)
+                VALUES (:session_uid, :user_id, :region_code, :biz_type)
                 ON CONFLICT (session_uid) DO UPDATE SET
                     updated_at = CURRENT_TIMESTAMP,
-                    biz_type = COALESCE(EXCLUDED.biz_type, declaration_qa.sessions.biz_type),
-                    apply_id = COALESCE(NULLIF(EXCLUDED.apply_id, ''), declaration_qa.sessions.apply_id)
+                    biz_type = COALESCE(EXCLUDED.biz_type, declaration_qa.sessions.biz_type)
                 RETURNING id
                 """
             ),
@@ -169,7 +175,6 @@ class AuditRepository(EngineBackedRepository):
                 "user_id": int(payload.get("user_id") or 0),
                 "region_code": str(payload.get("region_code") or "340000"),
                 "biz_type": payload.get("biz_type"),
-                "apply_id": str(payload.get("apply_id") or ""),
             },
         ).mappings().first()
         return int(row["id"])

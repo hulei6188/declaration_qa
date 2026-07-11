@@ -7,10 +7,6 @@ from typing import Any, Protocol
 
 class BusinessDataAdapter(Protocol):
     """办件业务数据访问适配器协议。"""
-    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
-        """查询用户可访问的办件列表。"""
-        ...
-
     def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
         """按事项汇总当前用户的全部申请。"""
         ...
@@ -25,23 +21,6 @@ class BusinessDataAdapter(Protocol):
         """返回同一事项下的申请及每次申请的完整状态历史。"""
         ...
 
-    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
-        """查询指定办件的业务上下文。"""
-        ...
-
-    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
-        """校验用户是否有权访问指定办件。"""
-        ...
-
-    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取状态信息。"""
-        ...
-
-    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取退回和补正信息。"""
-        ...
-
-
 class InMemoryBusinessDataAdapter:
     """独立问答应用使用的业务数据适配器。
 
@@ -54,7 +33,6 @@ class InMemoryBusinessDataAdapter:
         self._applications: dict[str, dict[str, Any]] = {
             "A1001": {
                 "application_id": 1001,
-                "apply_id": "A1001",
                 "user_id": 1,
                 "item_code": "ITEM-HEALTH-CERTIFICATE",
                 "item_name": "健康证办理",
@@ -73,7 +51,6 @@ class InMemoryBusinessDataAdapter:
             },
             "A2002": {
                 "application_id": 2002,
-                "apply_id": "A2002",
                 "user_id": 1,
                 "item_code": "ITEM-RESIDENCE-PERMIT",
                 "item_name": "居住证办理",
@@ -97,7 +74,6 @@ class InMemoryBusinessDataAdapter:
             },
             "A3003": {
                 "application_id": 3003,
-                "apply_id": "A3003",
                 "user_id": 1,
                 "item_code": "ITEM-ID-CARD-REPLACE",
                 "item_name": "身份证换领",
@@ -120,19 +96,6 @@ class InMemoryBusinessDataAdapter:
                 ],
             },
         }
-
-    def list_applications(self, *, user_id: int, biz_type: str | None = None, region_code: str | None = None) -> list[dict[str, Any]]:
-        """查询用户可访问的办件列表。"""
-        rows = []
-        for item in self._applications.values():
-            if int(item.get("user_id") or 0) != int(user_id):
-                continue
-            if biz_type and item.get("biz_type") != biz_type:
-                continue
-            if region_code and not region_code_matches(item.get("region_code"), region_code):
-                continue
-            rows.append(ticket_summary(item))
-        return sorted(rows, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
 
     def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
         """按 item_code 汇总用户申请，不暴露外部申请单标识。"""
@@ -180,69 +143,6 @@ class InMemoryBusinessDataAdapter:
                 continue
             output.append(application_detail(item))
         return sorted(output, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
-
-    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
-        """查询指定办件的业务上下文。"""
-        item = self._applications.get(str(apply_id or "").strip())
-        if not item or int(item.get("user_id") or 0) != int(user_id):
-            return None
-        return dict(item)
-
-    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
-        """校验用户是否有权访问指定办件。"""
-        return self.get_apply_context(user_id=user_id, apply_id=apply_id) is not None
-
-    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取状态信息。"""
-        return {
-            "apply_id": apply_context.get("apply_id"),
-            "biz_type": apply_context.get("biz_type"),
-            "region_code": apply_context.get("region_code"),
-            "status": apply_context.get("status"),
-            "current_node": apply_context.get("current_node"),
-            "node_name": apply_context.get("node_name"),
-            "submitted_at": apply_context.get("submitted_at"),
-            "completed_at": apply_context.get("completed_at"),
-            "updated_at": apply_context.get("updated_at"),
-            "payload": apply_context.get("payload") or {},
-        }
-
-    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取退回和补正信息。"""
-        return {
-            "apply_id": apply_context.get("apply_id"),
-            "biz_type": apply_context.get("biz_type"),
-            "region_code": apply_context.get("region_code"),
-            "reject_code": apply_context.get("reject_code"),
-            "reject_reason": apply_context.get("reject_reason"),
-            "material_code": apply_context.get("material_code"),
-            "material_name": apply_context.get("material_name"),
-            "audit_node": apply_context.get("audit_node"),
-            "status": apply_context.get("status"),
-            "current_node": apply_context.get("current_node"),
-            "node_name": apply_context.get("node_name"),
-            "submitted_at": apply_context.get("submitted_at"),
-            "updated_at": apply_context.get("updated_at"),
-            "payload": apply_context.get("payload") or {},
-        }
-
-
-def ticket_summary(item: dict[str, Any]) -> dict[str, Any]:
-    """将办件记录转换为列表摘要。"""
-    return {
-        "ticket_id": str(item.get("apply_id") or ""),
-        "application_id": int(item.get("application_id") or 0),
-        "item_code": str(item.get("item_code") or ""),
-        "item_name": str(item.get("item_name") or ticket_title(item)),
-        "biz_type": str(item.get("biz_type") or ""),
-        "region_code": str(item.get("region_code") or ""),
-        "status": str(item.get("status") or ""),
-        "current_node": str(item.get("current_node") or ""),
-        "node_name": str(item.get("node_name") or ""),
-        "title": ticket_title(item),
-        "updated_at": str(item.get("updated_at") or ""),
-    }
-
 
 def application_detail(item: dict[str, Any]) -> dict[str, Any]:
     """构造 Agent 工具使用的申请详情和完整状态流水。"""

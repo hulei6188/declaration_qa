@@ -42,20 +42,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """保存用户对问答结果的反馈。"""
         return self.audit.add_feedback(audit_id=audit_id, rating=rating, comment=comment)
 
-    def get_apply_context(self, *, user_id: int, apply_id: str) -> dict[str, Any] | None:
-        """查询指定办件的业务上下文。"""
-        return self.business.get_apply_context(user_id=user_id, apply_id=apply_id)
-
-    def list_applications(
-        self,
-        *,
-        user_id: int,
-        biz_type: str | None = None,
-        region_code: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """查询用户可访问的办件列表。"""
-        return self.business.list_applications(user_id=user_id, biz_type=biz_type, region_code=region_code)
-
     def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
         """按事项汇总当前用户的申请。"""
         return self.business.list_ticket_items(user_id=user_id, region_code=region_code)
@@ -73,18 +59,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
             item_code=item_code,
             application_id=application_id,
         )
-
-    def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
-        """校验用户是否有权访问指定办件。"""
-        return self.business.verify_apply_access(user_id=user_id, apply_id=apply_id)
-
-    def get_status(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取状态信息。"""
-        return self.business.get_status(apply_context)
-
-    def get_reject_info(self, apply_context: dict[str, Any]) -> dict[str, Any]:
-        """从办件上下文提取退回和补正信息。"""
-        return self.business.get_reject_info(apply_context)
 
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""

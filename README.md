@@ -149,8 +149,8 @@ python -m declaration_qa.indexing.worker
 
 系统采用分层上下文记忆：
 
-- 短期记忆：Redis 保存最近 5 轮消息和抽取式摘要，供多轮省略、当前附件和当前工单理解使用。
-- 长期记忆：每轮问答审计落库后，通过后台线程异步抽取长期记忆，写入 PostgreSQL `declaration_qa.context_memories`，同时写入独立的 Milvus collection 和 Elasticsearch index。
+- 短期记忆：Redis 保存最近 5 轮消息和抽取式摘要，仅用于多轮省略和当前附件理解，不形成工单绑定。
+- 长期记忆：公开知识问答审计落库后，通过后台线程异步抽取长期记忆，写入 PostgreSQL `declaration_qa.context_memories`，同时写入独立的 Milvus collection 和 Elasticsearch index；包含 `ticket_*` 工具结果的轮次不会写入长期记忆。
 - 长期检索：回答生成前按用户隔离执行语义向量 + BM25 混合检索，并通过 `DECLARATION_QA_LONG_MEMORY_DISTANCE_THRESHOLD` 过滤向量距离。
 - Prompt 约束：长期记忆只用于理解历史上下文；如与检索证据或业务数据冲突，以证据和业务数据为准。
 
@@ -182,31 +182,40 @@ LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_BASE_URL=http://localhost:3000
 ```
 
-本地 Langfuse 可用 Docker Compose 部署，Cloud 版则把 `LANGFUSE_BASE_URL` 改成 `https://cloud.langfuse.com`。系统会上报一次问答主 trace，并记录两阶段 `query_rewrite`、RAG 检索、答案生成和 LangChain LLM 调用。`POST /api/declaration-qa/feedback` 会把用户反馈写成 Langfuse score。
+本地 Langfuse 可用 Docker Compose 部署，Cloud 版则把 `LANGFUSE_BASE_URL` 改成 `https://cloud.langfuse.com`。系统会上报一次问答主 trace，并记录 Agent 决策、工具调用、知识检索、答案生成和 LangChain LLM 调用。`POST /api/declaration-qa/feedback` 会把用户反馈写成 Langfuse score。
 
 ## 问答链路
 
 ```text
 ChatRequest
   -> context_build
-  -> query_preprocess
-  -> query_rewrite.stage1
-  -> prepare_task
-  -> ticket selection / ticket context
-  -> metadata filter
-  -> query_rewrite.stage2
-  -> RAG retrieval
-  -> evidence gate
+  -> image OCR / query_preprocess
+  -> agent_prepare (冻结知识 Query)
+  -> agent_decide
+  -> Tool Registry
+       -> ticket_list_query
+       -> ticket_detail_query
+       -> knowledge_search
+  -> agent_observe
+  -> agent_decide (循环，最多 4 轮)
+  -> agent_evidence_check
   -> answer generation
   -> audit / SSE
 ```
 
-多问题会拆成多个子任务独立检索，最后共享证据池汇总回答。
+Agent 使用模型原生 Tool Calling；模型不可用时使用确定性规则兜底。相同工具参数不会重复执行，达到最大轮数后进入证据门控。
 
-`retrieval_plan` 主要字段：
+Tool Registry 默认注册：
 
-- `metadata_needs`: 需要满足的元数据范围，如 `item_scope`、`ticket_scope`。
-- `ticket_fact_type`: `status`、`rejection`、`correction`、`none`。
+- `ticket_list_query`: 按可信 `user_id` 返回用户涉及的 `item_code` 列表。
+- `ticket_detail_query`: 按可信 `user_id + item_code` 返回同事项的全部申请；每条申请包含主键 `application_id` 和完整 `status_history`。
+- `knowledge_search`: 调用 Milvus + Elasticsearch 混合检索。
+
+`user_id` 只能由服务端认证上下文注入，不出现在模型可填写的工具参数中。Agent 自主确定 `item_code` 和相关 `application_id`，不要求用户绑定或选择工单。
+
+工单和知识检索强隔离：业务工具结果不会进入 Query Rewrite、metadata filter、Embedding、BM25、RRF 或 Rerank。`knowledge_search` 始终执行 Agent 调用任何业务工具之前冻结的用户知识 Query。
+
+`knowledge_search` 可以与工单工具真正并发执行，不按工单意图或关键词设置调用限制；隔离的是数据与证据用途，不限制 Agent 的工具选择。若详情调用依赖同轮列表结果，执行器会先等待列表完成，再执行详情。
 
 ## RAG 引擎
 
@@ -221,7 +230,7 @@ ChatRequest
 2. 多 query 向量检索 + BM25 检索。
 3. RRF 融合候选。
 4. Rerank 重排。
-5. 按 `retrieval_plan` 回填 parent 或同章节 sibling。
+5. 回填 parent，并按父块和视觉资产去重。
 6. 输出 `sources`、`evidence_text` 和 `rag_status`。
 
 ## 多模态 RAG
@@ -246,7 +255,7 @@ ChatRequest
 
 ```text
 文本 query:
-  query_rewrite.stage1 -> query_rewrite.stage2 -> Milvus dense + Elasticsearch BM25
+  Agent -> knowledge_search -> Query Rewrite -> Milvus dense + Elasticsearch BM25
 
 图片 + 文本 query:
   文本部分 -> Milvus dense + Elasticsearch BM25
@@ -267,7 +276,6 @@ ChatRequest
 - `GET /api/declaration-qa/health`
 - `POST /api/declaration-qa/chat`
 - `POST /api/declaration-qa/chat/stream`
-- `GET /api/declaration-qa/tickets`
 - `GET /api/declaration-qa/sessions`
 - `GET /api/declaration-qa/sessions/{session_id}`
 - `DELETE /api/declaration-qa/sessions/{session_id}`
@@ -285,17 +293,25 @@ SSE 常见事件：
 - `run_started`
 - `context_built`
 - `query_preprocessed`
-- `query_rewrite.stage1`
-- `ticket_selected`
-- `knowledge_filter`
-- `query_rewrite.stage2`
-- `rag_status`
+- `agent_prepared`
+- `agent_decision`
+- `tool_executed`
+- `agent_observation`
+- `evidence`
 - `sources`
 - `token`
 - `audit_logged`
 - `done`
 
 ## 知识入库
+
+Agentic 工单工具上线前先执行数据库迁移：
+
+```powershell
+Get-Content sql\postgresql\008_declaration_qa_agentic_ticket_history.sql | docker exec -i declaration-qa-postgres-1 psql -U agentbase -d agentbase -v ON_ERROR_STOP=1
+```
+
+迁移会把 `item_code/item_name` 提升为申请主表字段，并为状态流水增加 `sequence_no`、`from_status`、原因、材料、上游事件 ID 和实际发生时间。数据库触发器会自动分配顺序、关闭上一条 current、按申请内 `source_event_id` 去重并同步申请主表当前状态；上游仍必须对每次变更执行 INSERT，不能覆盖历史行。
 
 单文件入库：
 
@@ -356,6 +372,7 @@ python -m pytest
 
 ```powershell
 python -m pytest tests\declaration_qa_workflow_test.py -q
+python -m pytest tests\declaration_qa_agentic_rag_test.py -q
 python -m pytest tests\declaration_qa_production_test.py -q
 python -m pytest tests\declaration_qa_vector_index_test.py -q
 python -m pytest tests\declaration_qa_chat_image_test.py tests\declaration_qa_qwen3_vl_embedding_test.py -q
@@ -369,6 +386,7 @@ python -m pytest tests\declaration_qa_chat_image_test.py tests\declaration_qa_qw
 src/declaration_qa/
   api/                  FastAPI 路由和请求响应模型
   application/          LangGraph workflow 和节点
+    tools/              Tool Registry、工单工具和知识检索工具
   core/                 配置、领域模型、业务适配
   indexing/             知识入库、任务队列、worker
   rag/                  RAG 引擎、两阶段 query_rewrite、模型适配

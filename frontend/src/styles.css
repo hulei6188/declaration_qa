@@ -223,80 +223,6 @@ h2 {
   flex: 0 0 auto;
 }
 
-/* Current Ticket */
-.current-ticket {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 7px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.current-ticket span {
-  max-width: min(440px, 100%);
-  overflow-wrap: anywhere;
-  flex: 1;
-}
-
-/* Ticket Picker */
-.ticket-picker {
-  display: grid;
-  gap: 8px;
-  max-width: 500px;
-  margin-top: 10px;
-  padding: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  box-shadow: var(--shadow-md);
-  position: absolute;
-  z-index: 20;
-}
-
-.ticket-picker[hidden] { display: none; }
-
-.ticket-picker > strong {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  font-weight: 600;
-}
-
-.ticket-option {
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  text-align: left;
-  background: var(--bg-alt);
-  border: 1px solid var(--border);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-}
-
-.ticket-option:hover {
-  background: var(--accent-light);
-  border-color: var(--accent);
-}
-
-.ticket-option span {
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  color: var(--text);
-}
-
-.ticket-option code {
-  color: var(--text-muted);
-  font-size: 11px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 /* ============================================================
    BUTTONS
    ============================================================ */
@@ -506,16 +432,6 @@ select {
   background: var(--bg);
 }
 
-/* Ticket selection in chat */
-.ticket-selection {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-light);
-  white-space: normal;
-}
-
 .message-feedback {
   display: flex;
   align-items: center;
@@ -548,12 +464,6 @@ select {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
-}
-
-.ticket-selection > strong {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-tertiary);
 }
 
 /* 回答下方证据来源 */
