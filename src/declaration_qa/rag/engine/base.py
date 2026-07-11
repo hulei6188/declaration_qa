@@ -447,6 +447,7 @@ class BaseRAGEngine:
             span.update(output={"fused_count": len(fused_hits), "sources": retrieved_source_summary(fused_hits)})
         rerank_top_n = self._rerank_top_n(top_k)
         policy = normalize_retrieval_plan(retrieval_plan)
+        rerank_degraded = False
         with observation(
             "rag.rerank",
             input={
@@ -471,8 +472,9 @@ class BaseRAGEngine:
                 )
                 span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
             except Exception as exc:
+                rerank_degraded = True
                 reranked = HeuristicReranker().rerank(normalized_query, fused_hits, effective_filter, top_n=rerank_top_n, retrieval_plan=policy)
-                degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                degraded.append({"stage": "rerank", "error": type(exc).__name__, "message": str(exc)[:240]})
                 record_error(
                     span,
                     exc,
@@ -499,7 +501,10 @@ class BaseRAGEngine:
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
-            selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            if rerank_degraded:
+                selected_sources, score_cutoff_status = self._fallback_rerank_selection(reranked, requested_top_k=top_k)
+            else:
+                selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
             if score_cutoff_status.get("rejected"):
                 record_error(
                     span,
@@ -595,6 +600,7 @@ class BaseRAGEngine:
         rerank_candidates = fused_hits[:rerank_candidate_limit]
         rerank_top_n = self._rerank_top_n(top_k)
         policy = normalize_retrieval_plan(retrieval_plan)
+        rerank_degraded = False
         with observation(
             "rag.rerank",
             input={
@@ -621,8 +627,9 @@ class BaseRAGEngine:
                 )
                 span.update(output={"reranked_count": len(reranked), "sources": retrieved_source_summary(reranked)})
             except Exception as exc:
+                rerank_degraded = True
                 reranked = HeuristicReranker().rerank(original_query, rerank_candidates, effective_filter, top_n=rerank_top_n, retrieval_plan=policy)
-                degraded.append({"stage": "rerank", "error": type(exc).__name__})
+                degraded.append({"stage": "rerank", "error": type(exc).__name__, "message": str(exc)[:240]})
                 record_error(
                     span,
                     exc,
@@ -650,7 +657,10 @@ class BaseRAGEngine:
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
-            selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
+            if rerank_degraded:
+                selected_sources, score_cutoff_status = self._fallback_rerank_selection(reranked, requested_top_k=top_k)
+            else:
+                selected_sources, score_cutoff_status = self._apply_rerank_score_cutoff(reranked, requested_top_k=top_k)
             if score_cutoff_status.get("rejected"):
                 record_error(
                     span,
@@ -796,6 +806,26 @@ class BaseRAGEngine:
             "after": len(selected),
             "rejected": bool(reranked and not selected),
             "reason": reason,
+        }
+
+    def _fallback_rerank_selection(
+        self,
+        reranked: list[RetrievedSource],
+        *,
+        requested_top_k: int,
+    ) -> tuple[list[RetrievedSource], dict[str, Any]]:
+        """外部重排失败时保留启发式结果，不应用模型分数阈值。"""
+        limit = max(1, int(requested_top_k or 1))
+        selected = reranked[:limit]
+        return selected, {
+            "enabled": False,
+            "threshold": self.rerank_score_threshold,
+            "requested_top_k": requested_top_k,
+            "max_sources": self.rerank_max_sources,
+            "before": len(reranked),
+            "after": len(selected),
+            "rejected": False,
+            "reason": "reranker_failed_threshold_skipped",
         }
 
     def _sources_from_scored_ids_lookup(

@@ -38,6 +38,8 @@ def build_attachment_chunk_specs(
         if not extracted.text.strip():
             continue
         semantic_type = str(extracted.metadata.get("semantic_chunk_type") or "attachment_text")
+        if extracted.assets and semantic_type in {"attachment_image", "attachment_image_ocr"}:
+            continue
         if semantic_type == "attachment_form":
             specs.extend(
                 build_attachment_form_chunk_specs(

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
 from declaration_qa.rag.model_providers.factories import build_reranker
-from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker
+from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker, safe_rerank_text
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 
 
@@ -19,6 +19,10 @@ def test_stream_chat_model_content_yields_langchain_chunk_text():
     ]
 
     assert list(stream_chat_model_content(chunks)) == ["申报", "进度", "查询"]
+
+
+def test_dashscope_vl_rerank_text_respects_document_limit():
+    assert len(safe_rerank_text("材" * 9000)) == 8000
 
 
 def test_dashscope_reranker_uses_sdk_text_rerank(monkeypatch):

@@ -1,10 +1,12 @@
+import logging
 import sys
 import types
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.indexing.attachments.extractor import attachment_parser_metadata
-from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser
-from declaration_qa.indexing.document_parsing.factory import build_document_parser
+from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser, docling_chunk_specs
+from declaration_qa.indexing.document_parsing.factory import CompositeDocumentParser, build_document_parser, parse_document_bytes
+from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedDocument
 
 
 def test_docling_pdf_converter_receives_document_timeout(monkeypatch):
@@ -165,3 +167,67 @@ def test_attachment_metadata_drops_docling_chunk_specs():
         "document_parser": "docling",
         "docling_chunk_count": 2,
     }
+
+
+def test_composite_parser_logs_failure_before_fallback(caplog):
+    class FailingParser:
+        name = "docling"
+
+        def parse(self, *, filename, content_type, data):
+            raise DocumentParseError("Docling parse failed: RuntimeError: test failure")
+
+    class FallbackParser:
+        name = "native"
+
+        def parse(self, *, filename, content_type, data):
+            return ParsedDocument(
+                filename=filename,
+                content_type=content_type,
+                text="fallback result",
+                parser_name=self.name,
+            )
+
+    parser = CompositeDocumentParser([FailingParser(), FallbackParser()])
+
+    with caplog.at_level(logging.WARNING):
+        result = parser.parse(filename="sample.pdf", content_type="application/pdf", data=b"pdf")
+
+    assert result.parser_name == "native"
+    assert "parser=docling" in caplog.text
+    assert "next_parser=native" in caplog.text
+    assert "RuntimeError: test failure" in caplog.text
+
+
+def test_docling_chunker_allows_documents_without_text_chunks(monkeypatch):
+    class EmptyHybridChunker:
+        def chunk(self, document):
+            return []
+
+    monkeypatch.setattr("docling_core.transforms.chunker.HybridChunker", EmptyHybridChunker)
+
+    assert docling_chunk_specs(types.SimpleNamespace(tables=[])) == []
+
+
+def test_auto_parser_uses_project_ocr_first_for_images():
+    class FakeOcrClient:
+        def __init__(self):
+            self.calls = 0
+
+        def extract_text(self, *, filename, content_type, data):
+            self.calls += 1
+            return "申请、受理、审查、决定"
+
+    ocr_client = FakeOcrClient()
+
+    result = parse_document_bytes(
+        filename="1.png",
+        content_type="image/png",
+        data=b"fake image",
+        ocr_client=ocr_client,
+        parser_provider="auto",
+        parser_order="docling,marker,native",
+    )
+
+    assert result.parser_name == "native"
+    assert result.text == "申请、受理、审查、决定"
+    assert ocr_client.calls == 1

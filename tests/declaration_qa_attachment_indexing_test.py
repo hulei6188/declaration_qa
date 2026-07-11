@@ -42,6 +42,24 @@ def test_parse_item_28_markdown_attachments_with_section_context():
     assert "wKhoJmCU_oSAPG8PABGK" in flow_ref.url
 
 
+def test_parse_attachment_when_docling_merges_following_label_onto_url():
+    content = """
+## 申请材料
+
+### 1. 水资源论证报告
+- 示例样表-水资源论证报告样本.pdf: https://example.test/report.pdf?attrname=report.pdf 空表文件：
+- 空白样表-取水许可申请书.docx: https://example.test/form.docx?attrname=form.docx
+"""
+
+    refs = parse_markdown_attachments(content, document_id="doc-water")
+
+    assert [ref.name for ref in refs] == [
+        "示例样表-水资源论证报告样本.pdf",
+        "空白样表-取水许可申请书.docx",
+    ]
+    assert refs[0].url == "https://example.test/report.pdf?attrname=report.pdf"
+
+
 def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_blocking(monkeypatch, tmp_path):
     content = """
 # 取水许可办事指南
@@ -555,6 +573,52 @@ def test_docx_embedded_image_generates_visual_asset_chunk(tmp_path):
     assert "视觉摘要：" in image_specs[0]["content"]
     assert "OCR文本：流程图图片文字" in image_specs[0]["content"]
     assert "流程图图片文字" in image_specs[0]["content"]
+
+
+def test_image_asset_reuses_parser_ocr_text(monkeypatch, tmp_path):
+    data = b"fake image bytes"
+    ref = AttachmentRef(
+        index=0,
+        name="1.png",
+        url="https://example.test/1.png",
+        extension="png",
+        section_path="办理流程 > 流程图",
+        section_title="办理流程",
+        node_title="流程图",
+        parent_section_id="doc-flow#办理流程",
+        role="flowchart",
+    )
+    downloaded = DownloadedAttachment(
+        ref=ref,
+        data=data,
+        content_type="image/png",
+        cache_path="",
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.extractor.parse_document_bytes",
+        lambda **kwargs: types.SimpleNamespace(
+            text="申请、受理、审查、决定",
+            content_type="image/png",
+            metadata={},
+            blocks=[],
+        ),
+    )
+
+    class FailOnDuplicateOcr:
+        def extract_text(self, **kwargs):
+            raise AssertionError("image OCR must not run twice")
+
+    extracted = extract_attachment(downloaded, ocr_client=FailOnDuplicateOcr(), asset_dir=tmp_path)
+
+    assert extracted.status == "success"
+    assert extracted.assets[0].text == "申请、受理、审查、决定"
+
+    specs = build_attachment_chunk_specs([extracted], document_id="doc-flow", document_metadata={})
+
+    assert len(specs) == 1
+    assert specs[0]["metadata"]["chunk_type"] == "attachment_image"
+    assert specs[0]["metadata"]["ocr_text"] == "申请、受理、审查、决定"
 
 
 def test_pdf_page_assets_generate_page_image_chunks(monkeypatch, tmp_path):

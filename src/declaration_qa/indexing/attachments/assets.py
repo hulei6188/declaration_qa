@@ -60,6 +60,7 @@ def extract_visual_assets(
             persist_original_image_asset(
                 downloaded,
                 asset_dir=asset_dir,
+                extracted_text=extracted_text,
                 ocr_client=ocr_client,
                 vision_summary_client=vision_summary_client,
             )
@@ -183,6 +184,7 @@ def persist_original_image_asset(
     downloaded: DownloadedAttachment,
     *,
     asset_dir: Path,
+    extracted_text: str,
     ocr_client: HttpOcrClient | None,
     vision_summary_client: HttpVisionSummaryClient | None,
 ) -> AttachmentAsset:
@@ -191,12 +193,14 @@ def persist_original_image_asset(
     content_type = downloaded.content_type or IMAGE_CONTENT_TYPES.get(extension, "application/octet-stream")
     asset_id = stable_asset_id(downloaded, "image-original")
     path = write_asset(asset_dir, asset_id=asset_id, extension=extension, data=downloaded.data)
-    text = ocr_image_asset(
-        ocr_client,
-        filename=downloaded.ref.name,
-        content_type=content_type,
-        data=downloaded.data,
-    )
+    text = normalize_extracted_text(extracted_text)
+    if not text:
+        text = ocr_image_asset(
+            ocr_client,
+            filename=downloaded.ref.name,
+            content_type=content_type,
+            data=downloaded.data,
+        )
     summary, summary_metadata = summarize_image_asset(
         vision_summary_client,
         filename=downloaded.ref.name,

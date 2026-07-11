@@ -41,7 +41,7 @@ def parse_markdown_attachments(content: str, *, document_id: str) -> list[Attach
             heading_stack.append((level, title))
             current_label = ""
             continue
-        if line.endswith(("：", ":")) and not line.startswith("|"):
+        if line.endswith(("：", ":")) and not line.startswith(("|", "-", "*")):
             current_label = line.rstrip("：:").strip()
             continue
         parsed = parse_attachment_bullet(line)
@@ -74,7 +74,10 @@ def parse_markdown_attachments(content: str, *, document_id: str) -> list[Attach
 
 def parse_attachment_bullet(line: str) -> tuple[str, str, str] | None:
     """解析 ``- 文件名.ext: URL`` 形式的附件行。"""
-    match = re.match(r"^[-*]\s*(.+?)\s*[:：]\s*(https?://\S+)\s*$", line)
+    match = re.match(
+        r"^[-*]\s*(.+?)\s*[:：]\s*(https?://\S+?)(?:\s+(?:样本文件|空表文件)\s*[:：])?\s*$",
+        line,
+    )
     if not match:
         return None
     name = match.group(1).strip()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser
 from declaration_qa.indexing.document_parsing.llamaparse_parser import LlamaParseDocumentParser
 from declaration_qa.indexing.document_parsing.marker_parser import MarkerDocumentParser
@@ -11,6 +13,7 @@ from declaration_qa.indexing.document_parsing.ocr import HttpOcrClient
 
 
 DEFAULT_AUTO_ORDER = "docling,marker,native"
+LOGGER = logging.getLogger(__name__)
 
 
 class CompositeDocumentParser:
@@ -25,7 +28,7 @@ class CompositeDocumentParser:
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
         """依次调用解析器，直到成功解析。"""
         errors: list[str] = []
-        for parser in self.parsers:
+        for index, parser in enumerate(self.parsers):
             try:
                 parsed = parser.parse(filename=filename, content_type=content_type, data=data)
                 if errors:
@@ -44,6 +47,18 @@ class CompositeDocumentParser:
                 return parsed
             except DocumentParseError as exc:
                 errors.append(f"{parser.name}: {str(exc)}")
+                next_parser = self.parsers[index + 1].name if index + 1 < len(self.parsers) else "none"
+                LOGGER.warning(
+                    "Document parser failed; trying fallback "
+                    "filename=%r content_type=%r size_bytes=%d parser=%s next_parser=%s error=%s",
+                    filename,
+                    content_type,
+                    len(data),
+                    parser.name,
+                    next_parser,
+                    exc,
+                    exc_info=True,
+                )
         raise DocumentParseError("; ".join(errors) if errors else "No document parser configured")
 
 
@@ -67,9 +82,12 @@ def parse_document_bytes(
     docling_ocr_batch_size: int = 4,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
+    effective_order = parser_order
+    if normalize_provider(parser_provider) == "auto" and ocr_client and is_image_document(filename, content_type):
+        effective_order = native_first_parser_order(parser_order)
     parser = build_document_parser(
         provider=parser_provider,
-        order=parser_order,
+        order=effective_order,
         fallback_enabled=parser_fallback_enabled,
         ocr_client=ocr_client,
         llamaparse_api_key=llamaparse_api_key,
@@ -183,6 +201,18 @@ def parser_order(value: str) -> list[str]:
     """解析逗号分隔的解析器顺序。"""
     names = [normalize_provider(item) for item in str(value or "").split(",") if normalize_provider(item)]
     return names or parser_order(DEFAULT_AUTO_ORDER)
+
+
+def native_first_parser_order(value: str) -> str:
+    """图片已配置项目 OCR 时优先使用 native 解析器。"""
+    names = parser_order(value or DEFAULT_AUTO_ORDER)
+    return ",".join(["native", *(name for name in names if name != "native")])
+
+
+def is_image_document(filename: str, content_type: str) -> bool:
+    """判断输入是否为独立图片文件。"""
+    suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    return suffix in {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"} or str(content_type or "").lower().startswith("image/")
 
 
 def normalize_provider(value: str) -> str:

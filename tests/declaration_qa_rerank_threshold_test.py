@@ -26,6 +26,13 @@ class MetadataScoreReranker:
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
 
 
+class FailingReranker:
+    name = "failing"
+
+    def rerank(self, query: str, sources: list[Any], filters: dict[str, Any], *, top_n: int):
+        raise RuntimeError("request payload is too large")
+
+
 def test_rerank_score_threshold_expands_beyond_fixed_top_k() -> None:
     engine = InMemoryRAGEngine(
         reranker=MetadataScoreReranker(),
@@ -69,6 +76,25 @@ def test_rerank_score_threshold_rejects_all_low_confidence_hits() -> None:
     assert result.status["score_cutoff"]["rejected"] is True
     assert result.status["score_cutoff"]["after"] == 0
     assert result.status["score_cutoff"]["reason"] == "all_rerank_scores_below_threshold"
+
+
+def test_rerank_failure_keeps_heuristic_sources_without_model_threshold() -> None:
+    engine = InMemoryRAGEngine(
+        reranker=FailingReranker(),
+        rerank_score_threshold=0.7,
+        rerank_max_sources=12,
+    )
+    document, chunks = scored_policy_chunks([0.0, 0.0, 0.0])
+    engine.load_indexed_data([document], chunks)
+
+    result = engine.retrieve("创业补贴 申请材料", {}, top_k=2)
+
+    assert len(result.sources) == 2
+    assert result.status["score_cutoff"]["enabled"] is False
+    assert result.status["score_cutoff"]["reason"] == "reranker_failed_threshold_skipped"
+    assert result.status["degraded"] == [
+        {"stage": "rerank", "error": "RuntimeError", "message": "request payload is too large"}
+    ]
 
 
 def scored_policy_chunks(scores: list[float]) -> tuple[KnowledgeDocument, list[KnowledgeChunk]]:

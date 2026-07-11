@@ -121,7 +121,7 @@
 | 材料依据 | 《取水许可和水资源费征收管理条例》第10条：申请取水的单位或者个人（以下简称申请人），应当向具有审批权限的审批机关提出申请。申请利用多种水源，且各种水源的取水许可审批机关不同的，应当向其中最高一级审批机关提出申请。　　取水许可权限属于流域管理机构的，应当向取水口所在地的省、自治区、直辖市人民政府水行政主管部门提出申请。省、自治区、直辖市人民政府水行政主管部门，应当自收到申请之日起20个工作日内提出意见，并连同全部申请材料转报流域管理机构；流域管理机构收到后，应当依照本条例第十三条的规定作出处理。第11条：申请取水应当提交下列材料：　（一）申请书；　　（二）与第三者利害关系的相关说明；　（三）属于备案项目的，提供有关备案材料；　（四）国务院水行政主管部门规定的其他材料。　　建设项目需要取水的，申请人还应当提交建设项目水资源论证报告书。论证报告书应当包括取水水源、用水合理性以及对生态与环境的影响等内容。第12条：申请书应当包括下列事项：　　（一）申请人的名称（姓名）、地址；　　（二）申请理由；　　（三）取水的起始时间及期限；　　（四）取水目的、取水量、年内各月的用水量等；　　（五）水源及取水地点；　　（六）取水方式、计量方式和节水措施；　　（七）退水地点和退水中所含主要污染物以及污水处理措施；（八）国务院水行政主管部门规定的其他事项。 |
 | 纸质材料规格 | 无 |
 样本文件：
-- 示例样表-取水许可申请书.docx: https://www.ahzwfw.gov.cn/intranet/group1/M00/89/98/wKhoJmam8maAMtiWAACvMIhhIRg78.docx?accesskey=4e1abbe7e1e41cfcbbc45675d6dd773d&attrname=%E7%A4%BA%E4%BE%8B%E6%A0%B7%E8%A1%A8-%E5%8F%96%E6%B0%B4%E8%AE%B8%E5%8F%AF%E7%94%B3%E8%AF%B7%E4%B9%A6.docx
+空白样表- 示例样表-取水许可申请书.docx: https://www.ahzwfw.gov.cn/intranet/group1/M00/89/98/wKhoJmam8maAMtiWAACvMIhhIRg78.docx?accesskey=4e1abbe7e1e41cfcbbc45675d6dd773d&attrname=%E7%A4%BA%E4%BE%8B%E6%A0%B7%E8%A1%A8-%E5%8F%96%E6%B0%B4%E8%AE%B8%E5%8F%AF%E7%94%B3%E8%AF%B7%E4%B9%A6.docx
 空表文件：
 - 空白样表-取水许可申请书.docx: https://www.ahzwfw.gov.cn/intranet/group1/M00/89/AF/wKhoJWam8l6AVeVKAACFYsVcgtI48.docx?accesskey=4e1abbe7e1e41cfcbbc45675d6dd773d&attrname=%E7%A9%BA%E7%99%BD%E6%A0%B7%E8%A1%A8-%E5%8F%96%E6%B0%B4%E8%AE%B8%E5%8F%AF%E7%94%B3%E8%AF%B7%E4%B9%A6.docx
 

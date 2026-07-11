@@ -160,8 +160,6 @@ def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
                 },
             }
         )
-    if not specs:
-        raise DocumentParseError("Docling chunker returned no chunks")
     return specs
 
 

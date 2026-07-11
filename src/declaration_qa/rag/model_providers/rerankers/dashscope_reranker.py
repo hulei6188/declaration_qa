@@ -13,7 +13,7 @@ from declaration_qa.core.domain import RetrievedSource
 QWEN3_VL_RERANK_MODELS = {"qwen3-vl-rerank"}
 MAX_VL_DOCUMENTS = 100
 MAX_VL_IMAGE_DOCUMENTS = 40
-MAX_RERANK_TEXT_CHARS = 12000
+MAX_RERANK_TEXT_CHARS = 8000
 
 
 class DashScopeReranker:
