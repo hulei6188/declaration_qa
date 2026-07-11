@@ -52,6 +52,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         agent_model: Any | None = None,
+        agent_final_model: Any | None = None,
         agent: Any | None = None,
         agent_planner: Any | None = None,
         agent_multimodal_enabled: bool = False,
@@ -75,6 +76,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             raise ValueError("agent and legacy agent_planner cannot both be provided")
         self.agent = agent or agent_planner or ToolCallingAgent(
             agent_model,
+            final_model=agent_final_model,
             multimodal_enabled=agent_multimodal_enabled,
             allowed_image_dirs=agent_allowed_image_dirs,
             max_evidence_images=agent_max_evidence_images,
@@ -207,6 +209,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "agent_pending_tool_calls": [],
             "agent_call_signatures": [],
             "agent_required_evidence": [],
+            "agent_evidence_coverage": {},
             "agent_final_answer": "",
             "agent_final_prompt": "",
             "agent_answer_provider": "",

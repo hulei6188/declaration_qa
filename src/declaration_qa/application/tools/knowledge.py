@@ -81,7 +81,11 @@ class KnowledgeSearchTool:
                 for query in request.queries
             ],
             "executed_query": context.original_query,
-            "query_isolation": "agent_planned_before_business_observation",
+            "query_isolation": (
+                "evidence_gate_public_only"
+                if context.metadata.get("tool_call_origin") == "evidence_gate"
+                else "agent_planned_before_business_observation"
+            ),
             "source_type": "knowledge_rag",
         }
         return ToolExecutionResult(

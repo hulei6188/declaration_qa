@@ -10,21 +10,31 @@
 
 ## 快速启动
 
-Windows 使用 Conda `base` 环境，完成依赖安装和 `.env` 配置后，可在项目根目录一键启动：
+Windows 使用 Conda `base` 环境，完成依赖安装和 `.env` 配置后，先启动 Docker 基础设施：
 
 ```cmd
-start-project.bat
+start-docker.bat
 ```
 
-脚本会启动 Docker 基础设施、API、异步入库 Worker 和前端，并打开 `http://127.0.0.1:5173`。
-
-一键关闭项目：
+再启动 API、异步入库 Worker 和前端：
 
 ```cmd
-stop-project.bat
+start-app.bat
 ```
 
-关闭脚本会停止应用进程和 Docker 容器，但不会删除数据库或索引数据卷。
+应用启动脚本会打开 `http://127.0.0.1:5173`，不会隐式启动 Docker。
+
+关闭 API、异步入库 Worker 和前端（保留 Docker 基础设施运行）：
+
+```cmd
+stop-app.bat
+```
+
+关闭 Docker 基础设施（保留数据库和索引数据卷）：
+
+```cmd
+stop-docker.bat
+```
 
 首次在 Conda `base` 环境安装依赖：
 

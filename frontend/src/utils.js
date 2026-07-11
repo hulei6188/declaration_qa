@@ -436,6 +436,7 @@ export function traceFromAgentRun(run) {
 }
 
 function normalizeEvidenceGate(data = {}) {
+  const coverage = data.coverage && typeof data.coverage === 'object' ? data.coverage : {};
   return {
     iteration: Number(data.iteration || 0),
     ok: Boolean(data.ok),
@@ -443,7 +444,18 @@ function normalizeEvidenceGate(data = {}) {
     checks: data.checks && typeof data.checks === 'object' ? data.checks : {},
     sourceCount: Number(data.source_count || 0),
     toolResultCount: Number(data.tool_result_count || 0),
+    coverage: {
+      assessed: Boolean(coverage.assessed),
+      provider: String(coverage.provider || ''),
+      requiredAspects: stringList(coverage.required_aspects),
+      coveredAspects: stringList(coverage.covered_aspects),
+      missingAspects: stringList(coverage.missing_aspects),
+    },
   };
+}
+
+function stringList(value) {
+  return Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [];
 }
 
 function numberOrNull(value) {

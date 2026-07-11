@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from declaration_qa.application.agent import choose_application_id, needs_public_knowledge, rule_knowledge_queries
+from declaration_qa.application.agent import (
+    accumulated_knowledge_queries,
+    choose_application_id,
+    needs_public_knowledge,
+    rule_knowledge_queries,
+)
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
@@ -43,6 +48,7 @@ class WorkflowAgentNodes:
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
+        next_state["agent_evidence_coverage"] = {}
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
         next_state["agent_final_answer"] = ""
@@ -82,6 +88,31 @@ class WorkflowAgentNodes:
             decision_action = "finish"
             calls: list[dict[str, Any]] = []
             decision_payload = {"action": "finish", "reason": "max_iterations", "provider": "guardrail"}
+        elif retry_queries := evidence_retry_queries(next_state):
+            calls = unique_new_tool_calls(
+                [
+                    {
+                        "id": f"knowledge_retry_{iteration}",
+                        "name": "knowledge_search",
+                        "arguments": {"queries": retry_queries},
+                        "origin": "evidence_gate",
+                    }
+                ],
+                existing_signatures=set(next_state.get("agent_call_signatures") or []),
+            )
+            decision_action = "tools" if calls else "finish"
+            decision_payload = {
+                "action": decision_action,
+                "reason": "evidence_coverage_retry" if calls else "evidence_retry_duplicate",
+                "provider": "evidence_gate",
+                "intent": next_state.get("intent") or "knowledge_qa",
+                "tool_calls": [audit_tool_call(call) for call in calls],
+                "iteration": iteration,
+                "assistant_content": "",
+                "model": "",
+                "token_usage": {},
+                "latency_ms": None,
+            }
         else:
             decision = self.agent.decide(next_state, self.tool_registry.definitions())
             calls = unique_new_tool_calls(
@@ -207,13 +238,17 @@ class WorkflowAgentNodes:
             region_code=str(state.get("region_code") or ""),
             session_id=str(state.get("session_id") or ""),
             original_query=str(state.get("frozen_knowledge_query") or state.get("normalized_query") or ""),
-            metadata={"state": state},
+            metadata={
+                "state": state,
+                "tool_call_origin": str(call.get("origin") or "agent"),
+            },
         )
         denial_reason = agent_tool_call_denial_reason(
             name,
             str(state.get("normalized_query") or state.get("query") or ""),
             arguments=arguments,
             prior_results=prior_results,
+            trusted_knowledge_retry=str(call.get("origin") or "") == "evidence_gate",
         )
         if denial_reason:
             result = ToolExecutionResult(
@@ -270,6 +305,8 @@ class WorkflowAgentNodes:
                 next_state["agent_query_plan"] = {
                     "requested_queries": list(data.get("requested_queries") or []),
                     "executed_queries": list(data.get("executed_queries") or []),
+                    "search_round": int(data.get("search_round") or 1),
+                    "accumulated_query_count": int(data.get("accumulated_query_count") or 0),
                     "query_isolation": data.get("query_isolation") or "",
                 }
             elif result.get("tool_name") == "ticket_detail_query":
@@ -320,7 +357,7 @@ class WorkflowAgentNodes:
         list_ok = bool(list_results)
         detail_ok = bool(detail_results)
         business_ok = list_ok if next_state.get("intent") == INTENT_TICKET_LIST else detail_ok
-        knowledge_ok = bool(knowledge_decision and knowledge_decision.ok)
+        hard_knowledge_ok = bool(knowledge_decision and knowledge_decision.ok)
         required = set(next_state.get("agent_required_evidence") or [])
         if not required:
             ticket_intent = classify_ticket_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
@@ -330,6 +367,18 @@ class WorkflowAgentNodes:
                 required.add("ticket_detail")
             else:
                 required.add("knowledge")
+        coverage: dict[str, Any] = {}
+        if "knowledge" in required and hard_knowledge_ok:
+            assessor = getattr(self.agent, "assess_evidence", None)
+            if callable(assessor):
+                coverage = assessor(next_state) or {}
+        next_state["agent_evidence_coverage"] = coverage
+        semantic_coverage_ok = (
+            bool(coverage.get("sufficient"))
+            if coverage.get("assessed")
+            else hard_knowledge_ok
+        )
+        knowledge_ok = hard_knowledge_ok and semantic_coverage_ok
         checks = {
             "knowledge": knowledge_ok,
             "ticket_list": list_ok,
@@ -342,9 +391,12 @@ class WorkflowAgentNodes:
             "ticket_list_ok": list_ok,
             "ticket_detail_ok": detail_ok,
             "knowledge_ok": knowledge_ok,
+            "hard_knowledge_ok": hard_knowledge_ok,
+            "semantic_coverage_ok": semantic_coverage_ok,
             "required_evidence": sorted(required),
             "checks": checks,
             "knowledge": knowledge_decision.payload() if knowledge_decision else {},
+            "coverage": coverage,
             "tool_result_count": len(next_state.get("tool_results") or []),
             "source_count": len(sources),
             "iteration": int(next_state.get("agent_iteration") or 0),
@@ -357,7 +409,10 @@ class WorkflowAgentNodes:
                 or int(next_state.get("agent_iteration") or 0) >= self.agent_max_iterations
             )
         ):
-            next_state["refuse_reason"] = next_state.get("refuse_reason") or agent_failure_reason(next_state.get("tool_results") or [])
+            if coverage.get("assessed") and not coverage.get("sufficient"):
+                next_state["refuse_reason"] = next_state.get("refuse_reason") or "evidence_coverage_incomplete"
+            else:
+                next_state["refuse_reason"] = next_state.get("refuse_reason") or agent_failure_reason(next_state.get("tool_results") or [])
         add_event(next_state, "evidence", next_state["evidence_decision"])
         return next_state
 
@@ -370,6 +425,20 @@ class WorkflowAgentNodes:
         state = dict(context.metadata.get("state") or {})
         retrieval_queries: list[dict[str, Any]] = []
         seen: set[str] = set()
+        for index, query in enumerate(accumulated_knowledge_queries(state.get("tool_results") or []), start=1):
+            text = normalize_text(mask_sensitive_text(query.get("text") or ""))
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            retrieval_queries.append(
+                {
+                    "id": f"prior_q{index}",
+                    "text": text,
+                    "strategy": str(query.get("strategy") or "hybrid"),
+                    "aspect": str(query.get("aspect") or "general"),
+                    "top_k": 6,
+                }
+            )
         for index, query in enumerate(request.queries, start=1):
             text = normalize_text(mask_sensitive_text(query.text))
             if not text or text in seen:
@@ -414,26 +483,120 @@ class WorkflowAgentNodes:
             "rag_status": result.status,
             "retrieval_filter": result.filter,
             "executed_queries": retrieval_queries,
+            "search_round": 1 + sum(
+                1
+                for item in (state.get("tool_results") or [])
+                if isinstance(item, dict) and item.get("tool_name") == "knowledge_search"
+            ),
+            "accumulated_query_count": len(retrieval_queries),
         }
 
 
 def tool_call_signature(name: str, arguments: dict[str, Any]) -> str:
     if name == "knowledge_search":
-        return name
+        queries = []
+        for query in arguments.get("queries") or []:
+            if not isinstance(query, dict):
+                continue
+            queries.append(
+                {
+                    "text": normalize_text(str(query.get("text") or "")),
+                    "strategy": str(query.get("strategy") or "hybrid"),
+                    "aspect": str(query.get("aspect") or "general"),
+                }
+            )
+        queries.sort(key=lambda item: (item["text"], item["strategy"], item["aspect"]))
+        return f"{name}:{json.dumps(queries, ensure_ascii=False, sort_keys=True)}"
     return f"{name}:{json.dumps(arguments, ensure_ascii=False, sort_keys=True, default=str)}"
+
+
+def evidence_retry_queries(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """读取模型 Gate 生成且尚未执行的下一轮公开知识查询。"""
+    coverage = state.get("agent_evidence_coverage") if isinstance(state.get("agent_evidence_coverage"), dict) else {}
+    if not coverage.get("assessed") or coverage.get("sufficient"):
+        return []
+    executed = {
+        normalize_text(str(query.get("text") or ""))
+        for query in accumulated_knowledge_queries(state.get("tool_results") or [])
+    }
+    output = []
+    seen = set(executed)
+    for query in coverage.get("follow_up_queries") or []:
+        if not isinstance(query, dict):
+            continue
+        text = normalize_text(str(query.get("text") or ""))
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        output.append(
+            {
+                "text": text,
+                "strategy": str(query.get("strategy") or "hybrid"),
+                "aspect": str(query.get("aspect") or "general"),
+            }
+        )
+    return output
 
 
 def unique_new_tool_calls(calls: list[dict[str, Any]], *, existing_signatures: set[str]) -> list[dict[str, Any]]:
     output = []
     seen = set(existing_signatures)
-    for call in calls:
+    for call in coalesce_knowledge_search_calls(calls):
         name = str(call.get("name") or "").strip()
         arguments = dict(call.get("arguments") or {})
         signature = tool_call_signature(name, arguments)
         if not name or signature in seen:
             continue
         seen.add(signature)
-        output.append({"id": str(call.get("id") or name), "name": name, "arguments": arguments})
+        output.append(
+            {
+                "id": str(call.get("id") or name),
+                "name": name,
+                "arguments": arguments,
+                "origin": str(call.get("origin") or "agent"),
+            }
+        )
+    return output
+
+
+def coalesce_knowledge_search_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """将同一 Agent 决策中的多次知识检索合并为一个受控查询批次。"""
+    output: list[dict[str, Any]] = []
+    knowledge_call: dict[str, Any] | None = None
+    knowledge_index = -1
+    seen_queries: set[tuple[str, str, str]] = set()
+    merged_queries: list[dict[str, Any]] = []
+    for call in calls:
+        if str(call.get("name") or "").strip() != "knowledge_search":
+            output.append(call)
+            continue
+        if knowledge_call is None:
+            knowledge_call = dict(call)
+            knowledge_index = len(output)
+            output.append(knowledge_call)
+        for query in dict(call.get("arguments") or {}).get("queries") or []:
+            if len(merged_queries) >= 6:
+                break
+            if not isinstance(query, dict):
+                continue
+            normalized = {
+                "text": normalize_text(str(query.get("text") or "")),
+                "strategy": str(query.get("strategy") or "hybrid"),
+                "aspect": str(query.get("aspect") or "general"),
+            }
+            signature = (normalized["text"], normalized["strategy"], normalized["aspect"])
+            if not normalized["text"] or signature in seen_queries:
+                continue
+            seen_queries.add(signature)
+            merged_queries.append(normalized)
+    if knowledge_call is not None:
+        if merged_queries:
+            output[knowledge_index] = {
+                **knowledge_call,
+                "arguments": {"queries": merged_queries},
+            }
+        else:
+            output.pop(knowledge_index)
     return output
 
 
@@ -459,6 +622,7 @@ def agent_tool_call_denial_reason(
     *,
     arguments: dict[str, Any] | None = None,
     prior_results: list[dict[str, Any]] | None = None,
+    trusted_knowledge_retry: bool = False,
 ) -> str:
     """返回模型外策略拒绝原因；空字符串表示允许执行。"""
     ticket_intent = classify_ticket_intent(query)
@@ -469,7 +633,7 @@ def agent_tool_call_denial_reason(
             and result.get("status") != "policy_denied"
             for result in prior_results
         )
-        if observed_business:
+        if observed_business and not trusted_knowledge_retry:
             return "knowledge_search must be planned before observing business tool results"
         return ""
     if tool_name in {"ticket_list_query", "ticket_detail_query"}:
@@ -533,8 +697,11 @@ def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]
 def audit_tool_call(call: dict[str, Any]) -> dict[str, Any]:
     """返回适合事件和审计记录的工具调用。"""
     name = str(call.get("name") or "")
-    return {
+    payload = {
         "id": str(call.get("id") or name),
         "name": name,
         "arguments": audit_tool_arguments(name, dict(call.get("arguments") or {})),
     }
+    if call.get("origin"):
+        payload["origin"] = str(call.get("origin"))
+    return payload

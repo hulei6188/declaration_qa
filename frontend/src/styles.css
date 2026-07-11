@@ -597,7 +597,8 @@ select {
 }
 
 .tool-step-meta,
-.evidence-checks {
+.evidence-checks,
+.evidence-aspects {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
@@ -605,7 +606,8 @@ select {
 }
 
 .tool-step-meta > span,
-.evidence-checks > span {
+.evidence-checks > span,
+.evidence-aspects > span {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -614,7 +616,8 @@ select {
   line-height: 1.4;
 }
 
-.evidence-checks > span {
+.evidence-checks > span,
+.evidence-aspects > span {
   padding: 2px 6px;
   border-radius: 999px;
   background: #eef1f6;
@@ -622,12 +625,14 @@ select {
   font-weight: 700;
 }
 
-.evidence-checks > span.is-ok {
+.evidence-checks > span.is-ok,
+.evidence-aspects > span.is-ok {
   background: #e8f6f2;
   color: #0f766e;
 }
 
-.evidence-checks > span.is-missing {
+.evidence-checks > span.is-missing,
+.evidence-aspects > span.is-missing {
   background: #fff4e5;
   color: #9a5b09;
 }

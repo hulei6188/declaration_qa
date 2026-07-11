@@ -106,6 +106,7 @@ function ToolStep({ tool }) {
 
 function EvidenceStep({ gate }) {
   const checks = gate.required?.length ? gate.required : Object.keys(gate.checks || {});
+  const coverage = gate.coverage || {};
   return (
     <div className={`tool-step evidence-step ${gate.ok ? 'status-completed' : 'status-failed'}`}>
       <span className="tool-step-icon"><ShieldCheck size={14} /></span>
@@ -122,8 +123,23 @@ function EvidenceStep({ gate }) {
             </span>
           ))}
         </div>
+        {coverage.assessed && (coverage.coveredAspects?.length > 0 || coverage.missingAspects?.length > 0) && (
+          <div className="evidence-aspects" aria-label="语义证据覆盖范围">
+            {(coverage.coveredAspects || []).map((aspect) => (
+              <span key={`covered-${aspect}`} className="is-ok">
+                <CheckCircle2 size={11} />已覆盖：{aspect}
+              </span>
+            ))}
+            {(coverage.missingAspects || []).map((aspect) => (
+              <span key={`missing-${aspect}`} className="is-missing">
+                <CircleDashed size={11} />待补充：{aspect}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="tool-step-meta">
           {gate.iteration > 0 && <span>第 {gate.iteration} 轮</span>}
+          {coverage.assessed && <span>模型覆盖检查</span>}
           <span>{gate.sourceCount} 条知识证据</span>
           <span>{gate.toolResultCount} 个工具结果</span>
         </div>

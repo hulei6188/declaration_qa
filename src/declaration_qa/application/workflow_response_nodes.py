@@ -27,6 +27,8 @@ class WorkflowResponseNodes:
             answer = "当前问题中的事项信息不足，暂时无法完成业务查询。"
         elif reason == "agent_tool_error":
             answer = "业务查询服务暂时不可用，请稍后重试。"
+        elif reason == "evidence_coverage_incomplete":
+            answer = "已进行多轮检索，但公开证据仍未完整覆盖当前问题的全部方面，建议补充更具体的事项名称或联系办理部门确认。"
         else:
             answer = "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
         next_state["answer"] = answer
@@ -161,9 +163,15 @@ def agent_model_config(agent: object | None) -> dict[str, object]:
     model = getattr(agent, "model", None)
     if model is None:
         return {}
+    final_model = getattr(agent, "final_model", None)
     return {
         "class": type(model).__name__,
         "model": str(getattr(model, "model_name", None) or getattr(model, "model", None) or ""),
+        "final_model": str(
+            getattr(final_model, "model_name", None)
+            or getattr(final_model, "model", None)
+            or ""
+        ),
         "multimodal_enabled": bool(getattr(agent, "multimodal_enabled", False)),
         "max_evidence_images": int(getattr(agent, "max_evidence_images", 0) or 0),
     }

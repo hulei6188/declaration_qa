@@ -50,7 +50,11 @@ def build_reranker(settings: DeclarationQASettings) -> Reranker:
     raise ValueError(f"Unsupported rerank provider: {settings.rerank_provider}")
 
 
-def build_agent_model(settings: DeclarationQASettings):
+def build_agent_model(
+    settings: DeclarationQASettings,
+    *,
+    timeout_seconds: float | None = None,
+):
     """创建支持原生 Tool Calling 的 Agent 模型；本地模式返回 None。"""
     if settings.llm_provider.strip().lower() not in {"openai", "dashscope"} or not settings.openai_api_key:
         return None
@@ -60,7 +64,11 @@ def build_agent_model(settings: DeclarationQASettings):
         "api_key": settings.openai_api_key,
         "model": settings.agent_model or settings.llm_model,
         "temperature": 0.0,
-        "timeout": settings.external_request_timeout_seconds,
+        "timeout": (
+            float(timeout_seconds)
+            if timeout_seconds is not None
+            else settings.external_request_timeout_seconds
+        ),
         "max_retries": 1,
     }
     if settings.openai_api_base:
