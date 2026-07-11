@@ -19,6 +19,7 @@ from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
 from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.core.runtime import assert_production_ready
+from declaration_qa.indexing.document_parsing.ocr import HttpOcrClient
 from declaration_qa.search.vector.memory import MemoryVectorIndex
 from declaration_qa.search.vector.milvus import MilvusVectorIndex
 from declaration_qa.application.workflow import DeclarationQAWorkflow
@@ -150,12 +151,25 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     elif not settings.seed_knowledge:
         rag_engine.rebuild([])
 
+    query_image_ocr_client = (
+        HttpOcrClient(
+            url=settings.ocr_api_url,
+            api_key=settings.ocr_api_key,
+            model=settings.ocr_model,
+            timeout_seconds=settings.query_image_ocr_timeout_seconds,
+        )
+        if settings.query_image_ocr_enabled and settings.ocr_api_url
+        else None
+    )
+
     return DeclarationQAWorkflow(
         rag_engine=rag_engine,
         business_adapter=business_adapter,
         audit_store=audit_store,
         answer_generator=answer_generator,
         query_rewrite=query_rewrite,
+        query_image_ocr_client=query_image_ocr_client,
+        query_image_ocr_max_chars=settings.query_image_ocr_max_chars,
         context_memory_manager=context_memory_manager,
         max_sub_question_workers=settings.max_sub_question_workers,
         max_retrieval_workers=settings.max_retrieval_workers,

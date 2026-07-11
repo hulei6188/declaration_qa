@@ -10,9 +10,26 @@
 
 ## 快速启动
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
+Windows 使用 Conda `base` 环境，完成依赖安装和 `.env` 配置后，可在项目根目录一键启动：
+
+```cmd
+start-project.bat
+```
+
+脚本会启动 Docker 基础设施、API、异步入库 Worker 和前端，并打开 `http://127.0.0.1:5173`。
+
+一键关闭项目：
+
+```cmd
+stop-project.bat
+```
+
+关闭脚本会停止应用进程和 Docker 容器，但不会删除数据库或索引数据卷。
+
+首次在 Conda `base` 环境安装依赖：
+
+```cmd
+conda activate base
 pip install -r requirements-dev.txt
 pip install -e .
 copy .env.example .env
@@ -71,6 +88,9 @@ python -m declaration_qa.indexing.worker
 
 - `DECLARATION_QA_DATABASE_URL`: PostgreSQL 连接地址。
 - `DECLARATION_QA_REDIS_URL`: Redis 连接地址。
+- `DECLARATION_QA_QUERY_IMAGE_OCR_ENABLED`: 聊天查询图片是否执行 OCR，默认开启。
+- `DECLARATION_QA_QUERY_IMAGE_OCR_MAX_CHARS`: 查询图片 OCR 进入检索的最大字符数，默认 `4000`。
+- `DECLARATION_QA_QUERY_IMAGE_OCR_TIMEOUT_SECONDS`: 查询图片 OCR 超时时间，默认 `30` 秒。
 - `DECLARATION_QA_VECTOR_BACKEND`: `memory` 或 `milvus`。
 - `DECLARATION_QA_MILVUS_URI` / `DECLARATION_QA_MILVUS_COLLECTION`
 - `DECLARATION_QA_KEYWORD_BACKEND`: `memory` 或 `elasticsearch`。
@@ -235,8 +255,9 @@ ChatRequest
 
 纯图片 query:
   图片 embedding -> Milvus dense
-  qwen3-vl-rerank 使用用户图片和候选图片/文本做二排
-  不使用兜底文本做 QueryRewrite / BM25
+  查询图片 OCR -> 文本 embedding + Elasticsearch BM25
+  视觉和 OCR 文本候选融合 -> qwen3-vl-rerank 二排
+  OCR 失败时自动降级为纯视觉检索
 ```
 
 回答生成采用条件式多模态路由：纯文本证据继续使用 `DECLARATION_QA_LLM_MODEL`；存在用户上传图片或高相关图片证据时，使用 `DECLARATION_QA_VL_ANSWER_MODEL`。VL 输入包含用户原图、按 `asset_id` 去重后的 Top 3 知识库图片、完整文本证据、OCR 和视觉摘要。用户图片只用于理解查询对象，不能单独作为政策依据。

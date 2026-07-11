@@ -58,8 +58,11 @@ def normalize_business_row(row) -> dict[str, Any]:
     reject_payload = values.get("reject_payload") if isinstance(values.get("reject_payload"), dict) else {}
     payload = {**application_payload, **status_payload, **reject_payload}
     return {
+        "application_id": int(values.get("application_id") or 0),
         "apply_id": str(values.get("apply_id") or ""),
         "user_id": int(values.get("user_id") or 0) if values.get("user_id") is not None else None,
+        "item_code": str(values.get("item_code") or payload.get("item_code") or ""),
+        "item_name": str(values.get("item_name") or payload.get("item_name") or payload.get("official_item_name") or ""),
         "biz_type": str(values.get("biz_type") or ""),
         "title": business_ticket_title({**values, "payload": payload}),
         "region_code": str(values.get("region_code") or ""),
@@ -83,6 +86,9 @@ def business_ticket_summary(row) -> dict[str, Any]:
     values = dict(row or {})
     return {
         "ticket_id": str(values.get("apply_id") or ""),
+        "application_id": int(values.get("application_id") or 0),
+        "item_code": str(values.get("item_code") or ""),
+        "item_name": str(values.get("item_name") or business_ticket_title(values)),
         "biz_type": str(values.get("biz_type") or ""),
         "region_code": str(values.get("region_code") or ""),
         "status": str(values.get("status") or ""),

@@ -8,7 +8,7 @@ from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.intent import infer_biz_type
+from declaration_qa.application.workflow_helpers.intent import infer_biz_type, mask_sensitive_text
 from declaration_qa.application.workflow_helpers.retrieval_sources import (
     dedupe_retrieval_queries,
     merge_retrieval_sources,
@@ -23,6 +23,7 @@ from declaration_qa.application.workflow_helpers.ticket_context import (
 from declaration_qa.core.domain import RetrievalResult
 from declaration_qa.observability.langfuse import observation, safe_value, source_summary
 from declaration_qa.rag.evidence import decide_evidence
+from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 from declaration_qa.rag.router import ROUTE_TICKET_CONTEXT_RELATED, ROUTE_TICKET_CONTEXT_UNRELATED
@@ -33,6 +34,12 @@ class WorkflowRetrievalNodes:
     def image_only_prepare(self, state: DeclarationQAState) -> DeclarationQAState:
         """为纯图片查询准备检索状态，不进入文本解析和改写链路。"""
         next_state = dict(state)
+        ocr_query = query_image_ocr_query(next_state)
+        ocr_queries = (
+            [{"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6}]
+            if ocr_query
+            else []
+        )
         next_state["route"] = ROUTE_TICKET_CONTEXT_UNRELATED
         next_state["intent"] = "image_query"
         next_state["sub_intent"] = "image_only_retrieval"
@@ -41,23 +48,27 @@ class WorkflowRetrievalNodes:
         next_state["ticket_fact_type"] = "none"
         next_state["multi_question"] = False
         next_state["sub_tasks"] = []
-        next_state["retrieval_queries"] = []
-        next_state["rag_query"] = ""
+        next_state["retrieval_queries"] = ocr_queries
+        next_state["rag_query"] = ocr_query
         next_state["query_rewrite"] = {
             "base_query": "",
             "scope_text": "",
             "fact_text": "",
             "requires_ticket_context": False,
             "ticket_fact_type": "none",
-            "queries": [],
-            "provider": "image_only",
-            "reason": "image_only_skip_text_chain",
+            "queries": ocr_queries,
+            "provider": "image_ocr" if ocr_query else "image_only",
+            "reason": "image_ocr_direct_retrieval" if ocr_query else "image_only_skip_text_chain",
         }
         next_state["retrieval_plan"] = {
             **normalize_retrieval_plan(next_state.get("retrieval_plan") or {}),
             "query_modality": "image",
         }
-        add_event(next_state, "image_only_prepare", {"text_chain_skipped": True})
+        add_event(
+            next_state,
+            "image_only_prepare",
+            {"text_chain_skipped": True, "ocr_text_retrieval": bool(ocr_query), "ocr_char_count": len(ocr_query)},
+        )
         return next_state
 
     def knowledge_filter_build(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -134,6 +145,7 @@ class WorkflowRetrievalNodes:
         query_image = state.get("query_image") or {}
         query_image_path = str(query_image.get("file_path") or "").strip() if isinstance(query_image, dict) else ""
         image_only = is_image_only_query(state)
+        ocr_query = query_image_ocr_query(state)
         image_query_text = "" if image_only else answer_query
         image_semantic_query = "" if image_only else answer_query
         image_retrieval_plan = {
@@ -143,11 +155,15 @@ class WorkflowRetrievalNodes:
         }
         if query_image_path:
             image_retrieval_plan["query_image_path"] = query_image_path
-        if image_only:
-            retrieval_queries = []
-        elif not retrieval_queries:
+        if not image_only and not retrieval_queries:
             retrieval_queries = [{"id": "rq1", "text": answer_query, "strategy": "fallback", "top_k": 4}]
-        executable_queries = [] if image_only else dedupe_retrieval_queries(retrieval_queries)
+        if ocr_query and not any(str(query.get("strategy") or "") == "image_ocr" for query in retrieval_queries):
+            retrieval_queries = [
+                *retrieval_queries,
+                {"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6},
+            ]
+        executable_queries = dedupe_retrieval_queries(retrieval_queries)
+        text_retrieval_enabled = bool(executable_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
         image_query_status: dict[str, Any] | None = None
@@ -162,6 +178,7 @@ class WorkflowRetrievalNodes:
                         "rerank_query": image_semantic_query,
                         "image_only": image_only,
                         "text_present": not image_only,
+                        "ocr_text_present": bool(ocr_query),
                         "top_k": 4,
                         "filter": filters,
                         "retrieval_plan": image_retrieval_plan,
@@ -321,7 +338,7 @@ class WorkflowRetrievalNodes:
                     query_statuses = [None] * len(executable_queries)
                     results = []
 
-        if not image_only and not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
+        if text_retrieval_enabled and not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
             retrieval_mode = "parallel_multi_query_rewrite"
             results_by_index: list[RetrievalResult | None] = [None] * len(executable_queries)
             with ThreadPoolExecutor(max_workers=min(self.max_retrieval_workers, len(executable_queries))) as executor:
@@ -335,8 +352,8 @@ class WorkflowRetrievalNodes:
                     query_statuses[index] = query_status
                     results_by_index[index] = result
             results = [result for result in results_by_index if result is not None]
-        elif not image_only and not results:
-            retrieval_mode = "multi_query_rewrite"
+        elif text_retrieval_enabled and not results:
+            retrieval_mode = "image_ocr_hybrid" if image_only else "multi_query_rewrite"
             results = []
             for index, retrieval_query in enumerate(executable_queries):
                 query_status, result = retrieve_one(retrieval_query)
@@ -363,9 +380,14 @@ class WorkflowRetrievalNodes:
             "filter": filters,
             "metadata_filtering": bool(filters),
             "retrieval_mode": retrieval_mode,
-            "query_modalities": ["image"] if image_only else (["text", "image"] if query_image_path else ["text"]),
-            "text_retrieval_skipped": image_only,
-            "text_retrieval_skip_reason": "image_only_query" if image_only else "",
+            "query_modalities": retrieval_query_modalities(
+                image_only=image_only,
+                has_query_image=bool(query_image_path),
+                has_ocr_text=bool(ocr_query),
+            ),
+            "text_retrieval_skipped": not text_retrieval_enabled,
+            "text_retrieval_skip_reason": "query_image_ocr_unavailable" if image_only and not text_retrieval_enabled else "",
+            "query_image_ocr": state.get("query_image_ocr_status") or {},
             "retrieval_parallelism": min(self.max_retrieval_workers, max(1, len(executable_queries))),
             "batch_degraded": batch_degraded,
             "score_cutoff": {
@@ -450,3 +472,20 @@ def is_image_only_query(state: dict[str, Any]) -> bool:
     if not isinstance(query_image, dict) or not query_image:
         return False
     return not bool(query_image.get("text_present", True))
+
+
+def query_image_ocr_query(state: dict[str, Any]) -> str:
+    """返回适合文本向量和 BM25 的查询图片 OCR 文本。"""
+    return normalize_text(mask_sensitive_text(str(state.get("query_image_ocr_text") or "")))
+
+
+def retrieval_query_modalities(*, image_only: bool, has_query_image: bool, has_ocr_text: bool) -> list[str]:
+    """返回本次实际参与召回的查询模态。"""
+    if image_only:
+        return ["image", "ocr_text"] if has_ocr_text else ["image"]
+    modalities = ["text"]
+    if has_query_image:
+        modalities.append("image")
+    if has_ocr_text:
+        modalities.append("ocr_text")
+    return modalities

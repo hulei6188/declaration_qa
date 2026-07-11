@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ExternalLink, FileText, Image } from 'lucide-react';
 import { API_BASE } from '../utils.js';
 
+const MAX_VISIBLE_SOURCES = 36;
+
 export default function SourceEvidenceList({ sources = [] }) {
   const items = useMemo(() => normalizeSources(sources), [sources]);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -87,7 +89,7 @@ function normalizeSources(sources) {
     seen.add(key);
     output.push(source);
   }
-  return output.slice(0, 12);
+  return output.slice(0, MAX_VISIBLE_SOURCES);
 }
 
 function sourceKey(source, index) {

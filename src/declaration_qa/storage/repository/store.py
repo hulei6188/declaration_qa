@@ -56,6 +56,24 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """查询用户可访问的办件列表。"""
         return self.business.list_applications(user_id=user_id, biz_type=biz_type, region_code=region_code)
 
+    def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
+        """按事项汇总当前用户的申请。"""
+        return self.business.list_ticket_items(user_id=user_id, region_code=region_code)
+
+    def get_applications_by_item(
+        self,
+        *,
+        user_id: int,
+        item_code: str,
+        application_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """返回事项下全部申请和完整状态历史。"""
+        return self.business.get_applications_by_item(
+            user_id=user_id,
+            item_code=item_code,
+            application_id=application_id,
+        )
+
     def verify_apply_access(self, *, user_id: int, apply_id: str) -> bool:
         """校验用户是否有权访问指定办件。"""
         return self.business.verify_apply_access(user_id=user_id, apply_id=apply_id)

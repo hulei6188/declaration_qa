@@ -49,8 +49,8 @@ def normalize_metadata_needs(values: Any) -> tuple[str, ...]:
     output: list[str] = []
     for value in list_values(values):
         normalized = str(value or "").strip().lower()
-        if normalized in ALLOWED_METADATA_NEEDS:
-            append_unique(output, normalized)
+        if normalized in ALLOWED_METADATA_NEEDS and normalized not in output:
+            output.append(normalized)
     return tuple(output)
 
 

@@ -1095,6 +1095,111 @@ def test_image_only_query_skips_text_retrieval_and_rewrite():
     assert result.status["queries"][0]["strategy"] == "image_query"
 
 
+def test_query_image_enrich_extracts_and_caches_ocr_text(tmp_path):
+    class FakeOcrClient:
+        def __init__(self):
+            self.calls = []
+
+        def extract_text(self, *, filename, content_type, data):
+            self.calls.append((filename, content_type, data))
+            return "授权委托书\n委托书应当经所在国公证和认证"
+
+    image_path = tmp_path / "query.png"
+    image_path.write_bytes(b"image-bytes")
+    ocr_client = FakeOcrClient()
+    workflow = DeclarationQAWorkflow(query_image_ocr_client=ocr_client, query_image_ocr_max_chars=100)
+    state = workflow._initial_state(
+        ChatRequest(
+            query="",
+            query_image=ChatImagePayload(
+                filename="query.png",
+                content_type="image/png",
+                file_path=str(image_path),
+                size_bytes=len(b"image-bytes"),
+                text_present=False,
+            ),
+        )
+    )
+
+    enriched = workflow.query_image_enrich(state)
+    cached = workflow.query_image_enrich(state)
+
+    assert enriched["query_image_ocr_text"] == "授权委托书\n委托书应当经所在国公证和认证"
+    assert enriched["query_image_ocr_status"] == {
+        "status": "success",
+        "char_count": 20,
+        "cache_hit": False,
+        "truncated": False,
+    }
+    assert cached["query_image_ocr_text"] == enriched["query_image_ocr_text"]
+    assert cached["query_image_ocr_status"]["cache_hit"] is True
+    assert ocr_client.calls == [("query.png", "image/png", b"image-bytes")]
+
+
+def test_query_image_enrich_degrades_when_ocr_fails(tmp_path):
+    class FailingOcrClient:
+        def extract_text(self, **kwargs):
+            raise RuntimeError("ocr unavailable")
+
+    image_path = tmp_path / "query.png"
+    image_path.write_bytes(b"image-bytes")
+    workflow = DeclarationQAWorkflow(query_image_ocr_client=FailingOcrClient())
+    state = workflow._initial_state(
+        ChatRequest(
+            query="",
+            query_image=ChatImagePayload(file_path=str(image_path), text_present=False),
+        )
+    )
+
+    enriched = workflow.query_image_enrich(state)
+
+    assert enriched["query_image_ocr_text"] == ""
+    assert enriched["query_image_ocr_status"]["status"] == "failed"
+    assert enriched["query_image_ocr_status"]["error"] == "RuntimeError"
+
+
+def test_image_only_query_combines_visual_and_ocr_text_retrieval():
+    class ImageOcrRAGEngine(InMemoryRAGEngine):
+        def __init__(self):
+            super().__init__()
+            self.image_calls = []
+            self.text_calls = []
+
+        def retrieve_image(self, image_path, text, filters, *, top_k=4, retrieval_plan=None):
+            self.image_calls.append((image_path, text, filters, top_k, retrieval_plan))
+            return RetrievalResult(sources=[], filter=filters, status={"cache": {"hit": False}, "channels": {"dense": 0}})
+
+        def retrieve(self, query, filters, *, top_k=4, retrieval_plan=None):
+            self.text_calls.append((query, filters, top_k, retrieval_plan))
+            return RetrievalResult(sources=[], filter=filters, status={"cache": {"hit": False}, "channels": {"dense": 0, "bm25": 0}})
+
+    engine = ImageOcrRAGEngine()
+    workflow = DeclarationQAWorkflow(rag_engine=engine)
+    prepared = workflow.image_only_prepare(
+        {
+            "query": "",
+            "normalized_query": "",
+            "query_image": {"file_path": "C:/tmp/material.png", "text_present": False},
+            "query_image_ocr_text": "被收养人照片 两寸彩色证件照 白底",
+            "query_image_ocr_status": {"status": "success", "char_count": 18},
+            "retrieval_plan": {},
+            "route": "ticket_context_unrelated",
+        }
+    )
+
+    result = workflow.multi_retrieve(prepared, {"policy_version": "2025"})
+
+    assert engine.image_calls[0][0] == "C:/tmp/material.png"
+    assert engine.image_calls[0][1] == ""
+    assert engine.text_calls[0][0] == "被收养人照片 两寸彩色证件照 白底"
+    assert prepared["query_rewrite"]["provider"] == "image_ocr"
+    assert result.status["retrieval_mode"] == "image_ocr_hybrid"
+    assert result.status["query_modalities"] == ["image", "ocr_text"]
+    assert result.status["text_retrieval_skipped"] is False
+    assert result.status["queries"][0]["strategy"] == "image_ocr"
+    assert result.status["queries"][1]["strategy"] == "image_query"
+
+
 def test_image_only_graph_skips_text_resolution_and_rewrite():
     class FailIfCalledResolver:
         name = "fail"

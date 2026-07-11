@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
@@ -61,6 +62,65 @@ class WorkflowPlanningNodes:
                 "recent_message_count": len(next_state.get("session_messages") or []),
             },
         )
+        return next_state
+
+    def query_image_enrich(self, state: DeclarationQAState) -> DeclarationQAState:
+        """对聊天查询图片执行 OCR，供文本向量和关键词通道使用。"""
+        next_state = dict(state)
+        query_image = next_state.get("query_image") or {}
+        if not isinstance(query_image, dict) or not query_image:
+            next_state["query_image_ocr_text"] = ""
+            next_state["query_image_ocr_status"] = {"status": "not_applicable", "char_count": 0}
+            return next_state
+
+        client = getattr(self, "query_image_ocr_client", None)
+        image_path = Path(str(query_image.get("file_path") or "").strip())
+        if client is None or not image_path.is_file():
+            status = "disabled" if client is None else "missing_file"
+            next_state["query_image_ocr_text"] = ""
+            next_state["query_image_ocr_status"] = {"status": status, "char_count": 0}
+            add_event(next_state, "query_image_ocr", next_state["query_image_ocr_status"])
+            return next_state
+
+        max_chars = max(1, int(getattr(self, "query_image_ocr_max_chars", 4000) or 4000))
+        cache_path = image_path.with_suffix(f"{image_path.suffix}.ocr.txt")
+        cache_hit = False
+        try:
+            if cache_path.is_file():
+                raw_ocr_text = cache_path.read_text(encoding="utf-8")
+                cache_hit = True
+            else:
+                raw_ocr_text = client.extract_text(
+                    filename=str(query_image.get("filename") or image_path.name),
+                    content_type=str(query_image.get("content_type") or "image/png"),
+                    data=image_path.read_bytes(),
+                )
+                normalized = str(raw_ocr_text or "").strip()
+                if normalized:
+                    try:
+                        cache_path.write_text(normalized, encoding="utf-8")
+                    except OSError:
+                        pass
+            raw_ocr_text = str(raw_ocr_text or "").strip()
+            ocr_text = raw_ocr_text[:max_chars]
+            status_payload = {
+                "status": "success" if ocr_text else "empty",
+                "char_count": len(ocr_text),
+                "cache_hit": cache_hit,
+                "truncated": len(raw_ocr_text) > max_chars,
+            }
+        except Exception as exc:
+            ocr_text = ""
+            status_payload = {
+                "status": "failed",
+                "char_count": 0,
+                "cache_hit": False,
+                "error": type(exc).__name__,
+            }
+
+        next_state["query_image_ocr_text"] = ocr_text
+        next_state["query_image_ocr_status"] = status_payload
+        add_event(next_state, "query_image_ocr", status_payload)
         return next_state
 
     def query_preprocess(self, state: DeclarationQAState) -> DeclarationQAState:

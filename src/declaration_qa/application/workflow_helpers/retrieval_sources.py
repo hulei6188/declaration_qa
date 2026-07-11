@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import RetrievalResult, RetrievedSource
+from declaration_qa.rag.engine.parent_context import dedupe_asset_sources
 from declaration_qa.rag.engine.text import normalize_text
 
 
@@ -75,4 +76,4 @@ def select_answer_sources(
         key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
         reverse=True,
     )
-    return ranked[:limit]
+    return dedupe_asset_sources(ranked)[:limit]

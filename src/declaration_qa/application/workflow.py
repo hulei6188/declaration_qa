@@ -61,6 +61,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
         query_rewrite: Any | None = None,
+        query_image_ocr_client: Any | None = None,
+        query_image_ocr_max_chars: int = 4000,
         context_memory_manager: ContextMemoryManager | None = None,
         max_sub_question_workers: int = 4,
         max_retrieval_workers: int = 4,
@@ -71,6 +73,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         self.query_rewrite_service = query_rewrite or RuleTwoStageQueryRewriter()
+        self.query_image_ocr_client = query_image_ocr_client
+        self.query_image_ocr_max_chars = max(1, int(query_image_ocr_max_chars or 4000))
         self.context_memory_manager = context_memory_manager
         self.max_sub_question_workers = max(1, int(max_sub_question_workers))
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
@@ -210,6 +214,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "query": request.query,
             "normalized_query": "",
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
+            "query_image_ocr_text": "",
+            "query_image_ocr_status": {},
             "session_messages": session_messages,
             "short_memory": short_memory,
             "short_term_context": {},
@@ -303,6 +309,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         """构建 LangGraph 节点和边。"""
         builder = StateGraph(DeclarationQAState)
         builder.add_node("context_build", self.context_build)
+        builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("image_only_prepare", self.image_only_prepare)
         builder.add_node("query_rewrite.stage1", self.query_rewrite_stage1)
@@ -323,7 +330,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_node("audit_log", self.audit_log)
 
         builder.add_edge(START, "context_build")
-        builder.add_edge("context_build", "query_preprocess")
+        builder.add_edge("context_build", "query_image_enrich")
+        builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_conditional_edges(
             "query_preprocess",
             lambda state: "image" if is_image_only_query(state) else "text",

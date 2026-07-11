@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS declaration_qa.business_applications (
     id BIGSERIAL PRIMARY KEY,
     apply_uid VARCHAR(120) NOT NULL UNIQUE,
     user_id BIGINT NOT NULL,
+    item_code VARCHAR(160) NOT NULL DEFAULT '',
+    item_name VARCHAR(255) NOT NULL DEFAULT '',
     biz_type VARCHAR(80) NOT NULL,
     region_code VARCHAR(20) NOT NULL DEFAULT '340000',
     status VARCHAR(40) NOT NULL DEFAULT '',
@@ -41,18 +43,34 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_user
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_filter
     ON declaration_qa.business_applications (biz_type, region_code, status)
     WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_user_item
+    ON declaration_qa.business_applications (user_id, item_code, updated_at DESC)
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS declaration_qa.business_application_statuses (
     id BIGSERIAL PRIMARY KEY,
     apply_id BIGINT NOT NULL REFERENCES declaration_qa.business_applications(id) ON DELETE CASCADE,
+    sequence_no INTEGER NOT NULL DEFAULT 1,
+    from_status VARCHAR(40) NULL,
     status VARCHAR(40) NOT NULL,
     current_node VARCHAR(80) NOT NULL DEFAULT '',
     node_name VARCHAR(120) NOT NULL DEFAULT '',
+    reason_code VARCHAR(80) NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    material_code VARCHAR(80) NOT NULL DEFAULT '',
+    material_name VARCHAR(160) NOT NULL DEFAULT '',
+    source_event_id VARCHAR(160) NOT NULL DEFAULT '',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_status_sequence
+    ON declaration_qa.business_application_statuses (apply_id, sequence_no);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_status_source_event
+    ON declaration_qa.business_application_statuses (source_event_id)
+    WHERE source_event_id <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_status_current
     ON declaration_qa.business_application_statuses (apply_id)
     WHERE is_current = TRUE;
@@ -531,6 +549,8 @@ COMMENT ON TABLE declaration_qa.business_applications IS '业务申请单主表�
 COMMENT ON COLUMN declaration_qa.business_applications.id IS '申请单自增主键';
 COMMENT ON COLUMN declaration_qa.business_applications.apply_uid IS '外部申请单唯一标识';
 COMMENT ON COLUMN declaration_qa.business_applications.user_id IS '申请人用户 ID';
+COMMENT ON COLUMN declaration_qa.business_applications.item_code IS '政务服务事项编码';
+COMMENT ON COLUMN declaration_qa.business_applications.item_name IS '政务服务事项名称';
 COMMENT ON COLUMN declaration_qa.business_applications.biz_type IS '业务类型，仅用于真实工单上下文';
 COMMENT ON COLUMN declaration_qa.business_applications.region_code IS '行政区划编码';
 COMMENT ON COLUMN declaration_qa.business_applications.status IS '申请单当前状态';
@@ -546,11 +566,19 @@ COMMENT ON COLUMN declaration_qa.business_applications.updated_at IS '更新时�
 COMMENT ON TABLE declaration_qa.business_application_statuses IS '业务申请单状态流水表';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.id IS '状态记录自增主键';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.apply_id IS '关联 business_applications.id';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.sequence_no IS '申请内单调递增的状态事件序号';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.from_status IS '变更前状态编码';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.status IS '状态编码';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.current_node IS '审核节点编码';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.node_name IS '审核节点名称';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.reason_code IS '状态变更原因编码';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.reason IS '状态变更原因';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.material_code IS '状态事件关联材料编码';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.material_name IS '状态事件关联材料名称';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.source_event_id IS '上游业务系统事件唯一标识';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.is_current IS '是否当前有效状态';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.payload IS '状态原始扩展数据';
+COMMENT ON COLUMN declaration_qa.business_application_statuses.occurred_at IS '状态在业务系统中的实际发生时间';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.created_at IS '创建时间';
 COMMENT ON COLUMN declaration_qa.business_application_statuses.updated_at IS '更新时间';
 

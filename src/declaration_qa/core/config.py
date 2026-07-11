@@ -51,7 +51,7 @@ class DeclarationQASettings(BaseSettings):
     rerank_api_key: str = Field(default="", alias="DECLARATION_QA_RERANK_API_KEY")
     rerank_model: str = Field(default="qwen3-vl-rerank", alias="DECLARATION_QA_RERANK_MODEL")
     rerank_score_threshold: float = Field(default=0.0, alias="DECLARATION_QA_RERANK_SCORE_THRESHOLD")
-    rerank_max_sources: int = Field(default=12, alias="DECLARATION_QA_RERANK_MAX_SOURCES")
+    rerank_max_sources: int = Field(default=36, alias="DECLARATION_QA_RERANK_MAX_SOURCES")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
     llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")
@@ -80,6 +80,9 @@ class DeclarationQASettings(BaseSettings):
     ocr_api_url: str = Field(default="", alias="DECLARATION_QA_OCR_API_URL")
     ocr_api_key: str = Field(default="", alias="DECLARATION_QA_OCR_API_KEY")
     ocr_model: str = Field(default="", alias="DECLARATION_QA_OCR_MODEL")
+    query_image_ocr_enabled: bool = Field(default=True, alias="DECLARATION_QA_QUERY_IMAGE_OCR_ENABLED")
+    query_image_ocr_max_chars: int = Field(default=4000, alias="DECLARATION_QA_QUERY_IMAGE_OCR_MAX_CHARS")
+    query_image_ocr_timeout_seconds: int = Field(default=30, alias="DECLARATION_QA_QUERY_IMAGE_OCR_TIMEOUT_SECONDS")
     image_summary_enabled: bool = Field(default=True, alias="DECLARATION_QA_IMAGE_SUMMARY_ENABLED")
     image_summary_api_url: str = Field(default="", alias="DECLARATION_QA_IMAGE_SUMMARY_API_URL")
     image_summary_api_key: str = Field(default="", alias="DECLARATION_QA_IMAGE_SUMMARY_API_KEY")
