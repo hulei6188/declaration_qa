@@ -20,6 +20,8 @@ class ParsedBlock:
     json_value: Any = None
     page_no: int | None = None
     bbox: list[float] | None = None
+    binary_data: bytes = b""
+    content_type: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

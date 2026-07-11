@@ -10,6 +10,7 @@ from pathlib import Path
 
 from declaration_qa.indexing.attachments.models import AttachmentAsset, DownloadedAttachment
 from declaration_qa.indexing.attachments.pdf_ocr import close_pdf, import_pymupdf, open_pdf, render_page_png
+from declaration_qa.indexing.document_parsing.models import ParsedBlock
 from declaration_qa.indexing.documents import HttpOcrClient, HttpVisionSummaryClient, normalize_extracted_text
 from declaration_qa.observability.langfuse import observation, record_error
 
@@ -34,12 +35,25 @@ def extract_visual_assets(
     vision_summary_client: HttpVisionSummaryClient | None = None,
     pdf_max_pages: int = 8,
     pdf_dpi: int = 144,
+    parsed_blocks: list[ParsedBlock] | None = None,
+    pdf_page_fallback: bool = True,
 ) -> list[AttachmentAsset]:
     """按附件类型抽取可展示的视觉资产。"""
     if not asset_dir:
         return []
     extension = downloaded.ref.extension.lower().strip(".")
     if extension == "pdf":
+        picture_assets = extract_parsed_picture_assets(
+            downloaded,
+            parsed_blocks=parsed_blocks or [],
+            asset_dir=asset_dir,
+            ocr_client=ocr_client,
+            vision_summary_client=vision_summary_client,
+        )
+        if picture_assets:
+            return picture_assets
+        if not pdf_page_fallback:
+            return []
         return extract_pdf_page_assets(
             downloaded,
             asset_dir=asset_dir,
@@ -66,6 +80,63 @@ def extract_visual_assets(
             )
         ]
     return []
+
+
+def extract_parsed_picture_assets(
+    downloaded: DownloadedAttachment,
+    *,
+    parsed_blocks: list[ParsedBlock],
+    asset_dir: Path,
+    ocr_client: HttpOcrClient | None,
+    vision_summary_client: HttpVisionSummaryClient | None,
+) -> list[AttachmentAsset]:
+    """将解析器输出的独立 picture 块落盘为视觉资产。"""
+    assets: list[AttachmentAsset] = []
+    picture_blocks = [block for block in parsed_blocks if block.block_type == "picture" and block.binary_data]
+    for picture_index, block in enumerate(picture_blocks):
+        metadata = dict(block.metadata or {})
+        picture_ref = str(metadata.get("picture_ref") or picture_index)
+        asset_id = stable_asset_id(downloaded, "parsed-picture", picture_ref)
+        filename = f"{Path(downloaded.ref.name).stem or 'document'}-picture-{picture_index + 1}.png"
+        path = write_asset(asset_dir, asset_id=asset_id, extension="png", data=block.binary_data)
+        text = normalize_extracted_text(block.text)
+        if not text:
+            text = ocr_image_asset(
+                ocr_client,
+                filename=filename,
+                content_type=block.content_type or "image/png",
+                data=block.binary_data,
+            )
+        caption = normalize_extracted_text(metadata.get("picture_caption") or "")
+        summary_context = "\n".join(part for part in [caption, text] if part)
+        summary, summary_metadata = summarize_image_asset(
+            vision_summary_client,
+            filename=filename,
+            content_type=block.content_type or "image/png",
+            data=block.binary_data,
+            ocr_text=summary_context,
+        )
+        assets.append(
+            AttachmentAsset(
+                asset_id=asset_id,
+                asset_kind="pdf_embedded_picture",
+                modality="image",
+                path=str(path),
+                content_type=block.content_type or "image/png",
+                filename=filename,
+                text=text,
+                summary=summary,
+                page_no=block.page_no,
+                bbox=block.bbox,
+                metadata={
+                    **metadata,
+                    "picture_caption": caption,
+                    "picture_ocr_source": "docling" if block.text.strip() else ("external_ocr" if text else "none"),
+                    **summary_metadata,
+                },
+            )
+        )
+    return assets
 
 
 def extract_pdf_page_assets(

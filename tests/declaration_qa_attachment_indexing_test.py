@@ -1,6 +1,8 @@
 import hashlib
 import io
 import sys
+import threading
+import time
 import types
 import zipfile
 from pathlib import Path
@@ -8,14 +10,17 @@ from pathlib import Path
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
 from declaration_qa.indexing.attachments.chunks import build_attachment_chunk_specs
+from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.downloader import content_type_from_extension
 from declaration_qa.indexing.attachments.extractor import attachment_text_quality_error, extract_attachment
 from declaration_qa.indexing.attachments.form_fields import extract_form_fields
-from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment, ExtractedAttachment
+from declaration_qa.indexing.attachments.models import AttachmentAsset, AttachmentRef, DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
-from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
+from declaration_qa.indexing.attachments.pipeline import AttachmentIndexingResult, build_attachment_chunks_for_document
+from declaration_qa.indexing.document_parsing.models import ParsedBlock, ParsedDocument
 from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.in_memory import InMemoryRAGEngine
+from declaration_qa.indexing.service.documents import build_uploaded_file_asset_specs, process_document_index
 
 
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -103,7 +108,7 @@ def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_block
     assert result.success_count == 1
     assert result.failed_count == 1
     assert result.chunk_specs
-    spec = result.chunk_specs[0]
+    spec = next(spec for spec in result.chunk_specs if spec["metadata"]["chunk_type"] == "attachment_form")
     assert spec["metadata"]["chunk_type"] == "attachment_form"
     assert spec["metadata"]["attachment_role"] == "sample_file"
     assert spec["metadata"]["material_name"] == "取水许可申请书"
@@ -161,6 +166,60 @@ def test_attachment_pipeline_deduplicates_same_file_content(monkeypatch, tmp_pat
     assert result.failed_count == 0
     assert result.skipped_count == 1
     assert result.chunk_specs
+
+
+def test_attachment_pipeline_extracts_independent_files_in_parallel(monkeypatch):
+    content = """
+# 测试
+- 附件A.docx: https://example.test/a.docx
+- 附件B.docx: https://example.test/b.docx
+- 附件C.docx: https://example.test/c.docx
+"""
+    lock = threading.Lock()
+    active = 0
+    max_active = 0
+
+    def fake_download(self, ref):
+        data = ref.name.encode("utf-8")
+        return DownloadedAttachment(
+            ref=ref,
+            data=data,
+            content_type=content_type_from_extension(ref.extension),
+            cache_path=ref.name,
+            sha256=hashlib.sha256(data).hexdigest(),
+        )
+
+    def fake_extract(downloaded, **kwargs):
+        nonlocal active, max_active
+        with lock:
+            active += 1
+            max_active = max(max_active, active)
+        time.sleep(0.08)
+        with lock:
+            active -= 1
+        return ExtractedAttachment(
+            ref=downloaded.ref,
+            text=f"{downloaded.ref.name} 正文内容",
+            content_type=downloaded.content_type,
+            cache_path=downloaded.cache_path,
+            sha256=downloaded.sha256,
+            status="success",
+        )
+
+    monkeypatch.setattr("declaration_qa.indexing.attachments.pipeline.AttachmentDownloader.download", fake_download)
+    monkeypatch.setattr("declaration_qa.indexing.attachments.pipeline.extract_attachment", fake_extract)
+    monkeypatch.setattr("declaration_qa.indexing.attachments.pipeline.build_shared_document_parser", lambda *args, **kwargs: object())
+    settings = DeclarationQASettings(_env_file=None, DECLARATION_QA_ATTACHMENT_MAX_WORKERS=3)
+
+    result = build_attachment_chunks_for_document(
+        document_id="parallel-test",
+        content=content,
+        metadata={},
+        settings=settings,
+    )
+
+    assert result.success_count == 3
+    assert max_active >= 2
 
 
 def test_split_document_indexes_derived_attachment_chunks_as_child_siblings():
@@ -646,6 +705,240 @@ def test_pdf_page_assets_generate_page_image_chunks(monkeypatch, tmp_path):
     assert page_specs[0]["metadata"]["attachment_page_no"] == 1
     assert page_specs[0]["metadata"]["asset_kind"] == "pdf_page_image"
     assert "第一页表单内容" in page_specs[0]["content"]
+
+
+def test_docling_pdf_picture_is_indexed_without_full_page_duplicate(monkeypatch, tmp_path):
+    downloaded = make_pdf_downloaded(data=b"%PDF docling picture")
+    picture = ParsedBlock(
+        block_type="picture",
+        text="申请、受理、审查、决定",
+        page_no=2,
+        bbox=[10.0, 20.0, 210.0, 120.0],
+        binary_data=b"fake png bytes",
+        content_type="image/png",
+        metadata={"picture_ref": "#/pictures/0", "picture_caption": "图1 办理流程"},
+    )
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.assets.extract_pdf_page_assets",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("page image fallback must not run")),
+    )
+
+    assets = extract_visual_assets(
+        downloaded,
+        asset_dir=tmp_path,
+        extracted_text="正文",
+        parsed_blocks=[picture],
+        pdf_page_fallback=False,
+    )
+
+    assert len(assets) == 1
+    assert assets[0].asset_kind == "pdf_embedded_picture"
+    assert assets[0].page_no == 2
+    assert assets[0].bbox == [10.0, 20.0, 210.0, 120.0]
+    assert assets[0].text == "申请、受理、审查、决定"
+    assert assets[0].metadata["picture_caption"] == "图1 办理流程"
+
+
+def test_docling_pdf_without_picture_does_not_create_page_images(monkeypatch, tmp_path):
+    downloaded = make_pdf_downloaded(data=b"%PDF text only")
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.assets.extract_pdf_page_assets",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("page image fallback must not run")),
+    )
+
+    assets = extract_visual_assets(
+        downloaded,
+        asset_dir=tmp_path,
+        extracted_text="纯文本 PDF",
+        parsed_blocks=[],
+        pdf_page_fallback=False,
+    )
+
+    assert assets == []
+
+
+def test_uploaded_pdf_docling_picture_becomes_image_chunk(tmp_path):
+    picture = ParsedBlock(
+        block_type="picture",
+        text="流程图文字",
+        page_no=1,
+        bbox=[1.0, 2.0, 100.0, 80.0],
+        binary_data=b"picture png bytes",
+        content_type="image/png",
+        metadata={"picture_ref": "#/pictures/0", "picture_caption": "办理流程图"},
+    )
+    settings = DeclarationQASettings(
+        _env_file=None,
+        DECLARATION_QA_ATTACHMENT_ASSET_DIR=str(tmp_path),
+        DECLARATION_QA_IMAGE_SUMMARY_ENABLED=False,
+    )
+
+    specs = build_uploaded_file_asset_specs(
+        document_id="doc-uploaded-pdf",
+        filename="guide.pdf",
+        content_type="application/pdf",
+        data=b"%PDF uploaded",
+        extracted_text="办理指南正文",
+        parsed_blocks=[picture],
+        parser_name="docling",
+        title="办理指南",
+        source_url="",
+        document_metadata={"chunking_strategy": "docling"},
+        settings=settings,
+        ocr_client=None,
+    )
+
+    assert len(specs) == 1
+    assert specs[0]["metadata"]["chunk_type"] == "attachment_image"
+    assert specs[0]["metadata"]["asset_kind"] == "pdf_embedded_picture"
+    assert specs[0]["metadata"]["attachment_page_no"] == 1
+    assert "图片标题：办理流程图" in specs[0]["content"]
+    assert "OCR文本：流程图文字" in specs[0]["content"]
+
+
+def test_long_picture_ocr_is_split_into_text_chunks(tmp_path):
+    long_ocr = "申请材料包括身份证明、营业执照和授权委托书。" * 80
+    picture = ParsedBlock(
+        block_type="picture",
+        text=long_ocr,
+        page_no=4,
+        bbox=[1.0, 2.0, 100.0, 80.0],
+        binary_data=b"picture png bytes",
+        content_type="image/png",
+        metadata={"picture_ref": "#/pictures/1", "picture_caption": "材料清单"},
+    )
+    settings = DeclarationQASettings(
+        _env_file=None,
+        DECLARATION_QA_ATTACHMENT_ASSET_DIR=str(tmp_path),
+        DECLARATION_QA_IMAGE_SUMMARY_ENABLED=False,
+    )
+
+    specs = build_uploaded_file_asset_specs(
+        document_id="doc-long-picture",
+        filename="guide.pdf",
+        content_type="application/pdf",
+        data=b"%PDF uploaded",
+        extracted_text="办理指南正文",
+        parsed_blocks=[picture],
+        parser_name="docling",
+        title="办理指南",
+        source_url="",
+        document_metadata={"chunking_strategy": "docling"},
+        settings=settings,
+        ocr_client=None,
+    )
+
+    image_spec = next(spec for spec in specs if spec["metadata"]["chunk_type"] == "attachment_image")
+    ocr_specs = [spec for spec in specs if spec["metadata"]["chunk_type"] == "attachment_image_ocr"]
+    assert len(ocr_specs) >= 2
+    assert image_spec["metadata"]["ocr_text_chunk_count"] == len(ocr_specs)
+    assert "OCR文本预览：" in image_spec["content"]
+    assert all(spec["metadata"]["modality"] == "text" for spec in ocr_specs)
+    assert all(spec["metadata"]["source_asset_id"] == image_spec["metadata"]["asset_id"] for spec in ocr_specs)
+    assert all("asset_id" not in spec["metadata"] for spec in ocr_specs)
+
+
+def test_long_visual_summary_is_split_into_text_chunks(tmp_path):
+    ref = AttachmentRef(
+        index=0,
+        name="guide.pdf",
+        url="https://example.test/guide.pdf",
+        extension="pdf",
+        section_path="办理流程",
+        section_title="办理流程",
+        node_title="流程图",
+        parent_section_id="doc#办理流程",
+    )
+    asset = AttachmentAsset(
+        asset_id="asset-summary",
+        asset_kind="pdf_embedded_picture",
+        modality="image",
+        path=str(tmp_path / "picture.png"),
+        content_type="image/png",
+        filename="picture.png",
+        summary="该图展示申请、受理、审查和决定的完整办理流程。" * 80,
+    )
+    extracted = ExtractedAttachment(ref=ref, text="", content_type="application/pdf", assets=[asset])
+
+    specs = build_attachment_chunk_specs([extracted], document_id="doc-summary", document_metadata={})
+
+    image_spec = next(spec for spec in specs if spec["metadata"]["chunk_type"] == "attachment_image")
+    summary_specs = [spec for spec in specs if spec["metadata"]["chunk_type"] == "attachment_image_summary"]
+    assert len(summary_specs) >= 2
+    assert image_spec["metadata"]["visual_summary_chunk_count"] == len(summary_specs)
+    assert "视觉摘要预览：" in image_spec["content"]
+    assert all(spec["metadata"]["source_asset_id"] == "asset-summary" for spec in summary_specs)
+
+
+def test_uploaded_pdf_picture_flows_into_document_index(monkeypatch, tmp_path):
+    upload_path = tmp_path / "guide.pdf"
+    upload_path.write_bytes(b"%PDF uploaded")
+    picture = ParsedBlock(
+        block_type="picture",
+        text="流程图文字",
+        page_no=2,
+        bbox=[1.0, 2.0, 100.0, 80.0],
+        binary_data=b"picture png bytes",
+        content_type="image/png",
+        metadata={"picture_ref": "#/pictures/0", "picture_caption": "办理流程图"},
+    )
+    parsed = ParsedDocument(
+        filename="guide.pdf",
+        content_type="application/pdf",
+        text="# 办理指南\n正文",
+        parser_name="docling",
+        blocks=[picture],
+        metadata={
+            "docling_chunk_specs": [
+                {
+                    "id_suffix": "docling:0",
+                    "chunk_type": "child",
+                    "content": "办理指南正文",
+                    "metadata": {"chunk_type": "docling_text"},
+                }
+            ]
+        },
+    )
+    captured = {}
+    monkeypatch.setattr("declaration_qa.indexing.service.documents.parse_document_bytes", lambda **kwargs: parsed)
+    monkeypatch.setattr(
+        "declaration_qa.indexing.service.documents.build_attachment_chunks_for_document",
+        lambda **kwargs: AttachmentIndexingResult([], 0, 0, 0),
+    )
+
+    def fake_index(workflow, document, **kwargs):
+        captured["document"] = document
+        return len(document.derived_chunks)
+
+    monkeypatch.setattr("declaration_qa.indexing.service.documents.index_document_for_workflow", fake_index)
+    settings = DeclarationQASettings(
+        _env_file=None,
+        DECLARATION_QA_ATTACHMENT_ASSET_DIR=str(tmp_path / "assets"),
+        DECLARATION_QA_IMAGE_SUMMARY_ENABLED=False,
+    )
+
+    result = process_document_index(
+        {
+            "document_id": "doc-upload-flow",
+            "input_type": "file",
+            "file_path": str(upload_path),
+            "filename": "guide.pdf",
+            "content_type": "application/pdf",
+            "title": "办理指南",
+        },
+        workflow=object(),
+        settings=settings,
+    )
+
+    image_specs = [
+        spec
+        for spec in captured["document"].derived_chunks
+        if (spec.get("metadata") or {}).get("chunk_type") == "attachment_image"
+    ]
+    assert result["chunks_indexed"] == 2
+    assert len(image_specs) == 1
+    assert image_specs[0]["metadata"]["asset_kind"] == "pdf_embedded_picture"
+    assert captured["document"].metadata["uploaded_visual_asset_count"] == 1
 
 
 def test_pdf_low_quality_text_falls_back_to_page_ocr(monkeypatch):

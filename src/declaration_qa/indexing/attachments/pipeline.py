@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -14,8 +15,9 @@ from declaration_qa.indexing.attachments.downloader import (
     AttachmentDownloadSettings,
 )
 from declaration_qa.indexing.attachments.extractor import extract_attachment
-from declaration_qa.indexing.attachments.models import ExtractedAttachment
+from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.parser import parse_markdown_attachments
+from declaration_qa.indexing.document_parsing.factory import build_document_parser, is_image_document, native_first_parser_order
 from declaration_qa.indexing.documents import HttpOcrClient, HttpVisionSummaryClient
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
 
@@ -70,6 +72,9 @@ def build_attachment_chunks_for_document(
         else None
     )
     vision_summary_client = build_vision_summary_client(settings)
+    general_parser = build_shared_document_parser(settings, ocr_client=ocr_client)
+    image_parser = build_shared_document_parser(settings, ocr_client=ocr_client, image_first=True)
+    max_workers = min(max(1, int(settings.attachment_max_workers)), max(1, len(selected_refs)))
     extracted_items: list[ExtractedAttachment] = []
     failures: list[dict[str, str]] = []
     seen_attachment_keys: set[tuple[str, str, str]] = set()
@@ -79,7 +84,7 @@ def build_attachment_chunks_for_document(
         input={"document_id": document_id, "attachment_count": len(selected_refs)},
         metadata={"document_id": document_id, "attachment_count": len(selected_refs)},
     ) as span:
-        for ref in selected_refs:
+        def download_one(ref: AttachmentRef) -> tuple[AttachmentRef, DownloadedAttachment | None, dict[str, str] | None]:
             try:
                 with observation(
                     "index.attachment_download",
@@ -90,14 +95,28 @@ def build_attachment_chunks_for_document(
                     download_span.update(output={"bytes": len(downloaded.data), "cache_path": downloaded.cache_path})
             except AttachmentDownloadError as exc:
                 failure = {"name": ref.name, "url": ref.url, "stage": "download", "reason": str(exc)}
-                failures.append(failure)
                 record_error(span, exc, stage="index.attachment_download", extra=failure)
+                return ref, None, failure
+            return ref, downloaded, None
+
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="attachment-download") as executor:
+            download_results = list(executor.map(download_one, selected_refs))
+
+        unique_downloads: list[DownloadedAttachment] = []
+        for ref, downloaded, failure in download_results:
+            if failure is not None:
+                failures.append(failure)
                 continue
+            assert downloaded is not None
             attachment_key = (downloaded.sha256, ref.material_name or ref.name, ref.role)
             if attachment_key in seen_attachment_keys:
                 duplicate_skipped_count += 1
                 continue
             seen_attachment_keys.add(attachment_key)
+            unique_downloads.append(downloaded)
+
+        def extract_one(downloaded: DownloadedAttachment) -> ExtractedAttachment:
+            ref = downloaded.ref
             with observation(
                 "index.attachment_extract",
                 input={"name": ref.name, "type": ref.extension, "role": ref.role, "bytes": len(downloaded.data)},
@@ -123,8 +142,12 @@ def build_attachment_chunks_for_document(
                     pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
                     pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),
                     asset_dir=Path(settings.attachment_asset_dir),
+                    document_parser=(
+                        image_parser
+                        if is_image_document(ref.name, downloaded.content_type)
+                        else general_parser
+                    ),
                 )
-                extracted_items.append(extracted)
                 extract_span.update(
                     output={
                         "status": extracted.status,
@@ -141,8 +164,14 @@ def build_attachment_chunks_for_document(
                         "error_reason": extracted.error_reason,
                     }
                 )
-                if extracted.status != "success":
-                    failures.append({"name": ref.name, "url": ref.url, "stage": "extract", "reason": extracted.error_reason})
+                return extracted
+
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="attachment-extract") as executor:
+            extracted_items = list(executor.map(extract_one, unique_downloads))
+        for extracted in extracted_items:
+            if extracted.status != "success":
+                ref = extracted.ref
+                failures.append({"name": ref.name, "url": ref.url, "stage": "extract", "reason": extracted.error_reason})
         chunk_specs = build_attachment_chunk_specs(extracted_items, document_id=document_id, document_metadata=metadata)
         success_count = sum(1 for item in extracted_items if item.status == "success" and (item.text.strip() or item.assets))
         failed_count = len(selected_refs) - duplicate_skipped_count - success_count
@@ -166,6 +195,33 @@ def build_attachment_chunks_for_document(
         failed_count=failed_count,
         skipped_count=total_skipped_count,
         failures=failures,
+    )
+
+
+def build_shared_document_parser(
+    settings: DeclarationQASettings,
+    *,
+    ocr_client: HttpOcrClient | None,
+    image_first: bool = False,
+):
+    """为一个索引任务构建可复用解析器，避免每个附件重复初始化模型。"""
+    order = settings.document_parser_order
+    if image_first:
+        order = native_first_parser_order(order)
+    return build_document_parser(
+        provider=settings.document_parser_provider,
+        order=order,
+        fallback_enabled=settings.document_parser_fallback_enabled,
+        ocr_client=ocr_client,
+        llamaparse_api_key=settings.llamaparse_api_key,
+        llamaparse_base_url=settings.llamaparse_base_url,
+        llamaparse_result_type=settings.llamaparse_result_type,
+        docling_document_timeout_seconds=settings.docling_document_timeout_seconds,
+        docling_accelerator_device=settings.docling_accelerator_device,
+        docling_accelerator_num_threads=settings.docling_accelerator_num_threads,
+        docling_layout_batch_size=settings.docling_layout_batch_size,
+        docling_table_batch_size=settings.docling_table_batch_size,
+        docling_ocr_batch_size=settings.docling_ocr_batch_size,
     )
 
 

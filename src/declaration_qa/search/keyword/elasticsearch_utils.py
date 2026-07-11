@@ -10,7 +10,7 @@ from declaration_qa.rag.retrieval import normalize_retrieval_filter
 
 def elasticsearch_chunk_document(chunk: KnowledgeChunk) -> dict[str, Any]:
     """将 chunk 转换为可写入 Elasticsearch 的检索文档。"""
-    metadata = dict(chunk.metadata or {})
+    metadata = compact_elasticsearch_metadata(chunk.metadata or {})
     return {
         "doc_id": chunk.doc_id,
         "chunk_type": chunk.chunk_type,
@@ -34,6 +34,16 @@ def elasticsearch_chunk_document(chunk: KnowledgeChunk) -> dict[str, Any]:
         "doc_status": metadata.get("doc_status") or chunk.status or metadata.get("status") or "published",
         "metadata": metadata,
     }
+
+
+def compact_elasticsearch_metadata(metadata: dict[str, Any], *, text_preview_size: int = 500) -> dict[str, Any]:
+    """避免将完整 OCR 重复写入 ES 元数据，正文检索由 chunk content 负责。"""
+    compact = dict(metadata or {})
+    for key in ("asset_text", "ocr_text", "visual_summary"):
+        value = str(compact.pop(key, "") or "").strip()
+        if value:
+            compact[f"{key}_preview"] = value[:text_preview_size]
+    return compact
 
 
 def elasticsearch_filter_clauses(filters: dict[str, Any]) -> list[dict[str, Any]]:

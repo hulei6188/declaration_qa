@@ -46,6 +46,9 @@ MILVUS_METADATA_EXCLUDED_FIELDS = frozenset(
         "table_html",
         "table_json",
         "table_text",
+        "asset_text",
+        "ocr_text",
+        "visual_summary",
     }
 )
 MILVUS_METADATA_FALLBACK_FIELDS = (

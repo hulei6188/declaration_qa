@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import threading
 from typing import Any
 
-from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedDocument
+from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedBlock, ParsedDocument
 from declaration_qa.indexing.document_parsing.structured import (
-    metadata_summary,
     object_to_plain_data,
     parsed_document_from_markdown,
     temp_document_file,
@@ -47,6 +48,9 @@ class DoclingDocumentParser:
         self.layout_batch_size = max(1, int(layout_batch_size or 4))
         self.table_batch_size = max(1, int(table_batch_size or 4))
         self.ocr_batch_size = max(1, int(ocr_batch_size or 4))
+        self._converters: dict[str, Any] = {}
+        self._converter_locks: dict[str, threading.RLock] = {}
+        self._converter_cache_lock = threading.Lock()
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
         """调用 Docling 并转换为标准解析结果。"""
@@ -57,11 +61,13 @@ class DoclingDocumentParser:
 
         with temp_document_file(filename=filename, data=data) as path:
             try:
-                result = self._document_converter(filename=filename, content_type=content_type).convert(str(path))
+                converter, converter_lock = self._cached_document_converter(filename=filename, content_type=content_type)
+                with converter_lock:
+                    result = converter.convert(str(path))
                 document = getattr(result, "document", result)
                 markdown = export_document_markdown(document)
-                structured_payload = object_to_plain_data(document)
                 chunk_specs = docling_chunk_specs(document)
+                picture_blocks = docling_picture_blocks(document)
             except Exception as exc:
                 raise DocumentParseError(f"Docling parse failed: {type(exc).__name__}: {str(exc)[:240]}") from exc
         if not markdown.strip():
@@ -76,9 +82,22 @@ class DoclingDocumentParser:
                 "docling_chunker": "hybrid",
                 "docling_chunk_count": len(chunk_specs),
                 "docling_chunk_specs": chunk_specs,
-                **metadata_summary(structured_payload),
+                "docling_picture_count": len(picture_blocks),
+                **docling_document_summary(document),
             },
+            extra_blocks=picture_blocks,
         )
+
+    def _cached_document_converter(self, *, filename: str, content_type: str) -> tuple[Any, threading.RLock]:
+        """按输入格式复用 Docling pipeline；转换本身串行以保护 GPU pipeline。"""
+        key = docling_converter_key(filename, content_type)
+        with self._converter_cache_lock:
+            converter = self._converters.get(key)
+            if converter is None:
+                converter = self._document_converter(filename=filename, content_type=content_type)
+                self._converters[key] = converter
+                self._converter_locks[key] = threading.RLock()
+            return converter, self._converter_locks[key]
 
     def _document_converter(self, *, filename: str, content_type: str):
         """为 PDF/图片创建带显式 pipeline 配置的转换器，其他格式使用默认转换器。"""
@@ -103,6 +122,7 @@ class DoclingDocumentParser:
             layout_batch_size=self.layout_batch_size,
             table_batch_size=self.table_batch_size,
             ocr_batch_size=self.ocr_batch_size,
+            generate_picture_images=True,
         )
         format_options = {}
         if is_pdf:
@@ -124,6 +144,153 @@ def export_document_markdown(document: Any) -> str:
             except Exception:
                 continue
     return str(document or "")
+
+
+def docling_document_summary(document: Any) -> dict[str, Any]:
+    """记录 DoclingDocument 的紧凑结构计数，不序列化内嵌图片数据。"""
+    counts = {
+        name: len(list(getattr(document, name, None) or []))
+        for name in ("texts", "tables", "pictures", "groups", "pages")
+    }
+    return {
+        "parser_structured_output_type": type(document).__name__,
+        "parser_structured_counts": counts,
+    }
+
+
+def docling_picture_blocks(document: Any) -> list[ParsedBlock]:
+    """将 Docling picture 节点转换为可跨索引层传递的标准图片块。"""
+    blocks: list[ParsedBlock] = []
+    for picture_index, picture in enumerate(list(getattr(document, "pictures", None) or [])):
+        image_data = docling_picture_png(picture, document)
+        if not image_data:
+            continue
+        page_no, bbox = docling_item_location(picture, document)
+        caption = docling_item_caption(picture, document)
+        blocks.append(
+            ParsedBlock(
+                block_type="picture",
+                text=docling_picture_text(picture, document),
+                page_no=page_no,
+                bbox=bbox,
+                binary_data=image_data,
+                content_type="image/png",
+                metadata={
+                    "picture_index": picture_index,
+                    "picture_ref": str(getattr(picture, "self_ref", "") or f"#/pictures/{picture_index}"),
+                    "picture_caption": caption,
+                    "picture_label": docling_item_label(picture),
+                    "picture_annotation_kinds": docling_picture_annotation_kinds(picture),
+                    "picture_source": "docling",
+                },
+            )
+        )
+    return blocks
+
+
+def docling_picture_png(picture: Any, document: Any) -> bytes:
+    """读取 Docling 已生成的 picture 图像并编码为 PNG。"""
+    getter = getattr(picture, "get_image", None)
+    if not callable(getter):
+        return b""
+    try:
+        image = getter(document)
+    except Exception:
+        return b""
+    if image is None:
+        return b""
+    output = io.BytesIO()
+    try:
+        image.save(output, format="PNG")
+    except Exception:
+        return b""
+    return output.getvalue()
+
+
+def docling_picture_text(picture: Any, document: Any) -> str:
+    """优先读取 picture 子节点中由 Docling 识别出的文字。"""
+    values: list[str] = []
+    for child_ref in list(getattr(picture, "children", None) or []):
+        resolver = getattr(child_ref, "resolve", None)
+        if not callable(resolver):
+            continue
+        try:
+            child = resolver(document)
+        except Exception:
+            continue
+        text = str(getattr(child, "text", "") or "").strip()
+        if text:
+            values.append(text)
+    return "\n".join(unique_ordered_strings(values))
+
+
+def docling_picture_annotation_kinds(picture: Any) -> list[str]:
+    """仅保留紧凑的图片标注类型，避免把大型图表数据复制到 chunk 元数据。"""
+    return unique_ordered_strings(
+        getattr(annotation, "kind", type(annotation).__name__)
+        for annotation in list(getattr(picture, "annotations", None) or [])
+    )
+
+
+def docling_item_caption(item: Any, document: Any) -> str:
+    """安全读取 Docling 图片或表格标题。"""
+    value = getattr(item, "caption_text", "")
+    if callable(value):
+        try:
+            value = value(document)
+        except TypeError:
+            try:
+                value = value()
+            except Exception:
+                return ""
+        except Exception:
+            return ""
+    return str(value or "").strip()[:500]
+
+
+def docling_item_location(item: Any, document: Any | None = None) -> tuple[int | None, list[float] | None]:
+    """返回 Docling 节点的页码和标准 bbox。"""
+    for prov in list(getattr(item, "prov", None) or []):
+        try:
+            page_no = int(getattr(prov, "page_no", 0) or 0)
+        except (TypeError, ValueError):
+            page_no = 0
+        bbox = getattr(prov, "bbox", None)
+        if bbox is None:
+            return (page_no or None), None
+        try:
+            normalized = bbox
+            origin = str(getattr(getattr(bbox, "coord_origin", ""), "value", getattr(bbox, "coord_origin", ""))).upper()
+            page_height = docling_page_height(document, page_no)
+            if origin == "BOTTOMLEFT" and page_height and callable(getattr(bbox, "to_top_left_origin", None)):
+                normalized = bbox.to_top_left_origin(page_height)
+            values = [float(normalized.l), float(normalized.t), float(normalized.r), float(normalized.b)]
+        except (AttributeError, TypeError, ValueError):
+            plain = object_to_plain_data(bbox)
+            if isinstance(plain, dict) and all(key in plain for key in ("l", "t", "r", "b")):
+                values = [float(plain["l"]), float(plain["t"]), float(plain["r"]), float(plain["b"])]
+            elif isinstance(plain, (list, tuple)) and len(plain) >= 4:
+                values = [float(value) for value in plain[:4]]
+            else:
+                values = None
+        return (page_no or None), values
+    return None, None
+
+
+def docling_page_height(document: Any | None, page_no: int) -> float | None:
+    """读取 Docling 页面高度，用于统一 bbox 坐标原点。"""
+    pages = getattr(document, "pages", None) if document is not None else None
+    page = None
+    if isinstance(pages, dict):
+        page = pages.get(page_no) or pages.get(str(page_no))
+    elif isinstance(pages, (list, tuple)) and 0 < page_no <= len(pages):
+        page = pages[page_no - 1]
+    size = getattr(page, "size", None)
+    try:
+        height = float(getattr(size, "height", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    return height or None
 
 
 def docling_chunk_specs(document: Any) -> list[dict[str, Any]]:
@@ -413,6 +580,17 @@ def normalize_docling_accelerator_device(value: str) -> str:
     if normalized not in {"auto", "cpu", "cuda", "mps", "xpu"}:
         return "auto"
     return normalized
+
+
+def docling_converter_key(filename: str, content_type: str) -> str:
+    """返回可安全共享同一 Docling converter 的格式类别。"""
+    suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    normalized_content_type = str(content_type or "").lower()
+    if suffix == "pdf" or normalized_content_type == "application/pdf":
+        return "pdf"
+    if suffix in {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"} or normalized_content_type.startswith("image/"):
+        return "image"
+    return "default"
 
 
 def unique_ordered_strings(values) -> list[str]:

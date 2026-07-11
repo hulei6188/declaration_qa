@@ -38,11 +38,13 @@ def parsed_document_from_markdown(
     parser_name: str,
     markdown: str,
     metadata: dict[str, Any] | None = None,
+    extra_blocks: list[ParsedBlock] | None = None,
 ) -> ParsedDocument:
     """从 Markdown 文本构建标准解析结果。"""
     text = normalize_extracted_text(markdown)
     blocks = [ParsedBlock(block_type="text", text=text)] if text else []
     blocks.extend(markdown_table_blocks(text, parser_name=parser_name))
+    blocks.extend(extra_blocks or [])
     metadata_payload = {**parse_metadata(parser_name, blocks), **(metadata or {})}
     return ParsedDocument(
         filename=filename,

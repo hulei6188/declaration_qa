@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.models import DownloadedAttachment, ExtractedAttachment
@@ -31,11 +32,16 @@ def extract_attachment(
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
     asset_dir: Path | None = None,
+    document_parser: Any | None = None,
 ) -> ExtractedAttachment:
     """抽取附件文本，失败时返回可观测的失败结果。"""
     ref = downloaded.ref
     try:
-        parsed = parse_document_bytes(
+        parsed = document_parser.parse(
+            filename=ref.name,
+            content_type=downloaded.content_type,
+            data=downloaded.data,
+        ) if document_parser is not None else parse_document_bytes(
             filename=ref.name,
             content_type=downloaded.content_type,
             data=downloaded.data,
@@ -54,6 +60,8 @@ def extract_attachment(
             docling_ocr_batch_size=docling_ocr_batch_size,
         )
         text = parsed.text
+        parsed_blocks = list(getattr(parsed, "blocks", None) or [])
+        parsed_name = str(getattr(parsed, "parser_name", "") or "")
         quality_error = attachment_text_quality_error(text, ref.extension)
         if quality_error:
             if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -68,7 +76,7 @@ def extract_attachment(
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
-        metadata.update(attachment_parser_metadata(parsed.metadata))
+        metadata.update(attachment_parser_metadata(getattr(parsed, "metadata", None)))
         assets, asset_metadata = safe_extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
@@ -77,18 +85,20 @@ def extract_attachment(
             vision_summary_client=vision_summary_client,
             pdf_max_pages=pdf_ocr_max_pages,
             pdf_dpi=pdf_ocr_dpi,
+            parsed_blocks=parsed_blocks,
+            pdf_page_fallback=parsed_name != "docling",
         )
         metadata.update(asset_metadata)
         return ExtractedAttachment(
             ref=ref,
             text=text,
-            content_type=parsed.content_type or downloaded.content_type,
+            content_type=str(getattr(parsed, "content_type", "") or downloaded.content_type),
             cache_path=downloaded.cache_path,
             sha256=downloaded.sha256,
             status="success",
             metadata=metadata,
             assets=assets,
-            blocks=parsed.blocks,
+            blocks=parsed_blocks,
         )
     except DocumentParseError as exc:
         if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -166,6 +176,8 @@ def extract_pdf_attachment_with_ocr(
         vision_summary_client=vision_summary_client,
         pdf_max_pages=max_pages,
         pdf_dpi=dpi,
+        parsed_blocks=result.blocks,
+        pdf_page_fallback=True,
     )
     metadata.update(asset_metadata)
     return ExtractedAttachment(
@@ -190,6 +202,8 @@ def safe_extract_visual_assets(
     vision_summary_client: HttpVisionSummaryClient | None,
     pdf_max_pages: int,
     pdf_dpi: int,
+    parsed_blocks: list | None = None,
+    pdf_page_fallback: bool = True,
 ) -> tuple[list, dict[str, object]]:
     """抽取视觉资产，失败时只记录诊断信息。"""
     try:
@@ -201,6 +215,8 @@ def safe_extract_visual_assets(
             vision_summary_client=vision_summary_client,
             pdf_max_pages=pdf_max_pages,
             pdf_dpi=pdf_dpi,
+            parsed_blocks=parsed_blocks,
+            pdf_page_fallback=pdf_page_fallback,
         )
         if not assets:
             return [], {"visual_asset_count": 0}

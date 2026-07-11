@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
-from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document
+from declaration_qa.indexing.attachments.assets import extract_visual_assets
+from declaration_qa.indexing.attachments.chunks import build_attachment_asset_chunk_specs
+from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment, ExtractedAttachment
+from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks_for_document, build_vision_summary_client
 from declaration_qa.indexing.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.indexing.service.metadata import extract_document_metadata
 from declaration_qa.indexing.service.workflow_index import index_document_for_workflow
@@ -32,11 +36,16 @@ def process_document_index(
     stage_callback = stage_callback or (lambda *args, **kwargs: None)
     stage_callback("extract", 20, "Raw document accepted and text extraction started", {})
     input_type = str(payload.get("input_type") or "text")
+    uploaded_data = b""
+    uploaded_blocks = []
+    uploaded_parser_name = ""
+    ocr_client = None
     if input_type == "file":
         file_path = Path(str(payload.get("file_path") or ""))
         if not file_path.exists():
             raise FileNotFoundError(f"Uploaded file is missing: {file_path}")
         data = file_path.read_bytes()
+        uploaded_data = data
         ocr_client = (
             HttpOcrClient(url=settings.ocr_api_url, api_key=settings.ocr_api_key, model=settings.ocr_model)
             if settings.ocr_api_url
@@ -63,6 +72,8 @@ def process_document_index(
         content = parsed.text
         filename = parsed.filename
         content_type = parsed.content_type
+        uploaded_blocks = list(parsed.blocks or [])
+        uploaded_parser_name = str(parsed.parser_name or "")
         parse_metadata = dict(parsed.metadata or {})
     else:
         content = str(payload.get("content") or "")
@@ -88,6 +99,29 @@ def process_document_index(
         metadata["region_key"] = metadata["region_code"]
     if metadata.get("policy_version") and not metadata.get("source_version"):
         metadata["source_version"] = metadata["policy_version"]
+    try:
+        uploaded_asset_specs = build_uploaded_file_asset_specs(
+            document_id=str(payload["document_id"]),
+            filename=filename,
+            content_type=content_type,
+            data=uploaded_data,
+            extracted_text=content,
+            parsed_blocks=uploaded_blocks,
+            parser_name=uploaded_parser_name,
+            title=title,
+            source_url=source_url,
+            document_metadata=metadata,
+            settings=settings,
+            ocr_client=ocr_client,
+        ) if uploaded_data else []
+    except Exception as exc:
+        uploaded_asset_specs = []
+        metadata["uploaded_visual_asset_error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+    if uploaded_asset_specs:
+        metadata["uploaded_visual_asset_count"] = sum(
+            1 for spec in uploaded_asset_specs if (spec.get("metadata") or {}).get("modality") == "image"
+        )
+        metadata["uploaded_visual_chunk_count"] = len(uploaded_asset_specs)
     stage_callback(
         "metadata",
         30,
@@ -116,7 +150,7 @@ def process_document_index(
             "chunk_count": len(attachment_result.chunk_specs),
             "failures": attachment_result.failures[:10],
         }
-    derived_chunks = [*docling_chunk_specs, *attachment_result.chunk_specs]
+    derived_chunks = [*docling_chunk_specs, *uploaded_asset_specs, *attachment_result.chunk_specs]
     document = KnowledgeDocument(
         id=str(payload["document_id"]),
         title=title,
@@ -161,3 +195,69 @@ def parse_optional_date(value) -> date | None:
     if not value:
         return None
     return date.fromisoformat(str(value)[:10])
+
+
+def build_uploaded_file_asset_specs(
+    *,
+    document_id: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+    extracted_text: str,
+    parsed_blocks: list,
+    parser_name: str,
+    title: str,
+    source_url: str,
+    document_metadata: dict[str, Any],
+    settings: DeclarationQASettings,
+    ocr_client: HttpOcrClient | None,
+) -> list[dict[str, Any]]:
+    """为直接上传的 PDF、图片或 DOCX 构建视觉资产 chunk。"""
+    extension = Path(filename).suffix.lower().lstrip(".")
+    if extension not in {"pdf", "docx", "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"}:
+        return []
+    ref = AttachmentRef(
+        index=0,
+        name=filename,
+        url=source_url,
+        extension=extension,
+        section_path=title,
+        section_title=title,
+        node_title=title,
+        parent_section_id=f"{document_id}#uploaded-file",
+        material_name=title,
+        role="other_attachment",
+    )
+    downloaded = DownloadedAttachment(
+        ref=ref,
+        data=data,
+        content_type=content_type,
+        cache_path="",
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+    assets = extract_visual_assets(
+        downloaded,
+        asset_dir=Path(settings.attachment_asset_dir),
+        extracted_text=extracted_text,
+        ocr_client=ocr_client,
+        vision_summary_client=build_vision_summary_client(settings),
+        pdf_max_pages=int(settings.attachment_pdf_ocr_max_pages),
+        pdf_dpi=int(settings.attachment_pdf_ocr_dpi),
+        parsed_blocks=parsed_blocks,
+        pdf_page_fallback=parser_name != "docling",
+    )
+    if not assets:
+        return []
+    extracted = ExtractedAttachment(
+        ref=ref,
+        text="",
+        content_type=content_type,
+        sha256=downloaded.sha256,
+        metadata={
+            "semantic_chunk_type": "attachment_text",
+            "document_parser": parser_name,
+            "extraction_method": parser_name or "native",
+        },
+        assets=assets,
+    )
+    return build_attachment_asset_chunk_specs(extracted, document_metadata=document_metadata)

@@ -31,6 +31,27 @@ def test_elasticsearch_chunk_document_contains_filter_fields():
     assert document["doc_status"] == "published"
 
 
+def test_elasticsearch_chunk_document_keeps_only_ocr_previews_in_metadata():
+    chunk = KnowledgeChunk(
+        id="chunk-image",
+        doc_id="doc-1",
+        parent_id="",
+        chunk_type="child",
+        title="图片",
+        content="图片 OCR 已拆分",
+        metadata={"asset_text": "A" * 900, "ocr_text": "B" * 900, "visual_summary": "C" * 900},
+    )
+
+    metadata = elasticsearch_chunk_document(chunk)["metadata"]
+
+    assert "asset_text" not in metadata
+    assert "ocr_text" not in metadata
+    assert "visual_summary" not in metadata
+    assert metadata["asset_text_preview"] == "A" * 500
+    assert metadata["ocr_text_preview"] == "B" * 500
+    assert metadata["visual_summary_preview"] == "C" * 500
+
+
 def test_elasticsearch_filter_clauses_push_down_supported_filters():
     clauses = elasticsearch_filter_clauses(
         {

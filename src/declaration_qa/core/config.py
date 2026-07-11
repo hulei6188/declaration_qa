@@ -107,6 +107,7 @@ class DeclarationQASettings(BaseSettings):
     attachment_download_retries: int = Field(default=1, alias="DECLARATION_QA_ATTACHMENT_DOWNLOAD_RETRIES")
     attachment_max_bytes: int = Field(default=20 * 1024 * 1024, alias="DECLARATION_QA_ATTACHMENT_MAX_BYTES")
     attachment_max_per_document: int = Field(default=30, alias="DECLARATION_QA_ATTACHMENT_MAX_PER_DOCUMENT")
+    attachment_max_workers: int = Field(default=3, alias="DECLARATION_QA_ATTACHMENT_MAX_WORKERS")
     attachment_pdf_ocr_fallback_enabled: bool = Field(default=True, alias="DECLARATION_QA_ATTACHMENT_PDF_OCR_FALLBACK_ENABLED")
     attachment_pdf_ocr_max_pages: int = Field(default=8, alias="DECLARATION_QA_ATTACHMENT_PDF_OCR_MAX_PAGES")
     attachment_pdf_ocr_dpi: int = Field(default=180, alias="DECLARATION_QA_ATTACHMENT_PDF_OCR_DPI")

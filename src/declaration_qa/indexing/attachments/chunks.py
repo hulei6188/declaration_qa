@@ -151,11 +151,19 @@ def build_attachment_asset_chunk_specs(
     specs: list[dict[str, Any]] = []
     for asset_index, asset in enumerate(extracted.assets):
         semantic_type = asset_semantic_chunk_type(asset)
+        ocr_parts = attachment_asset_ocr_parts(asset)
+        summary_parts = attachment_asset_summary_parts(asset)
         specs.append(
             {
                 "id_suffix": attachment_asset_chunk_suffix(extracted, asset, asset_index),
                 "chunk_type": "child",
-                "content": attachment_asset_chunk_content(extracted, asset, asset_index=asset_index),
+                "content": attachment_asset_chunk_content(
+                    extracted,
+                    asset,
+                    asset_index=asset_index,
+                    ocr_split_count=len(ocr_parts),
+                    summary_split_count=len(summary_parts),
+                ),
                 "source_url": extracted.ref.url,
                 "metadata": {
                     **attachment_base_metadata(extracted, document_metadata, semantic_type=semantic_type),
@@ -173,6 +181,9 @@ def build_attachment_asset_chunk_specs(
                     "asset_text": asset.text,
                     "ocr_text": asset.text,
                     "visual_summary": asset.summary,
+                    "image_embedding_text": image_embedding_text(asset),
+                    "ocr_text_chunk_count": len(ocr_parts),
+                    "visual_summary_chunk_count": len(summary_parts),
                     "source_attachment_chunk_type": str(extracted.metadata.get("semantic_chunk_type") or "attachment_text"),
                     "extraction_method": extracted.metadata.get("extraction_method") or "native",
                     "indexable": True,
@@ -192,7 +203,169 @@ def build_attachment_asset_chunk_specs(
             )
         if asset.bbox is not None:
             specs[-1]["metadata"]["bbox"] = asset.bbox
+        specs.extend(
+            build_attachment_asset_ocr_chunk_specs(
+                extracted,
+                asset,
+                asset_index=asset_index,
+                ocr_parts=ocr_parts,
+                document_metadata=document_metadata,
+            )
+        )
+        specs.extend(
+            build_attachment_asset_summary_chunk_specs(
+                extracted,
+                asset,
+                asset_index=asset_index,
+                summary_parts=summary_parts,
+                document_metadata=document_metadata,
+            )
+        )
     return specs
+
+
+def attachment_asset_ocr_parts(asset: AttachmentAsset, *, max_size: int = 500, overlap: int = 80) -> list[str]:
+    """为独立图片的长 OCR 生成文本检索片段；整页 OCR 由附件正文切分负责。"""
+    text = str(asset.text or "").strip()
+    if asset.asset_kind == "pdf_page_image" or len(text) <= max_size:
+        return []
+    return split_windows(text, max_size, overlap)
+
+
+def attachment_asset_summary_parts(asset: AttachmentAsset, *, max_size: int = 500, overlap: int = 80) -> list[str]:
+    """视觉摘要通常保持完整，仅在超过检索窗口时切分。"""
+    summary = str(asset.summary or "").strip()
+    if len(summary) <= max_size:
+        return []
+    return split_windows(summary, max_size, overlap)
+
+
+def build_attachment_asset_ocr_chunk_specs(
+    extracted: ExtractedAttachment,
+    asset: AttachmentAsset,
+    *,
+    asset_index: int,
+    ocr_parts: list[str],
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """将长图片 OCR 建成文本子片段，并通过 source_asset_id 关联原图。"""
+    specs: list[dict[str, Any]] = []
+    for part_index, part in enumerate(ocr_parts):
+        metadata = {
+            **attachment_base_metadata(extracted, document_metadata, semantic_type="attachment_image_ocr"),
+            "chunk_type": "attachment_image_ocr",
+            "modality": "text",
+            "source_asset_id": asset.asset_id,
+            "source_asset_kind": asset.asset_kind,
+            "source_asset_path": asset.path,
+            "source_asset_url": asset_url(asset.asset_id, asset.path),
+            "source_asset_filename": asset.filename,
+            "asset_kind": asset.asset_kind,
+            "asset_path": asset.path,
+            "asset_url": asset_url(asset.asset_id, asset.path),
+            "thumbnail_url": asset_url(asset.asset_id, asset.path),
+            "asset_filename": asset.filename,
+            "ocr_part_index": part_index,
+            "ocr_part_count": len(ocr_parts),
+            "indexable": True,
+        }
+        if asset.page_no is not None:
+            metadata.update(
+                {
+                    "attachment_page_no": asset.page_no,
+                    "attachment_page_numbers": [asset.page_no],
+                    "attachment_page_start": asset.page_no,
+                    "attachment_page_end": asset.page_no,
+                    "attachment_page_range": str(asset.page_no),
+                }
+            )
+        if asset.bbox is not None:
+            metadata["bbox"] = asset.bbox
+        caption = str(asset.metadata.get("picture_caption") or "").strip()
+        lines = [
+            "图片 OCR 证据",
+            f"来源附件：{extracted.ref.name}",
+            f"来源图片：{asset.filename}",
+        ]
+        if caption:
+            lines.append(f"图片标题：{caption}")
+        if asset.page_no is not None:
+            lines.append(f"页码：第{asset.page_no}页")
+        lines.append(f"OCR片段：{part}")
+        specs.append(
+            {
+                "id_suffix": f"{attachment_asset_chunk_suffix(extracted, asset, asset_index)}:ocr:{part_index}",
+                "chunk_type": "child",
+                "content": "\n".join(lines),
+                "source_url": extracted.ref.url,
+                "metadata": metadata,
+            }
+        )
+    return specs
+
+
+def build_attachment_asset_summary_chunk_specs(
+    extracted: ExtractedAttachment,
+    asset: AttachmentAsset,
+    *,
+    asset_index: int,
+    summary_parts: list[str],
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """将超长视觉摘要拆成文本检索片段并关联原图。"""
+    specs: list[dict[str, Any]] = []
+    for part_index, part in enumerate(summary_parts):
+        metadata = {
+            **attachment_base_metadata(extracted, document_metadata, semantic_type="attachment_image_summary"),
+            "chunk_type": "attachment_image_summary",
+            "modality": "text",
+            "source_asset_id": asset.asset_id,
+            "asset_kind": asset.asset_kind,
+            "asset_path": asset.path,
+            "asset_url": asset_url(asset.asset_id, asset.path),
+            "thumbnail_url": asset_url(asset.asset_id, asset.path),
+            "asset_filename": asset.filename,
+            "summary_part_index": part_index,
+            "summary_part_count": len(summary_parts),
+            "indexable": True,
+        }
+        if asset.page_no is not None:
+            metadata.update(
+                {
+                    "attachment_page_no": asset.page_no,
+                    "attachment_page_numbers": [asset.page_no],
+                    "attachment_page_start": asset.page_no,
+                    "attachment_page_end": asset.page_no,
+                    "attachment_page_range": str(asset.page_no),
+                }
+            )
+        if asset.bbox is not None:
+            metadata["bbox"] = asset.bbox
+        lines = [
+            "图片视觉摘要证据",
+            f"来源附件：{extracted.ref.name}",
+            f"来源图片：{asset.filename}",
+            f"视觉摘要片段：{part}",
+        ]
+        specs.append(
+            {
+                "id_suffix": f"{attachment_asset_chunk_suffix(extracted, asset, asset_index)}:summary:{part_index}",
+                "chunk_type": "child",
+                "content": "\n".join(lines),
+                "source_url": extracted.ref.url,
+                "metadata": metadata,
+            }
+        )
+    return specs
+
+
+def image_embedding_text(asset: AttachmentAsset, *, ocr_preview_size: int = 500) -> str:
+    """返回图片向量融合使用的紧凑摘要和 OCR 预览。"""
+    return "\n".join(
+        part
+        for part in [str(asset.summary or "").strip()[:500], str(asset.text or "").strip()[:ocr_preview_size]]
+        if part
+    )
 
 
 def build_attachment_form_chunk_specs(
@@ -801,7 +974,14 @@ def form_field_chunk_content(extracted: ExtractedAttachment, field: FormField) -
     return "\n".join(lines)
 
 
-def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: AttachmentAsset, *, asset_index: int) -> str:
+def attachment_asset_chunk_content(
+    extracted: ExtractedAttachment,
+    asset: AttachmentAsset,
+    *,
+    asset_index: int,
+    ocr_split_count: int = 0,
+    summary_split_count: int = 0,
+) -> str:
     """生成视觉资产证据文本。"""
     ref = extracted.ref
     lines = [
@@ -815,10 +995,24 @@ def attachment_asset_chunk_content(extracted: ExtractedAttachment, asset: Attach
         lines.append(f"关联材料：{ref.material_name}")
     if asset.page_no is not None:
         lines.append(f"页码：第{asset.page_no}页")
+    picture_caption = str(asset.metadata.get("picture_caption") or "").strip()
+    if picture_caption:
+        lines.append(f"图片标题：{picture_caption}")
     if asset.summary:
-        lines.append(f"视觉摘要：{asset.summary}")
+        if summary_split_count:
+            lines.append(f"视觉摘要预览：{asset.summary[:500]}")
+            lines.append(f"视觉摘要全文已拆分为{summary_split_count}个文本片段")
+        else:
+            lines.append(f"视觉摘要：{asset.summary}")
     if asset.text:
-        lines.append(f"OCR文本：{asset.text}")
+        if ocr_split_count:
+            lines.append(f"OCR文本预览：{asset.text[:500]}")
+            lines.append(f"OCR全文已拆分为{ocr_split_count}个文本片段")
+        elif asset.asset_kind == "pdf_page_image" and len(asset.text) > 500:
+            lines.append(f"OCR文本预览：{asset.text[:500]}")
+            lines.append("OCR全文由附件正文片段索引")
+        else:
+            lines.append(f"OCR文本：{asset.text}")
     if not asset.summary and not asset.text:
         lines.append("视觉内容：未提取到可用文本或摘要")
     lines.append(f"资产序号：{asset_index + 1}")
@@ -852,6 +1046,7 @@ def asset_kind_label(asset_kind: str) -> str:
     """返回视觉资产类型中文标签。"""
     return {
         "pdf_page_image": "PDF页面截图",
+        "pdf_embedded_picture": "PDF独立图片",
         "docx_embedded_image": "DOCX内嵌图片",
         "original_image": "图片附件",
     }.get(asset_kind, asset_kind or "图片资产")

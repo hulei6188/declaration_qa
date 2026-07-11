@@ -7,6 +7,7 @@ from declaration_qa.indexing.attachments.extractor import attachment_parser_meta
 from declaration_qa.indexing.document_parsing.docling_parser import (
     DoclingDocumentParser,
     docling_chunk_specs,
+    docling_picture_blocks,
     docling_table_lookup,
 )
 from declaration_qa.indexing.document_parsing.factory import CompositeDocumentParser, build_document_parser, parse_document_bytes
@@ -70,6 +71,7 @@ def test_docling_pdf_converter_receives_document_timeout(monkeypatch):
         "layout_batch_size": 8,
         "table_batch_size": 4,
         "ocr_batch_size": 2,
+        "generate_picture_images": True,
     }
     assert isinstance(captured["format_option"]["pipeline_options"], FakePdfPipelineOptions)
     assert "pdf" in captured["converter"]["format_options"]
@@ -123,6 +125,52 @@ def test_docling_image_converter_receives_accelerator_options(monkeypatch):
     assert isinstance(captured["image_format_option"]["pipeline_options"], FakePdfPipelineOptions)
     assert "image" in captured["converter"]["format_options"]
     assert "pdf_format_option" not in captured
+
+
+def test_docling_converter_is_reused_for_same_input_format(monkeypatch):
+    parser = DoclingDocumentParser()
+    created = []
+
+    def fake_create(*, filename, content_type):
+        converter = object()
+        created.append(converter)
+        return converter
+
+    monkeypatch.setattr(parser, "_document_converter", fake_create)
+
+    first, first_lock = parser._cached_document_converter(filename="a.pdf", content_type="application/pdf")
+    second, second_lock = parser._cached_document_converter(filename="b.pdf", content_type="application/pdf")
+
+    assert first is second
+    assert first_lock is second_lock
+    assert len(created) == 1
+
+
+def test_docling_picture_is_exported_with_caption_location_and_text():
+    from PIL import Image
+
+    child = types.SimpleNamespace(text="申请、受理、审查、决定")
+    child_ref = types.SimpleNamespace(resolve=lambda document: child)
+    bbox = types.SimpleNamespace(l=10, t=20, r=210, b=120, to_top_left_origin=lambda: bbox)
+    picture = types.SimpleNamespace(
+        self_ref="#/pictures/0",
+        label=types.SimpleNamespace(value="picture"),
+        children=[child_ref],
+        annotations=[],
+        prov=[types.SimpleNamespace(page_no=3, bbox=bbox)],
+        get_image=lambda document: Image.new("RGB", (200, 100), "white"),
+        caption_text=lambda document: "图1 办理流程",
+    )
+
+    blocks = docling_picture_blocks(types.SimpleNamespace(pictures=[picture]))
+
+    assert len(blocks) == 1
+    assert blocks[0].block_type == "picture"
+    assert blocks[0].binary_data.startswith(b"\x89PNG")
+    assert blocks[0].text == "申请、受理、审查、决定"
+    assert blocks[0].page_no == 3
+    assert blocks[0].bbox == [10.0, 20.0, 210.0, 120.0]
+    assert blocks[0].metadata["picture_caption"] == "图1 办理流程"
 
 
 def test_docling_timeout_flows_from_parser_factory():

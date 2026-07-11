@@ -144,6 +144,38 @@ def test_qwen3_vl_embedding_uses_image_asset_for_image_chunk(monkeypatch, tmp_pa
     assert image_call["input"][1].text == "图片上的申请表文字"
 
 
+def test_qwen3_vl_embedding_prefers_compact_image_embedding_text(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_call(**kwargs):
+        calls.append(kwargs)
+        return FakeDashScopeResponse({"embedding": [0.2, 0.8]})
+
+    dashscope = install_fake_dashscope(monkeypatch)
+    monkeypatch.setattr(dashscope.MultiModalEmbedding, "call", fake_call)
+    image_path = tmp_path / "picture.png"
+    image_path.write_bytes(b"fake png")
+    provider = Qwen3VLEmbeddingProvider(api_key="sk-test", dimension=512)
+    chunk = KnowledgeChunk(
+        id="c-image",
+        doc_id="d1",
+        parent_id="",
+        chunk_type="child",
+        title="图片",
+        content="图片证据",
+        metadata={
+            "modality": "image",
+            "asset_path": str(image_path),
+            "asset_text": "完整 OCR" * 2000,
+            "image_embedding_text": "视觉摘要\nOCR预览",
+        },
+    )
+
+    provider.embed_chunks([chunk])
+
+    assert calls[0]["input"][1].text == "视觉摘要\nOCR预览"
+
+
 def test_qwen3_vl_embedding_uses_fusion_for_image_query_with_text(monkeypatch, tmp_path):
     calls = []
 
