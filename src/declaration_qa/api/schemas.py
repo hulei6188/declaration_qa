@@ -85,7 +85,6 @@ class ChatResponse(BaseModel):
     route: str = ""
     sub_intent: str = ""
     route_decision: dict[str, Any] = Field(default_factory=dict)
-    query_rewrite_stage1: dict[str, Any] = Field(default_factory=dict, serialization_alias="query_rewrite.stage1")
     retrieval_chain: str = ""
     answer: str
     refused: bool = False
@@ -95,6 +94,7 @@ class ChatResponse(BaseModel):
     rag_status: dict[str, Any] = Field(default_factory=dict)
     evidence_decision: dict[str, Any] = Field(default_factory=dict)
     agent_plan: dict[str, Any] = Field(default_factory=dict)
+    agent_query_plan: dict[str, Any] = Field(default_factory=dict)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)

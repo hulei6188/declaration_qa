@@ -1,10 +1,8 @@
 import json
-import os
 from pathlib import Path
 
-import pytest
-
-from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
+from declaration_qa.application.agent_planner import rule_knowledge_queries
+from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.rag.router import classify_knowledge_intent
 
 
@@ -54,31 +52,14 @@ def test_public_knowledge_intent_accuracy_on_real_ahzwfw_dataset():
     assert sum(matches) / len(matches) >= MIN_INTENT_ACCURACY
 
 
-def test_rule_query_rewrite_never_creates_ticket_binding_fields():
-    resolver = RuleTwoStageQueryRewriter()
+def test_rule_agent_queries_never_create_ticket_binding_fields():
     for case in load_json(DATASET_PATH)["cases"]:
         query = str(case.get("query") or "")
-        plan = resolver.resolve({"query": query, "normalized_query": query, "region_code": "340000"})
-        payload = plan.payload()
+        queries = rule_knowledge_queries({"query": query, "normalized_query": query})
+        payload = KnowledgeSearchInput.model_validate({"queries": queries}).model_dump()
         serialized = json.dumps(payload, ensure_ascii=False)
 
-        assert payload["questions"]
+        assert payload["queries"]
         assert "requires_ticket_context" not in serialized
         assert "apply_id" not in serialized
         assert "ticket_context" not in serialized
-
-
-def test_configured_query_rewrite_keeps_public_knowledge_contract():
-    if os.getenv("DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY") != "1":
-        pytest.skip("Set DECLARATION_QA_RUN_LIVE_ROUTER_ACCURACY=1 to evaluate the configured live resolver.")
-
-    from declaration_qa.core.config import DeclarationQASettings
-    from declaration_qa.rag.model_providers.factories import build_query_rewrite
-
-    resolver = build_query_rewrite(DeclarationQASettings())
-    for case in load_json(DATASET_PATH)["cases"][:20]:
-        query = str(case.get("query") or "")
-        payload = resolver.resolve({"query": query, "normalized_query": query, "region_code": "340000"}).payload()
-        serialized = json.dumps(payload, ensure_ascii=False)
-        assert "requires_ticket_context" not in serialized
-        assert "apply_id" not in serialized

@@ -153,13 +153,17 @@ EXECUTE FUNCTION declaration_qa.sync_business_application_current_status();
 
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS agent_query_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS tool_results JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS agent_iteration INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS agent_answer_provider VARCHAR(120) NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS agent_selected_item_code VARCHAR(160) NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS agent_selected_application_id BIGINT NULL;
 
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_tool_results_gin
     ON declaration_qa.audit_logs USING GIN (tool_results);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_query_plan_gin
+    ON declaration_qa.audit_logs USING GIN (agent_query_plan);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_item
     ON declaration_qa.audit_logs (agent_selected_item_code, created_at DESC);
 

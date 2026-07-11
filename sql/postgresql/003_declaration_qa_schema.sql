@@ -479,8 +479,10 @@ CREATE TABLE IF NOT EXISTS declaration_qa.audit_logs (
     apply_id VARCHAR(80) NOT NULL DEFAULT '',
     business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
     agent_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+    agent_query_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
     tool_results JSONB NOT NULL DEFAULT '[]'::jsonb,
     agent_iteration INTEGER NOT NULL DEFAULT 0,
+    agent_answer_provider VARCHAR(120) NOT NULL DEFAULT '',
     agent_selected_item_code VARCHAR(160) NOT NULL DEFAULT '',
     agent_selected_application_id BIGINT NULL,
     business_status JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -506,9 +508,13 @@ ALTER TABLE declaration_qa.audit_logs
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS agent_query_plan JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS tool_results JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS agent_iteration INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS agent_answer_provider VARCHAR(120) NOT NULL DEFAULT '';
 ALTER TABLE declaration_qa.audit_logs
     ADD COLUMN IF NOT EXISTS agent_selected_item_code VARCHAR(160) NOT NULL DEFAULT '';
 ALTER TABLE declaration_qa.audit_logs
@@ -531,6 +537,8 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_business_snapshot_gin
     ON declaration_qa.audit_logs USING GIN (business_snapshot);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_tool_results_gin
     ON declaration_qa.audit_logs USING GIN (tool_results);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_query_plan_gin
+    ON declaration_qa.audit_logs USING GIN (agent_query_plan);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_item
     ON declaration_qa.audit_logs (agent_selected_item_code, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_langfuse_trace
@@ -837,8 +845,10 @@ COMMENT ON COLUMN declaration_qa.audit_logs.biz_type IS '业务类型，仅用�
 COMMENT ON COLUMN declaration_qa.audit_logs.apply_id IS '申请单 ID';
 COMMENT ON COLUMN declaration_qa.audit_logs.business_snapshot IS '真实工单业务快照';
 COMMENT ON COLUMN declaration_qa.audit_logs.agent_plan IS 'Agent 最近一次决策及工具调用计划';
+COMMENT ON COLUMN declaration_qa.audit_logs.agent_query_plan IS 'Agent 请求和服务端实际执行的知识查询计划';
 COMMENT ON COLUMN declaration_qa.audit_logs.tool_results IS 'Tool Registry 的完整结构化执行结果';
 COMMENT ON COLUMN declaration_qa.audit_logs.agent_iteration IS 'Agent 有界循环实际迭代次数';
+COMMENT ON COLUMN declaration_qa.audit_logs.agent_answer_provider IS '最终答案提供方，正常为 Tool-Calling Agent';
 COMMENT ON COLUMN declaration_qa.audit_logs.agent_selected_item_code IS 'Agent 自主选择的事项编码';
 COMMENT ON COLUMN declaration_qa.audit_logs.agent_selected_application_id IS 'Agent 自主选择的 application 主键';
 COMMENT ON COLUMN declaration_qa.audit_logs.business_status IS '真实工单状态查询结果';

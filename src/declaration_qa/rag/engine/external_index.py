@@ -6,9 +6,10 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
-from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore
+from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore, strategy_weighted_hit_lists
 from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
 from declaration_qa.rag.engine.parent_context import expand_parent_context
+from declaration_qa.rag.engine.scoring import rrf_fuse
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
@@ -266,7 +267,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             query_texts = [str(spec["query"]) for spec in query_specs]
             with observation(
                 "rag.embedding.batch",
-                input={"query_count": len(query_texts), "queries": query_texts, "mode": "rewrites"},
+                input={"query_count": len(query_texts), "queries": query_texts, "mode": "agent_queries"},
                 metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
             ) as span:
                 query_vectors = self.embedding_provider.embed_documents(query_texts)
@@ -279,7 +280,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 )
             with observation(
                 "rag.vector_search.batch",
-                input={"query_count": len(query_specs), "limit": max(limits), "filter": search_filter, "mode": "rewrites"},
+                input={"query_count": len(query_specs), "limit": max(limits), "filter": search_filter, "mode": "agent_queries"},
                 metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
             ) as span:
                 batch_hits = self.vector_index.search_batch(query_vectors, search_filter, limit=max(limits))
@@ -357,19 +358,26 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 score_kind="bm25",
                 channel=f"{self.keyword_index.backend}_bm25_batch:q{index}",
             )
-            if dense_hits:
-                hit_lists.append(dense_hits)
-            if bm25_hits:
-                hit_lists.append(bm25_hits)
+            weighted_lists, channel_weights = strategy_weighted_hit_lists(
+                str(spec.get("strategy") or "hybrid"),
+                dense_hits,
+                bm25_hits,
+            )
+            query_hits = rrf_fuse(weighted_lists, rrf_k=60) if weighted_lists else []
+            if query_hits:
+                hit_lists.append(query_hits)
             unique_chunk_ids = {source.chunk.id for source in [*dense_hits, *bm25_hits]}
             query_statuses.append(
                 {
                     "id": spec.get("id") or "",
                     "strategy": spec.get("strategy") or "",
+                    "aspect": spec.get("aspect") or "general",
                     "query": spec.get("query") or "",
                     "top_k": int(spec.get("top_k") or 3),
                     "source_count": len(unique_chunk_ids),
                     "channels": {"dense": len(dense_hits), "bm25": len(bm25_hits)},
+                    "channel_weights": channel_weights,
+                    "coverage_candidate": query_hits[0].chunk.id if query_hits else "",
                 }
             )
 

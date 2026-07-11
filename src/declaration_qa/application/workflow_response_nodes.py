@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from langgraph.config import get_stream_writer
-
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.actions import suggested_actions
 from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
-from declaration_qa.observability.langfuse import observation, safe_value
-from declaration_qa.memory.context import build_short_term_context
+from declaration_qa.rag.prompting import application_history_answer, ticket_applications
 
 
 class WorkflowResponseNodes:
@@ -36,72 +32,32 @@ class WorkflowResponseNodes:
         add_event(next_state, "refused", {"reason": reason})
         return next_state
 
-    def llm_generate(self, state: DeclarationQAState) -> DeclarationQAState:
-        """调用回答生成器生成最终回答。"""
+    def agent_finalize_answer(self, state: DeclarationQAState) -> DeclarationQAState:
+        """使用 Agent 的最终响应；仅在 Agent 无法作答时走本地兼容兜底。"""
         next_state = dict(state)
-        memory_manager = getattr(self, "context_memory_manager", None)
-        if memory_manager is not None:
-            next_state["long_term_context"] = memory_manager.retrieve_long_term_context(next_state)
-        next_state["short_term_context"] = build_short_term_context(next_state)
-        short_term_metrics = (next_state.get("short_term_context") or {}).get("metrics") or {}
-        long_term_metrics = long_term_context_metrics(next_state.get("long_term_context") or {})
-        generation_plan = answer_generation_plan(self.answer_generator, next_state)
+        answer = str(next_state.get("agent_final_answer") or "").strip()
+        prompt = str(next_state.get("agent_final_prompt") or "")
+        provider = str(next_state.get("agent_answer_provider") or "")
+        fallback = False
+        if not answer:
+            answer, prompt = self.answer_generator.generate(next_state)
+            provider = f"fallback:{getattr(self.answer_generator, 'name', type(self.answer_generator).__name__)}"
+            fallback = True
+        answer, history_fallback = ensure_complete_application_history(answer, next_state)
+        fallback = fallback or history_fallback
+        generation_plan = {
+            "mode": "agent",
+            "provider": provider or "native_tool_calling",
+            "fallback": fallback,
+            "history_integrity_fallback": history_fallback,
+        }
+        next_state["answer"] = answer
         next_state["answer_generation_plan"] = generation_plan
-        add_event(next_state, "short_term_context", short_term_metrics)
-        add_event(next_state, "long_term_context", long_term_metrics)
-        add_event(next_state, "answer_generation_routed", generation_plan)
-        with observation(
-            "workflow.answer_generation",
-            input={
-                "query": next_state.get("query") or "",
-                "intent": next_state.get("intent") or "",
-                "source_count": len(next_state.get("retrieved_sources") or []),
-                "short_term_context": short_term_metrics,
-                "long_term_context": long_term_metrics,
-                "generation_plan": generation_plan,
-            },
-            metadata=response_observation_metadata(next_state),
-        ) as span:
-            if is_declaration_qa_stream_run():
-                stream_generate = getattr(self.answer_generator, "stream_generate", None)
-            else:
-                stream_generate = None
-            if callable(stream_generate):
-                token_stream, prompt = stream_generate(dict(next_state))
-                writer = get_stream_writer()
-                answer_parts = []
-                for token in token_stream:
-                    text = str(token or "")
-                    if not text:
-                        continue
-                    answer_parts.append(text)
-                    writer({"event": "token", "data": {"content": text}})
-                answer = "".join(answer_parts)
-                add_event(next_state, "answer_generated", {"intent": next_state.get("intent"), "streamed": True})
-                streamed = True
-            else:
-                answer, prompt = self.answer_generator.generate(next_state)
-                add_event(next_state, "answer_generated", {"intent": next_state.get("intent")})
-                streamed = False
-            next_state["answer"] = answer
-            audit_payload = dict(next_state.get("audit_payload") or {})
-            audit_payload["final_prompt"] = prompt
-            audit_payload["short_term_context"] = next_state.get("short_term_context") or {}
-            audit_payload["long_term_context"] = next_state.get("long_term_context") or {}
-            audit_payload["answer_generation_plan"] = generation_plan
-            next_state["audit_payload"] = audit_payload
-            span.update(
-                output=safe_value(
-                    {
-                        "answer": answer,
-                        "prompt_length": len(prompt),
-                        "streamed": streamed,
-                        "short_term_context": short_term_metrics,
-                        "long_term_context": long_term_metrics,
-                        "generation_plan": generation_plan,
-                    }
-                )
-            )
+        audit_payload = dict(next_state.get("audit_payload") or {})
+        audit_payload["final_prompt"] = prompt
+        audit_payload["answer_generation_plan"] = generation_plan
+        next_state["audit_payload"] = audit_payload
+        add_event(next_state, "answer_generated", {"intent": next_state.get("intent"), **generation_plan})
         return next_state
 
     def answer_postprocess(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -124,20 +80,20 @@ class WorkflowResponseNodes:
             "sub_intent": next_state.get("sub_intent"),
             "route": next_state.get("route"),
             "route_decision": next_state.get("route_decision") or {},
-            "query_rewrite.stage1": next_state.get("query_rewrite.stage1") or {},
             "retrieval_chain": next_state.get("retrieval_chain"),
             "region_code": next_state.get("region_code"),
             "biz_type": next_state.get("biz_type"),
             "business_snapshot": next_state.get("business_snapshot"),
             "agent_plan": next_state.get("agent_plan") or {},
+            "agent_query_plan": next_state.get("agent_query_plan") or {},
             "agent_iteration": int(next_state.get("agent_iteration") or 0),
+            "agent_answer_provider": next_state.get("agent_answer_provider") or "",
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
             "agent_selected_application_id": next_state.get("agent_selected_application_id"),
             "tool_results": next_state.get("tool_results") or [],
             "retrieval_filter": next_state.get("retrieval_filter"),
             "retrieval_query": next_state.get("retrieval_query") or "",
             "rag_query": next_state.get("rag_query") or "",
-            "query_rewrite.stage2": next_state.get("query_rewrite") or {},
             "retrieval_queries": next_state.get("retrieval_queries") or [],
             "retrieved_sources": next_state.get("retrieved_sources") or [],
             "rag_status": next_state.get("rag_status"),
@@ -163,48 +119,28 @@ class WorkflowResponseNodes:
         return next_state
 
 
-def response_observation_metadata(state: dict[str, object]) -> dict[str, object]:
-    """构建响应节点观测的紧凑元数据。"""
-    return safe_value(
-        {
-            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
-            "user_id": state.get("user_id"),
-            "session_id": state.get("session_id") or "",
-            "route": state.get("route") or "",
-            "intent": state.get("intent") or "",
-            "retrieval_chain": state.get("retrieval_chain") or "",
-            "source_count": len(state.get("retrieved_sources") or []),
-            "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
-            "long_term_context": long_term_context_metrics(state.get("long_term_context") or {}),
-            "answer_generation_plan": state.get("answer_generation_plan") or {},
-        }
-    )
-
-
-def answer_generation_plan(answer_generator: object, state: dict[str, object]) -> dict[str, object]:
-    """获取回答生成器的文本或多模态路由计划。"""
-    planner = getattr(answer_generator, "generation_plan", None)
-    if not callable(planner):
-        return {"mode": "text", "model": getattr(answer_generator, "name", type(answer_generator).__name__)}
-    try:
-        plan = planner(state)
-    except Exception as exc:
-        return {
-            "mode": "text",
-            "model": getattr(answer_generator, "name", type(answer_generator).__name__),
-            "route_error": f"{type(exc).__name__}: {str(exc)[:160]}",
-        }
-    return plan if isinstance(plan, dict) else {"mode": "text"}
-
-
-def long_term_context_metrics(context: dict[str, object]) -> dict[str, object]:
-    """提取长期记忆上下文指标。"""
-    items = context.get("items") if isinstance(context, dict) else []
-    status = context.get("status") if isinstance(context, dict) else {}
-    cache = context.get("cache") if isinstance(context, dict) else {}
-    return {
-        "memory_count": len(items or []) if isinstance(items, list) else 0,
-        "retrieval_mode": (status or {}).get("retrieval_mode") if isinstance(status, dict) else "",
-        "distance_threshold": (status or {}).get("distance_threshold") if isinstance(status, dict) else None,
-        "cache_hit": bool((cache or {}).get("hit")) if isinstance(cache, dict) else False,
-    }
+def ensure_complete_application_history(answer: str, state: dict[str, object]) -> tuple[str, bool]:
+    """防止 Agent 漏掉同一事项的申请或状态流水。"""
+    intent = str(state.get("intent") or "")
+    if intent not in {"status", "ticket_status", "reject", "rejection_reason"}:
+        return answer, False
+    applications = ticket_applications(state)
+    if not applications:
+        return answer, False
+    required_values: list[str] = []
+    for application in applications:
+        required_values.append(str(application.get("application_id") or ""))
+        for event in application.get("status_history") or []:
+            if not isinstance(event, dict):
+                continue
+            required_values.extend(
+                str(value)
+                for value in (event.get("status"), event.get("changed_at"), event.get("reason"))
+                if str(value or "").strip()
+            )
+    if all(value in answer for value in required_values if value):
+        return answer, False
+    history = application_history_answer(state)
+    if "knowledge" in set(state.get("agent_required_evidence") or []) and answer:
+        history = f"{history}\n\n公开办理依据补充：\n{answer}"
+    return history, True

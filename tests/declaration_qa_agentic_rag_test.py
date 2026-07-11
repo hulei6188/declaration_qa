@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.application.tools import (
+    KnowledgeSearchTool,
     TicketDetailQueryTool,
     TicketListQueryTool,
     ToolExecutionContext,
     ToolRegistry,
 )
-from declaration_qa.application.agent_planner import choose_application_id
+from declaration_qa.application.agent_planner import AgentDecision, choose_application_id
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.application.workflow_agent_nodes import agent_tool_call_allowed, agent_tool_call_denial_reason
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
@@ -85,6 +86,18 @@ def test_tool_registry_exposes_item_scoped_ticket_tools_without_user_id_argument
     assert detail.data["applications"][0]["matching_status_events"][0]["reason"] == "缺少有效居住证明材料"
 
 
+def test_knowledge_tool_schema_requires_structured_agent_queries():
+    registry = ToolRegistry()
+    registry.register(KnowledgeSearchTool(lambda request, context: {"sources": [], "executed_queries": []}))
+
+    parameters = registry.definitions()[0]["function"]["parameters"]
+
+    assert "queries" in parameters["properties"]
+    assert "query_focus" not in parameters["properties"]
+    assert "user_id" not in parameters["properties"]
+    assert "top_k" not in parameters["properties"]
+
+
 def test_chat_request_has_no_bound_ticket_fields():
     fields = ChatRequest.model_json_schema().get("properties", {})
 
@@ -158,6 +171,12 @@ def test_tool_policy_enforces_business_and_knowledge_isolation():
             }
         ],
     )
+    assert "before observing business" in agent_tool_call_denial_reason(
+        "knowledge_search",
+        "我的居住证申请被退回，怎么补正",
+        arguments={"queries": [{"text": "居住证补正材料", "strategy": "hybrid"}]},
+        prior_results=[{"tool_name": "ticket_list_query", "ok": True, "status": "success", "data": {}}],
+    )
 
 
 def test_agent_ticket_question_selects_item_and_application_without_bound_ticket():
@@ -172,10 +191,9 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
     )
 
     tool_names = [item["tool_name"] for item in response.tool_results]
-    assert tool_names == ["ticket_list_query", "knowledge_search", "ticket_detail_query"]
+    assert tool_names == ["ticket_list_query", "ticket_detail_query"]
     assert response.route == "agentic_rag"
     assert response.intent == "rejection_reason"
-    assert response.sources
     assert response.evidence_decision["business_tool_ok"] is True
     assert response.business_snapshot["item_code"] == "ITEM-RESIDENCE-PERMIT"
     assert response.business_snapshot["selected_application_id"] == 2002
@@ -188,7 +206,7 @@ def test_agent_can_answer_application_list_without_forcing_a_detail_selection():
     response = workflow.invoke(ChatRequest(query="我有哪些历史申请", user_id=1, region_code="340000"))
 
     assert response.intent == "ticket_list"
-    assert [item["tool_name"] for item in response.tool_results] == ["ticket_list_query", "knowledge_search"]
+    assert [item["tool_name"] for item in response.tool_results] == ["ticket_list_query"]
     assert response.evidence_decision["business_tool_ok"] is True
     assert response.business_snapshot == {}
     assert "健康证办理" in response.answer
@@ -213,6 +231,7 @@ def test_agent_knowledge_question_uses_only_knowledge_tool_and_frozen_query():
     assert rag.calls
     assert rag.calls[0]["query"] == "健康证需要哪些材料"
     assert rag.calls[0]["filters"] == {"region_code": "340000"}
+    assert response.agent_query_plan["executed_queries"][0]["strategy"] == "hybrid"
     assert "ticket_fact_type" not in rag.calls[0]["retrieval_plan"]
     assert "A2002" not in str(rag.calls[0])
 
@@ -240,3 +259,38 @@ def test_mixed_ticket_and_guidance_question_keeps_business_result_out_of_rag_que
     serialized_call = str(rag.calls[0])
     assert "缺少有效居住证明材料" not in serialized_call
     assert "MISSING_RESIDENCE_PROOF" not in serialized_call
+
+
+def test_agent_final_response_is_used_without_separate_answer_generation():
+    class FinalAnswerPlanner:
+        def decide(self, state, tool_definitions):
+            if not state.get("tool_results"):
+                return AgentDecision(
+                    "tools",
+                    [
+                        {
+                            "id": "knowledge",
+                            "name": "knowledge_search",
+                            "arguments": {
+                                "queries": [
+                                    {"text": "健康证申请材料", "strategy": "hybrid", "aspect": "materials"}
+                                ]
+                            },
+                        }
+                    ],
+                    intent="material_requirements",
+                )
+            return AgentDecision(
+                "finish",
+                intent="material_requirements",
+                provider="fake_agent",
+                final_answer="这是 Agent 根据知识工具证据生成的最终答案。",
+                final_prompt="agent prompt",
+            )
+
+    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent_planner=FinalAnswerPlanner())
+
+    response = workflow.invoke(ChatRequest(query="健康证需要哪些材料", user_id=1))
+
+    assert response.answer == "这是 Agent 根据知识工具证据生成的最终答案。"
+    assert response.agent_query_plan["requested_queries"][0]["aspect"] == "materials"

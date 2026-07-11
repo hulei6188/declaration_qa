@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
-from declaration_qa.rag.engine.base import BaseRAGEngine
+from declaration_qa.rag.engine.base import BaseRAGEngine, strategy_weighted_hit_lists
 from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
-from declaration_qa.rag.engine.scoring import bm25_retrieve, dense_retrieve, matches_filter
+from declaration_qa.rag.engine.scoring import bm25_retrieve, dense_retrieve, matches_filter, rrf_fuse
 from declaration_qa.rag.engine.parent_context import expand_parent_context
 from declaration_qa.rag.engine.text import unique_ordered_strings
 from declaration_qa.rag.model_providers.embeddings.embedding_provider import EmbeddingProvider
@@ -264,6 +264,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
             {
                 "id": spec.get("id") or "",
                 "strategy": spec.get("strategy") or "",
+                "aspect": spec.get("aspect") or "general",
                 "query": spec.get("query") or "",
                 "top_k": int(spec.get("top_k") or 3),
                 "source_count": 0,
@@ -310,13 +311,19 @@ class InMemoryRAGEngine(BaseRAGEngine):
             if not dense_hits and self._vectors:
                 dense_hits = dense_retrieve(query, candidates, self._vectors, limit=limit, embedding_provider=self.embedding_provider)
             bm25_hits = bm25_retrieve(query, candidates, limit=limit)
-            if dense_hits:
-                hit_lists.append(dense_hits)
-            if bm25_hits:
-                hit_lists.append(bm25_hits)
+            weighted_lists, channel_weights = strategy_weighted_hit_lists(
+                str(spec.get("strategy") or "hybrid"),
+                dense_hits,
+                bm25_hits,
+            )
+            query_hits = rrf_fuse(weighted_lists, rrf_k=60) if weighted_lists else []
+            if query_hits:
+                hit_lists.append(query_hits)
             unique_chunk_ids = {source.chunk.id for source in [*dense_hits, *bm25_hits]}
             status["source_count"] = len(unique_chunk_ids)
             status["channels"] = {"dense": len(dense_hits), "bm25": len(bm25_hits)}
+            status["channel_weights"] = channel_weights
+            status["coverage_candidate"] = query_hits[0].chunk.id if query_hits else ""
         return self._build_rewrite_result_from_hit_lists(
             original_query,
             effective_filter,

@@ -11,9 +11,7 @@ from declaration_qa.memory import ContextMemoryManager, InMemoryContextMemorySto
 from declaration_qa.memory.retrieval import ContextMemoryRetriever
 from declaration_qa.rag.model_providers.factories import (
     build_agent_model,
-    build_answer_generator,
     build_embedding_provider,
-    build_query_rewrite,
     build_reranker,
 )
 from declaration_qa.storage.repository.store import PostgresDeclarationQAStore
@@ -32,8 +30,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     assert_production_ready(settings)
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
-    answer_generator = build_answer_generator(settings)
-    query_rewrite = build_query_rewrite(settings)
     agent_model = build_agent_model(settings)
     cache_store = (
         RedisCacheStore(
@@ -168,8 +164,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         rag_engine=rag_engine,
         business_adapter=business_adapter,
         audit_store=audit_store,
-        answer_generator=answer_generator,
-        query_rewrite=query_rewrite,
         agent_model=agent_model,
         agent_max_iterations=settings.agent_max_iterations,
         query_image_ocr_client=query_image_ocr_client,

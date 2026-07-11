@@ -273,7 +273,7 @@ def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
     assert keyword_index.search_calls == []
     assert len(reranker.calls) == 1
     assert reranker.calls[0]["query"] == "用户问办理要多久"
-    assert result.status["retrieval_mode"] == "batch_multi_query_rewrite_fused"
+    assert result.status["retrieval_mode"] == "batch_agent_query_fused"
     assert result.status["channels"]["hit_lists"] == 4
     assert result.status["channels"]["rerank"] == 2
     assert result.status["candidate_source"] == "external_indexes"

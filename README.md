@@ -4,9 +4,9 @@
 
 核心设计：
 
-- `query_rewrite`：两阶段改写器；第一阶段消解上下文、拆问题并生成 query 草稿，第二阶段结合 metadata filter 和工单事实生成最终检索 query。
+- `Agent`：通过强 Tool Schema 完成知识查询消歧、拆分和改写，观察工具结果后直接生成最终答案。
 - `RAGEngine`：按 metadata filter 和 `retrieval_plan` 检索，并做 section-aware backfill。
-- `AnswerGenerator`：只基于证据和业务事实回答。
+- `KnowledgeSearchTool`：校验 Agent 查询、注入脱敏冻结问题，并执行多路混合检索、RRF 和 rerank。
 
 ## 快速启动
 
@@ -96,10 +96,6 @@ python -m declaration_qa.indexing.worker
 - `DECLARATION_QA_KEYWORD_BACKEND`: `memory` 或 `elasticsearch`。
 - `DECLARATION_QA_ELASTICSEARCH_URL` / `DECLARATION_QA_ELASTICSEARCH_INDEX`
 - `DECLARATION_QA_LLM_PROVIDER` / `DECLARATION_QA_LLM_MODEL`
-- `DECLARATION_QA_VL_ANSWER_ENABLED` / `DECLARATION_QA_VL_ANSWER_MODEL`: 有用户图片或高相关图片证据时启用 VL 回答生成。
-- `DECLARATION_QA_VL_ANSWER_MAX_EVIDENCE_IMAGES`: 单次回答最多发送给 VL 的知识库图片数，默认 `3`。
-- `DECLARATION_QA_VL_ANSWER_MIN_IMAGE_SCORE`: 图片证据进入回答模型的最低相关分，默认 `0.7`。
-- `DECLARATION_QA_QUERY_REWRITE_MODEL`
 - `DECLARATION_QA_EMBEDDING_PROVIDER` / `DECLARATION_QA_EMBEDDING_MODEL`
 - `DECLARATION_QA_EMBEDDING_DIMENSIONS`: 使用 `qwen3-vl-embedding` 时建议设为 `1024`。
 - `DECLARATION_QA_EMBEDDING_IMAGE_RES_LEVEL`: 图片向量分辨率等级，`0` 表示不传该参数。
@@ -190,7 +186,7 @@ LANGFUSE_BASE_URL=http://localhost:3000
 ChatRequest
   -> context_build
   -> image OCR / query_preprocess
-  -> agent_prepare (冻结知识 Query)
+  -> agent_prepare (冻结脱敏原始知识 Query)
   -> agent_decide
   -> Tool Registry
        -> ticket_list_query
@@ -199,7 +195,7 @@ ChatRequest
   -> agent_observe
   -> agent_decide (循环，最多 4 轮)
   -> agent_evidence_check
-  -> answer generation
+  -> agent final answer
   -> audit / SSE
 ```
 
@@ -209,11 +205,11 @@ Tool Registry 默认注册：
 
 - `ticket_list_query`: 按可信 `user_id` 返回用户涉及的 `item_code` 列表。
 - `ticket_detail_query`: 按可信 `user_id + item_code` 返回同事项的全部申请；每条申请包含主键 `application_id` 和完整 `status_history`。
-- `knowledge_search`: 调用 Milvus + Elasticsearch 混合检索。
+- `knowledge_search`: 接收 Agent 规划的结构化 `queries`，调用 Milvus + Elasticsearch 混合检索。
 
 `user_id` 只能由服务端认证上下文注入，不出现在模型可填写的工具参数中。Agent 自主确定 `item_code` 和相关 `application_id`，不要求用户绑定或选择工单。
 
-工单和知识检索强隔离：业务工具结果不会进入 Query Rewrite、metadata filter、Embedding、BM25、RRF 或 Rerank。`knowledge_search` 始终执行 Agent 调用任何业务工具之前冻结的用户知识 Query。
+工单和知识检索强隔离：业务工具结果不会进入知识查询规划、metadata filter、Embedding、BM25、RRF 或 Rerank。`knowledge_search` 必须在 Agent 观察任何业务工具结果前规划；执行器还会自动注入脱敏冻结的用户原始问题。
 
 `knowledge_search` 可以与工单工具真正并发执行，不按工单意图或关键词设置调用限制；隔离的是数据与证据用途，不限制 Agent 的工具选择。若详情调用依赖同轮列表结果，执行器会先等待列表完成，再执行详情。
 
@@ -255,7 +251,7 @@ Tool Registry 默认注册：
 
 ```text
 文本 query:
-  Agent -> knowledge_search -> Query Rewrite -> Milvus dense + Elasticsearch BM25
+  Agent queries -> knowledge_search -> Milvus dense + Elasticsearch BM25
 
 图片 + 文本 query:
   文本部分 -> Milvus dense + Elasticsearch BM25
@@ -269,7 +265,7 @@ Tool Registry 默认注册：
   OCR 失败时自动降级为纯视觉检索
 ```
 
-回答生成采用条件式多模态路由：纯文本证据继续使用 `DECLARATION_QA_LLM_MODEL`；存在用户上传图片或高相关图片证据时，使用 `DECLARATION_QA_VL_ANSWER_MODEL`。VL 输入包含用户原图、按 `asset_id` 去重后的 Top 3 知识库图片、完整文本证据、OCR 和视觉摘要。用户图片只用于理解查询对象，不能单独作为政策依据。
+最终答案由同一个 Tool-Calling Agent 基于工具观察直接生成。图片查询仍通过 OCR、视觉摘要、图片向量检索和多模态 rerank 进入知识证据；Agent 只把检索返回的公开证据作为政策依据。
 
 ## API
 
@@ -389,7 +385,7 @@ src/declaration_qa/
     tools/              Tool Registry、工单工具和知识检索工具
   core/                 配置、领域模型、业务适配
   indexing/             知识入库、任务队列、worker
-  rag/                  RAG 引擎、两阶段 query_rewrite、模型适配
+  rag/                  RAG 引擎和模型适配
   search/               Milvus / Elasticsearch / memory 索引
   storage/              PostgreSQL repository、审计、缓存
 frontend/               React 前端
@@ -401,7 +397,8 @@ tests/                  测试
 常改文件：
 
 - workflow 节点：`src/declaration_qa/application/*nodes.py`
-- 两阶段 query 改写：`src/declaration_qa/rag/query_rewrite/`
+- Agent 查询规划：`src/declaration_qa/application/agent_planner.py`
+- Knowledge Tool Schema：`src/declaration_qa/application/tools/knowledge.py`
 - 检索计划：`src/declaration_qa/rag/retrieval_plan.py`
 - RAG 引擎：`src/declaration_qa/rag/engine/`
 - API 路由：`src/declaration_qa/api/server/routes/`
@@ -410,8 +407,8 @@ tests/                  测试
 
 - 默认不保留向后兼容。重构、接口改名、参数调整或行为修正时，直接更新所有调用方、测试和文档。
 - 不新增旧入口、旧参数、兼容分支或兼容 shim，除非用户明确要求。
-- `query_rewrite` 不生成答案。
-- `query_rewrite` 不生成 metadata filter，也不决定回填策略。
+- Agent 只能通过 `knowledge_search.queries` 规划公开知识查询，不能传 metadata filter 或召回数量。
+- 工单工具结果不得用于生成或修改知识检索 query。
 - `biz_type` 不参与知识库过滤。
 - 工单状态、退回原因、补正信息必须来自业务数据。
 - 最终回答必须基于证据和工单事实。

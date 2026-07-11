@@ -12,7 +12,6 @@ from declaration_qa.api.schemas import ChatRequest, ChatResponse
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.agent_planner import ToolCallingAgentPlanner
 from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
-from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
 from declaration_qa.application.workflow_helpers.streaming import (
     STREAM_TOKEN_DELAY_SECONDS,
@@ -31,7 +30,6 @@ from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, recent_messages_
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.prompting import DeterministicAnswerGenerator
-from declaration_qa.rag.query_rewrite.rule import RuleTwoStageQueryRewriter
 from declaration_qa.storage.audit import InMemoryAuditStore
 
 
@@ -53,7 +51,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         answer_generator: DeterministicAnswerGenerator | None = None,
-        query_rewrite: Any | None = None,
         agent_model: Any | None = None,
         agent_planner: Any | None = None,
         tool_registry: ToolRegistry | None = None,
@@ -68,7 +65,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
         self.answer_generator = answer_generator or DeterministicAnswerGenerator()
-        self.query_rewrite_service = query_rewrite or RuleTwoStageQueryRewriter()
         self.agent_planner = agent_planner or ToolCallingAgentPlanner(agent_model)
         self.agent_max_iterations = max(1, int(agent_max_iterations or 4))
         self.query_image_ocr_client = query_image_ocr_client
@@ -107,7 +103,6 @@ class DeclarationQAWorkflow(WorkflowNodes):
             route=str(final_state.get("route") or ""),
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
-            query_rewrite_stage1=final_state.get("query_rewrite.stage1") or {},
             retrieval_chain=str(final_state.get("retrieval_chain") or ""),
             answer=str(final_state.get("answer") or ""),
             refused=bool(final_state.get("refused")),
@@ -117,6 +112,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             rag_status=final_state.get("rag_status") or {},
             evidence_decision=final_state.get("evidence_decision") or {},
             agent_plan=final_state.get("agent_plan") or {},
+            agent_query_plan=final_state.get("agent_query_plan") or {},
             tool_results=final_state.get("tool_results") or [],
             suggested_actions=final_state.get("suggested_actions") or [],
             events=final_state.get("events") or [],
@@ -163,42 +159,12 @@ class DeclarationQAWorkflow(WorkflowNodes):
                         yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
                     if node_name == "refuse_or_human":
                         yield from token_events(str(state.get("answer") or ""))
-                    elif node_name == "llm_generate" and not streamed_answer:
+                    elif node_name == "agent_finalize_answer" and not streamed_answer:
                         yield from token_events(str(state.get("answer") or ""))
 
             span.update(output=chat_trace_output(state), metadata=chat_trace_metadata(state))
             span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(state))
             yield done_event(state)
-
-    def llm_generate_stream_events(self, state: DeclarationQAState) -> Iterable[dict[str, Any]]:
-        """流式调用回答生成器并产出文本事件。"""
-        stream_generate = getattr(self.answer_generator, "stream_generate", None)
-        if not callable(stream_generate):
-            before = len(state.get("events") or [])
-            next_state = self.llm_generate(state)
-            state.clear()
-            state.update(next_state)
-            for event in (state.get("events") or [])[before:]:
-                yield {"event": event.get("event") or "answer_generated", "data": event.get("data") or {}}
-            yield from token_events(str(state.get("answer") or ""))
-            return
-
-        if self.context_memory_manager is not None:
-            state["long_term_context"] = self.context_memory_manager.retrieve_long_term_context(state)
-        token_stream, prompt = stream_generate(dict(state))
-        answer_parts = []
-        for token in token_stream:
-            text = str(token or "")
-            if not text:
-                continue
-            answer_parts.append(text)
-            yield {"event": "token", "data": {"content": text}}
-        state["answer"] = "".join(answer_parts)
-        audit_payload = dict(state.get("audit_payload") or {})
-        audit_payload["final_prompt"] = prompt
-        state["audit_payload"] = audit_payload
-        add_event(state, "answer_generated", {"intent": state.get("intent"), "streamed": True})
-        yield {"event": "answer_generated", "data": {"intent": state.get("intent"), "streamed": True}}
 
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
@@ -221,10 +187,14 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},
+            "agent_query_plan": {},
             "agent_pending_tool_calls": [],
             "agent_call_signatures": [],
-            "agent_knowledge_query": "",
-            "agent_knowledge_queries": [],
+            "agent_required_evidence": [],
+            "agent_final_answer": "",
+            "agent_final_prompt": "",
+            "agent_answer_provider": "",
+            "frozen_knowledge_query": "",
             "agent_selected_item_code": "",
             "agent_selected_application_id": None,
             "tool_results": [],
@@ -238,15 +208,10 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "sub_intent": "",
             "route": "",
             "route_decision": {},
-            "query_rewrite.stage1": {},
             "retrieval_plan": {},
             "retrieval_chain": "",
             "retrieval_query": "",
-            "planned_retrieval_queries": [],
-            "query_rewrite_provider": "",
-            "query_rewrite_reason": "",
             "rag_query": "",
-            "query_rewrite": {},
             "retrieval_queries": [],
             "business_snapshot": None,
             "retrieval_filter": {},
@@ -315,7 +280,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_node("agent_observe", self.agent_observe)
         builder.add_node("agent_evidence_check", self.agent_evidence_check)
         builder.add_node("refuse_or_human", self.refuse_or_human)
-        builder.add_node("llm_generate", self.llm_generate)
+        builder.add_node("agent_finalize_answer", self.agent_finalize_answer)
         builder.add_node("answer_postprocess", self.answer_postprocess)
         builder.add_node("audit_log", self.audit_log)
 
@@ -334,9 +299,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_conditional_edges(
             "agent_evidence_check",
             lambda state: "ok" if state.get("evidence_ok") else "refuse",
-            {"ok": "llm_generate", "refuse": "refuse_or_human"},
+            {"ok": "agent_finalize_answer", "refuse": "refuse_or_human"},
         )
-        builder.add_edge("llm_generate", "answer_postprocess")
+        builder.add_edge("agent_finalize_answer", "answer_postprocess")
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)

@@ -22,10 +22,14 @@ class DeclarationQAState(TypedDict, total=False):
     agent_iteration: int
     agent_next: str
     agent_plan: dict[str, Any]
+    agent_query_plan: dict[str, Any]
     agent_pending_tool_calls: list[dict[str, Any]]
     agent_call_signatures: list[str]
-    agent_knowledge_query: str
-    agent_knowledge_queries: list[dict[str, Any]]
+    agent_required_evidence: list[str]
+    agent_final_answer: str
+    agent_final_prompt: str
+    agent_answer_provider: str
+    frozen_knowledge_query: str
     agent_selected_item_code: str
     agent_selected_application_id: int | None
     tool_results: list[dict[str, Any]]
@@ -44,11 +48,7 @@ class DeclarationQAState(TypedDict, total=False):
     retrieval_plan: dict[str, Any]
     retrieval_chain: str
     retrieval_query: str
-    planned_retrieval_queries: list[dict[str, Any]]
-    query_rewrite_provider: str
-    query_rewrite_reason: str
     rag_query: str
-    query_rewrite: dict[str, Any]
     retrieval_queries: list[dict[str, Any]]
 
     business_snapshot: dict[str, Any] | None

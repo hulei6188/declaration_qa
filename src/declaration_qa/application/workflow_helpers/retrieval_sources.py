@@ -42,6 +42,7 @@ def query_status_from_result(retrieval_query: dict[str, Any], result: RetrievalR
     return {
         "id": retrieval_query.get("id") or "",
         "strategy": retrieval_query.get("strategy") or "",
+        "aspect": retrieval_query.get("aspect") or "general",
         "query": str(retrieval_query.get("text") or "").strip(),
         "top_k": int(retrieval_query.get("top_k") or 3),
         "source_count": len(result.sources),

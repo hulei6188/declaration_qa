@@ -131,6 +131,23 @@ class RAGEngine(Protocol):
         ...
 
 
+def strategy_weighted_hit_lists(
+    strategy: str,
+    dense_hits: list[RetrievedSource],
+    bm25_hits: list[RetrievedSource],
+) -> tuple[list[list[RetrievedSource]], dict[str, int]]:
+    """把 Agent 的检索偏好映射为双通道 RRF 权重，不关闭任何物理通道。"""
+    normalized = str(strategy or "hybrid").strip().lower()
+    dense_weight = 2 if normalized == "semantic" else 1
+    bm25_weight = 2 if normalized == "keyword" else 1
+    hit_lists = []
+    if dense_hits:
+        hit_lists.extend([dense_hits] * dense_weight)
+    if bm25_hits:
+        hit_lists.extend([bm25_hits] * bm25_weight)
+    return hit_lists, {"dense": dense_weight, "bm25": bm25_weight}
+
+
 class BaseRAGEngine:
     """具体检索后端共享的 RAG 编排逻辑。"""
 
@@ -263,6 +280,7 @@ class BaseRAGEngine:
                     "top_k": int(query.get("top_k") or 3),
                     "id": query.get("id") or "",
                     "strategy": query.get("strategy") or "",
+                    "aspect": query.get("aspect") or "general",
                 }
             )
         normalized_query = normalize_text(original_query) or "\n".join(str(spec["query"]) for spec in query_specs)
@@ -276,7 +294,7 @@ class BaseRAGEngine:
                 "query": normalized_query,
                 "filter": effective_filter,
                 "top_k": top_k,
-                "mode": "rewrites",
+                "mode": "agent_queries",
                 "query_count": len(query_specs),
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
@@ -590,14 +608,25 @@ class BaseRAGEngine:
                 "hit_list_count": len(hit_lists),
                 "hit_counts": [len(hit_list) for hit_list in hit_lists],
                 "rrf_k": 60,
-                "mode": "rewrites",
+                "mode": "agent_queries",
             },
             metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
         ) as span:
             fused_hits = rrf_fuse(hit_lists, rrf_k=60)
             span.update(output={"fused_count": len(fused_hits), "sources": retrieved_source_summary(fused_hits)})
         rerank_candidate_limit = min(len(fused_hits), max(top_k * 10, 40), 100)
-        rerank_candidates = fused_hits[:rerank_candidate_limit]
+        coverage_candidates: list[RetrievedSource] = []
+        coverage_ids: set[str] = set()
+        fused_by_id = {source.chunk.id: source for source in fused_hits}
+        for hit_list in hit_lists:
+            if not hit_list or hit_list[0].chunk.id in coverage_ids:
+                continue
+            coverage_ids.add(hit_list[0].chunk.id)
+            coverage_candidates.append(fused_by_id.get(hit_list[0].chunk.id, hit_list[0]))
+        rerank_candidates = [
+            *coverage_candidates,
+            *(source for source in fused_hits if source.chunk.id not in coverage_ids),
+        ][:rerank_candidate_limit]
         rerank_top_n = self._rerank_top_n(top_k)
         policy = normalize_retrieval_plan(retrieval_plan)
         rerank_degraded = False
@@ -607,13 +636,14 @@ class BaseRAGEngine:
                 "query": original_query,
                 "candidate_count": len(rerank_candidates),
                 "candidate_limit": rerank_candidate_limit,
+                "coverage_candidate_count": len(coverage_candidates),
                 "top_n": rerank_top_n,
                 "provider": self.reranker.name,
                 "model": self._reranker_model(),
                 "query_modality": policy.get("query_modality") or "text",
                 "multimodal": self._rerank_is_multimodal(policy),
                 "image_candidate_count": self._image_candidate_count(rerank_candidates),
-                "mode": "rewrites",
+                "mode": "agent_queries",
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
@@ -635,7 +665,7 @@ class BaseRAGEngine:
                     exc,
                     stage="rag.rerank",
                     reason="rerank_provider_failed_fallback_to_heuristic",
-                    extra={"fallback_provider": "heuristic", "candidate_count": len(rerank_candidates), "mode": "rewrites"},
+                    extra={"fallback_provider": "heuristic", "candidate_count": len(rerank_candidates), "mode": "agent_queries"},
                 )
                 span.update(
                     output={
@@ -653,7 +683,7 @@ class BaseRAGEngine:
                 "requested_top_k": top_k,
                 "threshold": self.rerank_score_threshold,
                 "max_sources": self.rerank_max_sources,
-                "mode": "rewrites",
+                "mode": "agent_queries",
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
@@ -676,7 +706,7 @@ class BaseRAGEngine:
             )
         with observation(
             "rag.parent_context",
-            input={"source_count": len(selected_sources), "mode": "rewrites"},
+            input={"source_count": len(selected_sources), "mode": "agent_queries"},
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
             expanded_sources = self._expand_parent_context(selected_sources)
@@ -718,7 +748,7 @@ class BaseRAGEngine:
                 "degraded": degraded,
                 "filter": effective_filter,
                 "batch_mode": True,
-                "retrieval_mode": "batch_multi_query_rewrite_fused",
+                "retrieval_mode": "batch_agent_query_fused",
                 "candidate_source": candidate_source or self._candidate_source(),
             },
         )
@@ -904,16 +934,17 @@ class BaseRAGEngine:
         top_k: int,
         retrieval_plan: dict[str, Any] | None = None,
     ) -> str:
-        """构建融合改写检索缓存键。"""
+        """构建 Agent 多查询融合缓存键。"""
         payload = json.dumps(
             {
                 "query": normalized_query,
-                "rewrite_queries": [
+                "agent_queries": [
                     {
                         "query": spec.get("query") or "",
                         "top_k": int(spec.get("top_k") or 3),
                         "id": spec.get("id") or "",
                         "strategy": spec.get("strategy") or "",
+                        "aspect": spec.get("aspect") or "general",
                     }
                     for spec in query_specs
                 ],
@@ -927,7 +958,7 @@ class BaseRAGEngine:
             sort_keys=True,
             default=str,
         )
-        return f"declaration_qa:rag:rewrites:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+        return f"declaration_qa:rag:agent-queries:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
         """回表缓存中的检索结果。"""
@@ -1034,7 +1065,7 @@ class BaseRAGEngine:
                 "degraded": list(degraded or []),
                 "filter": effective_filter,
                 "batch_mode": True,
-                "retrieval_mode": "batch_multi_query_rewrite_fused",
+                "retrieval_mode": "batch_agent_query_fused",
                 "candidate_source": candidate_source or self._candidate_source(),
             },
         )

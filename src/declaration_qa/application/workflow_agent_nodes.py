@@ -7,12 +7,15 @@ from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from typing import Any
 
-from declaration_qa.application.agent_planner import choose_application_id
+from declaration_qa.application.agent_planner import choose_application_id, needs_public_knowledge, rule_knowledge_queries
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
+from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.intent import is_unsafe_query
+from declaration_qa.application.workflow_helpers.intent import is_unsafe_query, mask_sensitive_text
+from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.evidence import decide_evidence
+from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
 from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_LIST, INTENT_TICKET_STATUS, classify_ticket_intent
@@ -22,36 +25,43 @@ class WorkflowAgentNodes:
     """有界 ReAct 循环使用的 LangGraph 节点。"""
 
     def agent_prepare(self, state: DeclarationQAState) -> DeclarationQAState:
-        """冻结知识检索输入，并初始化 Agent 运行状态。"""
+        """冻结可信知识输入、加载非业务上下文并初始化 Agent。"""
         next_state = dict(state)
         query_text = str(next_state.get("normalized_query") or "")
         if is_unsafe_query(query_text):
             next_state["refuse_reason"] = "unsafe_or_out_of_scope"
         elif not query_text and not next_state.get("query_image"):
             next_state["refuse_reason"] = "clarification_required"
-        sanitized = {**next_state, "business_snapshot": None, "tool_results": []}
-        planned_queries: list[dict[str, Any]] = []
-        stage1_payload: dict[str, Any] = {}
-        if str(next_state.get("normalized_query") or "").strip() and not next_state.get("refuse_reason"):
-            resolution = self.query_rewrite_service.resolve(sanitized)
-            stage1_payload = resolution.payload()
-            for question in resolution.questions:
-                for query in question.get("retrieval_queries") or []:
-                    if isinstance(query, dict) and str(query.get("text") or "").strip():
-                        planned_queries.append(dict(query))
-        next_state["query_rewrite.stage1"] = stage1_payload
-        next_state["agent_knowledge_query"] = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        next_state["agent_knowledge_queries"] = planned_queries
+        frozen_query = normalize_text(mask_sensitive_text(next_state.get("normalized_query") or next_state.get("query") or ""))
+        next_state["frozen_knowledge_query"] = frozen_query
+        memory_manager = getattr(self, "context_memory_manager", None)
+        if memory_manager is not None:
+            next_state["long_term_context"] = memory_manager.retrieve_long_term_context(next_state)
+        next_state["short_term_context"] = build_short_term_context(next_state)
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
         next_state["agent_plan"] = {}
+        next_state["agent_query_plan"] = {}
+        next_state["agent_final_answer"] = ""
+        next_state["agent_final_prompt"] = ""
+        next_state["agent_answer_provider"] = ""
+        ticket_intent = classify_ticket_intent(query_text)
+        if ticket_intent == INTENT_TICKET_LIST:
+            required_evidence = ["ticket_list"]
+        elif ticket_intent:
+            required_evidence = ["ticket_detail"]
+            if needs_public_knowledge(query_text):
+                required_evidence.append("knowledge")
+        else:
+            required_evidence = ["knowledge"]
+        next_state["agent_required_evidence"] = required_evidence
         next_state["tool_results"] = []
         next_state["agent_selected_item_code"] = ""
         next_state["agent_selected_application_id"] = None
         next_state["route"] = "agentic_rag"
         next_state["retrieval_chain"] = "agentic_rag"
-        add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_count": len(planned_queries)})
+        add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_planner": "agent_tool_schema"})
         return next_state
 
     def agent_decide(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -79,11 +89,18 @@ class WorkflowAgentNodes:
                 "reason": decision.reason,
                 "provider": decision.provider,
                 "intent": decision.intent,
-                "tool_calls": calls,
+                "tool_calls": [audit_tool_call(call) for call in calls],
                 "iteration": iteration,
             }
             next_state["intent"] = decision.intent
             next_state["sub_intent"] = decision.intent
+            if decision_action == "finish":
+                next_state["agent_final_answer"] = decision.final_answer
+                next_state["agent_final_prompt"] = decision.final_prompt
+                next_state["agent_answer_provider"] = decision.provider
+        requirements = set(next_state.get("agent_required_evidence") or [])
+        requirements.update(evidence_requirements(calls, intent=str(next_state.get("intent") or "")))
+        next_state["agent_required_evidence"] = sorted(requirements)
         next_state["agent_pending_tool_calls"] = calls
         next_state["agent_plan"] = decision_payload
         next_state["agent_next"] = decision_action
@@ -107,7 +124,7 @@ class WorkflowAgentNodes:
 
         for call, payload, signature in self._execute_tool_wave(primary, next_state, results):
             results.append(payload)
-            if payload.get("status") != "policy_denied":
+            if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
                 signatures.append(signature)
             add_event(
                 next_state,
@@ -122,7 +139,7 @@ class WorkflowAgentNodes:
             )
         for call, payload, signature in self._execute_tool_wave(deferred, next_state, results):
             results.append(payload)
-            if payload.get("status") != "policy_denied":
+            if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
                 signatures.append(signature)
             add_event(
                 next_state,
@@ -176,7 +193,7 @@ class WorkflowAgentNodes:
             user_id=int(state.get("user_id") or 0),
             region_code=str(state.get("region_code") or ""),
             session_id=str(state.get("session_id") or ""),
-            original_query=str(state.get("agent_knowledge_query") or state.get("normalized_query") or ""),
+            original_query=str(state.get("frozen_knowledge_query") or state.get("normalized_query") or ""),
             metadata={"state": state},
         )
         denial_reason = agent_tool_call_denial_reason(
@@ -200,7 +217,23 @@ class WorkflowAgentNodes:
                 context,
                 call_id=str(call.get("id") or name),
             )
-        return {**result.payload(), "arguments": arguments}, signature
+            if name == "knowledge_search" and result.status == "invalid_arguments":
+                fallback_arguments = {"queries": rule_knowledge_queries(state)}
+                result = self.tool_registry.execute(
+                    name,
+                    fallback_arguments,
+                    context,
+                    call_id=str(call.get("id") or name),
+                )
+                if result.ok:
+                    result = ToolExecutionResult(
+                        tool_name=result.tool_name,
+                        call_id=result.call_id,
+                        ok=True,
+                        status=result.status,
+                        data={**result.data, "agent_query_schema_fallback": True},
+                    )
+        return {**result.payload(), "arguments": audit_tool_arguments(name, arguments)}, signature
 
     def agent_observe(self, state: DeclarationQAState) -> DeclarationQAState:
         """把知识证据和业务工具结果写入彼此隔离的状态槽。"""
@@ -212,6 +245,13 @@ class WorkflowAgentNodes:
             if result.get("tool_name") == "knowledge_search":
                 next_state["retrieved_sources"] = list(data.get("sources") or [])
                 next_state["rag_status"] = dict(data.get("rag_status") or {})
+                next_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
+                next_state["retrieval_queries"] = list(data.get("executed_queries") or [])
+                next_state["agent_query_plan"] = {
+                    "requested_queries": list(data.get("requested_queries") or []),
+                    "executed_queries": list(data.get("executed_queries") or []),
+                    "query_isolation": data.get("query_isolation") or "",
+                }
             elif result.get("tool_name") == "ticket_detail_query":
                 applications = list(data.get("applications") or [])
                 next_state["agent_selected_item_code"] = str(data.get("item_code") or "")
@@ -257,20 +297,33 @@ class WorkflowAgentNodes:
             for result in (next_state.get("tool_results") or [])
             if isinstance(result, dict) and result.get("tool_name") == "ticket_list_query" and result.get("ok")
         ]
-        business_ok = bool(list_results) if next_state.get("intent") == INTENT_TICKET_LIST else bool(detail_results)
+        list_ok = bool(list_results)
+        detail_ok = bool(detail_results)
+        business_ok = list_ok if next_state.get("intent") == INTENT_TICKET_LIST else detail_ok
         knowledge_ok = bool(knowledge_decision and knowledge_decision.ok)
-        ticket_intent = classify_ticket_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
-        ticket_intent = ticket_intent or (
-            str(next_state.get("intent") or "")
-            if next_state.get("intent") in {INTENT_TICKET_LIST, INTENT_TICKET_STATUS, INTENT_REJECTION_REASON}
-            else ""
-        )
-        next_state["evidence_ok"] = business_ok if ticket_intent else knowledge_ok
+        required = set(next_state.get("agent_required_evidence") or [])
+        if not required:
+            ticket_intent = classify_ticket_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
+            if ticket_intent == INTENT_TICKET_LIST:
+                required.add("ticket_list")
+            elif ticket_intent:
+                required.add("ticket_detail")
+            else:
+                required.add("knowledge")
+        checks = {
+            "knowledge": knowledge_ok,
+            "ticket_list": list_ok,
+            "ticket_detail": detail_ok,
+        }
+        next_state["evidence_ok"] = all(checks.get(item, False) for item in required)
         next_state["evidence_decision"] = {
             "ok": next_state["evidence_ok"],
             "business_tool_ok": business_ok,
+            "ticket_list_ok": list_ok,
+            "ticket_detail_ok": detail_ok,
             "knowledge_ok": knowledge_ok,
-            "required_evidence": "business_tool" if ticket_intent else "knowledge",
+            "required_evidence": sorted(required),
+            "checks": checks,
             "knowledge": knowledge_decision.payload() if knowledge_decision else {},
             "tool_result_count": len(next_state.get("tool_results") or []),
             "source_count": len(sources),
@@ -281,19 +334,51 @@ class WorkflowAgentNodes:
         add_event(next_state, "evidence", next_state["evidence_decision"])
         return next_state
 
-    def execute_knowledge_search(self, context: ToolExecutionContext) -> dict[str, Any]:
-        """使用冻结状态调用现有混合检索，不读取任何业务工具结果。"""
+    def execute_knowledge_search(
+        self,
+        request: KnowledgeSearchInput,
+        context: ToolExecutionContext,
+    ) -> dict[str, Any]:
+        """执行 Agent 查询计划，并强制追加冻结的脱敏原始问题。"""
         state = dict(context.metadata.get("state") or {})
+        retrieval_queries: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for index, query in enumerate(request.queries, start=1):
+            text = normalize_text(mask_sensitive_text(query.text))
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            retrieval_queries.append(
+                {
+                    "id": f"agent_q{index}",
+                    "text": text,
+                    "strategy": query.strategy,
+                    "aspect": query.aspect,
+                    "top_k": 6,
+                }
+            )
+        original_query = normalize_text(mask_sensitive_text(context.original_query))
+        if original_query and original_query not in seen:
+            retrieval_queries.append(
+                {
+                    "id": "original_query",
+                    "text": original_query,
+                    "strategy": "hybrid",
+                    "aspect": "original",
+                    "top_k": 6,
+                }
+            )
         isolated_state = {
             **state,
-            "query": context.original_query,
-            "normalized_query": context.original_query,
-            "retrieval_query": context.original_query,
+            "query": original_query,
+            "normalized_query": original_query,
+            "retrieval_query": original_query,
+            "frozen_knowledge_query": original_query,
             "route": ROUTE_KNOWLEDGE_RETRIEVAL,
             "business_snapshot": None,
             "tool_results": [],
             "retrieval_chain": KNOWLEDGE_RETRIEVAL_CHAIN,
-            "retrieval_queries": list(state.get("agent_knowledge_queries") or []),
+            "retrieval_queries": retrieval_queries,
         }
         filters = normalize_retrieval_filter(state.get("metadata_filter") or {})
         result = self.multi_retrieve(isolated_state, filters)
@@ -301,6 +386,7 @@ class WorkflowAgentNodes:
             "sources": [source.payload() for source in result.sources],
             "rag_status": result.status,
             "retrieval_filter": result.filter,
+            "executed_queries": retrieval_queries,
         }
 
 
@@ -349,6 +435,16 @@ def agent_tool_call_denial_reason(
 ) -> str:
     """返回模型外策略拒绝原因；空字符串表示允许执行。"""
     ticket_intent = classify_ticket_intent(query)
+    if tool_name == "knowledge_search" and prior_results is not None:
+        observed_business = any(
+            isinstance(result, dict)
+            and str(result.get("tool_name") or "").startswith("ticket_")
+            and result.get("status") != "policy_denied"
+            for result in prior_results
+        )
+        if observed_business:
+            return "knowledge_search must be planned before observing business tool results"
+        return ""
     if tool_name in {"ticket_list_query", "ticket_detail_query"}:
         if not ticket_intent:
             return "ticket tools require a personal ticket intent"
@@ -374,3 +470,44 @@ def listed_item_codes(results: list[dict[str, Any]]) -> set[str]:
             if isinstance(item, dict) and str(item.get("item_code") or "").strip():
                 codes.add(str(item["item_code"]).strip())
     return codes
+
+
+def evidence_requirements(calls: list[dict[str, Any]], *, intent: str) -> set[str]:
+    """根据 Agent 的工具计划累计最终回答必须满足的证据类型。"""
+    names = {str(call.get("name") or "") for call in calls}
+    required: set[str] = set()
+    if "knowledge_search" in names:
+        required.add("knowledge")
+    if intent == INTENT_TICKET_LIST and "ticket_list_query" in names:
+        required.add("ticket_list")
+    elif intent in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON} and names.intersection(
+        {"ticket_list_query", "ticket_detail_query"}
+    ):
+        required.add("ticket_detail")
+    if "ticket_detail_query" in names:
+        required.add("ticket_detail")
+    return required
+
+
+def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """遮盖知识查询中的敏感文本，业务工具参数保持结构化原值。"""
+    if name != "knowledge_search":
+        return dict(arguments)
+    output = dict(arguments)
+    queries = []
+    for query in output.get("queries") or []:
+        if not isinstance(query, dict):
+            continue
+        queries.append({**query, "text": mask_sensitive_text(str(query.get("text") or ""))})
+    output["queries"] = queries
+    return output
+
+
+def audit_tool_call(call: dict[str, Any]) -> dict[str, Any]:
+    """返回适合事件和审计记录的工具调用。"""
+    name = str(call.get("name") or "")
+    return {
+        "id": str(call.get("id") or name),
+        "name": name,
+        "arguments": audit_tool_arguments(name, dict(call.get("arguments") or {})),
+    }

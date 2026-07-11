@@ -36,7 +36,6 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
     assert response.route == "agentic_rag"
     assert [result["tool_name"] for result in response.tool_results] == [
         "ticket_list_query",
-        "knowledge_search",
         "ticket_detail_query",
     ]
     assert response.business_snapshot["selected_application_id"] == 2002
@@ -70,7 +69,7 @@ def test_agentic_schema_and_migration_define_complete_application_history():
     for token in ["item_code", "sequence_no", "from_status", "occurred_at", "source_event_id"]:
         assert token in schema
         assert token in migration
-    for token in ["agent_plan", "tool_results", "agent_selected_application_id"]:
+    for token in ["agent_plan", "agent_query_plan", "agent_answer_provider", "tool_results", "agent_selected_application_id"]:
         assert token in schema
         assert token in migration
 

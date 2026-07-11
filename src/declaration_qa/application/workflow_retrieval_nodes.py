@@ -27,7 +27,7 @@ class WorkflowRetrievalNodes:
     """只暴露 Agent knowledge_search 内部使用的多路知识检索。"""
 
     def multi_retrieve(self, state: DeclarationQAState, filters: dict[str, Any]) -> RetrievalResult:
-        """按 rewrite 结果执行多路检索并去重合并。"""
+        """按 Agent 查询计划执行多路检索并去重合并。"""
         retrieval_queries = state.get("retrieval_queries") or []
         answer_query = knowledge_rag_query(state)
         retrieval_plan = normalize_retrieval_plan(state.get("retrieval_plan") or {})
@@ -52,6 +52,7 @@ class WorkflowRetrievalNodes:
                 {"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6},
             ]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
+        fused_top_k = min(12, max(6, len(executable_queries) * 2))
         text_retrieval_enabled = bool(executable_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
@@ -156,7 +157,7 @@ class WorkflowRetrievalNodes:
         elif len(executable_queries) > 1:
             try:
                 with observation(
-                    "workflow.retrieve.text_rewrites",
+                    "workflow.retrieve.agent_queries",
                     input={
                         "query": answer_query,
                         "query_count": len(executable_queries),
@@ -171,7 +172,7 @@ class WorkflowRetrievalNodes:
                         answer_query,
                         executable_queries,
                         filters,
-                        top_k=6,
+                        top_k=fused_top_k,
                         retrieval_plan=retrieval_plan,
                     )
                     span.update(
@@ -193,12 +194,12 @@ class WorkflowRetrievalNodes:
                     return RetrievalResult(sources=result.sources, filter=result.filter, status=status)
                 results = [result]
                 query_statuses = list(status.get("queries") or [])
-                retrieval_mode = "multimodal_rewrite"
+                retrieval_mode = "multimodal_agent_query"
             except Exception as exc:
                 batch_degraded = type(exc).__name__
             try:
                 if not (image_result is not None and results):
-                    retrieval_mode = "batch_multi_query_rewrite"
+                    retrieval_mode = "batch_agent_query"
                     with observation(
                         "workflow.retrieve.text_batch",
                         input={
@@ -228,7 +229,7 @@ class WorkflowRetrievalNodes:
                     results = []
 
         if text_retrieval_enabled and not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
-            retrieval_mode = "parallel_multi_query_rewrite"
+            retrieval_mode = "parallel_agent_query"
             results_by_index: list[RetrievalResult | None] = [None] * len(executable_queries)
             with ThreadPoolExecutor(max_workers=min(self.max_retrieval_workers, len(executable_queries))) as executor:
                 futures = {
@@ -242,7 +243,7 @@ class WorkflowRetrievalNodes:
                     results_by_index[index] = result
             results = [result for result in results_by_index if result is not None]
         elif text_retrieval_enabled and not results:
-            retrieval_mode = "image_ocr_hybrid" if image_only else "multi_query_rewrite"
+            retrieval_mode = "image_ocr_hybrid" if image_only else "agent_query"
             results = []
             for index, retrieval_query in enumerate(executable_queries):
                 query_status, result = retrieve_one(retrieval_query)
@@ -252,8 +253,8 @@ class WorkflowRetrievalNodes:
             results.append(image_result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
-        score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
-        answer_source_limit = int(getattr(self.rag_engine, "rerank_max_sources", 6) or 6) if score_threshold > 0 else 6
+        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 12) or 12)
+        answer_source_limit = min(configured_limit, fused_top_k)
         sources = select_answer_sources(merged, answer_query, limit=answer_source_limit, retrieval_plan=retrieval_plan)
         ordered_statuses = [status for status in query_statuses if status is not None]
         if image_query_status is not None:

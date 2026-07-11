@@ -113,13 +113,6 @@ src/declaration_qa/rag/model_providers/rerankers/__init__.py
 src/declaration_qa/rag/model_providers/rerankers/dashscope_reranker.py
 src/declaration_qa/rag/model_providers/rerankers/heuristic_reranker.py
 src/declaration_qa/rag/model_providers/rerankers/reranker.py
-src/declaration_qa/rag/query_rewrite/__init__.py
-src/declaration_qa/rag/query_rewrite/helpers.py
-src/declaration_qa/rag/query_rewrite/llm.py
-src/declaration_qa/rag/query_rewrite/normalization.py
-src/declaration_qa/rag/query_rewrite/prompts.py
-src/declaration_qa/rag/query_rewrite/rule.py
-src/declaration_qa/rag/query_rewrite/schema.py
 src/declaration_qa/search/__init__.py
 src/declaration_qa/search/keyword/__init__.py
 src/declaration_qa/search/keyword/elasticsearch_keyword_index.py

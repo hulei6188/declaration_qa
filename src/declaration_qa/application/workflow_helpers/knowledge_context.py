@@ -13,7 +13,7 @@ def knowledge_rag_query(state: DeclarationQAState) -> str:
     """只使用冻结的用户知识问题，不读取业务工具结果。"""
     return normalize_text(
         str(
-            state.get("agent_knowledge_query")
+            state.get("frozen_knowledge_query")
             or state.get("normalized_query")
             or state.get("query")
             or ""
