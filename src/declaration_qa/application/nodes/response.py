@@ -6,12 +6,12 @@ import re
 
 from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers.actions import suggested_actions
-from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.helpers.actions import suggested_actions
+from declaration_qa.application.helpers.events import add_event
 from declaration_qa.rag.prompting import application_history_answer, ticket_applications
 
 
-class WorkflowResponseNodes:
+class ResponseNodes:
     """拒答、回答生成、后处理和审计节点。"""
     def refuse_or_human(self, state: DeclarationQAState) -> DeclarationQAState:
         """在证据不足时生成拒答和人工建议。"""

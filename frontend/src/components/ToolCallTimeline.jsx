@@ -159,12 +159,17 @@ function EvidenceStep({ gate }) {
   const checks = gate.required?.length ? gate.required : Object.keys(gate.checks || {});
   const coverage = gate.coverage || {};
   const stateLabel = gate.ok ? '通过' : gate.partial ? '部分覆盖' : '待补充';
+  const title = gate.scope === 'aggregate'
+    ? '整体任务汇总'
+    : gate.scope === 'worker' || gate.subQuestion
+      ? '子问题证据检查'
+      : '证据完整性检查';
   return (
     <div className={`tool-step evidence-step ${gate.subQuestionId ? 'is-worker-child' : ''} ${gate.ok ? 'status-completed' : gate.partial ? 'status-partial' : 'status-failed'}`}>
       <span className="tool-step-icon"><ShieldCheck size={14} /></span>
       <div className="tool-step-main">
         <div className="tool-step-head">
-          <strong>{gate.subQuestion ? `证据检查：${gate.subQuestion}` : '证据完整性检查'}</strong>
+          <strong>{title}</strong>
           <span>{gate.ok ? <CheckCircle2 size={13} /> : gate.partial ? <CircleDashed size={13} /> : <XCircle size={13} />}{stateLabel}</span>
         </div>
         <div className="evidence-checks">
@@ -177,6 +182,7 @@ function EvidenceStep({ gate }) {
         </div>
         <div className="tool-step-meta">
           {gate.iteration > 0 && <span>第 {gate.iteration} 轮</span>}
+          {gate.scope === 'aggregate' && gate.workerCount > 0 && <span>{gate.workerCount} 个子问题</span>}
           {coverage.assessed && <span>{coverage.evidenceIncomplete ? '模型判断需继续检索' : '模型判断证据完整'}</span>}
           {checks.includes('knowledge') && <span>{gate.sourceCount} 条知识证据</span>}
           <span>{gate.toolResultCount} 个工具结果</span>

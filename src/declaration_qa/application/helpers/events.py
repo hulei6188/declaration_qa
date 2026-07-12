@@ -1,4 +1,4 @@
-"""工作流事件辅助函数。"""
+"""应用事件辅助函数。"""
 
 from __future__ import annotations
 

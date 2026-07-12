@@ -87,11 +87,33 @@ def test_stream_done_event_contains_agent_result_not_ticket_picker():
     events = list(workflow.stream(ChatRequest(query="我的健康证申请进度", user_id=1)))
     done = next(event["data"] for event in events if event["event"] == "done")
 
+    assert [event["event"] for event in events].count("evidence") == 2
     assert done["agent_iteration"] >= 2
     assert done["selected_item_code"] == "ITEM-HEALTH-CERTIFICATE"
     assert done["selected_application_id"] == 1001
     assert "need_ticket_selection" not in done
     assert "tickets" not in done
+
+
+def test_ticket_list_only_reuses_the_passed_gate_after_agent_observation():
+    class TicketListOnlyAgent:
+        def decide(self, state, _tool_definitions):
+            if not state.get("tool_results"):
+                return AgentDecision(
+                    "tools",
+                    [{"id": "list", "name": "ticket_list_query", "arguments": {}}],
+                )
+            return AgentDecision("finish", final_answer="已查询到你的申请事项。")
+
+    workflow = DeclarationQAWorkflow(
+        rag_engine=build_seed_rag_engine(),
+        business_adapter=InMemoryBusinessDataAdapter(),
+        agent=TicketListOnlyAgent(),
+    )
+
+    events = list(workflow.stream(ChatRequest(query="我现在有哪些工单", user_id=1)))
+
+    assert [event["event"] for event in events].count("evidence") == 1
 
 
 def test_agentic_schema_and_migration_define_complete_application_history():

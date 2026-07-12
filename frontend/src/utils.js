@@ -337,7 +337,7 @@ export function reduceToolTrace(current, event, data = {}) {
     trace.phase = 'executing';
     trace.subQuestions = Array.isArray(data.sub_questions) ? data.sub_questions : [];
     trace.isCompound = Boolean(data.is_compound || trace.subQuestions.length > 1);
-    for (const item of trace.subQuestions) {
+    for (const item of trace.isCompound ? trace.subQuestions : []) {
       const workerId = `worker:${String(item.sub_question_id || '')}`;
       if (trace.tools.some((tool) => tool.callId === workerId)) continue;
       trace.tools.push({
@@ -423,6 +423,7 @@ export function reduceToolTrace(current, event, data = {}) {
       required_evidence: Array.isArray(data.required_evidence) ? data.required_evidence : ['knowledge'],
       checks: data.checks || { knowledge: Boolean(data.ok) },
       tool_result_count: Number(data.tool_result_count || 0),
+      scope: 'worker',
     });
     const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
     if (index >= 0) trace.gates[index] = gate;
@@ -490,9 +491,12 @@ export function reduceToolTrace(current, event, data = {}) {
       selectedItemCode: String(data.selected_item_code || ''),
       selectedApplicationId: data.selected_application_id ?? null,
     };
-  } else if (event === 'evidence') {
+  } else if (event === 'evidence' || event === 'evidence_aggregated') {
     trace.phase = data.ok ? 'answering' : 'planning';
-    const gate = normalizeEvidenceGate(data);
+    const gate = normalizeEvidenceGate({
+      ...data,
+      scope: event === 'evidence_aggregated' ? 'aggregate' : (data.scope || 'global'),
+    });
     const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
     if (index >= 0) trace.gates[index] = gate;
     else trace.gates.push(gate);
@@ -544,9 +548,31 @@ export function traceFromAgentRun(run) {
     loaded: true,
     runId: String(run?.run_id || ''),
     tools,
-    gates: evidence && Object.keys(evidence).length ? [normalizeEvidenceGate(evidence)] : [],
+    gates: evidenceGatesFromDecision(evidence),
     error: String(run?.error_message || ''),
   };
+}
+
+function evidenceGatesFromDecision(evidence) {
+  if (!evidence || !Object.keys(evidence).length) return [];
+  const workers = Array.isArray(evidence.workers) ? evidence.workers : [];
+  if (!workers.length) return [normalizeEvidenceGate(evidence)];
+  const workerGates = workers.map((worker) => normalizeEvidenceGate({
+    ...worker,
+    ok: worker.evidence_complete,
+    source_count: worker.source_count,
+    tool_result_count: worker.tool_result_count,
+    required_evidence: worker.required_evidence,
+    checks: worker.checks,
+    sub_question_id: worker.sub_question_id,
+    question: worker.question,
+    scope: 'worker',
+  }));
+  if (workers.length === 1) return workerGates;
+  return [
+    ...workerGates,
+    normalizeEvidenceGate({ ...evidence, scope: 'aggregate' }),
+  ];
 }
 
 function normalizeEvidenceGate(data = {}) {
@@ -562,6 +588,8 @@ function normalizeEvidenceGate(data = {}) {
     toolResultCount: Number(data.tool_result_count || 0),
     subQuestionId: String(data.sub_question_id || ''),
     subQuestion: String(data.question || ''),
+    scope: String(data.scope || ''),
+    workerCount: Number(data.worker_count || 0),
     coverage: {
       assessed: Boolean(coverage.assessed),
       provider: String(coverage.provider || ''),

@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.text_safety import mask_sensitive_text
+from declaration_qa.application.helpers.events import add_event
+from declaration_qa.application.helpers.text_safety import mask_sensitive_text
 from declaration_qa.rag.engine.text import normalize_text
 
 
-class WorkflowPlanningNodes:
+class PreprocessingNodes:
     """只处理请求与查询图片，不读取任何工单业务数据。"""
 
     def context_build(self, state: DeclarationQAState) -> DeclarationQAState:

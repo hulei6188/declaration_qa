@@ -1,4 +1,4 @@
-"""工作流文本安全辅助函数。"""
+"""文本安全辅助函数。"""
 
 from __future__ import annotations
 

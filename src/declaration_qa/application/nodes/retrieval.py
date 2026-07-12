@@ -7,14 +7,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers.text_safety import mask_sensitive_text
-from declaration_qa.application.workflow_helpers.retrieval_sources import (
+from declaration_qa.application.helpers.text_safety import mask_sensitive_text
+from declaration_qa.application.helpers.retrieval_sources import (
     dedupe_retrieval_queries,
     merge_retrieval_sources,
     query_status_from_result,
     select_answer_sources,
 )
-from declaration_qa.application.workflow_helpers.knowledge_context import (
+from declaration_qa.application.helpers.knowledge_context import (
     knowledge_rag_query,
 )
 from declaration_qa.core.domain import RetrievalResult
@@ -23,7 +23,7 @@ from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
 
-class WorkflowRetrievalNodes:
+class RetrievalNodes:
     """只暴露 Agent knowledge_search 内部使用的多路知识检索。"""
 
     def multi_retrieve(self, state: DeclarationQAState, filters: dict[str, Any]) -> RetrievalResult:

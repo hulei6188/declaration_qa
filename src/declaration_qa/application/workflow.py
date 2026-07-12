@@ -9,12 +9,9 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 
 from declaration_qa.api.schemas import ChatRequest, ChatResponse
-from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.agent import ToolCallingAgent
-from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
-from declaration_qa.application.workflow_agent_nodes import ticket_list_requires_agent_observation
-from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
-from declaration_qa.application.workflow_helpers.streaming import (
+from declaration_qa.application.helpers.retrieval_sources import select_answer_sources
+from declaration_qa.application.helpers.streaming import (
     STREAM_TOKEN_DELAY_SECONDS,
     STREAM_TOKEN_SIZE,
     done_event,
@@ -23,7 +20,10 @@ from declaration_qa.application.workflow_helpers.streaming import (
     should_emit_sources,
     token_events,
 )
-from declaration_qa.application.workflow_nodes import WorkflowNodes
+from declaration_qa.application.nodes import ApplicationNodes
+from declaration_qa.application.nodes.agent_runtime import ticket_list_requires_agent_observation
+from declaration_qa.application.state import DeclarationQAState
+from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
@@ -43,7 +43,7 @@ __all__ = [
 ]
 
 
-class DeclarationQAWorkflow(WorkflowNodes):
+class DeclarationQAWorkflow(ApplicationNodes):
     """申报问答的图工作流编排器。"""
     def __init__(
         self,
@@ -330,8 +330,12 @@ class DeclarationQAWorkflow(WorkflowNodes):
         )
         builder.add_conditional_edges(
             "agent_decide",
-            lambda state: state.get("agent_next") or "finish",
-            {"tools": "agent_execute_tools", "finish": "agent_evidence_check"},
+            self._agent_decision_route,
+            {
+                "tools": "agent_execute_tools",
+                "ready": "agent_finalize_answer",
+                "check": "agent_evidence_check",
+            },
         )
         builder.add_edge("agent_execute_tools", "agent_observe")
         builder.add_edge("agent_observe", "agent_evidence_check")
@@ -349,6 +353,14 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
         return builder.compile()
+
+    def _agent_decision_route(self, state: DeclarationQAState) -> str:
+        """复用已通过的 Gate，避免 Agent 观察结果后重复检查同一批证据。"""
+        if state.get("agent_next") == "tools":
+            return "tools"
+        if state.get("evidence_ok"):
+            return "ready"
+        return "check"
 
     def _agent_evidence_route(self, state: DeclarationQAState) -> str:
         """Route complete evidence directly to one final model call."""

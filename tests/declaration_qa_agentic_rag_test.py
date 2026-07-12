@@ -10,7 +10,7 @@ from declaration_qa.application.tools import (
 )
 from declaration_qa.application.agent import AgentDecision, choose_application_id
 from declaration_qa.application.workflow import DeclarationQAWorkflow
-from declaration_qa.application.workflow_agent_nodes import agent_tool_call_allowed, agent_tool_call_denial_reason
+from declaration_qa.application.nodes.agent_runtime import agent_tool_call_allowed, agent_tool_call_denial_reason
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.core.domain import KnowledgeChunk, RetrievalResult, RetrievedSource
 

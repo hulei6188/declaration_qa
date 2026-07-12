@@ -17,9 +17,9 @@ from declaration_qa.application.agent import (
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
-from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
-from declaration_qa.application.workflow_helpers.text_safety import is_unsafe_query, mask_sensitive_text
+from declaration_qa.application.helpers.events import add_event
+from declaration_qa.application.helpers.streaming import is_declaration_qa_stream_run
+from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.engine.text import normalize_text
@@ -27,7 +27,7 @@ from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_re
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
 
 
-class WorkflowAgentNodes:
+class AgentRuntimeNodes:
     """有界 ReAct 循环使用的 LangGraph 节点。"""
 
     def agent_prepare(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -226,6 +226,7 @@ class WorkflowAgentNodes:
                 for requirement in required_evidence
             },
             "source_count": len(sources),
+            "tool_result_count": len(tool_results),
             "worker_count": len(worker_results),
             "workers": [
                 {
@@ -253,7 +254,15 @@ class WorkflowAgentNodes:
                 "parallel": len(worker_results) > 1,
             },
         )
-        add_event(next_state, "evidence", next_state["evidence_decision"])
+        if len(worker_results) > 1:
+            add_event(
+                next_state,
+                "evidence_aggregated",
+                {
+                    **next_state["evidence_decision"],
+                    "scope": "aggregate",
+                },
+            )
         return next_state
 
     def _run_knowledge_worker(

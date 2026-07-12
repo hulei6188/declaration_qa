@@ -8,7 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from declaration_qa.application.tools.registry import ToolExecutionContext, ToolExecutionResult
-from declaration_qa.application.workflow_helpers.text_safety import mask_sensitive_text
+from declaration_qa.application.helpers.text_safety import mask_sensitive_text
 
 
 class KnowledgeSubQuery(BaseModel):
