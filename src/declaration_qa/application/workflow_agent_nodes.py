@@ -81,11 +81,10 @@ class WorkflowAgentNodes:
         return next_state
 
     def agent_decompose(self, state: DeclarationQAState) -> DeclarationQAState:
-        """在工具规划前把纯公开知识问题拆成相互隔离的 Worker 任务。"""
+        """在工具规划前把复合问题拆成相互隔离的 Worker 任务。"""
         next_state = dict(state)
-        pure_knowledge = set(next_state.get("agent_required_evidence") or []) == {"knowledge"}
         decomposer = getattr(self.agent, "decompose_question", None)
-        if not pure_knowledge or not callable(decomposer) or next_state.get("refuse_reason"):
+        if not callable(decomposer) or next_state.get("refuse_reason"):
             next_state["use_parallel_knowledge_workers"] = False
             return next_state
         decomposition = decomposer(next_state) or {}
@@ -95,9 +94,8 @@ class WorkflowAgentNodes:
             if isinstance(item, dict) and str(item.get("question") or "").strip()
         ][:4]
         next_state["question_decomposition"] = {**decomposition, "sub_questions": sub_questions}
-        next_state["use_parallel_knowledge_workers"] = bool(sub_questions)
-        next_state["intent"] = classify_knowledge_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
-        next_state["sub_intent"] = next_state["intent"]
+        use_workers = bool(decomposition.get("is_compound")) and len(sub_questions) >= 2
+        next_state["use_parallel_knowledge_workers"] = use_workers
         add_event(
             next_state,
             "question_decomposed",
@@ -112,7 +110,7 @@ class WorkflowAgentNodes:
         return next_state
 
     def parallel_knowledge_workers(self, state: DeclarationQAState) -> DeclarationQAState:
-        """并行运行隔离的知识 Agent，并按子问题聚合证据。"""
+        """并行运行隔离的子 Agent，并聚合知识证据和业务事实。"""
         next_state = dict(state)
         tasks = list((next_state.get("question_decomposition") or {}).get("sub_questions") or [])
         if not tasks:
@@ -175,6 +173,12 @@ class WorkflowAgentNodes:
                 sources.append({**source, "metadata": metadata})
 
         complete = bool(worker_results) and all(bool(item.get("evidence_complete")) for item in worker_results)
+        answerable = any(bool(item.get("answerable")) for item in worker_results)
+        required_evidence = sorted({
+            requirement
+            for worker in worker_results
+            for requirement in (worker.get("required_evidence") or [])
+        })
         for worker in worker_results:
             add_event(
                 next_state,
@@ -185,6 +189,9 @@ class WorkflowAgentNodes:
                     "iterations": int(worker.get("iterations") or 0),
                     "executed_queries": worker.get("executed_queries") or [],
                     "source_count": len(worker.get("sources") or []),
+                    "tool_result_count": len(worker.get("tool_results") or []),
+                    "required_evidence": worker.get("required_evidence") or [],
+                    "checks": worker.get("checks") or {},
                     "evidence_complete": bool(worker.get("evidence_complete")),
                     "failure_reason": worker.get("failure_reason") or "",
                 },
@@ -192,6 +199,10 @@ class WorkflowAgentNodes:
         next_state["knowledge_worker_results"] = worker_results
         next_state["retrieved_sources"] = sources
         next_state["tool_results"] = tool_results
+        next_state["agent_required_evidence"] = required_evidence
+        parent_query = str(next_state.get("normalized_query") or next_state.get("query") or "")
+        next_state["intent"] = classify_ticket_intent(parent_query) or classify_knowledge_intent(parent_query)
+        next_state["sub_intent"] = next_state["intent"]
         next_state["agent_iteration"] = max((int(item.get("iterations") or 0) for item in worker_results), default=0)
         next_state["agent_query_plan"] = {
             "mode": "parallel_sub_question_workers",
@@ -212,13 +223,20 @@ class WorkflowAgentNodes:
             "source_count": len(sources),
         }
         next_state["evidence_ok"] = complete
-        next_state["partial_answer"] = bool(sources) and not complete
+        next_state["partial_answer"] = answerable and not complete
         next_state["evidence_decision"] = {
             "ok": complete,
-            "answerable": bool(sources),
+            "answerable": answerable,
             "partial": next_state["partial_answer"],
-            "required_evidence": ["knowledge"],
-            "checks": {"knowledge": complete},
+            "required_evidence": required_evidence,
+            "checks": {
+                requirement: all(
+                    worker.get("checks", {}).get(requirement, True)
+                    for worker in worker_results
+                    if requirement in (worker.get("required_evidence") or [])
+                )
+                for requirement in required_evidence
+            },
             "source_count": len(sources),
             "worker_count": len(worker_results),
             "workers": [
@@ -227,12 +245,15 @@ class WorkflowAgentNodes:
                     "question": item.get("question") or "",
                     "evidence_complete": bool(item.get("evidence_complete")),
                     "source_count": len(item.get("sources") or []),
+                    "tool_result_count": len(item.get("tool_results") or []),
+                    "required_evidence": item.get("required_evidence") or [],
+                    "checks": item.get("checks") or {},
                     "coverage": item.get("coverage") or {},
                 }
                 for item in worker_results
             ],
         }
-        if not complete and not sources:
+        if not complete and not answerable:
             next_state["refuse_reason"] = "evidence_coverage_incomplete"
         add_event(
             next_state,
@@ -253,9 +274,10 @@ class WorkflowAgentNodes:
         task: dict[str, Any],
         event_sink: Any | None = None,
     ) -> dict[str, Any]:
-        """运行一个只拥有 knowledge_search 的有限迭代 Worker Agent。"""
+        """运行一个可自主选择注册工具的有限迭代子 Agent。"""
         sub_question_id = str(task.get("sub_question_id") or "worker")
         question = normalize_text(mask_sensitive_text(task.get("question") or ""))
+        required_evidence = worker_required_evidence(question)
         worker_state = {
             **parent_state,
             "query": question,
@@ -266,7 +288,7 @@ class WorkflowAgentNodes:
             "short_term_context": {},
             "long_term_context": {},
             "agent_iteration": 0,
-            "agent_required_evidence": ["knowledge"],
+            "agent_required_evidence": sorted(required_evidence),
             "agent_evidence_coverage": {},
             "evidence_decision": {},
             "tool_results": [],
@@ -275,35 +297,38 @@ class WorkflowAgentNodes:
             "worker_sub_question_id": sub_question_id,
             "parent_query": parent_state.get("normalized_query") or parent_state.get("query") or "",
         }
-        knowledge_tool = self.tool_registry.get("knowledge_search")
-        definitions = []
-        if knowledge_tool is not None:
-            definitions = [{
-                "type": "function",
-                "function": {
-                    "name": knowledge_tool.name,
-                    "description": knowledge_tool.description,
-                    "parameters": knowledge_tool.input_model.model_json_schema(),
-                },
-            }]
+        definitions = self.tool_registry.definitions()
         signatures: set[str] = set()
         failure_reason = ""
         coverage: dict[str, Any] = {}
+        checks: dict[str, bool] = {}
+        answerable = False
         for iteration in range(1, self.agent_max_iterations + 1):
-            failure_reason = "evidence_coverage_incomplete"
+            failure_reason = "worker_evidence_incomplete"
             worker_state["agent_iteration"] = iteration
             decision = self.agent.decide(worker_state, definitions)
             planned = [
                 {**call, "origin": "agent_evidence_retry" if iteration > 1 else "agent_worker"}
                 for call in decision.tool_calls
-                if str(call.get("name") or "") == "knowledge_search"
             ]
             calls = unique_new_tool_calls(planned, existing_signatures=signatures)
             if not calls:
-                failure_reason = "worker_failed_to_plan_query"
+                checks, coverage, answerable = worker_evidence_status(self, worker_state, required_evidence)
+                if all(checks.values()) if checks else False:
+                    failure_reason = ""
+                else:
+                    failure_reason = "worker_failed_to_plan_tool"
                 break
-            for call in calls:
-                event_call_id = f"{sub_question_id}:{iteration}:{call.get('id') or 'knowledge_search'}"
+            batch_has_list = any(str(call.get("name") or "") == "ticket_list_query" for call in calls)
+            has_prior_list = bool(listed_item_codes(worker_state["tool_results"]))
+            deferred = [
+                call for call in calls
+                if str(call.get("name") or "") == "ticket_detail_query" and batch_has_list and not has_prior_list
+            ]
+            ordered_calls = [call for call in calls if call not in deferred] + deferred
+            for call in ordered_calls:
+                tool_name = str(call.get("name") or "")
+                event_call_id = f"{sub_question_id}:{iteration}:{call.get('id') or tool_name}"
                 emit_worker_stream_event(
                     event_sink,
                     "knowledge_worker_tool_started",
@@ -312,8 +337,9 @@ class WorkflowAgentNodes:
                         "question": question,
                         "iteration": iteration,
                         "tool_call_id": event_call_id,
-                        "tool_name": "knowledge_search",
-                        "arguments": audit_tool_arguments("knowledge_search", dict(call.get("arguments") or {})),
+                        "tool_name": tool_name,
+                        "arguments": audit_tool_arguments(tool_name, dict(call.get("arguments") or {})),
+                        "dependency": "ticket_list_query" if call in deferred else "",
                     },
                 )
                 payload, signature = self._execute_agent_tool_call(call, worker_state, worker_state["tool_results"])
@@ -321,7 +347,7 @@ class WorkflowAgentNodes:
                 if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
                     signatures.add(signature)
                 data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-                if payload.get("ok"):
+                if payload.get("ok") and tool_name == "knowledge_search":
                     worker_state["retrieved_sources"] = merge_worker_evidence(
                         worker_state.get("retrieved_sources") or [],
                         data.get("sources") or [],
@@ -337,49 +363,55 @@ class WorkflowAgentNodes:
                         "question": question,
                         "iteration": iteration,
                         "tool_call_id": event_call_id,
-                        "tool_name": "knowledge_search",
-                        "arguments": audit_tool_arguments("knowledge_search", dict(call.get("arguments") or {})),
+                        "tool_name": tool_name,
+                        "arguments": audit_tool_arguments(tool_name, dict(call.get("arguments") or {})),
+                        "dependency": "ticket_list_query" if call in deferred else "",
                         "ok": bool(payload.get("ok")),
                         "status": payload.get("status") or "",
                         "latency_ms": payload.get("latency_ms"),
                         "source_count": len(data.get("sources") or []),
                     },
                 )
-            sources = list(worker_state.get("retrieved_sources") or [])
-            hard_decision = decide_evidence(
-                sources,
-                worker_state.get("retrieval_filter") or {},
-                intent="knowledge_qa",
-                chain=KNOWLEDGE_RETRIEVAL_CHAIN,
-            ) if sources else None
-            if hard_decision and hard_decision.ok:
-                coverage = self.agent.assess_evidence(worker_state) or {}
-                worker_state["agent_evidence_coverage"] = coverage
-                worker_state["evidence_decision"] = {"coverage": coverage}
-                emit_worker_stream_event(
-                    event_sink,
-                    "knowledge_worker_evidence_checked",
-                    {
-                        "sub_question_id": sub_question_id,
-                        "question": question,
-                        "iteration": iteration,
-                        "ok": not bool(coverage.get("evidence_incomplete")) if coverage.get("assessed") else True,
-                        "source_count": len(sources),
-                        "coverage": coverage,
-                    },
-                )
-                if not coverage.get("assessed") or not coverage.get("evidence_incomplete"):
-                    failure_reason = ""
-                    break
+            checks, coverage, answerable = worker_evidence_status(self, worker_state, required_evidence)
+            worker_state["agent_evidence_coverage"] = coverage
+            worker_state["evidence_decision"] = {"coverage": coverage, "checks": checks}
+            emit_worker_stream_event(
+                event_sink,
+                "knowledge_worker_evidence_checked",
+                {
+                    "sub_question_id": sub_question_id,
+                    "question": question,
+                    "iteration": iteration,
+                    "ok": bool(checks) and all(checks.values()),
+                    "source_count": len(worker_state.get("retrieved_sources") or []),
+                    "tool_result_count": len(worker_state.get("tool_results") or []),
+                    "required_evidence": sorted(required_evidence),
+                    "checks": checks,
+                    "coverage": coverage,
+                },
+            )
+            terminal_failure = required_business_tool_failure(
+                worker_state.get("tool_results") or [],
+                required=required_evidence,
+            )
+            if terminal_failure:
+                failure_reason = terminal_failure
+                break
+            if checks and all(checks.values()):
+                failure_reason = ""
+                break
         return {
             "sub_question_id": sub_question_id,
             "question": question,
-            "evidence_complete": not bool(failure_reason) and bool(worker_state.get("retrieved_sources")),
+            "evidence_complete": not bool(failure_reason) and bool(checks) and all(checks.values()),
+            "answerable": answerable,
             "failure_reason": failure_reason,
             "iterations": int(worker_state.get("agent_iteration") or 0),
             "sources": list(worker_state.get("retrieved_sources") or []),
             "tool_results": list(worker_state.get("tool_results") or []),
             "executed_queries": accumulated_knowledge_queries(worker_state.get("tool_results") or []),
+            "required_evidence": sorted(required_evidence),
+            "checks": checks,
             "coverage": coverage,
             "rag_status": worker_state.get("rag_status") or {},
         }
@@ -795,6 +827,9 @@ def worker_completed_stream_event(worker: dict[str, Any]) -> dict[str, Any]:
             "iterations": int(worker.get("iterations") or 0),
             "executed_queries": worker.get("executed_queries") or [],
             "source_count": len(worker.get("sources") or []),
+            "tool_result_count": len(worker.get("tool_results") or []),
+            "required_evidence": worker.get("required_evidence") or [],
+            "checks": worker.get("checks") or {},
             "evidence_complete": bool(worker.get("evidence_complete")),
             "failure_reason": worker.get("failure_reason") or "",
         },
@@ -822,6 +857,57 @@ def merge_worker_evidence(
         if isinstance(item, dict)
     ]
     return select_generation_sources(combined)
+
+
+def worker_required_evidence(question: str) -> set[str]:
+    """Infer only the evidence types required by one atomic sub-question."""
+    ticket_intent = classify_ticket_intent(question)
+    if ticket_intent == INTENT_TICKET_LIST:
+        return {"ticket_list"}
+    if ticket_intent:
+        required = {"ticket_detail"}
+        if needs_public_knowledge(question):
+            required.add("knowledge")
+        return required
+    return {"knowledge"}
+
+
+def worker_evidence_status(
+    nodes: Any,
+    worker_state: dict[str, Any],
+    required: set[str],
+) -> tuple[dict[str, bool], dict[str, Any], bool]:
+    """Evaluate knowledge and business evidence independently for one Worker."""
+    results = [item for item in (worker_state.get("tool_results") or []) if isinstance(item, dict)]
+    list_ok = any(item.get("tool_name") == "ticket_list_query" and item.get("ok") for item in results)
+    detail_ok = any(item.get("tool_name") == "ticket_detail_query" and item.get("ok") for item in results)
+    sources = list(worker_state.get("retrieved_sources") or [])
+    coverage: dict[str, Any] = {}
+    knowledge_ok = False
+    if "knowledge" in required and sources:
+        hard_decision = decide_evidence(
+            sources,
+            worker_state.get("retrieval_filter") or {},
+            intent="knowledge_qa",
+            chain=KNOWLEDGE_RETRIEVAL_CHAIN,
+        )
+        if hard_decision.ok:
+            coverage = nodes.agent.assess_evidence(worker_state) or {}
+            knowledge_ok = (
+                not bool(coverage.get("evidence_incomplete"))
+                if coverage.get("assessed")
+                else True
+            )
+    checks = {
+        requirement: {
+            "knowledge": knowledge_ok,
+            "ticket_list": list_ok,
+            "ticket_detail": detail_ok,
+        }.get(requirement, False)
+        for requirement in sorted(required)
+    }
+    answerable = bool(sources or list_ok or detail_ok)
+    return checks, coverage, answerable
 
 
 
@@ -910,7 +996,7 @@ def required_business_tool_failure(
         required_tools.add("ticket_list_query")
     if "ticket_detail" in required:
         required_tools.add("ticket_detail_query")
-    failed_statuses = {"tool_error", "invalid_arguments", "not_found", "policy_denied"}
+    failed_statuses = {"tool_error", "not_found"}
     for result in reversed(results):
         if not isinstance(result, dict) or result.get("tool_name") not in required_tools:
             continue

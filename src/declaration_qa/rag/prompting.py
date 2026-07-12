@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from declaration_qa.memory.context import format_long_term_context, format_short_term_context
 from declaration_qa.rag.router import INTENT_TICKET_LIST
@@ -91,17 +93,21 @@ def ticket_list_answer(state: dict[str, Any]) -> str:
     return "当前账号下查询到以下申请事项：\n" + "\n".join(lines)
 
 
-def application_history_answer(state: dict[str, Any]) -> str:
+def application_history_answer(
+    state: dict[str, Any],
+    *,
+    applications: list[dict[str, Any]] | None = None,
+) -> str:
     """逐个输出同一事项下每次申请的完整状态变化。"""
-    applications = ticket_applications(state)
+    applications = applications if applications is not None else ticket_applications(state)
     if not applications:
         return "当前未查询到该事项的申请状态历史。"
     sections = []
     for application in applications:
         application_id = int(application.get("application_id") or 0)
-        submitted_at = str(application.get("submitted_at") or "")
-        current_status = str(application.get("current_status") or "")
-        completed_at = str(application.get("completed_at") or "")
+        submitted_at = format_business_time(application.get("submitted_at"))
+        current_status = business_status_label(application.get("current_status"))
+        completed_at = format_business_time(application.get("completed_at"))
         header_fields = [f"application_id：{application_id}"]
         if submitted_at:
             header_fields.append(f"提交时间：{submitted_at}")
@@ -114,11 +120,10 @@ def application_history_answer(state: dict[str, Any]) -> str:
         lines = []
         for event in history:
             sequence_no = int(event.get("sequence_no") or 0)
-            from_status = str(event.get("from_status") or "起始")
-            status = str(event.get("status") or "未知")
-            changed_at = str(event.get("changed_at") or "")
+            from_status = business_status_label(event.get("from_status"), default="起始")
+            status = business_status_label(event.get("status"), default="未知")
+            changed_at = format_business_time(event.get("changed_at"))
             node = str(event.get("node_name") or event.get("current_node") or "")
-            reason_code = str(event.get("reason_code") or "")
             reason = str(event.get("reason") or "")
             material_name = str(event.get("material_name") or "")
             material_code = str(event.get("material_code") or "")
@@ -127,16 +132,44 @@ def application_history_answer(state: dict[str, Any]) -> str:
                 detail_fields.append(f"节点：{node}")
             if reason:
                 detail_fields.append(f"原因：{reason}")
-            if reason_code:
-                detail_fields.append(f"原因编码：{reason_code}")
             if material_name or material_code:
                 material = material_name or material_code
-                if material_name and material_code:
-                    material = f"{material_name}（{material_code}）"
                 detail_fields.append(f"关联材料：{material}")
             lines.append("- " + "；".join(field for field in detail_fields if field))
         sections.append(header + "\n" + ("\n".join(lines) if lines else "- 暂无状态流水"))
     return "该事项下的申请状态历史如下：\n\n" + "\n\n".join(sections)
+
+
+BUSINESS_STATUS_LABELS = {
+    "submitted": "已提交",
+    "pre_accept": "网上预审",
+    "accepted": "已受理",
+    "in_review": "审查中",
+    "in_decision": "待决定",
+    "returned_for_correction": "退回补正",
+    "rejected": "已退回",
+    "completed": "已办结",
+}
+
+
+def business_status_label(value: Any, *, default: str = "") -> str:
+    status = str(value or "").strip()
+    if not status:
+        return default
+    return BUSINESS_STATUS_LABELS.get(status, status)
+
+
+def format_business_time(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(ZoneInfo("Asia/Shanghai"))
+        return parsed.strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return raw
 
 
 def format_tool_result_payload(results: list[dict[str, Any]]) -> str:

@@ -368,7 +368,7 @@ export function reduceToolTrace(current, event, data = {}) {
       ok: null,
       latencyMs: null,
       parallel: Boolean(data.parallel),
-      dependency: '',
+      dependency: String(data.dependency || ''),
       subQuestion: String(data.question || ''),
       sourceCount: 0,
     };
@@ -386,7 +386,7 @@ export function reduceToolTrace(current, event, data = {}) {
       ok: null,
       latencyMs: null,
       parallel: true,
-      dependency: '',
+      dependency: String(data.dependency || ''),
       subQuestion: String(data.question || ''),
       subQuestionId: String(data.sub_question_id || ''),
       parentWorkerId: `worker:${String(data.sub_question_id || '')}`,
@@ -420,9 +420,9 @@ export function reduceToolTrace(current, event, data = {}) {
     trace.phase = data.ok ? 'executing' : 'planning';
     const gate = normalizeEvidenceGate({
       ...data,
-      required_evidence: ['knowledge'],
-      checks: { knowledge: Boolean(data.ok) },
-      tool_result_count: 1,
+      required_evidence: Array.isArray(data.required_evidence) ? data.required_evidence : ['knowledge'],
+      checks: data.checks || { knowledge: Boolean(data.ok) },
+      tool_result_count: Number(data.tool_result_count || 0),
     });
     const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
     if (index >= 0) trace.gates[index] = gate;

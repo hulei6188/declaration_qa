@@ -126,7 +126,7 @@ function ToolStep({ tool }) {
   const Icon = toolIcon(tool.toolName);
   const details = argumentDetails(tool.toolName, tool.arguments);
   const label = tool.toolName === 'knowledge_worker'
-    ? (tool.isCompound ? '子问题 Worker' : '知识 Worker')
+    ? '子问题 Agent'
     : (TOOL_LABELS[tool.toolName] || tool.toolName || '执行工具');
   return (
     <div className={`tool-step status-${tool.status || 'running'} ${tool.parentWorkerId ? 'is-worker-child' : ''}`}>
@@ -178,7 +178,7 @@ function EvidenceStep({ gate }) {
         <div className="tool-step-meta">
           {gate.iteration > 0 && <span>第 {gate.iteration} 轮</span>}
           {coverage.assessed && <span>{coverage.evidenceIncomplete ? '模型判断需继续检索' : '模型判断证据完整'}</span>}
-          <span>{gate.sourceCount} 条知识证据</span>
+          {checks.includes('knowledge') && <span>{gate.sourceCount} 条知识证据</span>}
           <span>{gate.toolResultCount} 个工具结果</span>
         </div>
       </div>

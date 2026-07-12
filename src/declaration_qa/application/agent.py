@@ -41,7 +41,7 @@ AGENT_SYSTEM_PROMPT = """你是政务申报系统的端到端 Agent。你负责�
 10. 证据不足时继续调用必要工具；证据充分时不再调用工具，直接输出清晰、可操作的最终答案。
 11. 当 Evidence Gate 标记 evidence_incomplete=true 时，结合原始问题、历次查询和当前公开证据，自主生成新的、未执行过的 knowledge_search 查询；不得扩展用户未询问的主题。
 12. 当服务端未提供工具并明确给出完整证据时，表示 Evidence Gate 已通过，必须直接生成最终答案。
-13. 当输入包含 worker_sub_question_id 时，你正在处理一个已经拆解完成的原子子问题。knowledge_search 只能生成该子问题的同义改写或检索表达，不得增加材料、流程、条件等子问题未询问的维度。"""
+13. 当输入包含 worker_sub_question_id 时，你正在处理一个已经拆解完成的原子子问题。你应根据该子问题自主选择已注册工具；政策知识使用 knowledge_search，个人申请使用 ticket_list_query 和 ticket_detail_query。不得扩展子问题未询问的主题。"""
 
 
 class EvidenceCoverageDecision(BaseModel):
@@ -134,7 +134,7 @@ class ToolCallingAgent:
         self.max_image_bytes = max(1, int(max_image_bytes or 1))
 
     def decompose_question(self, state: dict[str, Any]) -> dict[str, Any]:
-        """把复合公开知识问题拆成可由隔离 Worker 独立完成的任务。"""
+        """把复合问题拆成可由隔离 Worker 独立完成的任务。"""
         query = str(state.get("normalized_query") or state.get("query") or "").strip()
         fallback = {
             "is_compound": False,
@@ -152,6 +152,7 @@ class ToolCallingAgent:
             "例如‘取水合理性如何评估’是一个问题，不能拆成依据、标准、方法或流程，也不能改写或收窄。"
             "同义表达、关键词扩展、检索改写和回答所需方面不能作为子问题。不要生成检索查询。"
             "复合问题的每个子问题必须忠实保留原始意图，不得增加用户没有询问的主题。"
+            "公开政策问题和个人申请问题必须拆成不同子问题，由后续子 Agent 自主选择对应工具。"
             "非复合问题返回 is_compound=false 和空 sub_questions。"
         )
         payload = {
@@ -739,6 +740,9 @@ def compact_worker_summary(state: dict[str, Any]) -> dict[str, Any]:
                 "question": item.get("question") or "",
                 "evidence_complete": bool(item.get("evidence_complete")),
                 "source_count": len(item.get("sources") or []),
+                "tool_result_count": len(item.get("tool_results") or []),
+                "required_evidence": item.get("required_evidence") or [],
+                "checks": item.get("checks") or {},
                 "executed_queries": item.get("executed_queries") or [],
             }
             for item in (state.get("knowledge_worker_results") or [])

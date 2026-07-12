@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.actions import suggested_actions
@@ -180,27 +182,30 @@ def agent_model_config(agent: object | None) -> dict[str, object]:
 
 
 def ensure_complete_application_history(answer: str, state: dict[str, object]) -> tuple[str, bool]:
-    """防止 Agent 漏掉同一事项的申请或状态流水。"""
+    """保留 Agent 回答，仅在遗漏整次申请时追加对应历史。"""
     intent = str(state.get("intent") or "")
     if intent not in {"status", "ticket_status", "reject", "rejection_reason"}:
         return answer, False
     applications = ticket_applications(state)
     if not applications:
         return answer, False
-    required_values: list[str] = []
-    for application in applications:
-        required_values.append(str(application.get("application_id") or ""))
-        for event in application.get("status_history") or []:
-            if not isinstance(event, dict):
-                continue
-            required_values.extend(
-                str(value)
-                for value in (event.get("status"), event.get("changed_at"), event.get("reason"))
-                if str(value or "").strip()
-            )
-    if all(value in answer for value in required_values if value):
+    missing_applications = [
+        application
+        for application in applications
+        if not answer_mentions_application(answer, application.get("application_id"))
+    ]
+    if not missing_applications:
         return answer, False
-    history = application_history_answer(state)
-    if "knowledge" in set(state.get("agent_required_evidence") or []) and answer:
-        history = f"{history}\n\n公开办理依据补充：\n{answer}"
-    return history, True
+    history = application_history_answer(state, applications=missing_applications)
+    if not answer:
+        return history, True
+    return f"{answer}\n\n为确保申请记录完整，补充模型遗漏的申请历史：\n\n{history}", True
+
+
+def answer_mentions_application(answer: str, application_id: object) -> bool:
+    """Match an application identifier only when it is labeled as an application."""
+    identifier = str(application_id or "").strip()
+    if not identifier:
+        return False
+    pattern = rf"(?:application[\s_-]*id|申请(?:编号|ID)?)[：:\s#-]*{re.escape(identifier)}(?!\d)"
+    return re.search(pattern, answer, flags=re.IGNORECASE) is not None

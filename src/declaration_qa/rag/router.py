@@ -30,12 +30,21 @@ def classify_ticket_intent(query: str) -> str:
     """按规则识别办件类意图。"""
     if contains_any(query, ["退回", "驳回", "补正", "不通过", "被拒", "被退"]):
         return INTENT_REJECTION_REASON
+    personal_application = contains_any(
+        query,
+        ["我的申请", "我的办件", "我提交的申请", "我上次提交", "上次申请", "这次申请"],
+    )
+    if personal_application and contains_any(
+        query,
+        ["通过", "批准", "办结", "结果", "进度", "状态", "审核", "怎么样", "什么情况", "到哪"],
+    ):
+        return INTENT_TICKET_STATUS
     if contains_any(query, ["我的办件", "我的申请记录", "历史申请", "申请列表", "我办过哪些", "我提交过哪些"]):
         return INTENT_TICKET_LIST
     if contains_any(query, ["进度", "到哪", "状态", "审核到", "办到哪", "多久能办完", "什么情况", "怎么样"]):
         return INTENT_TICKET_STATUS
-    if "我的申请" in query and not contains_any(query, ["材料", "流程", "条件", "费用", "收费", "时限", "模板", "怎么填"]):
-        return INTENT_TICKET_LIST
+    if personal_application and not contains_any(query, ["材料", "流程", "条件", "费用", "收费", "时限", "模板", "怎么填"]):
+        return INTENT_TICKET_STATUS
     return ""
 
 
