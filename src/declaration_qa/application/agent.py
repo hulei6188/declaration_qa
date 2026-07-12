@@ -40,7 +40,8 @@ AGENT_SYSTEM_PROMPT = """你是政务申报系统的端到端 Agent。你负责�
 9. 对申请进度、状态、退回或补正问题，最终回答必须逐个输出同一事项下全部 application_id，并完整保留每个申请的 status_history，不得只回答选中的一次申请。
 10. 证据不足时继续调用必要工具；证据充分时不再调用工具，直接输出清晰、可操作的最终答案。
 11. 当 Evidence Gate 标记 evidence_incomplete=true 时，结合原始问题、历次查询和当前公开证据，自主生成新的、未执行过的 knowledge_search 查询；不得扩展用户未询问的主题。
-12. 当服务端未提供工具并明确给出完整证据时，表示 Evidence Gate 已通过，必须直接生成最终答案。"""
+12. 当服务端未提供工具并明确给出完整证据时，表示 Evidence Gate 已通过，必须直接生成最终答案。
+13. 当输入包含 worker_sub_question_id 时，你正在处理一个已经拆解完成的原子子问题。knowledge_search 只能生成该子问题的同义改写或检索表达，不得增加材料、流程、条件等子问题未询问的维度。"""
 
 
 class EvidenceCoverageDecision(BaseModel):
@@ -204,11 +205,10 @@ class ToolCallingAgent:
             return None
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        executed_queries = accumulated_knowledge_queries(state.get("tool_results") or [])
+        coverage_sources = select_generation_sources(state.get("retrieved_sources") or [])
         prompt = {
             "user_query": state.get("normalized_query") or state.get("query") or "",
-            "executed_queries": executed_queries,
-            "public_evidence": compact_coverage_sources(state.get("retrieved_sources") or []),
+            "public_evidence": compact_coverage_sources(coverage_sources),
         }
         instructions = (
             "你是政务知识证据完整性评估器。只判断当前全部公开证据能否完整回答用户原始问题中明确提出的所有问题。"
@@ -348,7 +348,16 @@ class ToolCallingAgent:
     def _model_decision(self, state: dict[str, Any], tool_definitions: list[dict[str, Any]]) -> AgentDecision:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        bound = self.model.bind_tools(tool_definitions)
+        worker_retry_required = bool(
+            state.get("worker_sub_question_id")
+            and (state.get("agent_evidence_coverage") or {}).get("assessed")
+            and (state.get("agent_evidence_coverage") or {}).get("evidence_incomplete")
+            and tool_definitions
+        )
+        bound = self.model.bind_tools(
+            tool_definitions,
+            **({"tool_choice": "required"} if worker_retry_required else {}),
+        )
         observations = compact_tool_observations(state.get("tool_results") or [])
         prompt = {
             "query": state.get("normalized_query") or state.get("query") or "",
@@ -364,6 +373,8 @@ class ToolCallingAgent:
             "query_image_ocr_text": str(state.get("query_image_ocr_text") or "")[:4000],
             "required_evidence": list(state.get("agent_required_evidence") or []),
             "evidence_decision": state.get("evidence_decision") or {},
+            "worker_sub_question_id": state.get("worker_sub_question_id") or "",
+            "worker_retry_must_search": worker_retry_required,
         }
         prompt_text = json.dumps(prompt, ensure_ascii=False, default=str)
         started_at = perf_counter()
@@ -638,9 +649,18 @@ def build_agent_final_prompt(
     sources: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the evidence-complete prompt for the Agent's final multimodal turn."""
+    gate_instruction = (
+        "服务端 Evidence Gate 已通过，当前没有可调用工具，请直接生成最终答案。"
+        if state.get("evidence_ok")
+        else (
+            "服务端已完成有界检索，但部分子问题的覆盖判断仍未通过。"
+            "请仅根据现有证据回答能够确认的内容，并对确实无法确认的部分明确说明证据不足；"
+            "不得因此拒绝回答其他已有充分证据的部分。"
+        )
+    )
     return "\n\n".join(
         [
-            "服务端 Evidence Gate 已通过，当前没有可调用工具，请直接生成最终答案。",
+            gate_instruction,
             f"用户问题：{state.get('query') or ''}",
             f"问题拆解与各任务完成状态：{json.dumps(compact_worker_summary(state), ensure_ascii=False, default=str)}",
             f"识别意图：{state.get('intent') or ''}",

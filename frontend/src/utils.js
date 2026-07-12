@@ -334,15 +334,104 @@ export function reduceToolTrace(current, event, data = {}) {
       else trace.tools.push(tool);
     }
   } else if (event === 'question_decomposed') {
-    trace.phase = 'planning';
+    trace.phase = 'executing';
     trace.subQuestions = Array.isArray(data.sub_questions) ? data.sub_questions : [];
+    for (const item of trace.subQuestions) {
+      const workerId = `worker:${String(item.sub_question_id || '')}`;
+      if (trace.tools.some((tool) => tool.callId === workerId)) continue;
+      trace.tools.push({
+        callId: workerId,
+        toolName: 'knowledge_worker',
+        arguments: {},
+        iteration: 0,
+        status: 'running',
+        ok: null,
+        latencyMs: null,
+        parallel: trace.subQuestions.length > 1,
+        dependency: '',
+        subQuestion: String(item.question || ''),
+        sourceCount: 0,
+      });
+    }
+  } else if (event === 'knowledge_worker_started') {
+    trace.phase = 'executing';
+    const workerId = `worker:${String(data.sub_question_id || '')}`;
+    const index = trace.tools.findIndex((item) => item.callId === workerId);
+    const runningWorker = {
+      callId: workerId,
+      toolName: 'knowledge_worker',
+      arguments: {},
+      iteration: 0,
+      status: 'running',
+      ok: null,
+      latencyMs: null,
+      parallel: Boolean(data.parallel),
+      dependency: '',
+      subQuestion: String(data.question || ''),
+      sourceCount: 0,
+    };
+    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...runningWorker };
+    else trace.tools.push(runningWorker);
+  } else if (event === 'knowledge_worker_tool_started') {
+    trace.phase = 'executing';
+    const callId = String(data.tool_call_id || '');
+    const tool = {
+      callId,
+      toolName: String(data.tool_name || 'knowledge_search'),
+      arguments: data.arguments || {},
+      iteration: Number(data.iteration || 0),
+      status: 'running',
+      ok: null,
+      latencyMs: null,
+      parallel: true,
+      dependency: '',
+      subQuestion: String(data.question || ''),
+      subQuestionId: String(data.sub_question_id || ''),
+      parentWorkerId: `worker:${String(data.sub_question_id || '')}`,
+      sourceCount: 0,
+    };
+    const index = trace.tools.findIndex((item) => item.callId === callId);
+    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...tool };
+    else trace.tools.push(tool);
+  } else if (event === 'knowledge_worker_tool_completed') {
+    trace.phase = 'checking';
+    const callId = String(data.tool_call_id || '');
+    const index = trace.tools.findIndex((item) => item.callId === callId);
+    const completedTool = {
+      callId,
+      toolName: String(data.tool_name || 'knowledge_search'),
+      arguments: data.arguments || {},
+      iteration: Number(data.iteration || 0),
+      status: data.ok ? 'completed' : 'failed',
+      ok: Boolean(data.ok),
+      latencyMs: numberOrNull(data.latency_ms),
+      parallel: true,
+      dependency: '',
+      subQuestion: String(data.question || ''),
+      subQuestionId: String(data.sub_question_id || ''),
+      parentWorkerId: `worker:${String(data.sub_question_id || '')}`,
+      sourceCount: Number(data.source_count || 0),
+    };
+    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...completedTool };
+    else trace.tools.push(completedTool);
+  } else if (event === 'knowledge_worker_evidence_checked') {
+    trace.phase = data.ok ? 'executing' : 'planning';
+    const gate = normalizeEvidenceGate({
+      ...data,
+      required_evidence: ['knowledge'],
+      checks: { knowledge: Boolean(data.ok) },
+      tool_result_count: 1,
+    });
+    const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
+    if (index >= 0) trace.gates[index] = gate;
+    else trace.gates.push(gate);
   } else if (event === 'knowledge_worker_completed') {
     trace.phase = 'checking';
-    const workerId = String(data.sub_question_id || `worker_${trace.tools.length + 1}`);
+    const workerId = `worker:${String(data.sub_question_id || trace.tools.length + 1)}`;
     const tool = {
       callId: workerId,
-      toolName: 'knowledge_search',
-      arguments: { queries: data.executed_queries || [] },
+      toolName: 'knowledge_worker',
+      arguments: {},
       iteration: Number(data.iterations || 0),
       status: data.evidence_complete ? 'completed' : 'failed',
       ok: Boolean(data.evidence_complete),
@@ -351,6 +440,7 @@ export function reduceToolTrace(current, event, data = {}) {
       dependency: '',
       subQuestion: String(data.question || ''),
       sourceCount: Number(data.source_count || 0),
+      failureReason: String(data.failure_reason || ''),
     };
     const index = trace.tools.findIndex((item) => item.callId === workerId);
     if (index >= 0) trace.tools[index] = tool;
@@ -401,7 +491,7 @@ export function reduceToolTrace(current, event, data = {}) {
   } else if (event === 'evidence') {
     trace.phase = data.ok ? 'answering' : 'planning';
     const gate = normalizeEvidenceGate(data);
-    const index = trace.gates.findIndex((item) => item.iteration === gate.iteration);
+    const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
     if (index >= 0) trace.gates[index] = gate;
     else trace.gates.push(gate);
   } else if (event === 'answer_generated') {
@@ -462,10 +552,14 @@ function normalizeEvidenceGate(data = {}) {
   return {
     iteration: Number(data.iteration || 0),
     ok: Boolean(data.ok),
+    answerable: Boolean(data.answerable),
+    partial: Boolean(data.partial),
     required: Array.isArray(data.required_evidence) ? data.required_evidence : [],
     checks: data.checks && typeof data.checks === 'object' ? data.checks : {},
     sourceCount: Number(data.source_count || 0),
     toolResultCount: Number(data.tool_result_count || 0),
+    subQuestionId: String(data.sub_question_id || ''),
+    subQuestion: String(data.question || ''),
     coverage: {
       assessed: Boolean(coverage.assessed),
       provider: String(coverage.provider || ''),

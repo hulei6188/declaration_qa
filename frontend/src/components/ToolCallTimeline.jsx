@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 const TOOL_LABELS = {
+  knowledge_worker: '子问题 Worker',
   knowledge_search: '检索政策知识',
   ticket_list_query: '查询申请事项',
   ticket_detail_query: '查询申请详情',
@@ -38,6 +39,10 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
   if (!trace && !runId) return null;
   const activeTrace = trace || { status: 'idle', loaded: false, tools: [], gates: [] };
   const tools = activeTrace.tools || [];
+  const workerTools = tools.filter((tool) => tool.toolName === 'knowledge_worker');
+  const workerIds = new Set(workerTools.map((tool) => tool.callId));
+  const ungroupedTools = tools.filter((tool) => tool.toolName !== 'knowledge_worker' && !workerIds.has(tool.parentWorkerId));
+  const globalGates = (activeTrace.gates || []).filter((gate) => !gate.subQuestionId);
   const failed = activeTrace.status === 'failed';
   const running = activeTrace.status === 'running' || activeTrace.status === 'loading';
 
@@ -62,10 +67,18 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
         <div className="tool-trace-body">
           {activeTrace.status === 'loading' && <div className="tool-trace-empty">正在读取执行记录</div>}
           {activeTrace.error && <div className="tool-trace-error">{activeTrace.error}</div>}
-          {tools.map((tool, index) => (
+          {workerTools.map((worker) => (
+            <WorkerGroup
+              key={worker.callId}
+              worker={worker}
+              tools={tools.filter((tool) => tool.parentWorkerId === worker.callId)}
+              gates={(activeTrace.gates || []).filter((gate) => `worker:${gate.subQuestionId}` === worker.callId)}
+            />
+          ))}
+          {ungroupedTools.map((tool, index) => (
             <ToolStep key={tool.callId || `${tool.toolName}-${index}`} tool={tool} />
           ))}
-          {(activeTrace.gates || []).map((gate, index) => (
+          {globalGates.map((gate, index) => (
             <EvidenceStep key={`${gate.iteration}-${index}`} gate={gate} />
           ))}
           {!running && !activeTrace.error && tools.length === 0 && activeTrace.loaded && (
@@ -77,11 +90,43 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
   );
 }
 
+function WorkerGroup({ worker, tools, gates }) {
+  const steps = [
+    ...tools.map((tool, index) => ({
+      kind: 'tool',
+      iteration: Number(tool.iteration || 0),
+      order: index,
+      value: tool,
+    })),
+    ...gates.map((gate, index) => ({
+      kind: 'gate',
+      iteration: Number(gate.iteration || 0),
+      order: index,
+      value: gate,
+    })),
+  ].sort((left, right) => (
+    left.iteration - right.iteration
+    || (left.kind === right.kind ? left.order - right.order : left.kind === 'tool' ? -1 : 1)
+  ));
+  return (
+    <div className={`worker-group status-${worker.status || 'running'}`}>
+      <ToolStep tool={worker} />
+      <div className="worker-group-children">
+        {steps.map((step, index) => (
+          step.kind === 'tool'
+            ? <ToolStep key={step.value.callId || `tool-${index}`} tool={step.value} />
+            : <EvidenceStep key={`${step.value.subQuestionId}-${step.value.iteration}-${index}`} gate={step.value} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ToolStep({ tool }) {
   const Icon = toolIcon(tool.toolName);
   const details = argumentDetails(tool.toolName, tool.arguments);
   return (
-    <div className={`tool-step status-${tool.status || 'running'}`}>
+    <div className={`tool-step status-${tool.status || 'running'} ${tool.parentWorkerId ? 'is-worker-child' : ''}`}>
       <span className="tool-step-icon"><Icon size={14} /></span>
       <div className="tool-step-main">
         <div className="tool-step-head">
@@ -100,6 +145,7 @@ function ToolStep({ tool }) {
           {tool.dependency && <span>依赖上一项结果</span>}
           {tool.latencyMs !== null && tool.latencyMs !== undefined && <span>{formatLatency(tool.latencyMs)}</span>}
           {tool.sourceCount > 0 && <span>{tool.sourceCount} 条证据</span>}
+          {tool.failureReason && <span>{failureReasonLabel(tool.failureReason)}</span>}
         </div>
       </div>
     </div>
@@ -109,13 +155,14 @@ function ToolStep({ tool }) {
 function EvidenceStep({ gate }) {
   const checks = gate.required?.length ? gate.required : Object.keys(gate.checks || {});
   const coverage = gate.coverage || {};
+  const stateLabel = gate.ok ? '通过' : gate.partial ? '部分覆盖' : '待补充';
   return (
-    <div className={`tool-step evidence-step ${gate.ok ? 'status-completed' : 'status-failed'}`}>
+    <div className={`tool-step evidence-step ${gate.subQuestionId ? 'is-worker-child' : ''} ${gate.ok ? 'status-completed' : gate.partial ? 'status-partial' : 'status-failed'}`}>
       <span className="tool-step-icon"><ShieldCheck size={14} /></span>
       <div className="tool-step-main">
         <div className="tool-step-head">
-          <strong>证据完整性检查</strong>
-          <span>{gate.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{gate.ok ? '通过' : '待补充'}</span>
+          <strong>{gate.subQuestion ? `证据检查：${gate.subQuestion}` : '证据完整性检查'}</strong>
+          <span>{gate.ok ? <CheckCircle2 size={13} /> : gate.partial ? <CircleDashed size={13} /> : <XCircle size={13} />}{stateLabel}</span>
         </div>
         <div className="evidence-checks">
           {checks.map((key) => (
@@ -152,6 +199,7 @@ function argumentDetails(toolName, args = {}) {
 }
 
 function toolIcon(name) {
+  if (name === 'knowledge_worker') return Activity;
   if (name === 'knowledge_search') return Search;
   if (name === 'ticket_list_query') return ListChecks;
   if (name === 'ticket_detail_query') return FileSearch;
@@ -186,4 +234,10 @@ function formatLatency(value) {
   const ms = Number(value || 0);
   if (ms >= 1000) return `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)} 秒`;
   return `${Math.round(ms)} 毫秒`;
+}
+
+function failureReasonLabel(reason) {
+  if (reason === 'worker_failed_to_plan_query') return '未生成补充检索';
+  if (reason === 'evidence_coverage_incomplete') return '证据仍不完整';
+  return reason;
 }

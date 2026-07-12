@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from datetime import datetime, timezone
 from time import perf_counter
@@ -13,18 +13,20 @@ from declaration_qa.application.agent import (
     accumulated_knowledge_queries,
     choose_application_id,
     needs_public_knowledge,
+    select_generation_sources,
 )
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.workflow_helpers.events import add_event
+from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
 from declaration_qa.application.workflow_helpers.intent import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
-from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_LIST, INTENT_TICKET_STATUS, classify_ticket_intent
+from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_LIST, INTENT_TICKET_STATUS, classify_knowledge_intent, classify_ticket_intent
 
 
 class WorkflowAgentNodes:
@@ -51,6 +53,7 @@ class WorkflowAgentNodes:
         next_state["question_decomposition"] = {}
         next_state["knowledge_worker_results"] = []
         next_state["use_parallel_knowledge_workers"] = False
+        next_state["partial_answer"] = False
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
         next_state["agent_final_answer"] = ""
@@ -93,6 +96,8 @@ class WorkflowAgentNodes:
         ][:4]
         next_state["question_decomposition"] = {**decomposition, "sub_questions": sub_questions}
         next_state["use_parallel_knowledge_workers"] = bool(sub_questions)
+        next_state["intent"] = classify_knowledge_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
+        next_state["sub_intent"] = next_state["intent"]
         add_event(
             next_state,
             "question_decomposed",
@@ -113,16 +118,44 @@ class WorkflowAgentNodes:
             next_state["refuse_reason"] = "clarification_required"
             next_state["evidence_ok"] = False
             return next_state
+        stream_writer = None
+        if is_declaration_qa_stream_run():
+            try:
+                from langgraph.config import get_stream_writer
+
+                stream_writer = get_stream_writer()
+            except (ImportError, RuntimeError):
+                stream_writer = None
+        for task in tasks:
+            if stream_writer is not None:
+                stream_writer(
+                    {
+                        "event": "knowledge_worker_started",
+                        "data": {
+                            "sub_question_id": task.get("sub_question_id") or "",
+                            "question": task.get("question") or "",
+                            "parallel": len(tasks) > 1,
+                        },
+                    }
+                )
         max_workers = min(int(getattr(self, "max_retrieval_workers", 4) or 4), len(tasks))
         if len(tasks) == 1:
-            worker_results = [self._run_knowledge_worker(next_state, tasks[0])]
+            worker_results = [self._run_knowledge_worker(next_state, tasks[0], stream_writer)]
+            if stream_writer is not None:
+                stream_writer(worker_completed_stream_event(worker_results[0]))
         else:
             with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="declaration-qa-worker") as executor:
-                futures = [
-                    executor.submit(copy_context().run, self._run_knowledge_worker, next_state, task)
-                    for task in tasks
-                ]
-                worker_results = [future.result() for future in futures]
+                future_indexes = {
+                    executor.submit(copy_context().run, self._run_knowledge_worker, next_state, task, stream_writer): index
+                    for index, task in enumerate(tasks)
+                }
+                worker_results_by_index: list[dict[str, Any] | None] = [None] * len(tasks)
+                for future in as_completed(future_indexes):
+                    worker = future.result()
+                    worker_results_by_index[future_indexes[future]] = worker
+                    if stream_writer is not None:
+                        stream_writer(worker_completed_stream_event(worker))
+                worker_results = [item for item in worker_results_by_index if item is not None]
 
         sources: list[dict[str, Any]] = []
         seen_chunks: set[str] = set()
@@ -178,8 +211,11 @@ class WorkflowAgentNodes:
             "source_count": len(sources),
         }
         next_state["evidence_ok"] = complete
+        next_state["partial_answer"] = bool(sources) and not complete
         next_state["evidence_decision"] = {
             "ok": complete,
+            "answerable": bool(sources),
+            "partial": next_state["partial_answer"],
             "required_evidence": ["knowledge"],
             "checks": {"knowledge": complete},
             "source_count": len(sources),
@@ -195,7 +231,7 @@ class WorkflowAgentNodes:
                 for item in worker_results
             ],
         }
-        if not complete:
+        if not complete and not sources:
             next_state["refuse_reason"] = "evidence_coverage_incomplete"
         add_event(
             next_state,
@@ -210,7 +246,12 @@ class WorkflowAgentNodes:
         add_event(next_state, "evidence", next_state["evidence_decision"])
         return next_state
 
-    def _run_knowledge_worker(self, parent_state: DeclarationQAState, task: dict[str, Any]) -> dict[str, Any]:
+    def _run_knowledge_worker(
+        self,
+        parent_state: DeclarationQAState,
+        task: dict[str, Any],
+        event_sink: Any | None = None,
+    ) -> dict[str, Any]:
         """运行一个只拥有 knowledge_search 的有限迭代 Worker Agent。"""
         sub_question_id = str(task.get("sub_question_id") or "worker")
         question = normalize_text(mask_sensitive_text(task.get("question") or ""))
@@ -220,6 +261,9 @@ class WorkflowAgentNodes:
             "normalized_query": question,
             "frozen_knowledge_query": question,
             "retrieval_query": question,
+            "session_messages": [],
+            "short_term_context": {},
+            "long_term_context": {},
             "agent_iteration": 0,
             "agent_required_evidence": ["knowledge"],
             "agent_evidence_coverage": {},
@@ -258,16 +302,48 @@ class WorkflowAgentNodes:
                 failure_reason = "worker_failed_to_plan_query"
                 break
             for call in calls:
+                event_call_id = f"{sub_question_id}:{iteration}:{call.get('id') or 'knowledge_search'}"
+                emit_worker_stream_event(
+                    event_sink,
+                    "knowledge_worker_tool_started",
+                    {
+                        "sub_question_id": sub_question_id,
+                        "question": question,
+                        "iteration": iteration,
+                        "tool_call_id": event_call_id,
+                        "tool_name": "knowledge_search",
+                        "arguments": audit_tool_arguments("knowledge_search", dict(call.get("arguments") or {})),
+                    },
+                )
                 payload, signature = self._execute_agent_tool_call(call, worker_state, worker_state["tool_results"])
                 worker_state["tool_results"].append({**payload, "worker_sub_question_id": sub_question_id})
                 if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
                     signatures.add(signature)
                 data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
                 if payload.get("ok"):
-                    worker_state["retrieved_sources"] = list(data.get("sources") or [])
+                    worker_state["retrieved_sources"] = merge_worker_evidence(
+                        worker_state.get("retrieved_sources") or [],
+                        data.get("sources") or [],
+                    )
                     worker_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
                     worker_state["rag_status"] = dict(data.get("rag_status") or {})
                     worker_state["retrieval_queries"] = list(data.get("executed_queries") or [])
+                emit_worker_stream_event(
+                    event_sink,
+                    "knowledge_worker_tool_completed",
+                    {
+                        "sub_question_id": sub_question_id,
+                        "question": question,
+                        "iteration": iteration,
+                        "tool_call_id": event_call_id,
+                        "tool_name": "knowledge_search",
+                        "arguments": audit_tool_arguments("knowledge_search", dict(call.get("arguments") or {})),
+                        "ok": bool(payload.get("ok")),
+                        "status": payload.get("status") or "",
+                        "latency_ms": payload.get("latency_ms"),
+                        "source_count": len(data.get("sources") or []),
+                    },
+                )
             sources = list(worker_state.get("retrieved_sources") or [])
             hard_decision = decide_evidence(
                 sources,
@@ -279,6 +355,18 @@ class WorkflowAgentNodes:
                 coverage = self.agent.assess_evidence(worker_state) or {}
                 worker_state["agent_evidence_coverage"] = coverage
                 worker_state["evidence_decision"] = {"coverage": coverage}
+                emit_worker_stream_event(
+                    event_sink,
+                    "knowledge_worker_evidence_checked",
+                    {
+                        "sub_question_id": sub_question_id,
+                        "question": question,
+                        "iteration": iteration,
+                        "ok": not bool(coverage.get("evidence_incomplete")) if coverage.get("assessed") else True,
+                        "source_count": len(sources),
+                        "coverage": coverage,
+                    },
+                )
                 if not coverage.get("assessed") or not coverage.get("evidence_incomplete"):
                     failure_reason = ""
                     break
@@ -688,6 +776,47 @@ def tool_call_signature(name: str, arguments: dict[str, Any]) -> str:
         queries.sort(key=lambda item: (item["text"], item["strategy"], item["aspect"]))
         return f"{name}:{json.dumps(queries, ensure_ascii=False, sort_keys=True)}"
     return f"{name}:{json.dumps(arguments, ensure_ascii=False, sort_keys=True, default=str)}"
+
+
+def worker_completed_stream_event(worker: dict[str, Any]) -> dict[str, Any]:
+    """构造不包含证据正文的 Worker 实时完成事件。"""
+    return {
+        "event": "knowledge_worker_completed",
+        "data": {
+            "sub_question_id": worker.get("sub_question_id") or "",
+            "question": worker.get("question") or "",
+            "iterations": int(worker.get("iterations") or 0),
+            "executed_queries": worker.get("executed_queries") or [],
+            "source_count": len(worker.get("sources") or []),
+            "evidence_complete": bool(worker.get("evidence_complete")),
+            "failure_reason": worker.get("failure_reason") or "",
+        },
+    }
+
+
+def emit_worker_stream_event(event_sink: Any | None, event: str, data: dict[str, Any]) -> None:
+    """从并行 Worker 安全发送不含隐藏推理的可观察事件。"""
+    if event_sink is None:
+        return
+    try:
+        event_sink({"event": event, "data": data})
+    except Exception:
+        return
+
+
+def merge_worker_evidence(
+    accumulated: list[dict[str, Any]],
+    current_round: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """跨检索轮次累积公开证据，防止新一轮重排覆盖已发现的材料。"""
+    combined = [
+        item
+        for item in [*accumulated, *current_round]
+        if isinstance(item, dict)
+    ]
+    return select_generation_sources(combined)
+
+
 
 
 def unique_new_tool_calls(calls: list[dict[str, Any]], *, existing_signatures: set[str]) -> list[dict[str, Any]]:

@@ -213,6 +213,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "question_decomposition": {},
             "knowledge_worker_results": [],
             "use_parallel_knowledge_workers": False,
+            "partial_answer": False,
             "agent_final_answer": "",
             "agent_final_prompt": "",
             "agent_answer_provider": "",
@@ -323,7 +324,7 @@ class DeclarationQAWorkflow(WorkflowNodes):
         )
         builder.add_conditional_edges(
             "parallel_knowledge_workers",
-            lambda state: "ok" if state.get("evidence_ok") else "refuse",
+            lambda state: "ok" if state.get("evidence_ok") or state.get("partial_answer") else "refuse",
             {"ok": "agent_finalize_answer", "refuse": "refuse_or_human"},
         )
         builder.add_conditional_edges(

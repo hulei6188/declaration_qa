@@ -91,7 +91,7 @@ export default function App() {
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
       for await (const { event, data } of readSSE(response.body)) {
-        if (['agent_decision', 'tool_executed', 'agent_observation', 'evidence', 'answer_generated', 'done', 'error'].includes(event)) {
+        if (['agent_decision', 'question_decomposed', 'knowledge_worker_started', 'knowledge_worker_tool_started', 'knowledge_worker_tool_completed', 'knowledge_worker_evidence_checked', 'knowledge_worker_completed', 'knowledge_workers_completed', 'tool_executed', 'agent_observation', 'evidence', 'answer_generated', 'done', 'error'].includes(event)) {
           setMessages((prev) => updateLastAssistantTrace(prev, event, data));
         }
         if (event === 'token') {
