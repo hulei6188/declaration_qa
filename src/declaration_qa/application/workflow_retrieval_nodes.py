@@ -52,7 +52,7 @@ class WorkflowRetrievalNodes:
                 {"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6},
             ]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
-        fused_top_k = min(12, max(6, len(executable_queries) * 2))
+        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 20) or 20)
         text_retrieval_enabled = bool(executable_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
@@ -162,7 +162,7 @@ class WorkflowRetrievalNodes:
                         "query": answer_query,
                         "query_count": len(executable_queries),
                         "queries": executable_queries,
-                        "top_k": 6,
+                        "top_k": configured_limit,
                         "filter": filters,
                         "retrieval_plan": retrieval_plan,
                     },
@@ -172,7 +172,7 @@ class WorkflowRetrievalNodes:
                         answer_query,
                         executable_queries,
                         filters,
-                        top_k=fused_top_k,
+                        top_k=configured_limit,
                         retrieval_plan=retrieval_plan,
                     )
                     span.update(
@@ -253,10 +253,8 @@ class WorkflowRetrievalNodes:
             results.append(image_result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
-        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 20) or 20)
         score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
-        answer_source_limit = min(configured_limit, fused_top_k)
-        sources = select_answer_sources(merged, answer_query, limit=answer_source_limit, retrieval_plan=retrieval_plan)
+        sources = select_answer_sources(merged, answer_query, limit=None, retrieval_plan=retrieval_plan)
         ordered_statuses = [status for status in query_statuses if status is not None]
         if image_query_status is not None:
             ordered_statuses.append(image_query_status)
@@ -284,7 +282,9 @@ class WorkflowRetrievalNodes:
             "score_cutoff": {
                 "enabled": score_threshold > 0,
                 "threshold": score_threshold,
-                "max_sources": answer_source_limit,
+                "max_sources": configured_limit,
+                "max_sources_per_rerank": configured_limit,
+                "merged_source_limit": None,
             },
             "retrieval_plan": retrieval_plan,
         }

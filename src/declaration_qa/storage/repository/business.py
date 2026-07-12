@@ -90,7 +90,10 @@ class BusinessRepository(EngineBackedRepository):
                     WHERE a.user_id = :user_id
                       AND a.deleted_at IS NULL
                       AND COALESCE(NULLIF(a.item_code, ''), a.payload->>'item_code', '') = :item_code
-                      AND (:application_id IS NULL OR a.id = :application_id)
+                      AND (
+                          CAST(:application_id AS BIGINT) IS NULL
+                          OR a.id = CAST(:application_id AS BIGINT)
+                      )
                     ORDER BY GREATEST(a.updated_at, COALESCE(s.updated_at, a.updated_at)) DESC, a.id DESC
                     """
                 ),

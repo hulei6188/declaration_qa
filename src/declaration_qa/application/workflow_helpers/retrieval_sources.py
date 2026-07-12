@@ -68,13 +68,16 @@ def select_answer_sources(
     merged: dict[str, RetrievedSource],
     query: str,
     *,
-    limit: int = 6,
+    limit: int | None = 6,
     retrieval_plan: dict[str, Any] | None = None,
 ) -> list[RetrievedSource]:
-    """选择进入答案生成的来源。"""
+    """选择进入答案生成的来源；limit=None 时仅去重，不再截断。"""
     ranked = sorted(
         merged.values(),
         key=lambda source: (float(source.rerank_score or 0.0), float(source.score or 0.0)),
         reverse=True,
     )
-    return dedupe_asset_sources(ranked)[:limit]
+    deduped = dedupe_asset_sources(ranked)
+    if limit is None:
+        return deduped
+    return deduped[: max(0, int(limit))]

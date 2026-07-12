@@ -681,6 +681,12 @@ class WorkflowAgentNodes:
             "iteration": int(next_state.get("agent_iteration") or 0),
             "isolation": "business_and_knowledge_separate",
         }
+        terminal_business_failure = required_business_tool_failure(
+            next_state.get("tool_results") or [],
+            required=required,
+        )
+        if not next_state["evidence_ok"] and terminal_business_failure:
+            next_state["refuse_reason"] = terminal_business_failure
         if (
             not next_state["evidence_ok"]
             and (
@@ -891,6 +897,27 @@ def agent_failure_reason(results: list[dict[str, Any]]) -> str:
     if "tool_error" in statuses:
         return "agent_tool_error"
     return "no_matched_source"
+
+
+def required_business_tool_failure(
+    results: list[dict[str, Any]],
+    *,
+    required: set[str],
+) -> str:
+    """Return a terminal failure once a required business tool has failed."""
+    required_tools = set()
+    if "ticket_list" in required:
+        required_tools.add("ticket_list_query")
+    if "ticket_detail" in required:
+        required_tools.add("ticket_detail_query")
+    failed_statuses = {"tool_error", "invalid_arguments", "not_found", "policy_denied"}
+    for result in reversed(results):
+        if not isinstance(result, dict) or result.get("tool_name") not in required_tools:
+            continue
+        status = str(result.get("status") or "")
+        if status in failed_statuses:
+            return agent_failure_reason([result])
+    return ""
 
 
 def agent_tool_call_allowed(tool_name: str, query: str) -> bool:
