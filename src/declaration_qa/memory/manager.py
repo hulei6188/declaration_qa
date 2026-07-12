@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from declaration_qa.memory.extraction import ContextMemoryExtractor
@@ -15,8 +16,9 @@ from declaration_qa.memory.context import normalize_recent_messages
 from declaration_qa.storage.cache import CacheStore
 
 
-SHORT_MEMORY_VERSION = 1
+SHORT_MEMORY_VERSION = 3
 LONG_MEMORY_VERSION = 1
+SHORT_MEMORY_ITEM_LIMIT = 12
 
 
 class ContextMemoryManager:
@@ -98,7 +100,31 @@ class ContextMemoryManager:
                 },
             ]
         )
-        short_memory = build_short_memory_payload(messages, cache_hit=False, backend=self.cache_store.backend)
+        verified_ticket_facts = merge_verified_ticket_facts(
+            existing.get("verified_ticket_facts") or existing.get("verified_facts") or [],
+            extract_verified_ticket_facts(payload.get("tool_results") or []),
+        )
+        ticket_item_overviews = merge_ticket_item_overviews(
+            existing.get("ticket_item_overviews") or [],
+            extract_ticket_item_overviews(payload.get("tool_results") or []),
+        )
+        recent_knowledge_evidence_refs = merge_knowledge_evidence_refs(
+            existing.get("recent_knowledge_evidence_refs") or [],
+            extract_knowledge_evidence_refs(
+                payload.get("retrieved_sources") or [],
+                session_id=session_id,
+                query=str(payload.get("query") or ""),
+                ttl_seconds=self.short_ttl_seconds,
+            ),
+        )
+        short_memory = build_short_memory_payload(
+            messages,
+            cache_hit=False,
+            backend=self.cache_store.backend,
+            verified_ticket_facts=verified_ticket_facts,
+            ticket_item_overviews=ticket_item_overviews,
+            recent_knowledge_evidence_refs=recent_knowledge_evidence_refs,
+        )
         self.cache_store.set_json(short_memory_key(user_id=user_id, session_id=session_id), short_memory, ttl_seconds=self.short_ttl_seconds)
         return short_memory
 
@@ -149,6 +175,9 @@ class ContextMemoryManager:
                 "backend": self.cache_store.backend,
                 "recent_message_count": len(short_memory.get("recent_messages") or []),
                 "summary": short_memory.get("summary") or "",
+                "verified_ticket_fact_count": len(short_memory.get("verified_ticket_facts") or []),
+                "ticket_item_overview_count": len(short_memory.get("ticket_item_overviews") or []),
+                "knowledge_evidence_ref_count": len(short_memory.get("recent_knowledge_evidence_refs") or []),
             },
             "long_memory": {"async_enqueued": True},
         }
@@ -207,7 +236,15 @@ class ContextMemoryManager:
         }
 
 
-def build_short_memory_payload(messages: list[dict[str, Any]], *, cache_hit: bool, backend: str) -> dict[str, Any]:
+def build_short_memory_payload(
+    messages: list[dict[str, Any]],
+    *,
+    cache_hit: bool,
+    backend: str,
+    verified_ticket_facts: list[dict[str, Any]] | None = None,
+    ticket_item_overviews: list[dict[str, Any]] | None = None,
+    recent_knowledge_evidence_refs: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """构建短期记忆缓存载荷。"""
     recent_messages = normalize_recent_messages(messages)
     return {
@@ -215,9 +252,187 @@ def build_short_memory_payload(messages: list[dict[str, Any]], *, cache_hit: boo
         "summary": summarize_recent_messages(recent_messages),
         "recent_messages": recent_messages,
         "recent_message_count": len(recent_messages),
+        "verified_ticket_facts": list(verified_ticket_facts or [])[-SHORT_MEMORY_ITEM_LIMIT:],
+        "ticket_item_overviews": list(ticket_item_overviews or [])[-SHORT_MEMORY_ITEM_LIMIT:],
+        "recent_knowledge_evidence_refs": list(recent_knowledge_evidence_refs or [])[-SHORT_MEMORY_ITEM_LIMIT:],
         "cache_hit": cache_hit,
         "backend": backend,
     }
+
+
+def extract_verified_ticket_facts(tool_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """从成功的工单详情结果提取可追溯、可过期的短期事实。"""
+    observed_at = datetime.now(timezone.utc).isoformat()
+    facts: list[dict[str, Any]] = []
+    for result in tool_results:
+        if not isinstance(result, dict) or not result.get("ok") or result.get("tool_name") != "ticket_detail_query":
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        item_code = str(data.get("item_code") or "")
+        for application in data.get("applications") or []:
+            if not isinstance(application, dict):
+                continue
+            history = [item for item in (application.get("status_history") or []) if isinstance(item, dict)]
+            reason_event = next(
+                (item for item in reversed(history) if item.get("reason") or item.get("material_name")),
+                {},
+            )
+            application_id = int(application.get("application_id") or 0)
+            if not item_code or not application_id:
+                continue
+            facts.append(
+                {
+                    "source": "ticket_detail_query",
+                    "fact_type": "application_status",
+                    "trusted": True,
+                    "item_code": item_code,
+                    "item_name": str(application.get("item_name") or ""),
+                    "application_id": application_id,
+                    "current_status": str(application.get("current_status") or ""),
+                    "reason": str(reason_event.get("reason") or ""),
+                    "material_name": str(reason_event.get("material_name") or ""),
+                    "fact_updated_at": str(application.get("updated_at") or reason_event.get("changed_at") or ""),
+                    "verified_at": observed_at,
+                    "refresh_required_for_current_status": True,
+                }
+            )
+    return facts
+
+
+def merge_verified_ticket_facts(
+    existing: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """按事项、申请和事实类型覆盖旧事实，限制短期缓存体积。"""
+    merged: dict[tuple[str, int, str], dict[str, Any]] = {}
+    for fact in [*existing, *current]:
+        if not isinstance(fact, dict) or not fact.get("trusted"):
+            continue
+        key = (
+            str(fact.get("item_code") or ""),
+            int(fact.get("application_id") or 0),
+            str(fact.get("fact_type") or ""),
+        )
+        if key[0] and key[1] and key[2]:
+            merged[key] = dict(fact)
+    return list(merged.values())[-SHORT_MEMORY_ITEM_LIMIT:]
+
+
+def extract_ticket_item_overviews(tool_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """从成功的工单列表结果提取事项级短期概览。"""
+    verified_at = datetime.now(timezone.utc).isoformat()
+    output: list[dict[str, Any]] = []
+    for result in tool_results:
+        if not isinstance(result, dict) or not result.get("ok") or result.get("tool_name") != "ticket_list_query":
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for item in data.get("items") or []:
+            if not isinstance(item, dict) or not str(item.get("item_code") or "").strip():
+                continue
+            output.append(
+                {
+                    "source": "ticket_list_query",
+                    "item_code": str(item.get("item_code") or ""),
+                    "item_name": str(item.get("item_name") or ""),
+                    "application_count": int(item.get("application_count") or 0),
+                    "statuses": [str(value) for value in (item.get("statuses") or []) if str(value)],
+                    "fact_updated_at": str(item.get("updated_at") or ""),
+                    "verified_at": verified_at,
+                    "refresh_required": True,
+                }
+            )
+    return output
+
+
+def merge_ticket_item_overviews(
+    existing: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """同一事项保留最近一次列表概览。"""
+    merged: dict[str, dict[str, Any]] = {}
+    for item in [*existing, *current]:
+        if not isinstance(item, dict) or item.get("source") != "ticket_list_query":
+            continue
+        item_code = str(item.get("item_code") or "")
+        if item_code:
+            merged[item_code] = dict(item)
+    return list(merged.values())[-SHORT_MEMORY_ITEM_LIMIT:]
+
+
+def extract_knowledge_evidence_refs(
+    sources: list[dict[str, Any]],
+    *,
+    session_id: str,
+    query: str,
+    ttl_seconds: int,
+) -> list[dict[str, Any]]:
+    """把公开知识来源压缩为当前会话可校验的短期证据引用。"""
+    retrieved_at = datetime.now(timezone.utc)
+    expires_at = retrieved_at + timedelta(seconds=max(1, int(ttl_seconds or 1)))
+    output: list[dict[str, Any]] = []
+    for source in sources[:SHORT_MEMORY_ITEM_LIMIT]:
+        if not isinstance(source, dict):
+            continue
+        chunk_id = str(source.get("chunk_id") or "").strip()
+        doc_id = str(source.get("doc_id") or "").strip()
+        if not chunk_id or not doc_id:
+            continue
+        metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+        digest = hashlib.sha256(
+            f"{session_id}:{chunk_id}:{retrieved_at.isoformat()}".encode("utf-8")
+        ).hexdigest()[:32]
+        evidence_text = " ".join(
+            str(source.get("evidence_text") or source.get("snippet") or "").split()
+        )
+        output.append(
+            {
+                "evidence_ref": f"ev_{digest}",
+                "session_id": session_id,
+                "query": " ".join(query.split())[:300],
+                "chunk_id": chunk_id,
+                "document_id": doc_id,
+                "title": str(source.get("title") or "")[:200],
+                "section": str(metadata.get("section_path") or metadata.get("node_title") or "")[:300],
+                "summary": evidence_text[:320],
+                "region_code": str(source.get("region_code") or ""),
+                "policy_version": str(source.get("policy_version") or ""),
+                "status": str(metadata.get("status") or metadata.get("doc_status") or "published"),
+                "effective_start_time": source.get("effective_start_time"),
+                "effective_end_time": source.get("effective_end_time"),
+                "retrieved_at": retrieved_at.isoformat(),
+                "expires_at": expires_at.isoformat(),
+            }
+        )
+    return output
+
+
+def merge_knowledge_evidence_refs(
+    existing: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """移除过期引用并按 chunk 覆盖为最近一次召回记录。"""
+    now = datetime.now(timezone.utc)
+    merged: dict[str, dict[str, Any]] = {}
+    for item in [*existing, *current]:
+        if not isinstance(item, dict):
+            continue
+        chunk_id = str(item.get("chunk_id") or "")
+        expires_at = parse_utc_datetime(item.get("expires_at"))
+        if not chunk_id or not expires_at or expires_at <= now:
+            continue
+        merged[chunk_id] = dict(item)
+    return list(merged.values())[-SHORT_MEMORY_ITEM_LIMIT:]
+
+
+def parse_utc_datetime(value: Any) -> datetime | None:
+    """解析带时区时间；无时区值按 UTC 处理。"""
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def summarize_recent_messages(messages: list[dict[str, Any]]) -> str:

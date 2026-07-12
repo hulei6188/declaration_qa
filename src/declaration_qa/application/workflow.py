@@ -130,6 +130,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             business_snapshot=final_state.get("business_snapshot") or {},
             rag_status=final_state.get("rag_status") or {},
             evidence_decision=final_state.get("evidence_decision") or {},
+            answer_mode=str(final_state.get("answer_mode") or ""),
             agent_plan=final_state.get("agent_plan") or {},
             agent_query_plan=final_state.get("agent_query_plan") or {},
             tool_results=final_state.get("tool_results") or [],
@@ -215,6 +216,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "knowledge_worker_results": [],
             "use_parallel_knowledge_workers": False,
             "partial_answer": False,
+            "answer_mode": "",
             "agent_final_answer": "",
             "agent_final_prompt": "",
             "agent_answer_provider": "",
@@ -358,6 +360,8 @@ class DeclarationQAWorkflow(ApplicationNodes):
         """复用已通过的 Gate，避免 Agent 观察结果后重复检查同一批证据。"""
         if state.get("agent_next") == "tools":
             return "tools"
+        if state.get("answer_mode") == "direct" and state.get("agent_final_answer"):
+            return "ready"
         if state.get("evidence_ok"):
             return "ready"
         return "check"
@@ -419,6 +423,7 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "retrieval_chain": state.get("retrieval_chain") or "",
             "agent_iteration": int(state.get("agent_iteration") or 0),
             "tool_result_count": len(state.get("tool_results") or []),
+            "answer_mode": state.get("answer_mode") or "",
             "has_query_image": bool(state.get("query_image")),
             "recent_message_count": len(state.get("session_messages") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),

@@ -49,7 +49,8 @@ class ResponseNodes:
         generation_plan: dict[str, object] = {}
         fallback = False
         finalizer = getattr(self.agent, "finalize", None)
-        if callable(finalizer):
+        direct_answer = next_state.get("answer_mode") == "direct" and bool(answer)
+        if callable(finalizer) and not direct_answer:
             try:
                 multimodal_response = finalizer(next_state)
             except Exception as exc:
@@ -74,7 +75,7 @@ class ResponseNodes:
         answer, history_fallback = ensure_complete_application_history(answer, next_state)
         fallback = fallback or history_fallback
         generation_plan = {
-            "mode": generation_plan.get("mode") or "agent",
+            "mode": generation_plan.get("mode") or ("direct" if direct_answer else "agent"),
             **generation_plan,
             "provider": provider or "native_tool_calling",
             "fallback": fallback,
@@ -124,11 +125,12 @@ class ResponseNodes:
             "knowledge_worker_results": next_state.get("knowledge_worker_results") or [],
             "agent_iteration": int(next_state.get("agent_iteration") or 0),
             "agent_answer_provider": next_state.get("agent_answer_provider") or "",
+            "answer_mode": next_state.get("answer_mode") or "",
             "agent_final_model": next_state.get("agent_final_model") or "",
             "agent_final_token_usage": next_state.get("agent_final_token_usage") or {},
             "agent_final_latency_ms": next_state.get("agent_final_latency_ms"),
             "agent_system_prompt": AGENT_SYSTEM_PROMPT,
-            "agent_prompt_version": "orchestrator-workers-v1",
+            "agent_prompt_version": "orchestrator-workers-context-memory-v3",
             "tool_registry_version": "tool-registry-v1",
             "agent_model_config": agent_model_config(getattr(self, "agent", None)),
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",

@@ -25,22 +25,26 @@ from declaration_qa.rag.prompting import format_source_payload, format_tool_resu
 
 
 AGENT_SYSTEM_PROMPT = """你是政务申报系统的端到端 Agent。你负责选择工具、观察工具结果，并在证据充分后直接回答用户。
-工具可用时必须使用模型原生工具调用。不要输出 Thought 或内部推理过程。
+需要调用工具时必须使用模型原生工具调用。不要输出 Thought 或内部推理过程。
 
 规则：
-1. 查询个人申请列表时调用 ticket_list_query；查询进度、状态、退回原因时先调用 ticket_list_query，再从返回事项中自主确定 item_code，调用 ticket_detail_query。
-2. ticket_detail_query 会返回同一 item_code 下的全部 applications 和完整 status_history；你应根据用户问题自主识别相关 application_id。
-3. 政策、材料、流程、条件、费用、时限、模板和公开规范调用 knowledge_search。你必须通过 queries 数组完成消歧、拆分和改写；简单问题生成一路，复杂问题按原子证据需求生成多路。
-4. 混合问题应在第一轮并行调用 knowledge_search 和 ticket_list_query。knowledge_search 首轮 queries 只能根据用户原始问题、会话上下文和用户上传图片生成；证据不足后的重试还可参考历次公开知识查询和当前公开知识证据，但绝不能使用任何工单工具结果。
-5. knowledge_search 的 keyword、semantic、hybrid 只是检索偏好。保留材料名称、证明名称、法规文号等精确原词，不得捏造用户未提及的具体事实。
-6. user_id、region_code、过滤条件、召回数量和本地图片路径由服务端注入，任何工具参数中都不得生成这些字段。
-7. 不要求用户选择工单，不调用未注册工具，不重复相同调用。
-8. 工具结果是唯一事实来源：业务工具只证明个人申请事实；knowledge_search 只证明公开政策和材料规范，两者不得互相替代。
-9. 对申请进度、状态、退回或补正问题，最终回答必须逐个输出同一事项下全部 application_id，并完整保留每个申请的 status_history，不得只回答选中的一次申请。
-10. 证据不足时继续调用必要工具；证据充分时不再调用工具，直接输出清晰、可操作的最终答案。
-11. 当 Evidence Gate 标记 evidence_incomplete=true 时，结合原始问题、历次查询和当前公开证据，自主生成新的、未执行过的 knowledge_search 查询；不得扩展用户未询问的主题。
-12. 当服务端未提供工具并明确给出完整证据时，表示 Evidence Gate 已通过，必须直接生成最终答案。
-13. 当输入包含 worker_sub_question_id 时，你正在处理一个已经拆解完成的原子子问题。你应根据该子问题自主选择已注册工具；政策知识使用 knowledge_search，个人申请使用 ticket_list_query 和 ticket_detail_query。不得扩展子问题未询问的主题。"""
+1. 寒暄、简单计算、语言解释，以及不依赖外部实时事实的问题可以不调用工具，直接回答。
+2. 短期上下文中标记为 verified_ticket_facts 的内容来自此前成功的业务工具调用。解释这些已核验事实时可以直接回答；但询问“现在、最新、是否已通过”等动态状态时必须重新调用工单工具刷新。
+3. 政策法规、材料要求、办理流程、条件、费用、时限、模板和公开规范必须调用 knowledge_search，不能仅凭模型记忆回答。
+4. 无法确认上下文指代时应请求用户澄清，不得编造事实。本轮一旦已有工具调用或 Evidence Gate 未通过，必须继续调用必要工具，不能用无工具文本绕过证据检查。
+5. 查询个人申请列表时调用 ticket_list_query；查询进度、状态、退回原因时先调用 ticket_list_query，再从返回事项中自主确定 item_code，调用 ticket_detail_query。
+6. ticket_detail_query 会返回同一 item_code 下的全部 applications 和完整 status_history；你应根据用户问题自主识别相关 application_id。
+7. knowledge_search 必须通过 queries 数组完成消歧、拆分和改写；简单问题生成一路，复杂问题按原子证据需求生成多路。
+8. 混合问题应在第一轮并行调用 knowledge_search 和 ticket_list_query。knowledge_search 首轮 queries 只能根据用户原始问题、会话上下文和用户上传图片生成；证据不足后的重试还可参考历次公开知识查询和当前公开知识证据，但绝不能使用任何工单工具结果。
+9. knowledge_search 的 keyword、semantic、hybrid 只是检索偏好。保留材料名称、证明名称、法规文号等精确原词，不得捏造用户未提及的具体事实。
+10. user_id、region_code、过滤条件、召回数量和本地图片路径由服务端注入，任何工具参数中都不得生成这些字段。
+11. 不要求用户选择工单，不调用未注册工具，不重复相同调用。
+12. 工具结果是唯一外部事实来源：业务工具只证明个人申请事实；knowledge_search 只证明公开政策和材料规范，两者不得互相替代。
+13. 对申请进度、状态、退回或补正问题，最终回答必须逐个输出同一事项下全部 application_id，并完整保留每个申请的 status_history，不得只回答选中的一次申请。
+14. 证据不足时继续调用必要工具；证据充分时不再调用工具，直接输出清晰、可操作的最终答案。
+15. 当 Evidence Gate 标记 evidence_incomplete=true 时，结合原始问题和当前公开证据，自主生成新的、未执行过的 knowledge_search 查询；不得扩展用户未询问的主题。
+16. 当服务端未提供工具并明确给出完整证据时，表示 Evidence Gate 已通过，必须直接生成最终答案。
+17. 当输入包含 worker_sub_question_id 时，你正在处理一个已经拆解完成的原子子问题。你应根据该子问题自主选择已注册工具；不得扩展子问题未询问的主题。"""
 
 
 class EvidenceCoverageDecision(BaseModel):
@@ -369,15 +373,14 @@ class ToolCallingAgent:
     def _model_decision(self, state: dict[str, Any], tool_definitions: list[dict[str, Any]]) -> AgentDecision:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        worker_retry_required = bool(
-            state.get("worker_sub_question_id")
-            and (state.get("agent_evidence_coverage") or {}).get("assessed")
+        evidence_retry_required = bool(
+            (state.get("agent_evidence_coverage") or {}).get("assessed")
             and (state.get("agent_evidence_coverage") or {}).get("evidence_incomplete")
             and tool_definitions
         )
         bound = self.model.bind_tools(
             tool_definitions,
-            **({"tool_choice": "required"} if worker_retry_required else {}),
+            **({"tool_choice": "required"} if evidence_retry_required else {}),
         )
         observations = compact_tool_observations(state.get("tool_results") or [])
         prompt = {
@@ -395,7 +398,7 @@ class ToolCallingAgent:
             "required_evidence": list(state.get("agent_required_evidence") or []),
             "evidence_decision": state.get("evidence_decision") or {},
             "worker_sub_question_id": state.get("worker_sub_question_id") or "",
-            "worker_retry_must_search": worker_retry_required,
+            "evidence_retry_must_search": evidence_retry_required,
         }
         prompt_text = json.dumps(prompt, ensure_ascii=False, default=str)
         started_at = perf_counter()
@@ -436,8 +439,6 @@ class ToolCallingAgent:
                 token_usage=usage,
                 latency_ms=latency_ms,
             )
-        if not state.get("tool_results") and not state.get("retrieved_sources"):
-            return rule_agent_decision(state)
         return AgentDecision(
             "finish",
             intent=intent,
@@ -657,6 +658,8 @@ def compact_worker_summary(state: dict[str, Any]) -> dict[str, Any]:
                 "required_evidence": item.get("required_evidence") or [],
                 "checks": item.get("checks") or {},
                 "executed_queries": item.get("executed_queries") or [],
+                "answer_mode": item.get("answer_mode") or "",
+                "direct_answer": item.get("final_answer") or "",
             }
             for item in (state.get("knowledge_worker_results") or [])
             if isinstance(item, dict)

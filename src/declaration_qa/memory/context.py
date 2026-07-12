@@ -52,6 +52,13 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
         "current_question": current_question_context(state),
         "summary": truncate_text(short_memory.get("summary") or "", 1200),
         "recent_messages": recent_messages,
+        "verified_ticket_facts": normalize_verified_facts(
+            short_memory.get("verified_ticket_facts") or short_memory.get("verified_facts") or []
+        ),
+        "ticket_item_overviews": normalize_ticket_item_overviews(short_memory.get("ticket_item_overviews") or []),
+        "recent_knowledge_evidence_refs": normalize_knowledge_evidence_refs(
+            short_memory.get("recent_knowledge_evidence_refs") or []
+        ),
         "business_tool_context": business_tool_context_summary(state),
         "query_image": query_image_summary(state.get("query_image")),
         "evidence_overview": evidence_overview(state.get("retrieved_sources") or []),
@@ -62,12 +69,89 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
         "short_memory_backend": short_memory.get("backend") or "",
         "short_memory_cache_hit": bool(short_memory.get("cache_hit")),
         "has_short_memory_summary": bool(context.get("summary")),
+        "verified_ticket_fact_count": len(context["verified_ticket_facts"]),
+        "ticket_item_overview_count": len(context["ticket_item_overviews"]),
+        "knowledge_evidence_ref_count": len(context["recent_knowledge_evidence_refs"]),
         "has_business_tool_context": bool(context["business_tool_context"]),
         "has_query_image": bool(context["query_image"]),
         "source_count": len(state.get("retrieved_sources") or []),
         "evidence_overview_count": len(context["evidence_overview"]),
     }
     return context
+
+
+def normalize_verified_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """仅传递短期缓存中带可信来源标记的精简工单事实。"""
+    output = []
+    for fact in list(facts or [])[-8:]:
+        if not isinstance(fact, dict) or fact.get("source") != "ticket_detail_query" or not fact.get("trusted"):
+            continue
+        output.append(
+            compact_dict(
+                {
+                    "source": "ticket_detail_query",
+                    "fact_type": fact.get("fact_type") or "application_status",
+                    "trusted": True,
+                    "item_code": truncate_text(fact.get("item_code") or "", 160),
+                    "item_name": truncate_text(fact.get("item_name") or "", 160),
+                    "application_id": fact.get("application_id"),
+                    "current_status": truncate_text(fact.get("current_status") or "", 80),
+                    "reason": truncate_text(fact.get("reason") or "", FIELD_CONTENT_LIMIT),
+                    "material_name": truncate_text(fact.get("material_name") or "", 160),
+                    "fact_updated_at": fact.get("fact_updated_at") or "",
+                    "verified_at": fact.get("verified_at") or "",
+                    "refresh_required_for_current_status": True,
+                }
+            )
+        )
+    return output
+
+
+def normalize_ticket_item_overviews(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """向 Agent 提供事项级概览，但明确不能把它当成具体申请状态。"""
+    output = []
+    for item in list(items or [])[-8:]:
+        if not isinstance(item, dict) or item.get("source") != "ticket_list_query":
+            continue
+        output.append(
+            compact_dict(
+                {
+                    "source": "ticket_list_query",
+                    "item_code": truncate_text(item.get("item_code") or "", 160),
+                    "item_name": truncate_text(item.get("item_name") or "", 160),
+                    "application_count": item.get("application_count"),
+                    "statuses": list(item.get("statuses") or [])[:8],
+                    "fact_updated_at": item.get("fact_updated_at") or "",
+                    "verified_at": item.get("verified_at") or "",
+                    "refresh_required": True,
+                    "usage": "仅用于事项指代消歧，具体状态、进度和退回原因必须查询详情工具",
+                }
+            )
+        )
+    return output
+
+
+def normalize_knowledge_evidence_refs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """向 Agent 暴露会话证据别名和摘要，不暴露可伪造的内部 chunk id。"""
+    output = []
+    for item in list(items or [])[-8:]:
+        if not isinstance(item, dict) or not str(item.get("evidence_ref") or ""):
+            continue
+        output.append(
+            compact_dict(
+                {
+                    "evidence_ref": truncate_text(item.get("evidence_ref") or "", 80),
+                    "query": truncate_text(item.get("query") or "", FIELD_CONTENT_LIMIT),
+                    "title": truncate_text(item.get("title") or "", 200),
+                    "section": truncate_text(item.get("section") or "", FIELD_CONTENT_LIMIT),
+                    "summary": truncate_text(item.get("summary") or "", 320),
+                    "policy_version": truncate_text(item.get("policy_version") or "", 80),
+                    "retrieved_at": item.get("retrieved_at") or "",
+                    "expires_at": item.get("expires_at") or "",
+                }
+            )
+        )
+    return output
 
 
 def format_short_term_context(state: dict[str, Any]) -> str:

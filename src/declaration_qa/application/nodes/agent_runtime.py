@@ -18,6 +18,10 @@ from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.helpers.events import add_event
+from declaration_qa.application.helpers.historical_evidence import (
+    merge_retrieved_source_candidates,
+    trusted_historical_evidence_candidates,
+)
 from declaration_qa.application.helpers.streaming import is_declaration_qa_stream_run
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
@@ -52,6 +56,7 @@ class AgentRuntimeNodes:
         next_state["knowledge_worker_results"] = []
         next_state["use_parallel_knowledge_workers"] = False
         next_state["partial_answer"] = False
+        next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
         next_state["agent_final_answer"] = ""
@@ -148,8 +153,11 @@ class AgentRuntimeNodes:
         sources: list[dict[str, Any]] = []
         seen_chunks: set[str] = set()
         tool_results: list[dict[str, Any]] = []
+        direct_answers: list[str] = []
         for worker in worker_results:
             tool_results.extend(worker.get("tool_results") or [])
+            if worker.get("answer_mode") == "direct" and str(worker.get("final_answer") or "").strip():
+                direct_answers.append(str(worker["final_answer"]).strip())
             for source in worker.get("sources") or []:
                 chunk_id = str(source.get("chunk_id") or "")
                 if chunk_id and chunk_id in seen_chunks:
@@ -188,6 +196,10 @@ class AgentRuntimeNodes:
         next_state["knowledge_worker_results"] = worker_results
         next_state["retrieved_sources"] = sources
         next_state["tool_results"] = tool_results
+        next_state["answer_mode"] = "tool_grounded" if required_evidence else "direct"
+        if worker_results and all(item.get("answer_mode") == "direct" for item in worker_results):
+            next_state["agent_final_answer"] = "\n\n".join(direct_answers)
+            next_state["agent_answer_provider"] = "parallel_worker_direct"
         next_state["agent_required_evidence"] = required_evidence
         next_state["intent"] = "agentic_rag"
         next_state["sub_intent"] = next_state["intent"]
@@ -227,6 +239,7 @@ class AgentRuntimeNodes:
             },
             "source_count": len(sources),
             "tool_result_count": len(tool_results),
+            "direct_answer_count": len(direct_answers),
             "worker_count": len(worker_results),
             "workers": [
                 {
@@ -238,6 +251,7 @@ class AgentRuntimeNodes:
                     "required_evidence": item.get("required_evidence") or [],
                     "checks": item.get("checks") or {},
                     "coverage": item.get("coverage") or {},
+                    "answer_mode": item.get("answer_mode") or "",
                 }
                 for item in worker_results
             ],
@@ -281,9 +295,9 @@ class AgentRuntimeNodes:
             "normalized_query": question,
             "frozen_knowledge_query": question,
             "retrieval_query": question,
-            "session_messages": [],
-            "short_term_context": {},
-            "long_term_context": {},
+            "session_messages": list(parent_state.get("session_messages") or []),
+            "short_term_context": dict(parent_state.get("short_term_context") or {}),
+            "long_term_context": dict(parent_state.get("long_term_context") or {}),
             "agent_iteration": 0,
             "agent_required_evidence": sorted(required_evidence),
             "agent_evidence_coverage": {},
@@ -293,6 +307,8 @@ class AgentRuntimeNodes:
             "events": [],
             "worker_sub_question_id": sub_question_id,
             "parent_query": parent_state.get("normalized_query") or parent_state.get("query") or "",
+            "answer_mode": "",
+            "agent_final_answer": "",
         }
         definitions = self.tool_registry.definitions()
         signatures: set[str] = set()
@@ -310,6 +326,13 @@ class AgentRuntimeNodes:
             ]
             calls = unique_new_tool_calls(planned, existing_signatures=signatures)
             if not calls:
+                direct_answer = str(decision.final_answer or decision.assistant_content or "").strip()
+                if direct_answer and not required_evidence and not worker_state.get("tool_results"):
+                    worker_state["answer_mode"] = "direct"
+                    worker_state["agent_final_answer"] = direct_answer
+                    answerable = True
+                    failure_reason = ""
+                    break
                 checks, coverage, answerable = worker_evidence_status(self, worker_state, required_evidence)
                 if all(checks.values()) if checks else False:
                     failure_reason = ""
@@ -407,7 +430,13 @@ class AgentRuntimeNodes:
         return {
             "sub_question_id": sub_question_id,
             "question": question,
-            "evidence_complete": not bool(failure_reason) and bool(checks) and all(checks.values()),
+            "evidence_complete": (
+                not bool(failure_reason)
+                and (
+                    worker_state.get("answer_mode") == "direct"
+                    or (bool(checks) and all(checks.values()))
+                )
+            ),
             "answerable": answerable,
             "failure_reason": failure_reason,
             "iterations": int(worker_state.get("agent_iteration") or 0),
@@ -418,6 +447,8 @@ class AgentRuntimeNodes:
             "checks": checks,
             "coverage": coverage,
             "rag_status": worker_state.get("rag_status") or {},
+            "answer_mode": worker_state.get("answer_mode") or ("tool_grounded" if required_evidence else ""),
+            "final_answer": worker_state.get("agent_final_answer") or "",
         }
 
     def agent_decide(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -425,6 +456,7 @@ class AgentRuntimeNodes:
         next_state = dict(state)
         iteration = int(next_state.get("agent_iteration") or 0) + 1
         next_state["agent_iteration"] = iteration
+        next_state["answer_mode"] = ""
         if next_state.get("refuse_reason"):
             decision_action = "finish"
             calls = []
@@ -472,6 +504,23 @@ class AgentRuntimeNodes:
         requirements = set(next_state.get("agent_required_evidence") or [])
         requirements.update(evidence_requirements(calls))
         next_state["agent_required_evidence"] = sorted(requirements)
+        has_evidence_flow = bool(
+            requirements
+            or next_state.get("tool_results")
+            or next_state.get("retrieved_sources")
+        )
+        final_answer = str(next_state.get("agent_final_answer") or "").strip()
+        if decision_action == "finish" and final_answer and not has_evidence_flow:
+            next_state["answer_mode"] = "direct"
+            next_state["evidence_ok"] = True
+            next_state["evidence_decision"] = {
+                "ok": True,
+                "mode": "direct",
+                "required_evidence": [],
+                "checks": {},
+            }
+        elif has_evidence_flow:
+            next_state["answer_mode"] = "tool_grounded"
         next_state["agent_pending_tool_calls"] = calls
         next_state["agent_plan"] = decision_payload
         next_state["agent_next"] = decision_action
@@ -637,6 +686,7 @@ class AgentRuntimeNodes:
                     "selected_application_id": next_state.get("agent_selected_application_id"),
                     "applications": applications,
                 }
+                next_state["answer_mode"] = "tool_grounded"
         add_event(
             next_state,
             "agent_observation",
@@ -780,9 +830,37 @@ class AgentRuntimeNodes:
         }
         filters = normalize_retrieval_filter(state.get("metadata_filter") or {})
         result = self.multi_retrieve(isolated_state, filters)
+        historical_candidates, historical_ref_status = trusted_historical_evidence_candidates(
+            self.rag_engine,
+            state,
+            filters=filters,
+            session_id=context.session_id,
+            region_code=context.region_code,
+        )
+        final_sources = list(result.sources)
+        if historical_candidates:
+            combined = merge_retrieved_source_candidates(final_sources, historical_candidates)
+            rerank_candidates = getattr(self.rag_engine, "rerank_candidates", None)
+            final_sources = (
+                rerank_candidates(
+                    original_query,
+                    combined,
+                    filters,
+                    retrieval_plan=isolated_state.get("retrieval_plan") or {},
+                )
+                if callable(rerank_candidates)
+                else combined
+            )
+        rag_status = {
+            **(result.status or {}),
+            "historical_evidence_refs": historical_ref_status,
+            "historical_candidate_count": len(historical_candidates),
+            "final_source_count": len(final_sources),
+            "final_rerank_applied": bool(historical_candidates),
+        }
         return {
-            "sources": [source.payload() for source in result.sources],
-            "rag_status": result.status,
+            "sources": [source.payload() for source in final_sources],
+            "rag_status": rag_status,
             "retrieval_filter": result.filter,
             "executed_queries": retrieval_queries,
             "search_round": 1 + sum(

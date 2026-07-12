@@ -130,6 +130,21 @@ class RAGEngine(Protocol):
         """按用户上传图片检索来源。"""
         ...
 
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+        """按可信内部 ID 批量读取知识片段。"""
+        ...
+
+    def rerank_candidates(
+        self,
+        query: str,
+        sources: list[RetrievedSource],
+        filters: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> list[RetrievedSource]:
+        """对已校验候选统一重排并应用当前阈值。"""
+        ...
+
 
 def strategy_weighted_hit_lists(
     strategy: str,
@@ -188,6 +203,53 @@ class BaseRAGEngine:
     def document_chunks(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         """返回文档片段。"""
         return split_document(document)
+
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> list[KnowledgeChunk]:
+        """公开受控的批量回表入口，调用方负责提供可信 ID。"""
+        return self._load_chunks_by_ids(chunk_ids)
+
+    def rerank_candidates(
+        self,
+        query: str,
+        sources: list[RetrievedSource],
+        filters: dict[str, Any],
+        *,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> list[RetrievedSource]:
+        """统一重排当前召回与可信历史候选，避免应用层调用私有方法。"""
+        normalized_query = normalize_text(query)
+        effective_filter = normalize_retrieval_filter(filters)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        candidates = list({source.chunk.id: source for source in sources}.values())
+        if not normalized_query or not candidates:
+            return candidates
+        top_n = self._rerank_top_n(len(candidates))
+        try:
+            reranked = self._call_reranker(
+                normalized_query,
+                candidates,
+                effective_filter,
+                top_n=top_n,
+                retrieval_plan=policy,
+            )
+            selected, _ = self._apply_rerank_score_cutoff(
+                reranked,
+                requested_top_k=len(candidates),
+            )
+            return selected
+        except Exception:
+            reranked = HeuristicReranker().rerank(
+                normalized_query,
+                candidates,
+                effective_filter,
+                top_n=max(1, len(candidates)),
+                retrieval_plan=policy,
+            )
+            selected, _ = self._fallback_rerank_selection(
+                reranked,
+                requested_top_k=len(candidates),
+            )
+            return selected
 
     def _clear_cache(self) -> None:
         """清理检索缓存；缓存故障不能阻断知识索引发布。"""

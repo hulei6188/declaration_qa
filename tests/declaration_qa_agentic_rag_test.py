@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.application.tools import (
     KnowledgeSearchTool,
@@ -8,9 +10,10 @@ from declaration_qa.application.tools import (
     ToolExecutionContext,
     ToolRegistry,
 )
-from declaration_qa.application.agent import AgentDecision, choose_application_id
+from declaration_qa.application.agent import AgentDecision, ToolCallingAgent, choose_application_id
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.application.nodes.agent_runtime import agent_tool_call_allowed, agent_tool_call_denial_reason
+from declaration_qa.application.helpers.historical_evidence import trusted_historical_evidence_candidates
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.core.domain import KnowledgeChunk, RetrievalResult, RetrievedSource
 
@@ -53,6 +56,30 @@ class CapturingKnowledgeRag:
             {"query": query, "queries": [], "filters": dict(filters), "retrieval_plan": dict(retrieval_plan)}
         )
         return RetrievalResult(self.result.sources, dict(filters), self.result.status)
+
+
+class HistoricalEvidenceRag(CapturingKnowledgeRag):
+    def __init__(self):
+        super().__init__()
+        self.history_chunk = KnowledgeChunk(
+            id="chunk-history",
+            doc_id="doc-history",
+            parent_id="",
+            chunk_type="child",
+            title="取水许可办事指南",
+            content="审查阶段包括材料核验和现场评估。",
+            region_code="340000",
+            policy_version="2025",
+            status="published",
+        )
+        self.rerank_inputs = []
+
+    def get_chunks_by_ids(self, chunk_ids):
+        return [self.history_chunk] if self.history_chunk.id in chunk_ids else []
+
+    def rerank_candidates(self, query, sources, filters, *, retrieval_plan=None):
+        self.rerank_inputs.append([source.chunk.id for source in sources])
+        return sorted(sources, key=lambda source: source.chunk.id)
 
 
 class ScriptedAgent:
@@ -112,6 +139,8 @@ def test_knowledge_tool_schema_requires_structured_agent_queries():
 
     assert "queries" in parameters["properties"]
     assert "query_focus" not in parameters["properties"]
+    assert "evidence_refs" not in parameters["properties"]
+    assert "chunk_ids" not in parameters["properties"]
     assert "user_id" not in parameters["properties"]
     assert "top_k" not in parameters["properties"]
 
@@ -378,3 +407,212 @@ def test_agent_final_response_is_used_without_separate_answer_generation():
 
     assert response.answer == "这是 Agent 根据知识工具证据生成的最终答案。"
     assert response.agent_query_plan["requested_queries"][0]["aspect"] == "materials"
+
+
+def test_agent_without_tool_call_can_finish_directly_without_finalizer_override():
+    class DirectAgent:
+        def __init__(self):
+            self.finalize_calls = 0
+
+        def decide(self, state, tool_definitions):
+            return AgentDecision(
+                "finish",
+                provider="native_tool_calling",
+                final_answer="1+1等于2。",
+                final_prompt="direct prompt",
+            )
+
+        def finalize(self, state):
+            self.finalize_calls += 1
+            raise AssertionError("direct answer must not be regenerated")
+
+    agent = DirectAgent()
+    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent=agent)
+
+    response = workflow.invoke(ChatRequest(query="1+1等于几", user_id=1))
+
+    assert response.answer == "1+1等于2。"
+    assert response.tool_results == []
+    assert response.refused is False
+    assert response.evidence_decision["mode"] == "direct"
+    assert agent.finalize_calls == 0
+
+
+def test_empty_agent_answer_does_not_bypass_evidence_gate():
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(lambda state, definitions: AgentDecision("finish")),
+        agent_max_iterations=1,
+    )
+
+    response = workflow.invoke(ChatRequest(query="你好", user_id=1))
+
+    assert response.refused is True
+    assert response.answer
+    assert response.evidence_decision.get("mode") != "direct"
+
+
+def test_agent_text_cannot_bypass_an_existing_tool_evidence_requirement():
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(
+            lambda state, definitions: AgentDecision(
+                "finish",
+                final_answer="没有证据也直接回答。",
+            )
+        ),
+    )
+    state = workflow.agent_prepare(
+        workflow._initial_state(ChatRequest(query="健康证办理材料", user_id=1))
+    )
+    state["agent_required_evidence"] = ["knowledge"]
+    state["evidence_ok"] = False
+
+    decided = workflow.agent_decide(state)
+
+    assert decided["answer_mode"] == "tool_grounded"
+    assert workflow._agent_decision_route(decided) == "check"
+
+
+def test_parallel_workers_can_finish_self_contained_sub_questions_directly():
+    class CompoundDirectAgent:
+        def decompose_question(self, state):
+            return {
+                "is_compound": True,
+                "provider": "test",
+                "sub_questions": [
+                    {"sub_question_id": "sq_1", "question": "1+1等于几"},
+                    {"sub_question_id": "sq_2", "question": "2+2等于几"},
+                ],
+            }
+
+        def decide(self, state, tool_definitions):
+            answer = "1+1等于2。" if "1+1" in state["query"] else "2+2等于4。"
+            return AgentDecision("finish", provider="native_tool_calling", final_answer=answer)
+
+    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent=CompoundDirectAgent())
+
+    response = workflow.invoke(ChatRequest(query="1+1等于几，同时2+2等于几", user_id=1))
+
+    assert response.refused is False
+    assert response.tool_results == []
+    assert "1+1等于2" in response.answer
+    assert "2+2等于4" in response.answer
+    assert all(item["answer_mode"] == "direct" for item in response.evidence_decision["workers"])
+
+
+def test_tool_choice_is_required_only_for_evidence_retry():
+    class Response:
+        content = "直接回答"
+        tool_calls = []
+        response_metadata = {}
+        usage_metadata = {}
+
+    class BoundModel:
+        def invoke(self, messages, config=None):
+            return Response()
+
+    class CapturingModel:
+        model_name = "test-model"
+
+        def __init__(self):
+            self.bind_kwargs = []
+
+        def bind_tools(self, definitions, **kwargs):
+            self.bind_kwargs.append(kwargs)
+            return BoundModel()
+
+    model = CapturingModel()
+    agent = ToolCallingAgent(model)
+    definitions = [{"type": "function", "function": {"name": "knowledge_search"}}]
+
+    first = agent.decide({"query": "你好"}, definitions)
+    retry = agent.decide(
+        {
+            "query": "办理材料",
+            "agent_evidence_coverage": {"assessed": True, "evidence_incomplete": True},
+        },
+        definitions,
+    )
+
+    assert first.final_answer == "直接回答"
+    assert model.bind_kwargs[0] == {}
+    assert model.bind_kwargs[1] == {"tool_choice": "required"}
+    assert retry.final_answer == "直接回答"
+
+
+def test_knowledge_search_refills_trusted_history_and_reranks_all_candidates():
+    rag = HistoricalEvidenceRag()
+
+    def decide(state, definitions):
+        if not state.get("tool_results"):
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments("审查阶段是什么"))],
+            )
+        return AgentDecision("finish", final_answer="审查阶段包括材料核验和现场评估。")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
+    initial = workflow._initial_state(
+        ChatRequest(query="刚才流程里的审查阶段是什么", user_id=1, session_id="session-history")
+    )
+    initial["short_memory"]["recent_knowledge_evidence_refs"] = [
+        {
+            "evidence_ref": "ev_history",
+            "session_id": "session-history",
+            "chunk_id": "chunk-history",
+            "document_id": "doc-history",
+            "region_code": "340000",
+            "policy_version": "2025",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        }
+    ]
+
+    result = workflow.graph.invoke(initial)
+
+    assert rag.rerank_inputs == [["chunk-history", "chunk-materials"]]
+    assert result["rag_status"]["historical_candidate_count"] == 1
+    assert result["rag_status"]["final_rerank_applied"] is True
+    assert {source["chunk_id"] for source in result["retrieved_sources"]} == {
+        "chunk-history",
+        "chunk-materials",
+    }
+
+
+def test_historical_evidence_ref_rejects_other_session_and_expired_items():
+    rag = HistoricalEvidenceRag()
+    state = {
+        "short_memory": {
+            "recent_knowledge_evidence_refs": [
+                {
+                    "evidence_ref": "ev_other",
+                    "session_id": "other-session",
+                    "chunk_id": "chunk-history",
+                    "document_id": "doc-history",
+                    "region_code": "340000",
+                    "policy_version": "2025",
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+                },
+                {
+                    "evidence_ref": "ev_expired",
+                    "session_id": "current-session",
+                    "chunk_id": "chunk-history",
+                    "document_id": "doc-history",
+                    "region_code": "340000",
+                    "policy_version": "2025",
+                    "expires_at": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
+                },
+            ]
+        }
+    }
+
+    candidates, status = trusted_historical_evidence_candidates(
+        rag,
+        state,
+        filters={},
+        session_id="current-session",
+        region_code="340000",
+    )
+
+    assert candidates == []
+    assert status["rejected_reasons"] == {"session_mismatch": 1, "expired": 1}

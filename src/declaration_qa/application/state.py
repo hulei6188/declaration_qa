@@ -31,6 +31,7 @@ class DeclarationQAState(TypedDict, total=False):
     knowledge_worker_results: list[dict[str, Any]]
     use_parallel_knowledge_workers: bool
     partial_answer: bool
+    answer_mode: str
     agent_final_answer: str
     agent_final_prompt: str
     agent_answer_provider: str
