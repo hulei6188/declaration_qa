@@ -210,6 +210,9 @@ class DeclarationQAWorkflow(WorkflowNodes):
             "agent_call_signatures": [],
             "agent_required_evidence": [],
             "agent_evidence_coverage": {},
+            "question_decomposition": {},
+            "knowledge_worker_results": [],
+            "use_parallel_knowledge_workers": False,
             "agent_final_answer": "",
             "agent_final_prompt": "",
             "agent_answer_provider": "",
@@ -297,6 +300,8 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
+        builder.add_node("agent_decompose", self.agent_decompose)
+        builder.add_node("parallel_knowledge_workers", self.parallel_knowledge_workers)
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
@@ -310,7 +315,17 @@ class DeclarationQAWorkflow(WorkflowNodes):
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_edge("query_preprocess", "agent_prepare")
-        builder.add_edge("agent_prepare", "agent_decide")
+        builder.add_edge("agent_prepare", "agent_decompose")
+        builder.add_conditional_edges(
+            "agent_decompose",
+            lambda state: "workers" if state.get("use_parallel_knowledge_workers") else "agent",
+            {"workers": "parallel_knowledge_workers", "agent": "agent_decide"},
+        )
+        builder.add_conditional_edges(
+            "parallel_knowledge_workers",
+            lambda state: "ok" if state.get("evidence_ok") else "refuse",
+            {"ok": "agent_finalize_answer", "refuse": "refuse_or_human"},
+        )
         builder.add_conditional_edges(
             "agent_decide",
             lambda state: state.get("agent_next") or "finish",

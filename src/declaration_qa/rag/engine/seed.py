@@ -20,7 +20,7 @@ def build_seed_rag_engine(
     keyword_index: KeywordIndex | None = None,
     cache_ttl_seconds: int = 600,
     rerank_score_threshold: float = 0.0,
-    rerank_max_sources: int = 12,
+    rerank_max_sources: int = 20,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
     """创建内存 RAG 引擎，并可选择加载种子知识。"""

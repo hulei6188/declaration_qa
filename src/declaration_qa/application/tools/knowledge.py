@@ -80,9 +80,11 @@ class KnowledgeSearchTool:
                 {**query.model_dump(), "text": mask_sensitive_text(query.text)}
                 for query in request.queries
             ],
-            "executed_query": context.original_query,
+            "rerank_query": context.original_query,
             "query_isolation": (
-                "evidence_gate_public_only"
+                "agent_planned_from_public_evidence"
+                if context.metadata.get("tool_call_origin") == "agent_evidence_retry"
+                else "evidence_gate_public_only"
                 if context.metadata.get("tool_call_origin") == "evidence_gate"
                 else "agent_planned_before_business_observation"
             ),

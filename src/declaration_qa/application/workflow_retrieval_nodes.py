@@ -253,7 +253,7 @@ class WorkflowRetrievalNodes:
             results.append(image_result)
         merged = merge_retrieval_sources(results)
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
-        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 12) or 12)
+        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 20) or 20)
         answer_source_limit = min(configured_limit, fused_top_k)
         sources = select_answer_sources(merged, answer_query, limit=answer_source_limit, retrieval_plan=retrieval_plan)
         ordered_statuses = [status for status in query_statuses if status is not None]

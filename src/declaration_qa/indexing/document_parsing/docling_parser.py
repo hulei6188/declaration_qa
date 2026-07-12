@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import re
 import threading
 from typing import Any
 
@@ -15,6 +16,7 @@ from declaration_qa.indexing.document_parsing.structured import (
 )
 from declaration_qa.indexing.document_parsing.text import (
     compact_table_context,
+    decode_text,
     html_table,
     table_json,
     table_text,
@@ -24,6 +26,29 @@ from declaration_qa.indexing.document_parsing.table_semantics import (
     coerce_table_index,
     table_semantic_id_prefix,
 )
+
+
+MARKDOWN_TABLE_BREAK_PATTERN = re.compile(r"<br\s*/?\s*>", re.IGNORECASE)
+
+
+def preprocess_docling_input(*, filename: str, content_type: str, data: bytes) -> tuple[bytes, int]:
+    """在送入 Docling 前修复 Markdown 表格单元格中的 HTML 换行。"""
+    suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    normalized_content_type = str(content_type or "").lower()
+    if suffix not in {"md", "markdown"} and "markdown" not in normalized_content_type:
+        return data, 0
+    text = decode_text(data)
+    replacement_count = 0
+    output_lines = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            line, count = MARKDOWN_TABLE_BREAK_PATTERN.subn("；", line)
+            replacement_count += count
+        output_lines.append(line)
+    if not replacement_count:
+        return data, 0
+    return "".join(output_lines).encode("utf-8"), replacement_count
 
 
 class DoclingDocumentParser:
@@ -59,7 +84,12 @@ class DoclingDocumentParser:
         except ImportError as exc:
             raise DocumentParseError("docling is not installed") from exc
 
-        with temp_document_file(filename=filename, data=data) as path:
+        parser_data, markdown_table_break_replacements = preprocess_docling_input(
+            filename=filename,
+            content_type=content_type,
+            data=data,
+        )
+        with temp_document_file(filename=filename, data=parser_data) as path:
             try:
                 converter, converter_lock = self._cached_document_converter(filename=filename, content_type=content_type)
                 with converter_lock:
@@ -83,6 +113,7 @@ class DoclingDocumentParser:
                 "docling_chunk_count": len(chunk_specs),
                 "docling_chunk_specs": chunk_specs,
                 "docling_picture_count": len(picture_blocks),
+                "markdown_table_break_replacements": markdown_table_break_replacements,
                 **docling_document_summary(document),
             },
             extra_blocks=picture_blocks,

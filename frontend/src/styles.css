@@ -587,6 +587,13 @@ select {
   margin-top: 5px;
 }
 
+.tool-step-subquestion {
+  margin-top: 5px;
+  color: #46556b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .tool-step-details > span {
   padding-left: 8px;
   border-left: 2px solid #d6d9e2;
@@ -597,8 +604,7 @@ select {
 }
 
 .tool-step-meta,
-.evidence-checks,
-.evidence-aspects {
+.evidence-checks {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
@@ -606,8 +612,7 @@ select {
 }
 
 .tool-step-meta > span,
-.evidence-checks > span,
-.evidence-aspects > span {
+.evidence-checks > span {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -616,8 +621,7 @@ select {
   line-height: 1.4;
 }
 
-.evidence-checks > span,
-.evidence-aspects > span {
+.evidence-checks > span {
   padding: 2px 6px;
   border-radius: 999px;
   background: #eef1f6;
@@ -625,14 +629,12 @@ select {
   font-weight: 700;
 }
 
-.evidence-checks > span.is-ok,
-.evidence-aspects > span.is-ok {
+.evidence-checks > span.is-ok {
   background: #e8f6f2;
   color: #0f766e;
 }
 
-.evidence-checks > span.is-missing,
-.evidence-aspects > span.is-missing {
+.evidence-checks > span.is-missing {
   background: #fff4e5;
   color: #9a5b09;
 }

@@ -181,9 +181,16 @@ def knowledge_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> st
 def format_source_payload(sources: list[dict[str, Any]]) -> str:
     """用完整证据文本格式化回答生成输入。"""
     return "\n".join(
-        f"- {item.get('title')}: {source_evidence_text(item)}"
+        f"- {source_task_label(item)}{item.get('title')}: {source_evidence_text(item)}"
         for item in sources
     )
+
+
+def source_task_label(source: dict[str, Any]) -> str:
+    """为并行 Worker 证据标注其所属子问题。"""
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    sub_question = str(metadata.get("sub_question") or "").strip()
+    return f"[对应子问题：{sub_question}] " if sub_question else ""
 
 
 def source_evidence_text(source: dict[str, Any]) -> str:

@@ -333,6 +333,28 @@ export function reduceToolTrace(current, event, data = {}) {
       if (existingIndex >= 0) trace.tools[existingIndex] = { ...trace.tools[existingIndex], ...tool };
       else trace.tools.push(tool);
     }
+  } else if (event === 'question_decomposed') {
+    trace.phase = 'planning';
+    trace.subQuestions = Array.isArray(data.sub_questions) ? data.sub_questions : [];
+  } else if (event === 'knowledge_worker_completed') {
+    trace.phase = 'checking';
+    const workerId = String(data.sub_question_id || `worker_${trace.tools.length + 1}`);
+    const tool = {
+      callId: workerId,
+      toolName: 'knowledge_search',
+      arguments: { queries: data.executed_queries || [] },
+      iteration: Number(data.iterations || 0),
+      status: data.evidence_complete ? 'completed' : 'failed',
+      ok: Boolean(data.evidence_complete),
+      latencyMs: null,
+      parallel: true,
+      dependency: '',
+      subQuestion: String(data.question || ''),
+      sourceCount: Number(data.source_count || 0),
+    };
+    const index = trace.tools.findIndex((item) => item.callId === workerId);
+    if (index >= 0) trace.tools[index] = tool;
+    else trace.tools.push(tool);
   } else if (event === 'tool_executed') {
     trace.phase = 'checking';
     const callId = String(data.call_id || '');
@@ -447,15 +469,9 @@ function normalizeEvidenceGate(data = {}) {
     coverage: {
       assessed: Boolean(coverage.assessed),
       provider: String(coverage.provider || ''),
-      requiredAspects: stringList(coverage.required_aspects),
-      coveredAspects: stringList(coverage.covered_aspects),
-      missingAspects: stringList(coverage.missing_aspects),
+      evidenceIncomplete: Boolean(coverage.evidence_incomplete),
     },
   };
-}
-
-function stringList(value) {
-  return Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [];
 }
 
 function numberOrNull(value) {

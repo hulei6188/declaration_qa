@@ -93,11 +93,13 @@ function ToolStep({ tool }) {
             {details.map((detail, index) => <span key={`${detail}-${index}`}>{detail}</span>)}
           </div>
         )}
+        {tool.subQuestion && <div className="tool-step-subquestion">子问题：{tool.subQuestion}</div>}
         <div className="tool-step-meta">
           {tool.iteration > 0 && <span>第 {tool.iteration} 轮</span>}
           {tool.parallel && <span>并行执行</span>}
           {tool.dependency && <span>依赖上一项结果</span>}
           {tool.latencyMs !== null && tool.latencyMs !== undefined && <span>{formatLatency(tool.latencyMs)}</span>}
+          {tool.sourceCount > 0 && <span>{tool.sourceCount} 条证据</span>}
         </div>
       </div>
     </div>
@@ -123,23 +125,9 @@ function EvidenceStep({ gate }) {
             </span>
           ))}
         </div>
-        {coverage.assessed && (coverage.coveredAspects?.length > 0 || coverage.missingAspects?.length > 0) && (
-          <div className="evidence-aspects" aria-label="语义证据覆盖范围">
-            {(coverage.coveredAspects || []).map((aspect) => (
-              <span key={`covered-${aspect}`} className="is-ok">
-                <CheckCircle2 size={11} />已覆盖：{aspect}
-              </span>
-            ))}
-            {(coverage.missingAspects || []).map((aspect) => (
-              <span key={`missing-${aspect}`} className="is-missing">
-                <CircleDashed size={11} />待补充：{aspect}
-              </span>
-            ))}
-          </div>
-        )}
         <div className="tool-step-meta">
           {gate.iteration > 0 && <span>第 {gate.iteration} 轮</span>}
-          {coverage.assessed && <span>模型覆盖检查</span>}
+          {coverage.assessed && <span>{coverage.evidenceIncomplete ? '模型判断需继续检索' : '模型判断证据完整'}</span>}
           <span>{gate.sourceCount} 条知识证据</span>
           <span>{gate.toolResultCount} 个工具结果</span>
         </div>

@@ -32,7 +32,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
         keyword_index: KeywordIndex | None = None,
         cache_ttl_seconds: int = 600,
         rerank_score_threshold: float = 0.0,
-        rerank_max_sources: int = 12,
+        rerank_max_sources: int = 20,
     ) -> None:
         """初始化内存 RAG 引擎。"""
         self._documents: dict[str, KnowledgeDocument] = {}

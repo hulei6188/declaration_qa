@@ -27,6 +27,9 @@ class DeclarationQAState(TypedDict, total=False):
     agent_call_signatures: list[str]
     agent_required_evidence: list[str]
     agent_evidence_coverage: dict[str, Any]
+    question_decomposition: dict[str, Any]
+    knowledge_worker_results: list[dict[str, Any]]
+    use_parallel_knowledge_workers: bool
     agent_final_answer: str
     agent_final_prompt: str
     agent_answer_provider: str
