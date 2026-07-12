@@ -103,6 +103,7 @@ class WorkflowAgentNodes:
             "question_decomposed",
             {
                 "sub_questions": sub_questions,
+                "is_compound": bool(decomposition.get("is_compound")),
                 "worker_count": len(sub_questions),
                 "provider": decomposition.get("provider") or "",
                 "latency_ms": decomposition.get("latency_ms"),

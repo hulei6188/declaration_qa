@@ -336,6 +336,7 @@ export function reduceToolTrace(current, event, data = {}) {
   } else if (event === 'question_decomposed') {
     trace.phase = 'executing';
     trace.subQuestions = Array.isArray(data.sub_questions) ? data.sub_questions : [];
+    trace.isCompound = Boolean(data.is_compound || trace.subQuestions.length > 1);
     for (const item of trace.subQuestions) {
       const workerId = `worker:${String(item.sub_question_id || '')}`;
       if (trace.tools.some((tool) => tool.callId === workerId)) continue;
@@ -350,6 +351,7 @@ export function reduceToolTrace(current, event, data = {}) {
         parallel: trace.subQuestions.length > 1,
         dependency: '',
         subQuestion: String(item.question || ''),
+        isCompound: trace.isCompound,
         sourceCount: 0,
       });
     }

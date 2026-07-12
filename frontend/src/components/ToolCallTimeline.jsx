@@ -125,12 +125,15 @@ function WorkerGroup({ worker, tools, gates }) {
 function ToolStep({ tool }) {
   const Icon = toolIcon(tool.toolName);
   const details = argumentDetails(tool.toolName, tool.arguments);
+  const label = tool.toolName === 'knowledge_worker'
+    ? (tool.isCompound ? '子问题 Worker' : '知识 Worker')
+    : (TOOL_LABELS[tool.toolName] || tool.toolName || '执行工具');
   return (
     <div className={`tool-step status-${tool.status || 'running'} ${tool.parentWorkerId ? 'is-worker-child' : ''}`}>
       <span className="tool-step-icon"><Icon size={14} /></span>
       <div className="tool-step-main">
         <div className="tool-step-head">
-          <strong>{TOOL_LABELS[tool.toolName] || tool.toolName || '执行工具'}</strong>
+          <strong>{label}</strong>
           <span>{statusIcon(tool.status)}{statusLabel(tool.status)}</span>
         </div>
         {details.length > 0 && (

@@ -71,7 +71,10 @@ class QuestionDecomposition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    sub_questions: list[DecomposedQuestion] = Field(min_length=1, max_length=4)
+    is_compound: bool = Field(
+        description="用户是否明确提出了两个或以上可以分别回答的独立问题。",
+    )
+    sub_questions: list[DecomposedQuestion] = Field(default_factory=list, max_length=4)
 
 
 @dataclass(frozen=True)
@@ -134,6 +137,7 @@ class ToolCallingAgent:
         """把复合公开知识问题拆成可由隔离 Worker 独立完成的任务。"""
         query = str(state.get("normalized_query") or state.get("query") or "").strip()
         fallback = {
+            "is_compound": False,
             "sub_questions": [{"sub_question_id": "sq_1", "question": query}],
             "provider": "deterministic_fallback",
         }
@@ -142,10 +146,13 @@ class ToolCallingAgent:
         from langchain_core.messages import HumanMessage, SystemMessage
 
         instructions = (
-            "你是政务问题任务拆解器。把用户明确提出的多个独立问题拆成1到4个可分别检索、分别回答的子问题。"
-            "同一问题的同义表达、关键词扩展和检索改写不能拆成多个子问题；不要生成检索查询。"
-            "每个子问题必须保留事项名称、咨询维度和必要限定，脱离原句也能独立理解。"
-            "简单问题原样保留为一个子问题。不得增加用户没有询问的主题。"
+            "你是政务复合问题识别与任务拆解器。只有用户明确提出两个或以上可以分别回答的独立问题时，"
+            "is_compound 才能为 true，并拆成2到4个子问题。"
+            "单个宽泛问题、单个复杂问题、需要多个证据才能回答的问题都不是复合问题。"
+            "例如‘取水合理性如何评估’是一个问题，不能拆成依据、标准、方法或流程，也不能改写或收窄。"
+            "同义表达、关键词扩展、检索改写和回答所需方面不能作为子问题。不要生成检索查询。"
+            "复合问题的每个子问题必须忠实保留原始意图，不得增加用户没有询问的主题。"
+            "非复合问题返回 is_compound=false 和空 sub_questions。"
         )
         payload = {
             "user_query": query,
@@ -172,6 +179,13 @@ class ToolCallingAgent:
                 "error_type": type(exc).__name__,
                 "latency_ms": max(0, round((perf_counter() - started_at) * 1000)),
             }
+        if not decomposition.is_compound:
+            return {
+                "is_compound": False,
+                "sub_questions": fallback["sub_questions"],
+                "provider": "agent_model",
+                "latency_ms": max(0, round((perf_counter() - started_at) * 1000)),
+            }
         seen: set[str] = set()
         sub_questions = []
         for index, item in enumerate(decomposition.sub_questions, start=1):
@@ -185,8 +199,16 @@ class ToolCallingAgent:
                     "question": question,
                 }
             )
+        if len(sub_questions) < 2:
+            return {
+                "is_compound": False,
+                "sub_questions": fallback["sub_questions"],
+                "provider": "agent_model_guarded",
+                "latency_ms": max(0, round((perf_counter() - started_at) * 1000)),
+            }
         return {
-            "sub_questions": sub_questions or fallback["sub_questions"],
+            "is_compound": True,
+            "sub_questions": sub_questions,
             "provider": "agent_model",
             "latency_ms": max(0, round((perf_counter() - started_at) * 1000)),
         }
