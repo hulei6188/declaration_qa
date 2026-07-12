@@ -22,7 +22,6 @@ from declaration_qa.rag.model_providers.answers import (
     visual_evidence_label,
 )
 from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload
-from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_LIST, INTENT_TICKET_STATUS, classify_knowledge_intent, classify_ticket_intent
 
 
 AGENT_SYSTEM_PROMPT = """你是政务申报系统的端到端 Agent。你负责选择工具、观察工具结果，并在证据充分后直接回答用户。
@@ -83,7 +82,7 @@ class AgentDecision:
 
     action: str
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
-    intent: str = "knowledge_qa"
+    intent: str = "agentic_rag"
     reason: str = ""
     provider: str = "rule"
     final_answer: str = ""
@@ -425,7 +424,7 @@ class ToolCallingAgent:
                     "arguments": dict(item.get("args") or {}),
                 }
             )
-        intent = infer_agent_intent(str(state.get("normalized_query") or state.get("query") or ""))
+        intent = "agentic_rag"
         if calls:
             return AgentDecision(
                 "tools",
@@ -455,51 +454,12 @@ class ToolCallingAgent:
 
 
 def rule_agent_decision(state: dict[str, Any]) -> AgentDecision:
-    """无模型或模型失败时的确定性工具调度。"""
-    query = str(state.get("normalized_query") or state.get("query") or "")
-    ticket_intent = classify_ticket_intent(query)
-    intent = ticket_intent or classify_knowledge_intent(query)
-    results = [item for item in (state.get("tool_results") or []) if isinstance(item, dict)]
-    completed = {str(item.get("tool_name") or "") for item in results if item.get("ok")}
-    calls: list[dict[str, Any]] = []
-    if ticket_intent and "ticket_list_query" not in completed:
-        calls.append({"id": "ticket_list", "name": "ticket_list_query", "arguments": {}})
-        return AgentDecision("tools", calls, intent=intent, reason="ticket_intent_requires_item_resolution")
-    if ticket_intent == INTENT_TICKET_LIST:
-        return AgentDecision("finish", intent=intent, reason="ticket_list_is_final")
-    if ticket_intent and "ticket_detail_query" not in completed:
-        item_code = choose_item_code(query, latest_tool_data(results, "ticket_list_query").get("items") or [])
-        if item_code:
-            detail_type = "status" if ticket_intent == INTENT_TICKET_STATUS else "rejection"
-            calls.append(
-                {
-                    "id": "ticket_detail",
-                    "name": "ticket_detail_query",
-                    "arguments": {"item_code": item_code, "detail_type": detail_type},
-                }
-            )
-            return AgentDecision("tools", calls, intent=intent, reason="agent_selected_item_code")
-    return AgentDecision("finish", intent=intent, reason="available_evidence_is_final")
-
-
-def choose_item_code(query: str, items: list[dict[str, Any]]) -> str:
-    """规则兜底只做语义词面匹配；主路径由模型自主选择。"""
-    candidates = [item for item in items if isinstance(item, dict) and str(item.get("item_code") or "")]
-    if not candidates:
-        return ""
-    scored = []
-    for item in candidates:
-        name = str(item.get("item_name") or "")
-        compact_name = name.replace("办理", "").replace("登记", "")
-        score = 0
-        if name and name in query:
-            score += 100
-        score += sum(1 for token in compact_name if token.strip() and token in query)
-        scored.append((score, str(item.get("updated_at") or ""), str(item.get("item_code") or "")))
-    scored.sort(reverse=True)
-    if scored[0][0] > 0 or len(scored) == 1:
-        return scored[0][2]
-    return ""
+    """模型不可用时停止自主调度，避免通过关键词猜测工具。"""
+    return AgentDecision(
+        "finish",
+        intent="agentic_rag",
+        reason="agent_model_unavailable",
+    )
 
 
 def choose_application_id(query: str, applications: list[dict[str, Any]]) -> int | None:
@@ -521,28 +481,14 @@ def choose_application_id(query: str, applications: list[dict[str, Any]]) -> int
         return int(ordered[-1]["application_id"])
     if any(token in query for token in ("上一次", "上一笔", "之前那次", "前一次")) and len(ordered) > 1:
         return int(ordered[1]["application_id"])
-    rejection_query = bool(classify_ticket_intent(query) == INTENT_REJECTION_REASON)
     scored = []
     for item in candidates:
-        history = [event for event in (item.get("status_history") or []) if isinstance(event, dict)]
-        has_rejection = any(
-            event.get("reason")
-            or str(event.get("status") or "").lower() in {"rejected", "returned", "correction"}
-            for event in history
-        )
         status = str(item.get("current_status") or "").lower()
         active = status not in {"completed", "cancelled", "withdrawn", "已办结", "已撤回"}
-        semantic_score = 100 if rejection_query and has_rejection else 50 if not rejection_query and active else 0
+        semantic_score = 50 if active else 0
         scored.append((semantic_score, str(item.get("updated_at") or ""), int(item["application_id"])))
     scored.sort(reverse=True)
     return scored[0][2]
-
-
-def latest_tool_data(results: list[dict[str, Any]], tool_name: str) -> dict[str, Any]:
-    for result in reversed(results):
-        if result.get("tool_name") == tool_name and isinstance(result.get("data"), dict):
-            return result["data"]
-    return {}
 
 
 def compact_tool_observations(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -620,37 +566,6 @@ def compact_coverage_sources(sources: list[dict[str, Any]]) -> list[dict[str, An
     return output
 
 
-def infer_agent_intent(query: str) -> str:
-    return classify_ticket_intent(query) or classify_knowledge_intent(query)
-
-
-def needs_public_knowledge(query: str) -> bool:
-    """判断工单问题是否同时明确要求公开办理依据或补正指导。"""
-    return any(
-        token in str(query or "")
-        for token in (
-            "材料",
-            "证明",
-            "委托书",
-            "照片",
-            "规定",
-            "要求",
-            "依据",
-            "政策",
-            "法规",
-            "流程",
-            "条件",
-            "费用",
-            "时限",
-            "模板",
-            "样表",
-            "怎么补",
-            "如何补",
-            "补什么",
-        )
-    )
-
-
 def normalize_model_content(value: Any) -> str:
     """兼容文本和多内容块模型响应。"""
     if isinstance(value, str):
@@ -686,7 +601,6 @@ def build_agent_final_prompt(
             gate_instruction,
             f"用户问题：{state.get('query') or ''}",
             f"问题拆解与各任务完成状态：{json.dumps(compact_worker_summary(state), ensure_ascii=False, default=str)}",
-            f"识别意图：{state.get('intent') or ''}",
             f"用户图片 OCR：{str(state.get('query_image_ocr_text') or '')[:4000]}",
             f"短期上下文：{format_short_term_context(state)}",
             f"长期上下文：{format_long_term_context(state)}",

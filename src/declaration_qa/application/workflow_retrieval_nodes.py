@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.workflow_helpers.intent import mask_sensitive_text
+from declaration_qa.application.workflow_helpers.text_safety import mask_sensitive_text
 from declaration_qa.application.workflow_helpers.retrieval_sources import (
     dedupe_retrieval_queries,
     merge_retrieval_sources,

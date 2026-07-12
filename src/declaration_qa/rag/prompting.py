@@ -8,7 +8,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from declaration_qa.memory.context import format_long_term_context, format_short_term_context
-from declaration_qa.rag.router import INTENT_TICKET_LIST
 
 try:
     from langchain_core.prompts import PromptTemplate
@@ -32,7 +31,6 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 不能编造政策，不能承诺审核结果，不能替代人工审核结论。
 
 问题：{query}
-意图：{intent}
 链路：{retrieval_chain}
 短期上下文（仅用于理解多轮省略和本轮附件，不得替代工具结果或检索证据）：{short_term_context}
 长期上下文记忆（仅用于理解历史咨询主题，不含实时个人工单事实；如与检索证据冲突，以本轮检索证据为准）：{long_term_context}
@@ -58,18 +56,16 @@ class DeterministicAnswerGenerator:
         source_text = format_source_payload(sources)
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
-            intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
             short_term_context=format_short_term_context(state),
             long_term_context=format_long_term_context(state),
             tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,
         )
-        intent = state.get("intent")
-        if intent == INTENT_TICKET_LIST:
-            answer = ticket_list_answer(state)
-        elif intent in {"status", "ticket_status", "reject", "rejection_reason"}:
+        if ticket_applications(state):
             answer = application_history_answer(state)
+        elif has_successful_tool_result(state, "ticket_list_query"):
+            answer = ticket_list_answer(state)
         else:
             answer = knowledge_answer(state, sources)
         return answer, prompt
@@ -200,6 +196,15 @@ def ticket_applications(state: dict[str, Any]) -> list[dict[str, Any]]:
             if isinstance(item, dict) and int(item.get("application_id") or 0) > 0:
                 applications[int(item["application_id"])] = item
     return list(applications.values())
+
+
+def has_successful_tool_result(state: dict[str, Any], tool_name: str) -> bool:
+    return any(
+        isinstance(result, dict)
+        and result.get("tool_name") == tool_name
+        and result.get("ok")
+        for result in (state.get("tool_results") or [])
+    )
 
 
 def knowledge_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:

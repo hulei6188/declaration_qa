@@ -21,7 +21,6 @@ def decide_evidence(
     sources: list[dict[str, Any]],
     filters: dict[str, Any],
     *,
-    intent: str,
     chain: str = KNOWLEDGE_RETRIEVAL_CHAIN,
 ) -> EvidenceDecision:
     """根据检索来源和链路要求判断证据是否可用。"""

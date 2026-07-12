@@ -183,9 +183,6 @@ def agent_model_config(agent: object | None) -> dict[str, object]:
 
 def ensure_complete_application_history(answer: str, state: dict[str, object]) -> tuple[str, bool]:
     """保留 Agent 回答，仅在遗漏整次申请时追加对应历史。"""
-    intent = str(state.get("intent") or "")
-    if intent not in {"status", "ticket_status", "reject", "rejection_reason"}:
-        return answer, False
     applications = ticket_applications(state)
     if not applications:
         return answer, False

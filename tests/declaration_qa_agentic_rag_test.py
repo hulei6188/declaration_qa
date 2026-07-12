@@ -55,6 +55,24 @@ class CapturingKnowledgeRag:
         return RetrievalResult(self.result.sources, dict(filters), self.result.status)
 
 
+class ScriptedAgent:
+    """用显式 Tool Calling 脚本隔离工作流测试，不依赖关键词意图规则。"""
+
+    def __init__(self, decide):
+        self._decide = decide
+
+    def decide(self, state, tool_definitions):
+        return self._decide(state, tool_definitions)
+
+
+def tool_call(call_id, name, arguments=None):
+    return {"id": call_id, "name": name, "arguments": arguments or {}}
+
+
+def knowledge_arguments(text):
+    return {"queries": [{"text": text, "strategy": "hybrid"}]}
+
+
 def test_tool_registry_exposes_item_scoped_ticket_tools_without_user_id_argument():
     adapter = InMemoryBusinessDataAdapter()
     registry = ToolRegistry()
@@ -150,7 +168,7 @@ def test_ticket_detail_is_scoped_to_trusted_user_context():
 
 
 def test_tool_policy_enforces_business_and_knowledge_isolation():
-    assert agent_tool_call_allowed("ticket_list_query", "健康证需要哪些材料") is False
+    assert agent_tool_call_allowed("ticket_list_query", "健康证需要哪些材料") is True
     assert agent_tool_call_allowed("knowledge_search", "我的居住证申请进度") is True
     assert agent_tool_call_allowed("knowledge_search", "我的居住证申请被退回，怎么补正") is True
     assert "requires a successful" in agent_tool_call_denial_reason(
@@ -180,7 +198,27 @@ def test_tool_policy_enforces_business_and_knowledge_isolation():
 
 
 def test_agent_ticket_question_selects_item_and_application_without_bound_ticket():
-    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag())
+    def decide(state, _definitions):
+        completed = {item["tool_name"] for item in state.get("tool_results") or [] if item.get("ok")}
+        if "ticket_list_query" not in completed:
+            return AgentDecision("tools", [tool_call("list", "ticket_list_query")])
+        if "ticket_detail_query" not in completed:
+            return AgentDecision(
+                "tools",
+                [
+                    tool_call(
+                        "detail",
+                        "ticket_detail_query",
+                        {"item_code": "ITEM-RESIDENCE-PERMIT", "detail_type": "rejection"},
+                    )
+                ],
+            )
+        return AgentDecision("finish", final_answer="该申请因缺少有效居住证明材料被退回。")
+
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(decide),
+    )
 
     response = workflow.invoke(
         ChatRequest(
@@ -193,7 +231,7 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
     tool_names = [item["tool_name"] for item in response.tool_results]
     assert tool_names == ["ticket_list_query", "ticket_detail_query"]
     assert response.route == "agentic_rag"
-    assert response.intent == "rejection_reason"
+    assert response.intent == "agentic_rag"
     assert response.evidence_decision["business_tool_ok"] is True
     assert response.business_snapshot["item_code"] == "ITEM-RESIDENCE-PERMIT"
     assert response.business_snapshot["selected_application_id"] == 2002
@@ -201,11 +239,22 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
 
 
 def test_agent_can_answer_application_list_without_forcing_a_detail_selection():
-    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag())
+    def decide(state, _definitions):
+        if not state.get("tool_results"):
+            return AgentDecision("tools", [tool_call("list", "ticket_list_query")])
+        return AgentDecision(
+            "finish",
+            final_answer="你有健康证办理和居住证办理申请记录。",
+        )
+
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(decide),
+    )
 
     response = workflow.invoke(ChatRequest(query="我有哪些历史申请", user_id=1, region_code="340000"))
 
-    assert response.intent == "ticket_list"
+    assert response.intent == "agentic_rag"
     assert [item["tool_name"] for item in response.tool_results] == ["ticket_list_query"]
     assert response.evidence_decision["business_tool_ok"] is True
     assert response.business_snapshot == {}
@@ -215,7 +264,16 @@ def test_agent_can_answer_application_list_without_forcing_a_detail_selection():
 
 def test_agent_knowledge_question_uses_only_knowledge_tool_and_frozen_query():
     rag = CapturingKnowledgeRag()
-    workflow = DeclarationQAWorkflow(rag_engine=rag)
+
+    def decide(state, _definitions):
+        if not state.get("tool_results"):
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments("健康证需要哪些材料"))],
+            )
+        return AgentDecision("finish", final_answer="申请健康证需要身份证明和体检材料。")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
 
     response = workflow.invoke(
         ChatRequest(
@@ -238,7 +296,35 @@ def test_agent_knowledge_question_uses_only_knowledge_tool_and_frozen_query():
 
 def test_mixed_ticket_and_guidance_question_keeps_business_result_out_of_rag_query():
     rag = CapturingKnowledgeRag()
-    workflow = DeclarationQAWorkflow(rag_engine=rag)
+
+    def decide(state, _definitions):
+        completed = {item["tool_name"] for item in state.get("tool_results") or [] if item.get("ok")}
+        if not completed:
+            return AgentDecision(
+                "tools",
+                [
+                    tool_call("list", "ticket_list_query"),
+                    tool_call(
+                        "knowledge",
+                        "knowledge_search",
+                        knowledge_arguments("我的居住证申请为什么被退回，应该怎么补正"),
+                    ),
+                ],
+            )
+        if "ticket_detail_query" not in completed:
+            return AgentDecision(
+                "tools",
+                [
+                    tool_call(
+                        "detail",
+                        "ticket_detail_query",
+                        {"item_code": "ITEM-RESIDENCE-PERMIT", "detail_type": "rejection"},
+                    )
+                ],
+            )
+        return AgentDecision("finish", final_answer="请根据退回原因补交有效居住证明材料。")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
 
     response = workflow.invoke(
         ChatRequest(
@@ -262,7 +348,7 @@ def test_mixed_ticket_and_guidance_question_keeps_business_result_out_of_rag_que
 
 
 def test_agent_final_response_is_used_without_separate_answer_generation():
-    class FinalAnswerPlanner:
+    class FinalAnswerAgent:
         def decide(self, state, tool_definitions):
             if not state.get("tool_results"):
                 return AgentDecision(
@@ -278,17 +364,15 @@ def test_agent_final_response_is_used_without_separate_answer_generation():
                             },
                         }
                     ],
-                    intent="material_requirements",
                 )
             return AgentDecision(
                 "finish",
-                intent="material_requirements",
                 provider="fake_agent",
                 final_answer="这是 Agent 根据知识工具证据生成的最终答案。",
                 final_prompt="agent prompt",
             )
 
-    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent_planner=FinalAnswerPlanner())
+    workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent=FinalAnswerAgent())
 
     response = workflow.invoke(ChatRequest(query="健康证需要哪些材料", user_id=1))
 

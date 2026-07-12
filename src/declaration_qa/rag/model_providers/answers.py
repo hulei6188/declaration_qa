@@ -82,7 +82,7 @@ class OpenAIAnswerGenerator:
     def generate(self, state: dict[str, Any]) -> tuple[str, str]:
         """生成非流式回答和提示词。"""
         prompt = self.build_prompt(state)
-        if is_application_history_intent(state):
+        if has_application_history(state):
             return application_history_answer(state), prompt
         generation_plan = self.generation_plan(state)
         if generation_plan["mode"] == "vl":
@@ -96,7 +96,7 @@ class OpenAIAnswerGenerator:
     def stream_generate(self, state: dict[str, Any]) -> tuple[Iterable[str], str]:
         """生成流式回答片段和提示词。"""
         prompt = self.build_prompt(state)
-        if is_application_history_intent(state):
+        if has_application_history(state):
             return iter([application_history_answer(state)]), prompt
         generation_plan = self.generation_plan(state)
         if generation_plan["mode"] == "vl":
@@ -181,9 +181,14 @@ MULTIMODAL_EVIDENCE_RULES = """【多模态证据规则】
 5. 不要在回答中输出内部 chunk_id、图片序号或本规则。"""
 
 
-def is_application_history_intent(state: dict[str, Any]) -> bool:
-    """状态和退回问题必须走完整业务历史渲染，禁止模型摘要。"""
-    return str(state.get("intent") or "") in {"status", "ticket_status", "reject", "rejection_reason"}
+def has_application_history(state: dict[str, Any]) -> bool:
+    """根据实际详情工具结果判断是否存在申请状态历史。"""
+    return any(
+        isinstance(result, dict)
+        and result.get("tool_name") == "ticket_detail_query"
+        and result.get("ok")
+        for result in (state.get("tool_results") or [])
+    )
 
 
 def valid_query_image(

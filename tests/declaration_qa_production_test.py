@@ -327,7 +327,6 @@ def test_evidence_check_does_not_reject_conflicting_metadata_versions():
             },
         ],
         {"region_code": "340000", "policy_version": "2025"},
-        intent="material_requirements",
     )
 
     assert decision.ok is True

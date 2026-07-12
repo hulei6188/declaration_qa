@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_STATUS
 
 
 def material_tags(reject: dict[str, Any]) -> list[str]:
@@ -29,16 +28,14 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
     application_id = state.get("agent_selected_application_id")
     if state.get("refused"):
         return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version}}]
-    if state.get("intent") in {INTENT_TICKET_STATUS}:
-        return [
-            {
-                "type": "open_apply_detail",
-                "label": "查看申请单详情",
-                "payload": {"itemCode": item_code, "applicationId": application_id, "appVersion": app_version},
-            }
-        ]
-    if state.get("intent") in {INTENT_REJECTION_REASON}:
-        reject_info = selected_rejection_event(state)
+    has_detail = any(
+        isinstance(result, dict)
+        and result.get("tool_name") == "ticket_detail_query"
+        and result.get("ok")
+        for result in (state.get("tool_results") or [])
+    )
+    reject_info = selected_rejection_event(state) if has_detail else {}
+    if reject_info:
         return [
             {
                 "type": "open_material_reupload",
@@ -49,6 +46,14 @@ def suggested_actions(state: DeclarationQAState) -> list[dict[str, Any]]:
                     "materialCode": reject_info.get("material_code"),
                     "appVersion": app_version,
                 },
+            }
+        ]
+    if has_detail:
+        return [
+            {
+                "type": "open_apply_detail",
+                "label": "查看申请单详情",
+                "payload": {"itemCode": item_code, "applicationId": application_id, "appVersion": app_version},
             }
         ]
     return [

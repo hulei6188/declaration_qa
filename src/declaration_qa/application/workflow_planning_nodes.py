@@ -6,7 +6,7 @@ from pathlib import Path
 
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.workflow_helpers.events import add_event
-from declaration_qa.application.workflow_helpers.intent import infer_biz_type, mask_sensitive_text
+from declaration_qa.application.workflow_helpers.text_safety import mask_sensitive_text
 from declaration_qa.rag.engine.text import normalize_text
 
 
@@ -87,10 +87,10 @@ class WorkflowPlanningNodes:
         return next_state
 
     def query_preprocess(self, state: DeclarationQAState) -> DeclarationQAState:
-        """清洗用户问题，业务事项只从本次用户表达推断。"""
+        """清洗用户问题，不在服务端执行关键词分类。"""
         next_state = dict(state)
         query = normalize_text(mask_sensitive_text(next_state.get("query") or ""))
         next_state["normalized_query"] = query
-        next_state["biz_type"] = next_state.get("request_biz_type") or infer_biz_type(query)
+        next_state["biz_type"] = next_state.get("request_biz_type")
         add_event(next_state, "query_preprocessed", {"normalized_query": query, "biz_type": next_state.get("biz_type")})
         return next_state

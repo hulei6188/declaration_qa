@@ -4,10 +4,40 @@ import pytest
 from pydantic import ValidationError
 
 from declaration_qa.api.schemas import ChatRequest
+from declaration_qa.application.agent import AgentDecision
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.rag.router import parse_json_object
+
+
+class TicketScriptAgent:
+    def __init__(self, item_code, detail_type="status"):
+        self.item_code = item_code
+        self.detail_type = detail_type
+
+    def decide(self, state, _tool_definitions):
+        completed = {item["tool_name"] for item in state.get("tool_results") or [] if item.get("ok")}
+        if "ticket_list_query" not in completed:
+            return AgentDecision(
+                "tools",
+                [{"id": "list", "name": "ticket_list_query", "arguments": {}}],
+            )
+        if "ticket_detail_query" not in completed:
+            return AgentDecision(
+                "tools",
+                [
+                    {
+                        "id": "detail",
+                        "name": "ticket_detail_query",
+                        "arguments": {
+                            "item_code": self.item_code,
+                            "detail_type": self.detail_type,
+                        },
+                    }
+                ],
+            )
+        return AgentDecision("finish")
 
 
 def test_chat_routes_have_no_ticket_selection_endpoint():
@@ -29,6 +59,7 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
     workflow = DeclarationQAWorkflow(
         rag_engine=build_seed_rag_engine(),
         business_adapter=InMemoryBusinessDataAdapter(),
+        agent=TicketScriptAgent("ITEM-RESIDENCE-PERMIT", "rejection"),
     )
 
     response = workflow.invoke(ChatRequest(query="我的居住证申请为什么被退回", user_id=1))
@@ -50,6 +81,7 @@ def test_stream_done_event_contains_agent_result_not_ticket_picker():
     workflow = DeclarationQAWorkflow(
         rag_engine=build_seed_rag_engine(),
         business_adapter=InMemoryBusinessDataAdapter(),
+        agent=TicketScriptAgent("ITEM-HEALTH-CERTIFICATE"),
     )
 
     events = list(workflow.stream(ChatRequest(query="我的健康证申请进度", user_id=1)))
@@ -75,4 +107,4 @@ def test_agentic_schema_and_migration_define_complete_application_history():
 
 
 def test_parse_json_object_accepts_fenced_model_output():
-    assert parse_json_object('```json\n{"intent":"knowledge_qa"}\n```') == {"intent": "knowledge_qa"}
+    assert parse_json_object('```json\n{"route":"agentic_rag"}\n```') == {"route": "agentic_rag"}

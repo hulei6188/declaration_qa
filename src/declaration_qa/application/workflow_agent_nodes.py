@@ -12,7 +12,6 @@ from typing import Any
 from declaration_qa.application.agent import (
     accumulated_knowledge_queries,
     choose_application_id,
-    needs_public_knowledge,
     select_generation_sources,
 )
 from declaration_qa.application.state import DeclarationQAState
@@ -20,13 +19,12 @@ from declaration_qa.application.tools import ToolExecutionContext, ToolExecution
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.workflow_helpers.events import add_event
 from declaration_qa.application.workflow_helpers.streaming import is_declaration_qa_stream_run
-from declaration_qa.application.workflow_helpers.intent import is_unsafe_query, mask_sensitive_text
+from declaration_qa.application.workflow_helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.evidence import decide_evidence
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
-from declaration_qa.rag.router import INTENT_REJECTION_REASON, INTENT_TICKET_LIST, INTENT_TICKET_STATUS, classify_knowledge_intent, classify_ticket_intent
 
 
 class WorkflowAgentNodes:
@@ -62,16 +60,7 @@ class WorkflowAgentNodes:
         next_state["agent_final_model"] = ""
         next_state["agent_final_token_usage"] = {}
         next_state["agent_final_latency_ms"] = None
-        ticket_intent = classify_ticket_intent(query_text)
-        if ticket_intent == INTENT_TICKET_LIST:
-            required_evidence = ["ticket_list"]
-        elif ticket_intent:
-            required_evidence = ["ticket_detail"]
-            if needs_public_knowledge(query_text):
-                required_evidence.append("knowledge")
-        else:
-            required_evidence = ["knowledge"]
-        next_state["agent_required_evidence"] = required_evidence
+        next_state["agent_required_evidence"] = []
         next_state["tool_results"] = []
         next_state["agent_selected_item_code"] = ""
         next_state["agent_selected_application_id"] = None
@@ -200,8 +189,7 @@ class WorkflowAgentNodes:
         next_state["retrieved_sources"] = sources
         next_state["tool_results"] = tool_results
         next_state["agent_required_evidence"] = required_evidence
-        parent_query = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        next_state["intent"] = classify_ticket_intent(parent_query) or classify_knowledge_intent(parent_query)
+        next_state["intent"] = "agentic_rag"
         next_state["sub_intent"] = next_state["intent"]
         next_state["agent_iteration"] = max((int(item.get("iterations") or 0) for item in worker_results), default=0)
         next_state["agent_query_plan"] = {
@@ -277,7 +265,7 @@ class WorkflowAgentNodes:
         """运行一个可自主选择注册工具的有限迭代子 Agent。"""
         sub_question_id = str(task.get("sub_question_id") or "worker")
         question = normalize_text(mask_sensitive_text(task.get("question") or ""))
-        required_evidence = worker_required_evidence(question)
+        required_evidence: set[str] = set()
         worker_state = {
             **parent_state,
             "query": question,
@@ -319,6 +307,8 @@ class WorkflowAgentNodes:
                 else:
                     failure_reason = "worker_failed_to_plan_tool"
                 break
+            required_evidence.update(evidence_requirements(calls))
+            worker_state["agent_required_evidence"] = sorted(required_evidence)
             batch_has_list = any(str(call.get("name") or "") == "ticket_list_query" for call in calls)
             has_prior_list = bool(listed_item_codes(worker_state["tool_results"]))
             deferred = [
@@ -398,6 +388,11 @@ class WorkflowAgentNodes:
                 failure_reason = terminal_failure
                 break
             if checks and all(checks.values()):
+                if ticket_list_requires_agent_observation(
+                    calls,
+                    worker_state.get("tool_results") or [],
+                ):
+                    continue
                 failure_reason = ""
                 break
         return {
@@ -466,7 +461,7 @@ class WorkflowAgentNodes:
                 next_state["agent_final_prompt"] = decision.final_prompt
                 next_state["agent_answer_provider"] = decision.provider
         requirements = set(next_state.get("agent_required_evidence") or [])
-        requirements.update(evidence_requirements(calls, intent=str(next_state.get("intent") or "")))
+        requirements.update(evidence_requirements(calls))
         next_state["agent_required_evidence"] = sorted(requirements)
         next_state["agent_pending_tool_calls"] = calls
         next_state["agent_plan"] = decision_payload
@@ -652,7 +647,6 @@ class WorkflowAgentNodes:
         knowledge_decision = decide_evidence(
             sources,
             next_state.get("retrieval_filter") or {},
-            intent=str(next_state.get("intent") or "knowledge_qa"),
             chain=KNOWLEDGE_RETRIEVAL_CHAIN,
         ) if sources else None
         detail_results = [
@@ -667,17 +661,9 @@ class WorkflowAgentNodes:
         ]
         list_ok = bool(list_results)
         detail_ok = bool(detail_results)
-        business_ok = list_ok if next_state.get("intent") == INTENT_TICKET_LIST else detail_ok
+        business_ok = detail_ok or list_ok
         hard_knowledge_ok = bool(knowledge_decision and knowledge_decision.ok)
         required = set(next_state.get("agent_required_evidence") or [])
-        if not required:
-            ticket_intent = classify_ticket_intent(str(next_state.get("normalized_query") or next_state.get("query") or ""))
-            if ticket_intent == INTENT_TICKET_LIST:
-                required.add("ticket_list")
-            elif ticket_intent:
-                required.add("ticket_detail")
-            else:
-                required.add("knowledge")
         coverage: dict[str, Any] = {}
         if "knowledge" in required and hard_knowledge_ok:
             assessor = getattr(self.agent, "assess_evidence", None)
@@ -695,7 +681,7 @@ class WorkflowAgentNodes:
             "ticket_list": list_ok,
             "ticket_detail": detail_ok,
         }
-        next_state["evidence_ok"] = all(checks.get(item, False) for item in required)
+        next_state["evidence_ok"] = bool(required) and all(checks.get(item, False) for item in required)
         next_state["evidence_decision"] = {
             "ok": next_state["evidence_ok"],
             "business_tool_ok": business_ok,
@@ -859,19 +845,6 @@ def merge_worker_evidence(
     return select_generation_sources(combined)
 
 
-def worker_required_evidence(question: str) -> set[str]:
-    """Infer only the evidence types required by one atomic sub-question."""
-    ticket_intent = classify_ticket_intent(question)
-    if ticket_intent == INTENT_TICKET_LIST:
-        return {"ticket_list"}
-    if ticket_intent:
-        required = {"ticket_detail"}
-        if needs_public_knowledge(question):
-            required.add("knowledge")
-        return required
-    return {"knowledge"}
-
-
 def worker_evidence_status(
     nodes: Any,
     worker_state: dict[str, Any],
@@ -888,7 +861,6 @@ def worker_evidence_status(
         hard_decision = decide_evidence(
             sources,
             worker_state.get("retrieval_filter") or {},
-            intent="knowledge_qa",
             chain=KNOWLEDGE_RETRIEVAL_CHAIN,
         )
         if hard_decision.ok:
@@ -1007,7 +979,7 @@ def required_business_tool_failure(
 
 
 def agent_tool_call_allowed(tool_name: str, query: str) -> bool:
-    """在模型之外强制执行工单工具授权策略。"""
+    """检查与关键词意图无关的工具级安全约束。"""
     return not agent_tool_call_denial_reason(tool_name, query)
 
 
@@ -1020,7 +992,6 @@ def agent_tool_call_denial_reason(
     trusted_knowledge_retry: bool = False,
 ) -> str:
     """返回模型外策略拒绝原因；空字符串表示允许执行。"""
-    ticket_intent = classify_ticket_intent(query)
     if tool_name == "knowledge_search" and prior_results is not None:
         observed_business = any(
             isinstance(result, dict)
@@ -1032,8 +1003,6 @@ def agent_tool_call_denial_reason(
             return "knowledge_search must be planned before observing business tool results"
         return ""
     if tool_name in {"ticket_list_query", "ticket_detail_query"}:
-        if not ticket_intent:
-            return "ticket tools require a personal ticket intent"
         if tool_name == "ticket_detail_query" and prior_results is not None:
             listed_codes = listed_item_codes(prior_results)
             if not listed_codes:
@@ -1058,21 +1027,39 @@ def listed_item_codes(results: list[dict[str, Any]]) -> set[str]:
     return codes
 
 
-def evidence_requirements(calls: list[dict[str, Any]], *, intent: str) -> set[str]:
-    """根据 Agent 的工具计划累计最终回答必须满足的证据类型。"""
+def evidence_requirements(calls: list[dict[str, Any]]) -> set[str]:
+    """根据 Agent 实际工具调用累计证据类型，不依赖关键词意图。"""
     names = {str(call.get("name") or "") for call in calls}
     required: set[str] = set()
     if "knowledge_search" in names:
         required.add("knowledge")
-    if intent == INTENT_TICKET_LIST and "ticket_list_query" in names:
+    if "ticket_list_query" in names:
         required.add("ticket_list")
-    elif intent in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON} and names.intersection(
-        {"ticket_list_query", "ticket_detail_query"}
-    ):
-        required.add("ticket_detail")
     if "ticket_detail_query" in names:
         required.add("ticket_detail")
     return required
+
+
+def ticket_list_requires_agent_observation(
+    calls: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> bool:
+    """列表首次成功后让 Agent 观察一次，再自主决定结束或查询详情。"""
+    called_list = any(str(call.get("name") or "") == "ticket_list_query" for call in calls)
+    called_detail = any(str(call.get("name") or "") == "ticket_detail_query" for call in calls)
+    list_ok = any(
+        isinstance(result, dict)
+        and result.get("tool_name") == "ticket_list_query"
+        and result.get("ok")
+        for result in results
+    )
+    detail_ok = any(
+        isinstance(result, dict)
+        and result.get("tool_name") == "ticket_detail_query"
+        and result.get("ok")
+        for result in results
+    )
+    return called_list and list_ok and not called_detail and not detail_ok
 
 
 def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

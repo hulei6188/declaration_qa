@@ -12,6 +12,7 @@ from declaration_qa.api.schemas import ChatRequest, ChatResponse
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.agent import ToolCallingAgent
 from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
+from declaration_qa.application.workflow_agent_nodes import ticket_list_requires_agent_observation
 from declaration_qa.application.workflow_helpers.retrieval_sources import select_answer_sources
 from declaration_qa.application.workflow_helpers.streaming import (
     STREAM_TOKEN_DELAY_SECONDS,
@@ -352,6 +353,15 @@ class DeclarationQAWorkflow(WorkflowNodes):
     def _agent_evidence_route(self, state: DeclarationQAState) -> str:
         """Route complete evidence directly to one final model call."""
         iteration = int(state.get("agent_iteration") or 0)
+        latest_calls = list((state.get("agent_plan") or {}).get("tool_calls") or [])
+        if (
+            iteration < self.agent_max_iterations
+            and ticket_list_requires_agent_observation(
+                latest_calls,
+                state.get("tool_results") or [],
+            )
+        ):
+            return "retry"
         if state.get("evidence_ok"):
             can_finalize = callable(getattr(self.agent, "finalize", None))
             if can_finalize or state.get("agent_final_answer") or iteration >= self.agent_max_iterations:
