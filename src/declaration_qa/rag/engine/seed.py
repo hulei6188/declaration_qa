@@ -21,6 +21,8 @@ def build_seed_rag_engine(
     cache_ttl_seconds: int = 600,
     rerank_score_threshold: float = 0.0,
     rerank_max_sources: int = 20,
+    retrieval_candidates_per_query: int = 30,
+    rerank_top_n_per_query: int = 6,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
     """创建内存 RAG 引擎，并可选择加载种子知识。"""
@@ -33,6 +35,8 @@ def build_seed_rag_engine(
         cache_ttl_seconds=cache_ttl_seconds,
         rerank_score_threshold=rerank_score_threshold,
         rerank_max_sources=rerank_max_sources,
+        retrieval_candidates_per_query=retrieval_candidates_per_query,
+        rerank_top_n_per_query=rerank_top_n_per_query,
     )
     if include_seed:
         for document in seed_documents():

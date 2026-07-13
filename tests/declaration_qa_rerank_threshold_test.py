@@ -33,7 +33,7 @@ class FailingReranker:
         raise RuntimeError("request payload is too large")
 
 
-def test_rerank_score_threshold_expands_beyond_fixed_top_k() -> None:
+def test_rerank_score_threshold_respects_per_query_top_n() -> None:
     engine = InMemoryRAGEngine(
         reranker=MetadataScoreReranker(),
         rerank_score_threshold=0.65,
@@ -44,16 +44,16 @@ def test_rerank_score_threshold_expands_beyond_fixed_top_k() -> None:
 
     result = engine.retrieve("创业补贴 申请材料", {}, top_k=5)
 
-    assert [source.chunk.id for source in result.sources] == [f"chunk-score-{index}" for index in range(12)]
-    assert result.status["channels"]["rerank"] == 12
-    assert result.status["channels"]["selected"] == 12
+    assert [source.chunk.id for source in result.sources] == [f"chunk-score-{index}" for index in range(5)]
+    assert result.status["channels"]["rerank"] == 5
+    assert result.status["channels"]["selected"] == 5
     assert result.status["score_cutoff"] == {
         "enabled": True,
         "threshold": 0.65,
         "requested_top_k": 5,
         "max_sources": 12,
-        "before": 12,
-        "after": 12,
+        "before": 5,
+        "after": 5,
         "rejected": False,
         "reason": "passed_threshold",
     }

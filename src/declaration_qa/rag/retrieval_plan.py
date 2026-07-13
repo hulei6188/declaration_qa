@@ -10,6 +10,13 @@ ALLOWED_METADATA_NEEDS = (
     "item_scope",
     "as_of",
 )
+ALLOWED_RETRIEVAL_STRATEGIES = (
+    "keyword",
+    "semantic",
+    "hybrid",
+    "image_ocr",
+    "image_query",
+)
 
 
 def infer_retrieval_plan(
@@ -37,6 +44,13 @@ def normalize_retrieval_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
     query_image_path = str(raw.get("query_image_path") or "").strip()
     if query_image_path:
         output["query_image_path"] = query_image_path
+    retrieval_strategy = str(raw.get("retrieval_strategy") or "").strip().lower()
+    if retrieval_strategy:
+        output["retrieval_strategy"] = (
+            retrieval_strategy
+            if retrieval_strategy in ALLOWED_RETRIEVAL_STRATEGIES
+            else "hybrid"
+        )
     return output
 
 

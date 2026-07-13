@@ -30,7 +30,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     assert_production_ready(settings)
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
-    agent_model = build_agent_model(settings, timeout_seconds=settings.agent_final_timeout_seconds)
+    agent_model = build_agent_model(settings)
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,
@@ -124,6 +124,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             cache_ttl_seconds=settings.redis_ttl_seconds,
             rerank_score_threshold=settings.rerank_score_threshold,
             rerank_max_sources=settings.rerank_max_sources,
+            retrieval_candidates_per_query=settings.retrieval_candidates_per_query,
+            rerank_top_n_per_query=settings.rerank_top_n_per_query,
         )
     else:
         rag_engine = build_seed_rag_engine(
@@ -135,6 +137,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             cache_ttl_seconds=settings.redis_ttl_seconds,
             rerank_score_threshold=settings.rerank_score_threshold,
             rerank_max_sources=settings.rerank_max_sources,
+            retrieval_candidates_per_query=settings.retrieval_candidates_per_query,
+            rerank_top_n_per_query=settings.rerank_top_n_per_query,
             include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
         )
     if hasattr(audit_store, "list_indexed_knowledge"):
@@ -182,6 +186,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         query_image_ocr_max_chars=settings.query_image_ocr_max_chars,
         context_memory_manager=context_memory_manager,
         max_retrieval_workers=settings.max_retrieval_workers,
+        min_sources_per_query=settings.min_sources_per_query,
+        max_accumulated_sources=settings.max_accumulated_sources,
     )
 
 

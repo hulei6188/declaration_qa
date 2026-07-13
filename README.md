@@ -39,8 +39,8 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
 - Elasticsearch 提供 BM25 关键词检索。
 - Agent 可为每个子查询选择 `keyword`、`semantic` 或 `hybrid` 检索偏好。
 - 两个物理通道始终保留，通过加权 RRF 融合候选。
-- 多条 Agent 子查询经过第二次 RRF 汇总。
-- 最终候选由 Qwen3-VL Rerank 或启发式重排器统一重排并执行阈值过滤。
+- 每条 Agent 子查询分别执行 RRF、Qwen3-VL Rerank 和阈值过滤。
+- 多查询结果按最低覆盖配额合并，多轮历史证据累计去重且不使用最新查询重新重排。
 - 检索结果保留 chunk、文档、版本、地区、页码、坐标和附件来源信息。
 
 ### 文档和多模态知识
@@ -139,15 +139,15 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
 RRF contribution = 1 / (60 + rank)
 ```
 
-Agent 多查询模式包含两层融合：
+Agent 多查询模式按子查询独立重排：
 
 ```text
 每条子查询的 Dense + BM25
-  -> 按策略权重执行第一次 RRF
-  -> 各子查询结果执行第二次 RRF
-  -> Rerank
-  -> 分数阈值和来源数量限制
-  -> 证据回填与来源去重
+  -> 按策略权重执行局部 RRF
+  -> 使用该子查询独立 Rerank
+  -> 每路执行分数阈值和 Top N 限制
+  -> 按查询最低配额合并和来源去重
+  -> 多轮累计裁剪，不使用最新查询重排历史证据
 ```
 
 ## 文档解析与切分
@@ -448,7 +448,11 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 | `DECLARATION_QA_EMBEDDING_DIMENSIONS` | 向量维度，必须与 Milvus collection 一致 |
 | `DECLARATION_QA_RERANK_PROVIDER` | `dashscope` 或 `heuristic` |
 | `DECLARATION_QA_RERANK_SCORE_THRESHOLD` | 重排最低分数 |
-| `DECLARATION_QA_RERANK_MAX_SOURCES` | 最终最大证据数量 |
+| `DECLARATION_QA_RERANK_MAX_SOURCES` | 单次 Rerank 的安全上限 |
+| `DECLARATION_QA_RETRIEVAL_CANDIDATES_PER_QUERY` | 每条查询进入 RRF/Rerank 前的候选窗口 |
+| `DECLARATION_QA_RERANK_TOP_N_PER_QUERY` | 每条查询局部 Rerank 后的保留数量 |
+| `DECLARATION_QA_MIN_SOURCES_PER_QUERY` | 每条有合格证据的查询最低保留数量 |
+| `DECLARATION_QA_MAX_ACCUMULATED_SOURCES` | 多查询、多轮累计证据总上限 |
 
 修改 Embedding 模型或维度后，需要重建 Milvus collection 和知识索引，否则会出现维度不匹配。
 

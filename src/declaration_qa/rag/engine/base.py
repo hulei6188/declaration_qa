@@ -177,6 +177,8 @@ class BaseRAGEngine:
         cache_ttl_seconds: int = 600,
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 20,
+        retrieval_candidates_per_query: int = 30,
+        rerank_top_n_per_query: int = 6,
     ) -> None:
         """初始化共享的 provider 和存储。"""
         self.cache_store = cache_store or InMemoryCacheStore()
@@ -188,6 +190,8 @@ class BaseRAGEngine:
         self.cache_ttl_seconds = max(1, int(cache_ttl_seconds))
         self.rerank_score_threshold = max(0.0, min(1.0, float(rerank_score_threshold or 0.0)))
         self.rerank_max_sources = max(1, int(rerank_max_sources or 20))
+        self.retrieval_candidates_per_query = max(1, int(retrieval_candidates_per_query or 30))
+        self.rerank_top_n_per_query = max(1, int(rerank_top_n_per_query or 6))
 
     def index_document(self, document: KnowledgeDocument) -> int:
         """索引单个文档。"""
@@ -299,10 +303,12 @@ class BaseRAGEngine:
         for index, query in enumerate(queries):
             text = normalize_text(str(query.get("text") or ""))
             top_k = int(query.get("top_k") or 3)
+            strategy = str(query.get("strategy") or "hybrid")
+            query_policy = {**policy, "retrieval_strategy": strategy}
             if not text:
                 results[index] = self._empty_result("", effective_filter, top_k=top_k)
                 continue
-            cache_key = self._cache_key(text, effective_filter, top_k, policy)
+            cache_key = self._cache_key(text, effective_filter, top_k, query_policy)
             with observation(
                 "rag.cache.lookup",
                 input={"query": text, "filter": effective_filter, "top_k": top_k, "mode": "many", "index": index},
@@ -313,7 +319,16 @@ class BaseRAGEngine:
             if cached_payload:
                 results[index] = self._result_from_cache(cached_payload, effective_filter)
             else:
-                query_specs.append({"index": index, "query": text, "top_k": top_k, "cache_key": cache_key})
+                query_specs.append(
+                    {
+                        "index": index,
+                        "query": text,
+                        "top_k": top_k,
+                        "strategy": strategy,
+                        "cache_key": cache_key,
+                        "retrieval_plan": query_policy,
+                    }
+                )
         if not query_specs:
             return [result for result in results if result is not None]
         return self._retrieve_many_uncached(query_specs, results, effective_filter, retrieval_plan=policy)
@@ -518,12 +533,22 @@ class BaseRAGEngine:
     ) -> RetrievalResult:
         """根据各通道命中构建标准检索结果。"""
         degraded = list(degraded or [])
+        weighted_hit_lists, channel_weights = strategy_weighted_hit_lists(
+            str((retrieval_plan or {}).get("retrieval_strategy") or "hybrid"),
+            dense_hits,
+            bm25_hits,
+        )
         with observation(
             "rag.rrf_merge",
-            input={"dense_count": len(dense_hits), "bm25_count": len(bm25_hits), "rrf_k": 60},
+            input={
+                "dense_count": len(dense_hits),
+                "bm25_count": len(bm25_hits),
+                "rrf_k": 60,
+                "channel_weights": channel_weights,
+            },
             metadata=self._observability_metadata(retrieval_plan=retrieval_plan),
         ) as span:
-            fused_hits = rrf_fuse([dense_hits, bm25_hits], rrf_k=60)
+            fused_hits = rrf_fuse(weighted_hit_lists, rrf_k=60) if weighted_hit_lists else []
             span.update(output={"fused_count": len(fused_hits), "sources": retrieved_source_summary(fused_hits)})
         rerank_top_n = self._rerank_top_n(top_k)
         policy = normalize_retrieval_plan(retrieval_plan)
@@ -626,6 +651,7 @@ class BaseRAGEngine:
                     "rerank": len(reranked),
                     "selected": len(selected_sources),
                 },
+                "channel_weights": channel_weights,
                 "score_cutoff": score_cutoff_status,
                 "retrieval_plan": policy,
                 "degraded": degraded,
@@ -845,16 +871,11 @@ class BaseRAGEngine:
 
     def _recall_limit(self, top_k: int) -> int:
         """返回 RRF 和重排前的通道召回窗口。"""
-        limit = max(int(top_k or 1) * 3, 8)
-        if self.rerank_score_threshold > 0:
-            limit = max(limit, self.rerank_max_sources * 3)
-        return limit
+        return max(int(top_k or 1), self.retrieval_candidates_per_query)
 
     def _rerank_top_n(self, top_k: int) -> int:
         """返回基于分数截断前的重排输出数量。"""
-        if self.rerank_score_threshold > 0:
-            return max(int(top_k or 1), self.rerank_max_sources, 1)
-        return max(int(top_k or 1), 1)
+        return min(max(int(top_k or 1), 1), self.rerank_max_sources)
 
     def _apply_rerank_score_cutoff(
         self,
@@ -878,11 +899,12 @@ class BaseRAGEngine:
                 "reason": "score_cutoff_disabled",
             }
 
+        limit = min(max(int(requested_top_k or 1), 1), self.rerank_max_sources)
         selected = [
             source
             for source in reranked
             if float(source.rerank_score or 0.0) >= threshold
-        ][: self.rerank_max_sources]
+        ][:limit]
         if not reranked:
             reason = "no_reranked_sources"
         elif not selected:

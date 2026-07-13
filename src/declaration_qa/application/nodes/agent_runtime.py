@@ -9,15 +9,15 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from declaration_qa.application.agent import accumulated_knowledge_queries, choose_application_id, select_generation_sources
+from declaration_qa.application.agent import accumulated_knowledge_queries, choose_application_id
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.helpers.events import add_event
 from declaration_qa.application.helpers.historical_evidence import (
-    merge_retrieved_source_candidates,
     trusted_historical_evidence_candidates,
 )
+from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.engine.text import normalize_text
@@ -286,8 +286,10 @@ class AgentRuntimeNodes:
                 continue
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
             if result.get("tool_name") == "knowledge_search":
-                next_state["retrieved_sources"] = select_generation_sources(
-                    [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])]
+                next_state["retrieved_sources"] = merge_accumulated_source_payloads(
+                    [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],
+                    min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
+                    max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
                 )
                 next_state["rag_status"] = dict(data.get("rag_status") or {})
                 next_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
@@ -332,6 +334,11 @@ class AgentRuntimeNodes:
     ) -> dict[str, Any]:
         """执行 Agent 本轮生成的查询计划并统一重排本轮候选。"""
         state = dict(context.metadata.get("state") or {})
+        search_round = 1 + sum(
+            1
+            for item in (state.get("tool_results") or [])
+            if isinstance(item, dict) and item.get("tool_name") == "knowledge_search"
+        )
         retrieval_queries: list[dict[str, Any]] = []
         seen: set[str] = set()
         for index, query in enumerate(request.queries, start=1):
@@ -344,7 +351,7 @@ class AgentRuntimeNodes:
                     "id": f"agent_q{index}",
                     "text": text,
                     "strategy": query.strategy,
-                    "top_k": 6,
+                    "top_k": int(getattr(self.rag_engine, "rerank_top_n_per_query", 6) or 6),
                 }
             )
         rerank_query = "\n".join(item["text"] for item in retrieval_queries)
@@ -359,6 +366,7 @@ class AgentRuntimeNodes:
             "tool_results": [],
             "retrieval_chain": KNOWLEDGE_RETRIEVAL_CHAIN,
             "retrieval_queries": retrieval_queries,
+            "knowledge_search_round": search_round,
         }
         filters = normalize_retrieval_filter(state.get("metadata_filter") or {})
         result = self.multi_retrieve(isolated_state, filters)
@@ -369,37 +377,42 @@ class AgentRuntimeNodes:
             session_id=context.session_id,
             region_code=context.region_code,
         )
-        final_sources = list(result.sources)
-        if historical_candidates:
-            combined = merge_retrieved_source_candidates(final_sources, historical_candidates)
-            rerank_candidates = getattr(self.rag_engine, "rerank_candidates", None)
-            final_sources = (
-                rerank_candidates(
-                    rerank_query,
-                    combined,
-                    filters,
-                    retrieval_plan=isolated_state.get("retrieval_plan") or {},
-                )
-                if callable(rerank_candidates)
-                else combined
-            )
+        current_payloads = [source.payload() for source in result.sources]
+        historical_payloads = []
+        for local_rank, source in enumerate(historical_candidates, start=1):
+            payload = source.payload()
+            metadata = dict(payload.get("metadata") or {})
+            metadata["retrieval_matches"] = [
+                {
+                    "match_id": "r0:history",
+                    "search_round": 0,
+                    "query_id": "history",
+                    "query": "可信历史证据",
+                    "strategy": "history_ref",
+                    "local_rank": local_rank,
+                }
+            ]
+            payload["metadata"] = metadata
+            historical_payloads.append(payload)
+        final_sources = merge_accumulated_source_payloads(
+            [*current_payloads, *historical_payloads],
+            min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
+            max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
+        )
         rag_status = {
             **(result.status or {}),
             "historical_evidence_refs": historical_ref_status,
             "historical_candidate_count": len(historical_candidates),
             "final_source_count": len(final_sources),
-            "final_rerank_applied": bool(historical_candidates),
+            "final_rerank_applied": False,
+            "historical_merge_mode": "coverage_merge_without_rerank",
         }
         return {
-            "sources": [source.payload() for source in final_sources],
+            "sources": final_sources,
             "rag_status": rag_status,
             "retrieval_filter": result.filter,
             "executed_queries": retrieval_queries,
-            "search_round": 1 + sum(
-                1
-                for item in (state.get("tool_results") or [])
-                if isinstance(item, dict) and item.get("tool_name") == "knowledge_search"
-            ),
+            "search_round": search_round,
             "accumulated_query_count": len(accumulated_knowledge_queries(state.get("tool_results") or [])) + len(retrieval_queries),
         }
 

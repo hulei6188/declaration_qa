@@ -127,7 +127,7 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
 
     assert len(many_results) == 2
     assert engine.chunk_count == 0
-    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 8}]
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 30}]
     assert [call["filters"] for call in keyword_index.search_calls[-2:]] == [
         {"region_code": "340000", "doc_status": "published"},
         {"region_code": "340000", "doc_status": "published"},
@@ -136,7 +136,7 @@ def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():
     assert all(result.status["batch_mode"] is True for result in many_results)
 
 
-def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
+def test_remote_multi_query_retrieval_batches_io_and_reranks_each_query():
     child_a = KnowledgeChunk(
         id="chunk-rewrite-a",
         doc_id="doc-rewrite",
@@ -252,30 +252,27 @@ def test_remote_rewrite_retrieval_batches_bm25_and_reranks_once():
         reranker=reranker,
     )
 
-    result = engine.retrieve_rewrites(
-        "用户问办理要多久",
+    results = engine.retrieve_many(
         [
             {"id": "rq1", "text": "办理时限", "strategy": "time_limit", "top_k": 2},
             {"id": "rq2", "text": "承诺办结时限", "strategy": "promise_limit", "top_k": 2},
         ],
         {"region_code": "340000"},
-        top_k=2,
     )
 
-    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 8}]
+    assert vector_index.batch_calls == [{"count": 2, "filters": {"region_code": "340000", "doc_status": "published"}, "limit": 30}]
     assert keyword_index.search_many_calls == [
         {
             "queries": ["办理时限", "承诺办结时限"],
             "filters": {"region_code": "340000", "doc_status": "published"},
-            "limits": [8, 8],
+            "limits": [30, 30],
         }
     ]
     assert keyword_index.search_calls == []
-    assert len(reranker.calls) == 1
-    assert reranker.calls[0]["query"] == "用户问办理要多久"
-    assert result.status["retrieval_mode"] == "batch_agent_query_fused"
-    assert result.status["channels"]["hit_lists"] == 4
-    assert result.status["channels"]["rerank"] == 2
-    assert result.status["candidate_source"] == "external_indexes"
-    assert result.status["queries"][0]["channels"] == {"dense": 1, "bm25": 1}
+    assert [call["query"] for call in reranker.calls] == ["办理时限", "承诺办结时限"]
+    assert all(call["top_n"] == 2 for call in reranker.calls)
+    assert len(results) == 2
+    assert all(result.status["batch_mode"] is True for result in results)
+    assert all(result.status["channels"]["rerank"] == 2 for result in results)
+    assert all(result.status["candidate_source"] == "external_indexes" for result in results)
     assert len(chunk_store.chunk_calls) == 1

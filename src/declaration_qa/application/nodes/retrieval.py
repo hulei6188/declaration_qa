@@ -10,9 +10,8 @@ from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.helpers.text_safety import mask_sensitive_text
 from declaration_qa.application.helpers.retrieval_sources import (
     dedupe_retrieval_queries,
-    merge_retrieval_sources,
+    merge_query_results_with_coverage,
     query_status_from_result,
-    select_answer_sources,
 )
 from declaration_qa.application.helpers.knowledge_context import (
     knowledge_rag_query,
@@ -52,7 +51,9 @@ class RetrievalNodes:
                 {"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6},
             ]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
-        configured_limit = int(getattr(self.rag_engine, "rerank_max_sources", 20) or 20)
+        per_query_top_n = int(getattr(self.rag_engine, "rerank_top_n_per_query", 6) or 6)
+        for query in executable_queries:
+            query["top_k"] = per_query_top_n
         text_retrieval_enabled = bool(executable_queries)
         query_statuses: list[dict[str, Any] | None] = [None] * len(executable_queries)
         image_result: RetrievalResult | None = None
@@ -116,6 +117,10 @@ class RetrievalNodes:
         def retrieve_one(retrieval_query: dict[str, Any]) -> tuple[dict[str, Any], RetrievalResult]:
             text = str(retrieval_query.get("text") or "").strip()
             top_k = int(retrieval_query.get("top_k") or 3)
+            query_retrieval_plan = {
+                **retrieval_plan,
+                "retrieval_strategy": str(retrieval_query.get("strategy") or "hybrid"),
+            }
             with observation(
                 "workflow.retrieve.text_query",
                 input={
@@ -124,11 +129,16 @@ class RetrievalNodes:
                     "query": text,
                     "top_k": top_k,
                     "filter": filters,
-                    "retrieval_plan": retrieval_plan,
+                    "retrieval_plan": query_retrieval_plan,
                 },
                 metadata=observation_metadata,
             ) as span:
-                result = self.rag_engine.retrieve(text, filters, top_k=top_k, retrieval_plan=retrieval_plan)
+                result = self.rag_engine.retrieve(
+                    text,
+                    filters,
+                    top_k=top_k,
+                    retrieval_plan=query_retrieval_plan,
+                )
                 span.update(
                     output=safe_value(
                         {
@@ -156,77 +166,33 @@ class RetrievalNodes:
             retrieval_mode = "image_only"
         elif len(executable_queries) > 1:
             try:
+                retrieval_mode = "per_query_batch_rerank"
                 with observation(
-                    "workflow.retrieve.agent_queries",
+                    "workflow.retrieve.text_batch",
                     input={
-                        "query": answer_query,
                         "query_count": len(executable_queries),
                         "queries": executable_queries,
-                        "top_k": configured_limit,
                         "filter": filters,
                         "retrieval_plan": retrieval_plan,
                     },
                     metadata=observation_metadata,
                 ) as span:
-                    result = self.rag_engine.retrieve_rewrites(
-                        answer_query,
-                        executable_queries,
-                        filters,
-                        top_k=configured_limit,
-                        retrieval_plan=retrieval_plan,
-                    )
+                    results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
                     span.update(
                         output=safe_value(
                             {
-                                "source_count": len(result.sources),
-                                "status": result.status or {},
+                                "result_count": len(results),
+                                "source_count": sum(len(result.sources) for result in results),
+                                "statuses": [result.status for result in results],
                             }
                         )
                     )
-                status = {
-                    **(result.status or {}),
-                    "original_query_count": len([query for query in retrieval_queries if query.get("text")]),
-                    "deduped_query_count": len(executable_queries),
-                    "retrieval_parallelism": 1,
-                    "batch_degraded": "",
-                }
-                if image_result is None:
-                    return RetrievalResult(sources=result.sources, filter=result.filter, status=status)
-                results = [result]
-                query_statuses = list(status.get("queries") or [])
-                retrieval_mode = "multimodal_agent_query"
+                for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
+                    query_statuses[index] = query_status_from_result(retrieval_query, result)
             except Exception as exc:
                 batch_degraded = type(exc).__name__
-            try:
-                if not (image_result is not None and results):
-                    retrieval_mode = "batch_agent_query"
-                    with observation(
-                        "workflow.retrieve.text_batch",
-                        input={
-                            "query_count": len(executable_queries),
-                            "queries": executable_queries,
-                            "filter": filters,
-                            "retrieval_plan": retrieval_plan,
-                        },
-                        metadata=observation_metadata,
-                    ) as span:
-                        results = self.rag_engine.retrieve_many(executable_queries, filters, retrieval_plan=retrieval_plan)
-                        span.update(
-                            output=safe_value(
-                                {
-                                    "result_count": len(results),
-                                    "source_count": sum(len(result.sources) for result in results),
-                                    "statuses": [result.status for result in results],
-                                }
-                            )
-                        )
-                    for index, (retrieval_query, result) in enumerate(zip(executable_queries, results)):
-                        query_statuses[index] = query_status_from_result(retrieval_query, result)
-            except Exception as exc:
-                if not results:
-                    batch_degraded = batch_degraded or type(exc).__name__
-                    query_statuses = [None] * len(executable_queries)
-                    results = []
+                query_statuses = [None] * len(executable_queries)
+                results = []
 
         if text_retrieval_enabled and not results and len(executable_queries) > 1 and self.max_retrieval_workers > 1:
             retrieval_mode = "parallel_agent_query"
@@ -249,12 +215,27 @@ class RetrievalNodes:
                 query_status, result = retrieve_one(retrieval_query)
                 query_statuses[index] = query_status
                 results.append(result)
+        merge_queries = list(executable_queries)
         if image_result is not None:
             results.append(image_result)
-        merged = merge_retrieval_sources(results)
+            merge_queries.append(
+                {
+                    "id": "image",
+                    "text": image_semantic_query or ocr_query or "图片查询",
+                    "strategy": "image_query",
+                    "top_k": 4,
+                }
+            )
         combined_query = "\n".join(str(query.get("text") or "") for query in executable_queries if query.get("text"))
         score_threshold = float(getattr(self.rag_engine, "rerank_score_threshold", 0.0) or 0.0)
-        sources = select_answer_sources(merged, answer_query, limit=None, retrieval_plan=retrieval_plan)
+        search_round = int(state.get("knowledge_search_round") or 1)
+        sources, coverage_merge = merge_query_results_with_coverage(
+            merge_queries,
+            results,
+            search_round=search_round,
+            min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
+            max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
+        )
         ordered_statuses = [status for status in query_statuses if status is not None]
         if image_query_status is not None:
             ordered_statuses.append(image_query_status)
@@ -269,6 +250,7 @@ class RetrievalNodes:
             "filter": filters,
             "metadata_filtering": bool(filters),
             "retrieval_mode": retrieval_mode,
+            "coverage_merge": coverage_merge,
             "query_modalities": retrieval_query_modalities(
                 image_only=image_only,
                 has_query_image=bool(query_image_path),
@@ -282,9 +264,8 @@ class RetrievalNodes:
             "score_cutoff": {
                 "enabled": score_threshold > 0,
                 "threshold": score_threshold,
-                "max_sources": configured_limit,
-                "max_sources_per_rerank": configured_limit,
-                "merged_source_limit": None,
+                "max_sources_per_query": per_query_top_n,
+                "merged_source_limit": int(getattr(self, "max_accumulated_sources", 24) or 24),
             },
             "retrieval_plan": retrieval_plan,
         }

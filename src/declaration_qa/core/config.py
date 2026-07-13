@@ -52,6 +52,10 @@ class DeclarationQASettings(BaseSettings):
     rerank_model: str = Field(default="qwen3-vl-rerank", alias="DECLARATION_QA_RERANK_MODEL")
     rerank_score_threshold: float = Field(default=0.0, alias="DECLARATION_QA_RERANK_SCORE_THRESHOLD")
     rerank_max_sources: int = Field(default=20, alias="DECLARATION_QA_RERANK_MAX_SOURCES")
+    retrieval_candidates_per_query: int = Field(default=30, alias="DECLARATION_QA_RETRIEVAL_CANDIDATES_PER_QUERY")
+    rerank_top_n_per_query: int = Field(default=6, alias="DECLARATION_QA_RERANK_TOP_N_PER_QUERY")
+    min_sources_per_query: int = Field(default=1, alias="DECLARATION_QA_MIN_SOURCES_PER_QUERY")
+    max_accumulated_sources: int = Field(default=24, alias="DECLARATION_QA_MAX_ACCUMULATED_SOURCES")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
     llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")
@@ -59,7 +63,6 @@ class DeclarationQASettings(BaseSettings):
     openai_api_base: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_BASE")
     external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
     agent_model: str = Field(default="", alias="DECLARATION_QA_AGENT_MODEL")
-    agent_final_timeout_seconds: float = Field(default=60.0, alias="DECLARATION_QA_AGENT_FINAL_TIMEOUT_SECONDS")
     agent_max_iterations: int = Field(default=4, alias="DECLARATION_QA_AGENT_MAX_ITERATIONS")
     agent_vl_enabled: bool = Field(default=False, alias="DECLARATION_QA_AGENT_VL_ENABLED")
     agent_vl_max_evidence_images: int = Field(default=3, alias="DECLARATION_QA_AGENT_VL_MAX_EVIDENCE_IMAGES")

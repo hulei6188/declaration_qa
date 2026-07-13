@@ -33,6 +33,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
         cache_ttl_seconds: int = 600,
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 20,
+        retrieval_candidates_per_query: int = 30,
+        rerank_top_n_per_query: int = 6,
     ) -> None:
         """初始化内存 RAG 引擎。"""
         self._documents: dict[str, KnowledgeDocument] = {}
@@ -47,6 +49,8 @@ class InMemoryRAGEngine(BaseRAGEngine):
             cache_ttl_seconds=cache_ttl_seconds,
             rerank_score_threshold=rerank_score_threshold,
             rerank_max_sources=rerank_max_sources,
+            retrieval_candidates_per_query=retrieval_candidates_per_query,
+            rerank_top_n_per_query=rerank_top_n_per_query,
         )
 
     @property
@@ -240,7 +244,7 @@ class InMemoryRAGEngine(BaseRAGEngine):
                 top_k=int(spec["top_k"]),
                 degraded=degraded_by_index.get(index) or [],
                 batch_mode=True,
-                retrieval_plan=retrieval_plan,
+                retrieval_plan=spec.get("retrieval_plan") or retrieval_plan,
             )
             self._cache_result(str(spec["cache_key"]), result)
             results[index] = result

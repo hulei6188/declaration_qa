@@ -576,7 +576,7 @@ def test_single_agent_never_forces_tool_choice_required():
     assert retry.final_answer == "直接回答"
 
 
-def test_knowledge_search_refills_trusted_history_and_reranks_all_candidates():
+def test_knowledge_search_refills_trusted_history_without_reranking_it_with_current_query():
     rag = HistoricalEvidenceRag()
 
     def decide(state, definitions):
@@ -605,9 +605,10 @@ def test_knowledge_search_refills_trusted_history_and_reranks_all_candidates():
 
     result = workflow.graph.invoke(initial)
 
-    assert rag.rerank_inputs == [["chunk-history", "chunk-materials"]]
+    assert rag.rerank_inputs == []
     assert result["rag_status"]["historical_candidate_count"] == 1
-    assert result["rag_status"]["final_rerank_applied"] is True
+    assert result["rag_status"]["final_rerank_applied"] is False
+    assert result["rag_status"]["historical_merge_mode"] == "coverage_merge_without_rerank"
     assert {source["chunk_id"] for source in result["retrieved_sources"]} == {
         "chunk-history",
         "chunk-materials",
