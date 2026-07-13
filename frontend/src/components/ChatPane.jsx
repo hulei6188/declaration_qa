@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ImagePlus, Moon, PanelLeftOpen, Send, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
 import ToolCallTimeline from './ToolCallTimeline.jsx';
 
@@ -116,7 +118,18 @@ export default function ChatPane({
               />
             )}
             {String(m.content || '').trim() && (
-              <div className="message-content">{m.content}</div>
+              m.role === 'assistant' ? (
+                <div className="message-content markdown-body">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="message-content">{m.content}</div>
+              )
             )}
             {m.role === 'assistant' && m.sources?.length > 0 && (
               <SourceEvidenceList sources={m.sources} />
@@ -203,6 +216,17 @@ export default function ChatPane({
     </section>
   );
 }
+
+const markdownComponents = {
+  a: ({ node: _node, ...props }) => (
+    <a {...props} target="_blank" rel="noreferrer" />
+  ),
+  table: ({ node: _node, ...props }) => (
+    <div className="markdown-table-wrap">
+      <table {...props} />
+    </div>
+  ),
+};
 
 function findLastAssistantIndex(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
