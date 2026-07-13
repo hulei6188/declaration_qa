@@ -268,6 +268,7 @@ attachment_chonkie_text
 | 缓存和任务 | Redis、RQ |
 | 前端 | React 18、Vite 5、Lucide React、React Markdown |
 | 可观测 | Langfuse、数据库审计、Agent Run 回放 |
+| 评测 | 内置规则指标、Ragas 0.3 |
 | 基础设施 | Docker Compose |
 
 ## 快速开始
@@ -450,9 +451,9 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 | `DECLARATION_QA_RERANK_SCORE_THRESHOLD` | 重排最低分数 |
 | `DECLARATION_QA_RERANK_MAX_SOURCES` | 单次 Rerank 的安全上限 |
 | `DECLARATION_QA_RETRIEVAL_CANDIDATES_PER_QUERY` | 每条查询进入 RRF/Rerank 前的候选窗口 |
-| `DECLARATION_QA_RERANK_TOP_N_PER_QUERY` | 每条查询局部 Rerank 后的保留数量 |
-| `DECLARATION_QA_MIN_SOURCES_PER_QUERY` | 每条有合格证据的查询最低保留数量 |
-| `DECLARATION_QA_MAX_ACCUMULATED_SOURCES` | 多查询、多轮累计证据总上限 |
+| `DECLARATION_QA_RERANK_TOP_N_PER_QUERY` | 每条查询局部 Rerank 后的保留数量，默认 `12` |
+| `DECLARATION_QA_MIN_SOURCES_PER_QUERY` | 每条有合格证据的查询最低保留数量，默认 `2` |
+| `DECLARATION_QA_MAX_ACCUMULATED_SOURCES` | 多查询、多轮累计证据总上限，默认 `48` |
 
 修改 Embedding 模型或维度后，需要重建 Milvus collection 和知识索引，否则会出现维度不匹配。
 
@@ -498,6 +499,25 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 | `DECLARATION_QA_INTERNAL_API_KEY` | 服务间 API Key |
 
 生产环境会自动强制鉴权，即使 `DECLARATION_QA_AUTH_REQUIRED=false`。
+
+### Ragas 评测
+
+Ragas 默认关闭，不影响在线问答。评测运行可通过请求字段 `use_ragas=true` 单次启用，也可设置全局默认值：
+
+```env
+DECLARATION_QA_RAGAS_ENABLED=false
+DECLARATION_QA_RAGAS_TIMEOUT_SECONDS=60
+DECLARATION_QA_RAGAS_MAX_RETRIES=1
+```
+
+系统对有回答和检索上下文的用例计算 `faithfulness`、`answer_relevancy`；用例填写 `reference_answer` 后还会计算 `context_precision`、`context_recall`。结果写入评测明细的 `ragas_scores` 和 `ragas_status`。Ragas 会调用 Agent 模型和 Embedding 服务，批量评测会产生额外延迟和模型费用。
+
+已有数据库升级时只执行本次幂等迁移：
+
+```powershell
+Get-Content .\sql\postgresql\004_ragas_evaluation.sql -Raw |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U agentbase -d agentbase
+```
 
 ## 知识库使用
 

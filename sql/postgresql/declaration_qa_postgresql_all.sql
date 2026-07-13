@@ -770,6 +770,8 @@ CREATE TABLE IF NOT EXISTS declaration_qa.eval_cases (
     expected_refused BOOLEAN NULL,
     expected_doc_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     expected_answer_keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
+    reference_answer TEXT NOT NULL DEFAULT '',
+    reference_contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
     tags JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -808,12 +810,17 @@ CREATE TABLE IF NOT EXISTS declaration_qa.eval_run_items (
     expected_doc_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     retrieved_doc_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     expected_answer_keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
+    reference_answer TEXT NOT NULL DEFAULT '',
+    reference_contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
+    retrieved_contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
     answer TEXT NOT NULL DEFAULT '',
     audit_uid VARCHAR(80) NOT NULL DEFAULT '',
     recall_hit BOOLEAN NULL,
     refusal_match BOOLEAN NULL,
     intent_match BOOLEAN NULL,
     keyword_hit BOOLEAN NULL,
+    ragas_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ragas_status JSONB NOT NULL DEFAULT '{}'::jsonb,
     annotation_label VARCHAR(40) NOT NULL DEFAULT '',
     annotation_comment TEXT NOT NULL DEFAULT '',
     annotated_at TIMESTAMPTZ NULL,
@@ -825,6 +832,17 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_run_items_audit
     ON declaration_qa.eval_run_items (audit_uid);
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_run_items_annotation
     ON declaration_qa.eval_run_items (annotation_label, created_at DESC);
+
+ALTER TABLE declaration_qa.eval_cases
+    ADD COLUMN IF NOT EXISTS reference_answer TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS reference_contexts JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE declaration_qa.eval_run_items
+    ADD COLUMN IF NOT EXISTS reference_answer TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS reference_contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS retrieved_contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS ragas_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS ragas_status JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 COMMENT ON SCHEMA declaration_qa IS '政务申报智能问答独立业务 schema';
 

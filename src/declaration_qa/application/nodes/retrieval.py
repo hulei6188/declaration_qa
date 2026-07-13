@@ -51,7 +51,7 @@ class RetrievalNodes:
                 {"id": "image_ocr", "text": ocr_query, "strategy": "image_ocr", "top_k": 6},
             ]
         executable_queries = dedupe_retrieval_queries(retrieval_queries)
-        per_query_top_n = int(getattr(self.rag_engine, "rerank_top_n_per_query", 6) or 6)
+        per_query_top_n = int(getattr(self.rag_engine, "rerank_top_n_per_query", 12) or 12)
         for query in executable_queries:
             query["top_k"] = per_query_top_n
         text_retrieval_enabled = bool(executable_queries)
@@ -233,8 +233,8 @@ class RetrievalNodes:
             merge_queries,
             results,
             search_round=search_round,
-            min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
-            max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
+            min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
+            max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
         )
         ordered_statuses = [status for status in query_statuses if status is not None]
         if image_query_status is not None:
@@ -265,7 +265,7 @@ class RetrievalNodes:
                 "enabled": score_threshold > 0,
                 "threshold": score_threshold,
                 "max_sources_per_query": per_query_top_n,
-                "merged_source_limit": int(getattr(self, "max_accumulated_sources", 24) or 24),
+                "merged_source_limit": int(getattr(self, "max_accumulated_sources", 48) or 48),
             },
             "retrieval_plan": retrieval_plan,
         }

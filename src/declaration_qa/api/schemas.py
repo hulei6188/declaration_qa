@@ -46,6 +46,7 @@ class SourcePayload(BaseModel):
     doc_id: str
     title: str
     snippet: str
+    evidence_text: str = ""
     score: float
     dense_score: float = 0.0
     bm25_score: float = 0.0
@@ -308,6 +309,8 @@ class EvaluationCaseRequest(BaseModel):
     expected_refused: bool | None = None
     expected_doc_ids: list[str] = Field(default_factory=list)
     expected_answer_keywords: list[str] = Field(default_factory=list)
+    reference_answer: str = Field(default="", max_length=20_000)
+    reference_contexts: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
 
@@ -327,6 +330,8 @@ class EvaluationCaseResponse(BaseModel):
     expected_refused: bool | None = None
     expected_doc_ids: list[str] = Field(default_factory=list)
     expected_answer_keywords: list[str] = Field(default_factory=list)
+    reference_answer: str = ""
+    reference_contexts: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     created_at: str = ""
 
@@ -344,6 +349,7 @@ class EvaluationRunRequest(BaseModel):
     """评测运行请求模型。"""
     note: str = Field(default="", max_length=1000)
     top_k: int = Field(default=4, ge=1, le=20)
+    use_ragas: bool | None = None
 
 
 class EvaluationAnnotationRequest(BaseModel):
@@ -364,12 +370,17 @@ class EvaluationRunItemResponse(BaseModel):
     expected_doc_ids: list[str] = Field(default_factory=list)
     retrieved_doc_ids: list[str] = Field(default_factory=list)
     expected_answer_keywords: list[str] = Field(default_factory=list)
+    reference_answer: str = ""
+    reference_contexts: list[str] = Field(default_factory=list)
+    retrieved_contexts: list[str] = Field(default_factory=list)
     answer: str = ""
     audit_id: str = ""
     recall_hit: bool | None = None
     refusal_match: bool | None = None
     intent_match: bool | None = None
     keyword_hit: bool | None = None
+    ragas_scores: dict[str, float] = Field(default_factory=dict)
+    ragas_status: dict[str, Any] = Field(default_factory=dict)
     annotation_label: str = ""
     annotation_comment: str = ""
 

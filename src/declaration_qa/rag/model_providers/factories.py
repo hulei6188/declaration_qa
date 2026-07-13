@@ -9,6 +9,7 @@ from declaration_qa.rag.model_providers.embeddings.embedding_provider import Emb
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.openai_embedding_provider import OpenAIEmbeddingProvider
 from declaration_qa.rag.model_providers.embeddings.qwen3_vl_embedding_provider import Qwen3VLEmbeddingProvider
+from declaration_qa.rag.model_providers.langchain_compat import create_chat_openai
 from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker
 from declaration_qa.rag.model_providers.rerankers.heuristic_reranker import HeuristicReranker
 from declaration_qa.rag.model_providers.rerankers.reranker import Reranker
@@ -58,8 +59,6 @@ def build_agent_model(
     """创建支持原生 Tool Calling 的 Agent 模型；本地模式返回 None。"""
     if settings.llm_provider.strip().lower() not in {"openai", "dashscope"} or not settings.openai_api_key:
         return None
-    from langchain_openai import ChatOpenAI
-
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
         "model": settings.agent_model or settings.llm_model,
@@ -73,4 +72,4 @@ def build_agent_model(
     }
     if settings.openai_api_base:
         kwargs["base_url"] = settings.openai_api_base
-    return ChatOpenAI(**kwargs)
+    return create_chat_openai(**kwargs)

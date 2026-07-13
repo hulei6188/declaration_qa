@@ -289,6 +289,8 @@ class InMemoryAuditStore:
             "expected_refused": case.get("expected_refused"),
             "expected_doc_ids": list(case.get("expected_doc_ids") or []),
             "expected_answer_keywords": list(case.get("expected_answer_keywords") or []),
+            "reference_answer": str(case.get("reference_answer") or ""),
+            "reference_contexts": list(case.get("reference_contexts") or []),
             "tags": list(case.get("tags") or []),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }

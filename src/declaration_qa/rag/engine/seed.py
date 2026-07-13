@@ -22,7 +22,7 @@ def build_seed_rag_engine(
     rerank_score_threshold: float = 0.0,
     rerank_max_sources: int = 20,
     retrieval_candidates_per_query: int = 30,
-    rerank_top_n_per_query: int = 6,
+    rerank_top_n_per_query: int = 12,
     include_seed: bool = True,
 ) -> InMemoryRAGEngine:
     """创建内存 RAG 引擎，并可选择加载种子知识。"""

@@ -65,6 +65,51 @@ def test_parse_attachment_when_parser_merges_following_label_onto_url():
     assert refs[0].url == "https://example.test/report.pdf?attrname=report.pdf"
 
 
+def test_parse_standard_markdown_attachment_links_with_marko_context():
+    content = """
+# 涉外收养登记
+
+## 申请材料
+
+### 6. 授权委托书
+样本文件：
+- [授权委托书样本.docx](https://example.test/forms/auth.docx)
+  - [签字示例.png](https://example.test/forms/signature.png)
+
+## 办理流程
+
+### 流程图
+[办理流程图](https://example.test/assets/flow.png)
+"""
+
+    refs = parse_markdown_attachments(content, document_id="doc-adoption")
+
+    assert [ref.name for ref in refs] == ["授权委托书样本.docx", "签字示例.png", "办理流程图"]
+    assert refs[0].section_path == "涉外收养登记 > 申请材料 > 6. 授权委托书"
+    assert refs[0].section_title == "申请材料"
+    assert refs[0].material_name == "授权委托书"
+    assert refs[0].role == "sample_file"
+    assert refs[1].extension == "png"
+    assert refs[2].section_title == "办理流程"
+    assert refs[2].role == "flowchart"
+
+
+def test_attachment_parser_falls_back_when_marko_parser_fails(monkeypatch):
+    monkeypatch.setattr(
+        "declaration_qa.indexing.attachments.parser.parse_marko_attachments",
+        lambda content, document_id: (_ for _ in ()).throw(RuntimeError("invalid ast")),
+    )
+
+    refs = parse_markdown_attachments(
+        "## 申请材料\n\n### 1. 申请表\n- 申请表.docx: https://example.test/form.docx\n",
+        document_id="doc-fallback",
+    )
+
+    assert len(refs) == 1
+    assert refs[0].name == "申请表.docx"
+    assert refs[0].section_title == "申请材料"
+
+
 def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_blocking(monkeypatch, tmp_path):
     content = """
 # 取水许可办事指南

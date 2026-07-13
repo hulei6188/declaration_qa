@@ -53,9 +53,9 @@ class DeclarationQASettings(BaseSettings):
     rerank_score_threshold: float = Field(default=0.0, alias="DECLARATION_QA_RERANK_SCORE_THRESHOLD")
     rerank_max_sources: int = Field(default=20, alias="DECLARATION_QA_RERANK_MAX_SOURCES")
     retrieval_candidates_per_query: int = Field(default=30, alias="DECLARATION_QA_RETRIEVAL_CANDIDATES_PER_QUERY")
-    rerank_top_n_per_query: int = Field(default=6, alias="DECLARATION_QA_RERANK_TOP_N_PER_QUERY")
-    min_sources_per_query: int = Field(default=1, alias="DECLARATION_QA_MIN_SOURCES_PER_QUERY")
-    max_accumulated_sources: int = Field(default=24, alias="DECLARATION_QA_MAX_ACCUMULATED_SOURCES")
+    rerank_top_n_per_query: int = Field(default=12, alias="DECLARATION_QA_RERANK_TOP_N_PER_QUERY")
+    min_sources_per_query: int = Field(default=2, alias="DECLARATION_QA_MIN_SOURCES_PER_QUERY")
+    max_accumulated_sources: int = Field(default=48, alias="DECLARATION_QA_MAX_ACCUMULATED_SOURCES")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
     llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")
@@ -73,6 +73,10 @@ class DeclarationQASettings(BaseSettings):
     langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
     langfuse_base_url: str = Field(default="http://localhost:3000", alias="LANGFUSE_BASE_URL")
+
+    ragas_enabled: bool = Field(default=False, alias="DECLARATION_QA_RAGAS_ENABLED")
+    ragas_timeout_seconds: int = Field(default=60, alias="DECLARATION_QA_RAGAS_TIMEOUT_SECONDS")
+    ragas_max_retries: int = Field(default=1, alias="DECLARATION_QA_RAGAS_MAX_RETRIES")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")

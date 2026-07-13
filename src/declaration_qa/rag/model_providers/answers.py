@@ -11,6 +11,7 @@ from typing import Any
 from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
 from declaration_qa.memory.context import format_long_term_context, format_short_term_context
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
+from declaration_qa.rag.model_providers.langchain_compat import create_chat_openai
 from declaration_qa.rag.prompting import (
     ANSWER_PROMPT,
     application_history_answer,
@@ -41,8 +42,6 @@ class OpenAIAnswerGenerator:
         """初始化OpenAIAnswerGenerator。"""
         if not api_key:
             raise ValueError("OpenAI answer generator requires an API key")
-        from langchain_openai import ChatOpenAI
-
         kwargs: dict[str, Any] = {
             "api_key": api_key,
             "model": model,
@@ -52,7 +51,7 @@ class OpenAIAnswerGenerator:
         }
         if base_url:
             kwargs["base_url"] = base_url
-        self._llm = ChatOpenAI(**kwargs)
+        self._llm = create_chat_openai(**kwargs)
         self.model = model
         self.vl_model = str(vl_model or "").strip()
         self.vl_max_evidence_images = max(0, int(vl_max_evidence_images or 0))
@@ -61,7 +60,7 @@ class OpenAIAnswerGenerator:
         self.allowed_image_dirs = [Path(item).resolve() for item in (allowed_image_dirs or []) if str(item or "").strip()]
         if vl_enabled and self.vl_model:
             vl_kwargs = {**kwargs, "model": self.vl_model}
-            self._vl_llm = self._llm if self.vl_model == model else ChatOpenAI(**vl_kwargs)
+            self._vl_llm = self._llm if self.vl_model == model else create_chat_openai(**vl_kwargs)
         else:
             self._vl_llm = None
 

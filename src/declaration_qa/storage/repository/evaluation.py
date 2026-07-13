@@ -61,21 +61,25 @@ class EvaluationRepository(EngineBackedRepository):
             INSERT INTO declaration_qa.eval_cases (
                 case_uid, dataset_id, query, user_id, region_code, policy_version,
                 biz_type, expected_intent, expected_refused,
-                expected_doc_ids, expected_answer_keywords, tags
+                expected_doc_ids, expected_answer_keywords, reference_answer,
+                reference_contexts, tags
             )
             SELECT :case_uid, id, :query, :user_id, :region_code, :policy_version,
                    :biz_type, :expected_intent, :expected_refused,
-                   :expected_doc_ids, :expected_answer_keywords, :tags
+                   :expected_doc_ids, :expected_answer_keywords, :reference_answer,
+                   :reference_contexts, :tags
             FROM declaration_qa.eval_datasets
             WHERE dataset_uid = :dataset_uid
             RETURNING case_uid AS case_id, :dataset_uid AS dataset_id, query, user_id,
                       region_code, policy_version, biz_type,
                       expected_intent, expected_refused, expected_doc_ids,
-                      expected_answer_keywords, tags, created_at
+                      expected_answer_keywords, reference_answer,
+                      reference_contexts, tags, created_at
             """
         ).bindparams(
             bindparam("expected_doc_ids", type_=JSON),
             bindparam("expected_answer_keywords", type_=JSON),
+            bindparam("reference_contexts", type_=JSON),
             bindparam("tags", type_=JSON),
         )
         with self.engine.begin() as connection:
@@ -93,6 +97,8 @@ class EvaluationRepository(EngineBackedRepository):
                     "expected_refused": case.get("expected_refused"),
                     "expected_doc_ids": list(case.get("expected_doc_ids") or []),
                     "expected_answer_keywords": list(case.get("expected_answer_keywords") or []),
+                    "reference_answer": str(case.get("reference_answer") or ""),
+                    "reference_contexts": list(case.get("reference_contexts") or []),
                     "tags": list(case.get("tags") or []),
                 },
             ).mappings().first()
@@ -109,7 +115,8 @@ class EvaluationRepository(EngineBackedRepository):
                     SELECT c.case_uid AS case_id, d.dataset_uid AS dataset_id, c.query,
                            c.user_id, c.region_code, c.policy_version, c.biz_type,
                            c.expected_intent, c.expected_refused, c.expected_doc_ids,
-                           c.expected_answer_keywords, c.tags, c.created_at
+                           c.expected_answer_keywords, c.reference_answer,
+                           c.reference_contexts, c.tags, c.created_at
                     FROM declaration_qa.eval_cases c
                     JOIN declaration_qa.eval_datasets d ON d.id = c.dataset_id
                     WHERE d.dataset_uid = :dataset_uid
@@ -149,26 +156,34 @@ class EvaluationRepository(EngineBackedRepository):
             INSERT INTO declaration_qa.eval_run_items (
                 item_uid, run_id, case_id, query, expected_intent, actual_intent,
                 expected_refused, actual_refused, expected_doc_ids, retrieved_doc_ids,
-                expected_answer_keywords, answer, audit_uid, recall_hit, refusal_match,
-                intent_match, keyword_hit
+                expected_answer_keywords, reference_answer, reference_contexts,
+                retrieved_contexts, answer, audit_uid, recall_hit, refusal_match,
+                intent_match, keyword_hit, ragas_scores, ragas_status
             )
             SELECT :item_uid, r.id, c.id, :query, :expected_intent, :actual_intent,
                    :expected_refused, :actual_refused, :expected_doc_ids, :retrieved_doc_ids,
-                   :expected_answer_keywords, :answer, :audit_uid, :recall_hit,
-                   :refusal_match, :intent_match, :keyword_hit
+                   :expected_answer_keywords, :reference_answer, :reference_contexts,
+                   :retrieved_contexts, :answer, :audit_uid, :recall_hit,
+                   :refusal_match, :intent_match, :keyword_hit, :ragas_scores, :ragas_status
             FROM declaration_qa.eval_runs r
             LEFT JOIN declaration_qa.eval_cases c ON c.case_uid = :case_uid
             WHERE r.run_uid = :run_uid
             RETURNING item_uid AS item_id, :case_uid AS case_id, query, expected_intent,
                       actual_intent, expected_refused, actual_refused, expected_doc_ids,
                       retrieved_doc_ids, expected_answer_keywords, answer, audit_uid,
+                      reference_answer, reference_contexts, retrieved_contexts,
                       recall_hit, refusal_match, intent_match, keyword_hit,
+                      ragas_scores, ragas_status,
                       annotation_label, annotation_comment
             """
         ).bindparams(
             bindparam("expected_doc_ids", type_=JSON),
             bindparam("retrieved_doc_ids", type_=JSON),
             bindparam("expected_answer_keywords", type_=JSON),
+            bindparam("reference_contexts", type_=JSON),
+            bindparam("retrieved_contexts", type_=JSON),
+            bindparam("ragas_scores", type_=JSON),
+            bindparam("ragas_status", type_=JSON),
         )
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -185,12 +200,17 @@ class EvaluationRepository(EngineBackedRepository):
                     "expected_doc_ids": list(item.get("expected_doc_ids") or []),
                     "retrieved_doc_ids": list(item.get("retrieved_doc_ids") or []),
                     "expected_answer_keywords": list(item.get("expected_answer_keywords") or []),
+                    "reference_answer": str(item.get("reference_answer") or ""),
+                    "reference_contexts": list(item.get("reference_contexts") or []),
+                    "retrieved_contexts": list(item.get("retrieved_contexts") or []),
                     "answer": str(item.get("answer") or ""),
                     "audit_uid": str(item.get("audit_id") or ""),
                     "recall_hit": item.get("recall_hit"),
                     "refusal_match": item.get("refusal_match"),
                     "intent_match": item.get("intent_match"),
                     "keyword_hit": item.get("keyword_hit"),
+                    "ragas_scores": dict(item.get("ragas_scores") or {}),
+                    "ragas_status": dict(item.get("ragas_status") or {}),
                 },
             ).mappings().first()
         if not row:
@@ -243,8 +263,10 @@ class EvaluationRepository(EngineBackedRepository):
                     SELECT i.item_uid AS item_id, c.case_uid AS case_id, i.query,
                            i.expected_intent, i.actual_intent, i.expected_refused,
                            i.actual_refused, i.expected_doc_ids, i.retrieved_doc_ids,
-                           i.expected_answer_keywords, i.answer, i.audit_uid,
+                           i.expected_answer_keywords, i.reference_answer,
+                           i.reference_contexts, i.retrieved_contexts, i.answer, i.audit_uid,
                            i.recall_hit, i.refusal_match, i.intent_match, i.keyword_hit,
+                           i.ragas_scores, i.ragas_status,
                            i.annotation_label, i.annotation_comment
                     FROM declaration_qa.eval_run_items i
                     LEFT JOIN declaration_qa.eval_cases c ON c.id = i.case_id
@@ -271,8 +293,10 @@ class EvaluationRepository(EngineBackedRepository):
                     WHERE item_uid = :item_uid
                     RETURNING item_uid AS item_id, query, expected_intent, actual_intent,
                               expected_refused, actual_refused, expected_doc_ids,
-                              retrieved_doc_ids, expected_answer_keywords, answer, audit_uid,
+                              retrieved_doc_ids, expected_answer_keywords, reference_answer,
+                              reference_contexts, retrieved_contexts, answer, audit_uid,
                               recall_hit, refusal_match, intent_match, keyword_hit,
+                              ragas_scores, ragas_status,
                               annotation_label, annotation_comment,
                               '' AS case_id
                     """

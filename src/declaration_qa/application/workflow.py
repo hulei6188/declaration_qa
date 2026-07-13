@@ -63,8 +63,8 @@ class DeclarationQAWorkflow(ApplicationNodes):
         query_image_ocr_max_chars: int = 4000,
         context_memory_manager: ContextMemoryManager | None = None,
         max_retrieval_workers: int = 4,
-        min_sources_per_query: int = 1,
-        max_accumulated_sources: int = 24,
+        min_sources_per_query: int = 2,
+        max_accumulated_sources: int = 48,
     ) -> None:
         """初始化申报问答工作流。"""
         self.rag_engine = rag_engine or build_seed_rag_engine()
@@ -86,7 +86,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         self.context_memory_manager = context_memory_manager
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
         self.min_sources_per_query = max(0, int(min_sources_per_query or 0))
-        self.max_accumulated_sources = max(1, int(max_accumulated_sources or 24))
+        self.max_accumulated_sources = max(1, int(max_accumulated_sources or 48))
         self.tool_registry = tool_registry or ToolRegistry()
         if self.tool_registry.get("ticket_list_query") is None:
             self.tool_registry.register(TicketListQueryTool(self.business_adapter))

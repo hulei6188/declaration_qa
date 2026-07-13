@@ -24,7 +24,156 @@ SUPPORTED_ATTACHMENT_EXTENSIONS = {
 
 
 def parse_markdown_attachments(content: str, *, document_id: str) -> list[AttachmentRef]:
-    """解析 Markdown 中的官方附件链接并保留所在章节上下文。"""
+    """使用 Marko GFM AST 解析官方附件并保留所在章节上下文。"""
+    try:
+        return parse_marko_attachments(content, document_id=document_id)
+    except Exception:
+        return parse_legacy_markdown_attachments(content, document_id=document_id)
+
+
+def parse_marko_attachments(content: str, *, document_id: str) -> list[AttachmentRef]:
+    """从 Marko AST 中读取标题、列表和链接节点。"""
+    import marko
+    from marko import block, inline
+    from marko.ext.gfm import GFM
+    from marko.md_renderer import MarkdownRenderer
+
+    parser = marko.Markdown(renderer=MarkdownRenderer, extensions=[GFM])
+    document = parser.parse(str(content or ""))
+    attachments: list[AttachmentRef] = []
+    heading_stack: list[tuple[int, str]] = []
+    current_label = ""
+    seen: set[tuple[str, str]] = set()
+
+    with parser.renderer:
+        parser.renderer.root_node = document
+        for node in document.children:
+            if isinstance(node, (block.Heading, block.SetextHeading)):
+                level = max(1, int(node.level))
+                title = marko_plain_text(node).strip()
+                while heading_stack and heading_stack[-1][0] >= level:
+                    heading_stack.pop()
+                heading_stack.append((level, title))
+                current_label = ""
+                continue
+            if isinstance(node, block.BlankLine):
+                continue
+
+            rendered = parser.renderer.render(node).strip()
+            if isinstance(node, block.Paragraph) and not marko_link_nodes(node, inline=inline):
+                plain_text = marko_plain_text(node).strip()
+                if plain_text.endswith(("：", ":")):
+                    current_label = plain_text.rstrip("：:").strip()
+
+            candidates = marko_attachment_candidates(
+                node,
+                rendered=rendered,
+                inline=inline,
+                renderer=parser.renderer,
+            )
+            for name, url, extension in candidates:
+                signature = (name, url)
+                if extension not in SUPPORTED_ATTACHMENT_EXTENSIONS or signature in seen:
+                    continue
+                seen.add(signature)
+                attachments.append(
+                    attachment_ref(
+                        index=len(attachments),
+                        name=name,
+                        url=url,
+                        extension=extension,
+                        document_id=document_id,
+                        heading_stack=heading_stack,
+                        current_label=current_label,
+                    )
+                )
+    return attachments
+
+
+def marko_attachment_candidates(node, *, rendered: str, inline, renderer) -> list[tuple[str, str, str]]:
+    """读取标准 Markdown Link，并兼容历史 ``文件名: URL`` 行。"""
+    output: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for link in marko_link_nodes(node, inline=inline):
+        name = marko_plain_text(link).strip()
+        url = normalize_attachment_url(str(link.dest or ""))
+        extension = attachment_extension(name, url)
+        signature = (name, url)
+        if name and url.startswith(("http://", "https://")) and extension and signature not in seen:
+            seen.add(signature)
+            output.append((name, url, extension))
+    for line in str(rendered or "").splitlines():
+        candidates = [line.strip()]
+        if line.strip().startswith("|"):
+            candidates.extend(cell.strip() for cell in line.strip().strip("|").split("|"))
+        for candidate in candidates:
+            parsed = parse_attachment_bullet(candidate)
+            if not parsed or (parsed[0], parsed[1]) in seen:
+                continue
+            seen.add((parsed[0], parsed[1]))
+            output.append(parsed)
+    return output
+
+
+def marko_link_nodes(node, *, inline) -> list:
+    """按文档顺序返回 AST 中的普通链接节点。"""
+    output = []
+
+    def visit(item) -> None:
+        if isinstance(item, inline.Link):
+            output.append(item)
+            return
+        children = getattr(item, "children", None)
+        if isinstance(children, list):
+            for child in children:
+                visit(child)
+
+    visit(node)
+    return output
+
+
+def marko_plain_text(node) -> str:
+    """提取 Marko 节点的可读文本，不带 Markdown 标记。"""
+    children = getattr(node, "children", None)
+    if isinstance(children, str):
+        return children
+    if isinstance(children, list):
+        return "".join(marko_plain_text(child) for child in children)
+    return str(children or "")
+
+
+def attachment_ref(
+    *,
+    index: int,
+    name: str,
+    url: str,
+    extension: str,
+    document_id: str,
+    heading_stack: list[tuple[int, str]],
+    current_label: str,
+) -> AttachmentRef:
+    """根据统一候选构造带章节语义的附件引用。"""
+    section_path = " > ".join(title for _, title in heading_stack)
+    section_title = first_level_title(heading_stack, 2)
+    node_title = heading_stack[-1][1] if heading_stack else section_title
+    material_name = infer_material_name(section_title, node_title, name)
+    role = infer_attachment_role(name, current_label, section_title, node_title, extension)
+    return AttachmentRef(
+        index=index,
+        name=name,
+        url=url,
+        extension=extension,
+        section_path=section_path,
+        section_title=section_title,
+        node_title=node_title,
+        parent_section_id=f"{document_id}#{section_title or node_title or 'Document'}",
+        material_name=material_name,
+        role=role,
+    )
+
+
+def parse_legacy_markdown_attachments(content: str, *, document_id: str) -> list[AttachmentRef]:
+    """Marko 不可用或解析异常时使用原行级解析器。"""
     attachments: list[AttachmentRef] = []
     heading_stack: list[tuple[int, str]] = []
     current_label = ""
@@ -50,23 +199,15 @@ def parse_markdown_attachments(content: str, *, document_id: str) -> list[Attach
         name, url, extension = parsed
         if extension not in SUPPORTED_ATTACHMENT_EXTENSIONS:
             continue
-        section_path = " > ".join(title for _, title in heading_stack)
-        section_title = first_level_title(heading_stack, 2)
-        node_title = heading_stack[-1][1] if heading_stack else section_title
-        material_name = infer_material_name(section_title, node_title, name)
-        role = infer_attachment_role(name, current_label, section_title, node_title, extension)
         attachments.append(
-            AttachmentRef(
+            attachment_ref(
                 index=len(attachments),
                 name=name,
                 url=url,
                 extension=extension,
-                section_path=section_path,
-                section_title=section_title,
-                node_title=node_title,
-                parent_section_id=f"{document_id}#{section_title or node_title or 'Document'}",
-                material_name=material_name,
-                role=role,
+                document_id=document_id,
+                heading_stack=heading_stack,
+                current_label=current_label,
             )
         )
     return attachments

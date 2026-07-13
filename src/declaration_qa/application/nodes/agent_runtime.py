@@ -288,8 +288,8 @@ class AgentRuntimeNodes:
             if result.get("tool_name") == "knowledge_search":
                 next_state["retrieved_sources"] = merge_accumulated_source_payloads(
                     [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],
-                    min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
-                    max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
+                    min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
+                    max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
                 )
                 next_state["rag_status"] = dict(data.get("rag_status") or {})
                 next_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
@@ -351,7 +351,7 @@ class AgentRuntimeNodes:
                     "id": f"agent_q{index}",
                     "text": text,
                     "strategy": query.strategy,
-                    "top_k": int(getattr(self.rag_engine, "rerank_top_n_per_query", 6) or 6),
+                    "top_k": int(getattr(self.rag_engine, "rerank_top_n_per_query", 12) or 12),
                 }
             )
         rerank_query = "\n".join(item["text"] for item in retrieval_queries)
@@ -396,8 +396,8 @@ class AgentRuntimeNodes:
             historical_payloads.append(payload)
         final_sources = merge_accumulated_source_payloads(
             [*current_payloads, *historical_payloads],
-            min_per_query=int(getattr(self, "min_sources_per_query", 1) or 0),
-            max_sources=int(getattr(self, "max_accumulated_sources", 24) or 24),
+            min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
+            max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
         )
         rag_status = {
             **(result.status or {}),

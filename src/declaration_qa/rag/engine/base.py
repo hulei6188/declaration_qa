@@ -178,7 +178,7 @@ class BaseRAGEngine:
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 20,
         retrieval_candidates_per_query: int = 30,
-        rerank_top_n_per_query: int = 6,
+        rerank_top_n_per_query: int = 12,
     ) -> None:
         """初始化共享的 provider 和存储。"""
         self.cache_store = cache_store or InMemoryCacheStore()
@@ -191,7 +191,7 @@ class BaseRAGEngine:
         self.rerank_score_threshold = max(0.0, min(1.0, float(rerank_score_threshold or 0.0)))
         self.rerank_max_sources = max(1, int(rerank_max_sources or 20))
         self.retrieval_candidates_per_query = max(1, int(retrieval_candidates_per_query or 30))
-        self.rerank_top_n_per_query = max(1, int(rerank_top_n_per_query or 6))
+        self.rerank_top_n_per_query = max(1, int(rerank_top_n_per_query or 12))
 
     def index_document(self, document: KnowledgeDocument) -> int:
         """索引单个文档。"""

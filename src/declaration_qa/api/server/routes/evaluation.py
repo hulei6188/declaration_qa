@@ -19,6 +19,7 @@ from declaration_qa.api.server.dependencies import auth_context
 from declaration_qa.api.server.knowledge_admin import ensure_knowledge_base_fresh
 from declaration_qa.api.server.runtime import settings, workflow
 from declaration_qa.application.evaluation import run_evaluation
+from declaration_qa.application.evaluation_ragas import create_ragas_evaluator
 
 
 def register_evaluation_routes(app):
@@ -63,12 +64,21 @@ def register_evaluation_routes(app):
         require_service_or_user(context, settings)
         ensure_knowledge_base_fresh()
         try:
+            use_ragas = settings.ragas_enabled if request.use_ragas is None else request.use_ragas
+            ragas_evaluator, unavailable_reason = (
+                create_ragas_evaluator(workflow, settings)
+                if use_ragas
+                else (None, "")
+            )
             return run_evaluation(
                 workflow=workflow,
                 store=workflow.audit_store,
                 dataset_id=dataset_id,
                 note=request.note,
                 top_k=request.top_k,
+                ragas_evaluator=ragas_evaluator,
+                ragas_requested=use_ragas,
+                ragas_unavailable_reason=unavailable_reason,
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

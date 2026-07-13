@@ -35,7 +35,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         rerank_score_threshold: float = 0.0,
         rerank_max_sources: int = 20,
         retrieval_candidates_per_query: int = 30,
-        rerank_top_n_per_query: int = 6,
+        rerank_top_n_per_query: int = 12,
     ) -> None:
         """初始化外部索引 RAG 引擎。"""
         if vector_index is None or keyword_index is None or chunk_store is None:
