@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ImagePlus, Maximize2, Minimize2, Send, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
+import { ImagePlus, Moon, PanelLeftOpen, Send, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
 import ToolCallTimeline from './ToolCallTimeline.jsx';
 
 export default function ChatPane({
-  messages, streaming, sendState, onSend, onClear, ctx, setCtx, audit, feedbackResult, onFeedback,
-  expanded = false, onToggleExpanded, onLoadToolTrace,
+  messages, streaming, sendState, onSend, ctx, setCtx, audit, feedbackResult, onFeedback,
+  onLoadToolTrace,
+  theme = 'light', onToggleTheme,
+  sidebarCollapsed = false, onToggleSidebar,
 }) {
   const [input, setInput] = useState('');
   const [imageDraft, setImageDraft] = useState(null);
@@ -77,26 +79,26 @@ export default function ChatPane({
   const canFeedback = Boolean(audit?.auditId && audit.auditId !== '-');
 
   return (
-    <section className={`chat-pane${expanded ? ' is-expanded' : ''}`}>
+    <section className="chat-pane">
       {/* Header */}
       <div className="chat-header">
-        <div>
-          <p className="eyebrow">Live SSE Chat</p>
-          <h2>问答会话</h2>
+        <div className="chat-heading">
+          {sidebarCollapsed && (
+            <button className="icon-button" onClick={onToggleSidebar} title="展开侧栏" aria-label="展开侧栏">
+              <PanelLeftOpen size={16} />
+            </button>
+          )}
+          <h2>知识库</h2>
         </div>
         <div className="chat-actions">
           <button
             type="button"
             className="icon-button"
-            onClick={onToggleExpanded}
-            title={expanded ? '还原会话窗口' : '放大会话窗口'}
-            aria-label={expanded ? '还原会话窗口' : '放大会话窗口'}
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? '切换到浅色模式' : '切换到黑暗模式'}
+            aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到黑暗模式'}
           >
-            {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          </button>
-          <button type="button" className="ghost" onClick={onClear}>
-            <Trash2 size={15} />
-            清空
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
       </div>
@@ -150,50 +152,51 @@ export default function ChatPane({
 
       {/* Composer */}
       <form className="composer" onSubmit={handleSubmit}>
-        {imageDraft && (
-          <div className="composer-image">
-            <img src={imageDraft.data_url} alt={imageDraft.filename || '待发送图片'} />
-            <div>
-              <strong>{imageDraft.filename || '图片'}</strong>
-              <span>{formatBytes(imageDraft.size_bytes)}</span>
+        <div className="composer-box">
+          {imageDraft && (
+            <div className="composer-image">
+              <img src={imageDraft.data_url} alt={imageDraft.filename || '待发送图片'} />
+              <div>
+                <strong>{imageDraft.filename || '图片'}</strong>
+                <span>{formatBytes(imageDraft.size_bytes)}</span>
+              </div>
+              <button type="button" className="icon-button" onClick={clearImageDraft} title="移除图片" aria-label="移除图片">
+                <X size={15} />
+              </button>
             </div>
-            <button type="button" className="icon-button" onClick={clearImageDraft} title="移除图片" aria-label="移除图片">
-              <X size={15} />
-            </button>
-          </div>
-        )}
-        <textarea
-          rows="3"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          )}
+          <textarea
+            rows="2"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="输入问题"
-          disabled={streaming}
-        />
-        <div className="composer-actions">
-          <span>{sendState}</span>
-          <div className="composer-buttons">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff"
-              onChange={handleImageChange}
-              hidden
-            />
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={streaming}
-              title="上传图片提问"
-              aria-label="上传图片提问"
-            >
-              <ImagePlus size={16} />
-            </button>
-            <button className="primary" type="submit" disabled={streaming || (!input.trim() && !imageDraft)}>
-              <Send size={15} />
-              发送
-            </button>
+            disabled={streaming}
+          />
+          <div className="composer-actions">
+            <span>{sendState}</span>
+            <div className="composer-buttons">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff"
+                onChange={handleImageChange}
+                hidden
+              />
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={streaming}
+                title="上传图片提问"
+                aria-label="上传图片提问"
+              >
+                <ImagePlus size={16} />
+              </button>
+              <button className="primary send-button" type="submit" disabled={streaming || (!input.trim() && !imageDraft)} title="发送" aria-label="发送">
+                <Send size={16} />
+              </button>
+            </div>
           </div>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Trash2, Upload } from 'lucide-react';
+import { BookOpen, PanelLeftClose, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { documentRevision, escapeHtml, etlStageLabel, formatBytes } from '../utils.js';
 
 export default function Sidebar({
@@ -7,6 +7,7 @@ export default function Sidebar({
   docManageResult, onRefreshSessions, onLoadSession, onUpload, onSelectDocument,
   onDeleteSession, onRefreshDocuments, onSetDocumentStatus, onUpdateRollout, onCreateVersion,
   onCompareVersion, onRollback,
+  onCollapse,
 }) {
   const [docTitle, setDocTitle] = useState('');
   const [docContent, setDocContent] = useState('');
@@ -33,6 +34,13 @@ export default function Sidebar({
 
   return (
     <aside className="context-pane">
+      <div className="sidebar-brand">
+        <span className="sidebar-brand-mark"><BookOpen size={17} /></span>
+        <strong>知识库</strong>
+        <button className="icon-button" onClick={onCollapse} title="折叠侧栏" aria-label="折叠侧栏">
+          <PanelLeftClose size={16} />
+        </button>
+      </div>
       {/* Sessions */}
       <section className="panel panel-compact session-panel">
         <div className="panel-title">

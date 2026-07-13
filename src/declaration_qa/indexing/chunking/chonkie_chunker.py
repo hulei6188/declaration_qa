@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from html import unescape
 from typing import Any
 
+
 class ChonkieChunkingError(RuntimeError):
     """Raised when Chonkie cannot produce retrieval chunks."""
 

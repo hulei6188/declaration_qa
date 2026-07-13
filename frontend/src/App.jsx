@@ -33,6 +33,9 @@ import {
 } from './utils.js';
 
 export default function App() {
+  const [theme, setTheme] = useState(initialTheme);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(initialSidebarCollapsed);
+
   // ---- Request context ----
   const [ctx, setCtx] = useState(DEFAULT_CONTEXT);
 
@@ -41,7 +44,6 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [sendState, setSendState] = useState('等待输入');
-  const [chatExpanded, setChatExpanded] = useState(false);
   const assistantRef = useRef(null);
 
   // ---- Timeline / Audit ----
@@ -68,6 +70,15 @@ export default function App() {
     loadSessions();
     loadDocuments();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('declaration-qa-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    window.localStorage.setItem('declaration-qa-sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   // ---- Chat ----
   async function sendMessage(query, displayText, meta, ctxOverride, queryImage) {
@@ -137,15 +148,6 @@ export default function App() {
 
   function addTimeline(event, data) {
     setTimeline((prev) => [{ event, data: compactJson(data) }, ...prev]);
-  }
-
-  function clearChat() {
-    setSessionId(null);
-    setMessages([]);
-    setTimeline([]);
-    setAudit({ intent: '-', auditId: '-', refused: '-' });
-    setFeedbackResult('');
-    setSendState('等待输入');
   }
 
   // ---- Sessions ----
@@ -474,8 +476,8 @@ export default function App() {
 
   // ---- Render ----
   return (
-    <div className="app-shell">
-      <main className={`workspace${chatExpanded ? ' chat-expanded' : ''}`}>
+    <div className="app-shell" data-theme={theme}>
+      <main className={`workspace${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <Sidebar
           sessions={sessions}
           documents={documents}
@@ -495,6 +497,7 @@ export default function App() {
           onCreateVersion={doCreateVersion}
           onCompareVersion={doCompareVersion}
           onRollback={doRollback}
+          onCollapse={() => setSidebarCollapsed(true)}
         />
         <ChatPane
           messages={messages}
@@ -502,19 +505,32 @@ export default function App() {
           sendState={sendState}
           sessionId={sessionId}
           onSend={sendMessage}
-          onClear={clearChat}
           ctx={ctx}
           setCtx={setCtx}
           audit={audit}
           feedbackResult={feedbackResult}
           onFeedback={doFeedback}
-          expanded={chatExpanded}
-          onToggleExpanded={() => setChatExpanded((value) => !value)}
           onLoadToolTrace={loadToolTrace}
+          theme={theme}
+          onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         />
       </main>
     </div>
   );
+}
+
+function initialTheme() {
+  const saved = window.localStorage.getItem('declaration-qa-theme');
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function initialSidebarCollapsed() {
+  const saved = window.localStorage.getItem('declaration-qa-sidebar-collapsed');
+  if (saved === 'true' || saved === 'false') return saved === 'true';
+  return window.matchMedia?.('(max-width: 860px)').matches ?? false;
 }
 
 function attachSourcesToLastAssistant(messages, sources) {
