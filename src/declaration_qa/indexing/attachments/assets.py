@@ -131,7 +131,7 @@ def extract_parsed_picture_assets(
                 metadata={
                     **metadata,
                     "picture_caption": caption,
-                    "picture_ocr_source": "docling" if block.text.strip() else ("external_ocr" if text else "none"),
+                    "picture_ocr_source": "mineru" if block.text.strip() else ("external_ocr" if text else "none"),
                     **summary_metadata,
                 },
             )

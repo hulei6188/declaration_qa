@@ -22,12 +22,12 @@ def extract_attachment(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
-    docling_document_timeout_seconds: int = 3600,
-    docling_accelerator_device: str = "auto",
-    docling_accelerator_num_threads: int = 4,
-    docling_layout_batch_size: int = 4,
-    docling_table_batch_size: int = 4,
-    docling_ocr_batch_size: int = 4,
+    mineru_cli_path: str = "mineru",
+    mineru_backend: str = "pipeline",
+    mineru_method: str = "auto",
+    mineru_language: str = "ch",
+    mineru_model_source: str = "modelscope",
+    mineru_timeout_seconds: int = 3600,
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -52,16 +52,18 @@ def extract_attachment(
             llamaparse_api_key=llamaparse_api_key,
             llamaparse_base_url=llamaparse_base_url,
             llamaparse_result_type=llamaparse_result_type,
-            docling_document_timeout_seconds=docling_document_timeout_seconds,
-            docling_accelerator_device=docling_accelerator_device,
-            docling_accelerator_num_threads=docling_accelerator_num_threads,
-            docling_layout_batch_size=docling_layout_batch_size,
-            docling_table_batch_size=docling_table_batch_size,
-            docling_ocr_batch_size=docling_ocr_batch_size,
+            mineru_cli_path=mineru_cli_path,
+            mineru_backend=mineru_backend,
+            mineru_method=mineru_method,
+            mineru_language=mineru_language,
+            mineru_model_source=mineru_model_source,
+            mineru_timeout_seconds=mineru_timeout_seconds,
         )
         text = parsed.text
         parsed_blocks = list(getattr(parsed, "blocks", None) or [])
         parsed_name = str(getattr(parsed, "parser_name", "") or "")
+        parsed_metadata = dict(getattr(parsed, "metadata", None) or {})
+        native_chunk_specs = list(parsed_metadata.pop("mineru_chunk_specs", []) or [])
         quality_error = attachment_text_quality_error(text, ref.extension)
         if quality_error:
             if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -76,7 +78,7 @@ def extract_attachment(
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
-        metadata.update(attachment_parser_metadata(getattr(parsed, "metadata", None)))
+        metadata.update(attachment_parser_metadata(parsed_metadata))
         assets, asset_metadata = safe_extract_visual_assets(
             downloaded,
             asset_dir=asset_dir,
@@ -86,7 +88,7 @@ def extract_attachment(
             pdf_max_pages=pdf_ocr_max_pages,
             pdf_dpi=pdf_ocr_dpi,
             parsed_blocks=parsed_blocks,
-            pdf_page_fallback=parsed_name != "docling",
+            pdf_page_fallback=parsed_name != "mineru",
         )
         metadata.update(asset_metadata)
         return ExtractedAttachment(
@@ -99,6 +101,7 @@ def extract_attachment(
             metadata=metadata,
             assets=assets,
             blocks=parsed_blocks,
+            chunk_specs=native_chunk_specs,
         )
     except DocumentParseError as exc:
         if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -248,7 +251,7 @@ def failed_attachment(downloaded: DownloadedAttachment, *, reason: str, metadata
 def attachment_parser_metadata(value: dict[str, object] | None) -> dict[str, object]:
     """移除只供解析阶段使用、不可复制到每个附件 chunk 的大型字段。"""
     metadata = dict(value or {})
-    metadata.pop("docling_chunk_specs", None)
+    metadata.pop("mineru_chunk_specs", None)
     return metadata
 
 

@@ -41,7 +41,7 @@ MILVUS_METADATA_MAX_BYTES = 48 * 1024
 # 完整表格结构由 PostgreSQL chunk store 保存；Milvus 只需要支持过滤和命中定位。
 MILVUS_METADATA_EXCLUDED_FIELDS = frozenset(
     {
-        "docling_chunk_specs",
+        "mineru_chunk_specs",
         "llm_table_context",
         "table_html",
         "table_json",

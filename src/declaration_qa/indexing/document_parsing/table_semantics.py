@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 
 from declaration_qa.indexing.document_parsing.text import (
@@ -307,6 +308,29 @@ def normalized_table_payload(value: Any) -> dict[str, Any]:
     payload["row_count"] = int(value.get("row_count") or len(rows) + (1 if headers else 0))
     payload["column_count"] = int(value.get("column_count") or max([len(headers), *[len(row) for row in rows]], default=0))
     return payload
+
+
+def table_content_dedupe_signature(table_json_value: Any, table_text_value: str = "") -> str:
+    """返回忽略来源位置的表格内容去重签名。"""
+    table = normalized_table_payload(table_json_value)
+    if table:
+        payload = {
+            "title": normalize_table_dedupe_value(table.get("title")),
+            "headers": [normalize_table_dedupe_value(item) for item in table_headers(table)],
+            "rows": [
+                [normalize_table_dedupe_value(item) for item in row]
+                for row in table_rows(table)
+                if any(normalize_table_dedupe_value(item) for item in row)
+            ],
+        }
+        return hashlib.sha1(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+    normalized_text = normalize_table_dedupe_value(table_text_value)
+    return hashlib.sha1(normalized_text.encode("utf-8")).hexdigest() if normalized_text else ""
+
+
+def normalize_table_dedupe_value(value: Any) -> str:
+    """清理表格去重字段，避免空白差异造成重复入库。"""
+    return " ".join(clean_inline_text(str(value or "")).split())
 
 
 def table_headers(table: dict[str, Any]) -> list[str]:

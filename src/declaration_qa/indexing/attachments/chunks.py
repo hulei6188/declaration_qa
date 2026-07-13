@@ -34,6 +34,9 @@ def build_attachment_chunk_specs(
         if extracted.status != "success":
             continue
         specs.extend(build_attachment_asset_chunk_specs(extracted, document_metadata=document_metadata))
+        if extracted.chunk_specs:
+            specs.extend(build_attachment_native_chunk_specs(extracted, document_metadata=document_metadata))
+            continue
         specs.extend(build_attachment_table_chunk_specs(extracted, document_metadata=document_metadata))
         if not extracted.text.strip():
             continue
@@ -80,6 +83,57 @@ def build_attachment_chunk_specs(
                 child_size=min(520, max_chunk_size),
                 overlap=overlap,
             )
+        )
+    return specs
+
+
+def build_attachment_native_chunk_specs(
+    extracted: ExtractedAttachment,
+    *,
+    document_metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Map MinerU native content items one-to-one into attachment chunks."""
+    specs: list[dict[str, Any]] = []
+    attachment_digest = hashlib.sha1(
+        f"{extracted.ref.url}\n{extracted.ref.name}\n{extracted.sha256}".encode("utf-8")
+    ).hexdigest()[:12]
+    for item_index, native_spec in enumerate(extracted.chunk_specs):
+        content = str(native_spec.get("content") or "").strip()
+        if not content:
+            continue
+        native_metadata = dict(native_spec.get("metadata") or {})
+        item_type = str(native_metadata.get("mineru_item_type") or "text")
+        semantic_type = "attachment_table" if item_type == "table" else "attachment_text"
+        metadata = {
+            **attachment_base_metadata(extracted, document_metadata, semantic_type=semantic_type),
+            **native_metadata,
+            "chunk_type": f"attachment_mineru_{item_type}",
+            "source_attachment_chunk_type": str(
+                extracted.metadata.get("semantic_chunk_type") or "attachment_text"
+            ),
+            "extraction_method": "mineru",
+            "indexable": True,
+        }
+        page_no = metadata.get("page_no")
+        if page_no not in (None, ""):
+            metadata.update(
+                {
+                    "attachment_page_no": page_no,
+                    "attachment_page_numbers": [page_no],
+                    "attachment_page_start": page_no,
+                    "attachment_page_end": page_no,
+                    "attachment_page_range": str(page_no),
+                }
+            )
+        native_suffix = str(native_spec.get("id_suffix") or f"mineru:{item_index}")
+        specs.append(
+            {
+                "id_suffix": f"attachment:{attachment_digest}:{native_suffix}",
+                "chunk_type": "child",
+                "content": content,
+                "source_url": extracted.ref.url,
+                "metadata": metadata,
+            }
         )
     return specs
 

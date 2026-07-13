@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import logging
 
-from declaration_qa.indexing.document_parsing.docling_parser import DoclingDocumentParser
 from declaration_qa.indexing.document_parsing.llamaparse_parser import LlamaParseDocumentParser
 from declaration_qa.indexing.document_parsing.marker_parser import MarkerDocumentParser
+from declaration_qa.indexing.document_parsing.mineru_parser import MinerUDocumentParser
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, DocumentParser, ParsedDocument
 from declaration_qa.indexing.document_parsing.native import NativeDocumentParser
 from declaration_qa.indexing.document_parsing.ocr import HttpOcrClient
 
 
-DEFAULT_AUTO_ORDER = "docling,marker,native"
+DEFAULT_AUTO_ORDER = "mineru,native"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -74,12 +74,12 @@ def parse_document_bytes(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
-    docling_document_timeout_seconds: int = 3600,
-    docling_accelerator_device: str = "auto",
-    docling_accelerator_num_threads: int = 4,
-    docling_layout_batch_size: int = 4,
-    docling_table_batch_size: int = 4,
-    docling_ocr_batch_size: int = 4,
+    mineru_cli_path: str = "mineru",
+    mineru_backend: str = "pipeline",
+    mineru_method: str = "auto",
+    mineru_language: str = "ch",
+    mineru_model_source: str = "modelscope",
+    mineru_timeout_seconds: int = 3600,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
     effective_order = parser_order
@@ -93,12 +93,12 @@ def parse_document_bytes(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
-        docling_document_timeout_seconds=docling_document_timeout_seconds,
-        docling_accelerator_device=docling_accelerator_device,
-        docling_accelerator_num_threads=docling_accelerator_num_threads,
-        docling_layout_batch_size=docling_layout_batch_size,
-        docling_table_batch_size=docling_table_batch_size,
-        docling_ocr_batch_size=docling_ocr_batch_size,
+        mineru_cli_path=mineru_cli_path,
+        mineru_backend=mineru_backend,
+        mineru_method=mineru_method,
+        mineru_language=mineru_language,
+        mineru_model_source=mineru_model_source,
+        mineru_timeout_seconds=mineru_timeout_seconds,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
 
@@ -112,12 +112,12 @@ def build_document_parser(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
-    docling_document_timeout_seconds: int = 3600,
-    docling_accelerator_device: str = "auto",
-    docling_accelerator_num_threads: int = 4,
-    docling_layout_batch_size: int = 4,
-    docling_table_batch_size: int = 4,
-    docling_ocr_batch_size: int = 4,
+    mineru_cli_path: str = "mineru",
+    mineru_backend: str = "pipeline",
+    mineru_method: str = "auto",
+    mineru_language: str = "ch",
+    mineru_model_source: str = "modelscope",
+    mineru_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
     normalized_provider = normalize_provider(provider)
@@ -131,12 +131,12 @@ def build_document_parser(
                     llamaparse_api_key=llamaparse_api_key,
                     llamaparse_base_url=llamaparse_base_url,
                     llamaparse_result_type=llamaparse_result_type,
-                    docling_document_timeout_seconds=docling_document_timeout_seconds,
-                    docling_accelerator_device=docling_accelerator_device,
-                    docling_accelerator_num_threads=docling_accelerator_num_threads,
-                    docling_layout_batch_size=docling_layout_batch_size,
-                    docling_table_batch_size=docling_table_batch_size,
-                    docling_ocr_batch_size=docling_ocr_batch_size,
+                    mineru_cli_path=mineru_cli_path,
+                    mineru_backend=mineru_backend,
+                    mineru_method=mineru_method,
+                    mineru_language=mineru_language,
+                    mineru_model_source=mineru_model_source,
+                    mineru_timeout_seconds=mineru_timeout_seconds,
                 )
                 for name in names
             ]
@@ -147,12 +147,12 @@ def build_document_parser(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
-        docling_document_timeout_seconds=docling_document_timeout_seconds,
-        docling_accelerator_device=docling_accelerator_device,
-        docling_accelerator_num_threads=docling_accelerator_num_threads,
-        docling_layout_batch_size=docling_layout_batch_size,
-        docling_table_batch_size=docling_table_batch_size,
-        docling_ocr_batch_size=docling_ocr_batch_size,
+        mineru_cli_path=mineru_cli_path,
+        mineru_backend=mineru_backend,
+        mineru_method=mineru_method,
+        mineru_language=mineru_language,
+        mineru_model_source=mineru_model_source,
+        mineru_timeout_seconds=mineru_timeout_seconds,
     )
     if normalized_provider == "native" or not fallback_enabled:
         return parser
@@ -166,23 +166,23 @@ def parser_by_name(
     llamaparse_api_key: str,
     llamaparse_base_url: str,
     llamaparse_result_type: str,
-    docling_document_timeout_seconds: int = 3600,
-    docling_accelerator_device: str = "auto",
-    docling_accelerator_num_threads: int = 4,
-    docling_layout_batch_size: int = 4,
-    docling_table_batch_size: int = 4,
-    docling_ocr_batch_size: int = 4,
+    mineru_cli_path: str = "mineru",
+    mineru_backend: str = "pipeline",
+    mineru_method: str = "auto",
+    mineru_language: str = "ch",
+    mineru_model_source: str = "modelscope",
+    mineru_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据名称返回解析器实例。"""
     normalized = normalize_provider(name)
-    if normalized == "docling":
-        return DoclingDocumentParser(
-            document_timeout_seconds=docling_document_timeout_seconds,
-            accelerator_device=docling_accelerator_device,
-            accelerator_num_threads=docling_accelerator_num_threads,
-            layout_batch_size=docling_layout_batch_size,
-            table_batch_size=docling_table_batch_size,
-            ocr_batch_size=docling_ocr_batch_size,
+    if normalized == "mineru":
+        return MinerUDocumentParser(
+            cli_path=mineru_cli_path,
+            backend=mineru_backend,
+            method=mineru_method,
+            language=mineru_language,
+            model_source=mineru_model_source,
+            timeout_seconds=mineru_timeout_seconds,
         )
     if normalized == "marker":
         return MarkerDocumentParser()
@@ -219,6 +219,8 @@ def normalize_provider(value: str) -> str:
     """标准化解析器名称。"""
     normalized = str(value or "").strip().lower().replace("_", "-")
     aliases = {
+        "magic-pdf": "mineru",
+        "magicpdf": "mineru",
         "llama-parse": "llamaparse",
         "llama_parse": "llamaparse",
         "llama": "llamaparse",

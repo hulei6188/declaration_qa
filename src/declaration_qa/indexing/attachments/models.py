@@ -64,3 +64,4 @@ class ExtractedAttachment:
     metadata: dict[str, object] = field(default_factory=dict)
     assets: list[AttachmentAsset] = field(default_factory=list)
     blocks: list[Any] = field(default_factory=list)
+    chunk_specs: list[dict[str, Any]] = field(default_factory=list)

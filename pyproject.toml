@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 parsing = [
-    "docling>=2.0.0",
+    "mineru[pipeline]",
     "llama-cloud-services>=0.6.0",
     "marker-pdf>=1.0.0",
 ]

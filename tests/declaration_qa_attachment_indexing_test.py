@@ -47,7 +47,7 @@ def test_parse_item_28_markdown_attachments_with_section_context():
     assert "wKhoJmCU_oSAPG8PABGK" in flow_ref.url
 
 
-def test_parse_attachment_when_docling_merges_following_label_onto_url():
+def test_parse_attachment_when_parser_merges_following_label_onto_url():
     content = """
 ## 申请材料
 
@@ -707,8 +707,8 @@ def test_pdf_page_assets_generate_page_image_chunks(monkeypatch, tmp_path):
     assert "第一页表单内容" in page_specs[0]["content"]
 
 
-def test_docling_pdf_picture_is_indexed_without_full_page_duplicate(monkeypatch, tmp_path):
-    downloaded = make_pdf_downloaded(data=b"%PDF docling picture")
+def test_mineru_pdf_picture_is_indexed_without_full_page_duplicate(monkeypatch, tmp_path):
+    downloaded = make_pdf_downloaded(data=b"%PDF mineru picture")
     picture = ParsedBlock(
         block_type="picture",
         text="申请、受理、审查、决定",
@@ -739,7 +739,7 @@ def test_docling_pdf_picture_is_indexed_without_full_page_duplicate(monkeypatch,
     assert assets[0].metadata["picture_caption"] == "图1 办理流程"
 
 
-def test_docling_pdf_without_picture_does_not_create_page_images(monkeypatch, tmp_path):
+def test_mineru_pdf_without_picture_does_not_create_page_images(monkeypatch, tmp_path):
     downloaded = make_pdf_downloaded(data=b"%PDF text only")
     monkeypatch.setattr(
         "declaration_qa.indexing.attachments.assets.extract_pdf_page_assets",
@@ -757,7 +757,7 @@ def test_docling_pdf_without_picture_does_not_create_page_images(monkeypatch, tm
     assert assets == []
 
 
-def test_uploaded_pdf_docling_picture_becomes_image_chunk(tmp_path):
+def test_uploaded_pdf_mineru_picture_becomes_image_chunk(tmp_path):
     picture = ParsedBlock(
         block_type="picture",
         text="流程图文字",
@@ -780,10 +780,10 @@ def test_uploaded_pdf_docling_picture_becomes_image_chunk(tmp_path):
         data=b"%PDF uploaded",
         extracted_text="办理指南正文",
         parsed_blocks=[picture],
-        parser_name="docling",
+        parser_name="mineru",
         title="办理指南",
         source_url="",
-        document_metadata={"chunking_strategy": "docling"},
+        document_metadata={"chunking_strategy": "mineru"},
         settings=settings,
         ocr_client=None,
     )
@@ -820,10 +820,10 @@ def test_long_picture_ocr_is_split_into_text_chunks(tmp_path):
         data=b"%PDF uploaded",
         extracted_text="办理指南正文",
         parsed_blocks=[picture],
-        parser_name="docling",
+        parser_name="mineru",
         title="办理指南",
         source_url="",
-        document_metadata={"chunking_strategy": "docling"},
+        document_metadata={"chunking_strategy": "mineru"},
         settings=settings,
         ocr_client=None,
     )
@@ -886,15 +886,15 @@ def test_uploaded_pdf_picture_flows_into_document_index(monkeypatch, tmp_path):
         filename="guide.pdf",
         content_type="application/pdf",
         text="# 办理指南\n正文",
-        parser_name="docling",
+        parser_name="mineru",
         blocks=[picture],
         metadata={
-            "docling_chunk_specs": [
+            "mineru_chunk_specs": [
                 {
-                    "id_suffix": "docling:0",
+                    "id_suffix": "mineru:0",
                     "chunk_type": "child",
                     "content": "办理指南正文",
-                    "metadata": {"chunk_type": "docling_text"},
+                    "metadata": {"chunk_type": "mineru_text"},
                 }
             ]
         },

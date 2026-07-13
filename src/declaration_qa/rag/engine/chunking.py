@@ -8,8 +8,8 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.rag.engine.constants import (
-    CHUNKING_DOCLING,
     CHUNKING_HIERARCHICAL,
+    CHUNKING_MINERU,
     CHUNKING_PARENT_CHILD,
     SUPPORTED_CHUNKING_STRATEGIES,
 )
@@ -25,7 +25,7 @@ def normalize_chunking_strategy(value: Any) -> str:
 def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
     """按配置的策略切分文档。"""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
-    if strategy == CHUNKING_DOCLING:
+    if strategy == CHUNKING_MINERU:
         chunks = []
     elif strategy == CHUNKING_HIERARCHICAL:
         chunks = split_hierarchical(document)

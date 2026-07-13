@@ -3,6 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%\"
+set "MINERU_MODEL_SOURCE=modelscope"
 set "PYTHON_EXE="
 set "CONDA_BASE="
 

@@ -69,7 +69,7 @@ src/declaration_qa/indexing/attachments/parser.py
 src/declaration_qa/indexing/attachments/pdf_ocr.py
 src/declaration_qa/indexing/attachments/pipeline.py
 src/declaration_qa/indexing/document_parsing/__init__.py
-src/declaration_qa/indexing/document_parsing/docling_parser.py
+src/declaration_qa/indexing/document_parsing/mineru_parser.py
 src/declaration_qa/indexing/document_parsing/factory.py
 src/declaration_qa/indexing/document_parsing/llamaparse_parser.py
 src/declaration_qa/indexing/document_parsing/marker_parser.py
