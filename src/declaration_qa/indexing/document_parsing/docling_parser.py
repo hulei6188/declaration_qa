@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import re
 import threading
 from typing import Any
@@ -29,6 +30,7 @@ from declaration_qa.indexing.document_parsing.table_semantics import (
 
 
 MARKDOWN_TABLE_BREAK_PATTERN = re.compile(r"<br\s*/?\s*>", re.IGNORECASE)
+LOGGER = logging.getLogger(__name__)
 
 
 def preprocess_docling_input(*, filename: str, content_type: str, data: bytes) -> tuple[bytes, int]:
@@ -148,7 +150,7 @@ class DoclingDocumentParser:
             document_timeout=float(self.document_timeout_seconds),
             accelerator_options=AcceleratorOptions(
                 num_threads=self.accelerator_num_threads,
-                device=self.accelerator_device,
+                device=resolve_docling_accelerator_device(self.accelerator_device),
             ),
             layout_batch_size=self.layout_batch_size,
             table_batch_size=self.table_batch_size,
@@ -611,6 +613,30 @@ def normalize_docling_accelerator_device(value: str) -> str:
     if normalized not in {"auto", "cpu", "cuda", "mps", "xpu"}:
         return "auto"
     return normalized
+
+
+def resolve_docling_accelerator_device(value: str) -> str:
+    """返回当前机器可实际使用的 Docling accelerator device。"""
+    normalized = normalize_docling_accelerator_device(value)
+    if normalized != "cuda" or is_docling_cuda_available():
+        return normalized
+    LOGGER.warning("Docling CUDA accelerator is not available; falling back to CPU")
+    return "cpu"
+
+
+def is_docling_cuda_available() -> bool:
+    """检查当前 Python 环境中的 PyTorch CUDA 是否可用。"""
+    try:
+        import torch
+    except Exception:
+        return False
+    is_available = getattr(getattr(torch, "cuda", None), "is_available", None)
+    if not callable(is_available):
+        return False
+    try:
+        return bool(is_available())
+    except Exception:
+        return False
 
 
 def docling_converter_key(filename: str, content_type: str) -> str:

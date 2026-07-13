@@ -18,7 +18,7 @@ from declaration_qa.rag.model_providers.answers import (
     valid_query_image,
     visual_evidence_label,
 )
-from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload
+from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload, knowledge_answer
 
 
 AGENT_SYSTEM_PROMPT = """你是政务申报系统的单 Agent。你负责理解问题、选择工具、观察工具结果，并直接回答用户。
@@ -89,8 +89,8 @@ class ToolCallingAgent:
         if self.model is not None:
             try:
                 return self._model_decision(state, tool_definitions)
-            except Exception:
-                pass
+            except Exception as exc:
+                return rule_agent_decision(state, model_error=exc)
         return rule_agent_decision(state)
 
     def _model_decision(self, state: dict[str, Any], tool_definitions: list[dict[str, Any]]) -> AgentDecision:
@@ -179,12 +179,27 @@ class ToolCallingAgent:
         )
 
 
-def rule_agent_decision(state: dict[str, Any]) -> AgentDecision:
-    """模型不可用时停止自主调度，避免通过关键词猜测工具。"""
+def rule_agent_decision(state: dict[str, Any], model_error: Exception | None = None) -> AgentDecision:
+    """模型不可用时停止自主调度；已有证据时用确定性答案兜底。"""
+    reason = (
+        f"agent_model_error:{type(model_error).__name__}"
+        if model_error is not None
+        else "agent_model_unavailable"
+    )
+    sources = select_generation_sources(state.get("retrieved_sources") or [])
+    if sources:
+        answer = knowledge_answer(state, sources)
+        return AgentDecision(
+            "finish",
+            intent="agentic_rag",
+            reason=reason,
+            final_answer=answer,
+            assistant_content=answer,
+        )
     return AgentDecision(
         "finish",
         intent="agentic_rag",
-        reason="agent_model_unavailable",
+        reason=reason,
     )
 
 

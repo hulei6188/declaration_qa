@@ -9,6 +9,7 @@ from declaration_qa.indexing.document_parsing.docling_parser import (
     docling_chunk_specs,
     docling_picture_blocks,
     docling_table_lookup,
+    resolve_docling_accelerator_device,
 )
 from declaration_qa.indexing.document_parsing.factory import CompositeDocumentParser, build_document_parser, parse_document_bytes
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, ParsedDocument
@@ -53,6 +54,7 @@ def test_docling_pdf_converter_receives_document_timeout(monkeypatch):
         "docling.datamodel.pipeline_options",
         types.SimpleNamespace(AcceleratorOptions=FakeAcceleratorOptions, PdfPipelineOptions=FakePdfPipelineOptions),
     )
+    monkeypatch.setattr("declaration_qa.indexing.document_parsing.docling_parser.is_docling_cuda_available", lambda: True)
 
     parser = DoclingDocumentParser(
         document_timeout_seconds=3600,
@@ -116,6 +118,7 @@ def test_docling_image_converter_receives_accelerator_options(monkeypatch):
         "docling.datamodel.pipeline_options",
         types.SimpleNamespace(AcceleratorOptions=FakeAcceleratorOptions, PdfPipelineOptions=FakePdfPipelineOptions),
     )
+    monkeypatch.setattr("declaration_qa.indexing.document_parsing.docling_parser.is_docling_cuda_available", lambda: True)
 
     parser = DoclingDocumentParser(document_timeout_seconds=3600, accelerator_device="cuda", layout_batch_size=8)
     parser._document_converter(filename="sample.png", content_type="image/png")
@@ -125,6 +128,16 @@ def test_docling_image_converter_receives_accelerator_options(monkeypatch):
     assert isinstance(captured["image_format_option"]["pipeline_options"], FakePdfPipelineOptions)
     assert "image" in captured["converter"]["format_options"]
     assert "pdf_format_option" not in captured
+
+
+def test_docling_cuda_device_falls_back_to_cpu_when_unavailable(monkeypatch, caplog):
+    monkeypatch.setattr("declaration_qa.indexing.document_parsing.docling_parser.is_docling_cuda_available", lambda: False)
+
+    with caplog.at_level(logging.WARNING):
+        resolved = resolve_docling_accelerator_device("cuda")
+
+    assert resolved == "cpu"
+    assert "falling back to CPU" in caplog.text
 
 
 def test_docling_converter_is_reused_for_same_input_format(monkeypatch):
