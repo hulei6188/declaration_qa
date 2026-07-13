@@ -20,7 +20,7 @@
 | Agent | LangGraph、LangChain、原生 Tool Calling、Pydantic Tool Schema |
 | 模型 | DashScope Qwen3-VL、Qwen3-VL Embedding、Qwen3-VL Rerank、OCR |
 | 检索 | Milvus、Elasticsearch BM25、RRF、Parent Context |
-| 文档解析 | MinerU、Marker、LlamaParse、PyMuPDF、PyPDF、Calamine |
+| 文档解析 | MinerU、LlamaParse、PyMuPDF、PyPDF、Calamine |
 | 数据与任务 | PostgreSQL、Redis、RQ |
 | 前端 | React 18、Vite 5、Lucide React、SSE |
 | 可观测 | Langfuse、结构化审计日志 |

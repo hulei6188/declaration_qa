@@ -7,20 +7,21 @@ set "CONDA_ENV=langchain-agent"
 set "MINERU_MODEL_SOURCE=modelscope"
 
 if /i "%~1"=="api" goto run_api
+if /i "%~1"=="mineru" goto run_mineru
 if /i "%~1"=="worker" goto run_worker
 if /i "%~1"=="frontend" goto run_frontend
 
 echo [1/4] Stopping API, worker, and frontend...
 call "%~dp0stop-app.bat"
 
-echo [2/4] Cleaning stale listeners on ports 8010 and 5173...
+echo [2/4] Cleaning stale listeners on ports 8010, 8011, and 5173...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference = 'SilentlyContinue';" ^
-  "$ports = @(8010, 5173);" ^
+  "$ports = @(8010, 8011, 5173);" ^
   "$processes = @(Get-CimInstance Win32_Process);" ^
   "$roots = @($processes | Where-Object {" ^
-  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match '(start-app|restart-app)\.bat.? (api|worker|frontend)') -or" ^
-  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker') -or" ^
+  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match '(start-app|restart-app)\.bat.? (api|mineru|worker|frontend)') -or" ^
+  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker|-m mineru\.cli\.fast_api') -or" ^
   "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'declaration_qa[\\/]frontend.*vite')" ^
   "});" ^
   "$queue = @($roots | ForEach-Object { [int]$_.ProcessId });" ^
@@ -82,6 +83,13 @@ if errorlevel 1 (
     echo API is already listening on port 8010.
 )
 
+netstat -ano | findstr /R /C:":8011 .*LISTENING" >nul
+if errorlevel 1 (
+    start "MinerU API" cmd /k call "%~f0" mineru
+) else (
+    echo MinerU API is already listening on port 8011.
+)
+
 powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m declaration_qa.indexing.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
 if errorlevel 1 (
     start "Declaration QA Worker" cmd /k call "%~f0" worker
@@ -106,6 +114,7 @@ if errorlevel 1 (
 echo [4/4] Waiting for API health check...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ready = $false;" ^
+  "$mineruReady = $false;" ^
   "for ($i = 0; $i -lt 30; $i++) {" ^
   "  try {" ^
   "    $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8010/api/declaration-qa/health' -TimeoutSec 2;" ^
@@ -114,7 +123,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  Start-Sleep -Seconds 1;" ^
   "};" ^
   "if (-not $ready) { Write-Host 'API health check timed out.'; exit 3 };" ^
+  "for ($i = 0; $i -lt 60; $i++) {" ^
+  "  try {" ^
+  "    $response = Invoke-WebRequest -Uri 'http://127.0.0.1:8011/docs' -UseBasicParsing -TimeoutSec 2;" ^
+  "    if ($response.StatusCode -eq 200) { $mineruReady = $true; break }" ^
+  "  } catch {}" ^
+  "  Start-Sleep -Seconds 1;" ^
+  "};" ^
+  "if (-not $mineruReady) { Write-Host 'MinerU API health check timed out.'; exit 4 };" ^
   "Write-Host 'API is healthy: http://127.0.0.1:8010';" ^
+  "Write-Host 'MinerU API is healthy: http://127.0.0.1:8011';" ^
   "Write-Host 'Frontend: http://127.0.0.1:5173'"
 
 if errorlevel 1 exit /b %errorlevel%
@@ -127,6 +145,14 @@ call :activate_conda_env
 if errorlevel 1 exit /b %errorlevel%
 echo Starting API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8010 ...
 python -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
+exit /b %errorlevel%
+
+:run_mineru
+title MinerU API
+call :activate_conda_env
+if errorlevel 1 exit /b %errorlevel%
+echo Starting MinerU API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8011 ...
+python -m mineru.cli.fast_api --host 127.0.0.1 --port 8011
 exit /b %errorlevel%
 
 :run_worker

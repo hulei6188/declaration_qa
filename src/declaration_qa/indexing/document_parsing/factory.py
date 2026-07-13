@@ -74,11 +74,12 @@ def parse_document_bytes(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
-    mineru_cli_path: str = "mineru",
+    mineru_api_url: str = "http://127.0.0.1:8011",
     mineru_backend: str = "pipeline",
     mineru_method: str = "auto",
     mineru_language: str = "ch",
     mineru_model_source: str = "modelscope",
+    mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
@@ -93,11 +94,12 @@ def parse_document_bytes(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
-        mineru_cli_path=mineru_cli_path,
+        mineru_api_url=mineru_api_url,
         mineru_backend=mineru_backend,
         mineru_method=mineru_method,
         mineru_language=mineru_language,
         mineru_model_source=mineru_model_source,
+        mineru_formula_enabled=mineru_formula_enabled,
         mineru_timeout_seconds=mineru_timeout_seconds,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
@@ -112,11 +114,12 @@ def build_document_parser(
     llamaparse_api_key: str = "",
     llamaparse_base_url: str = "",
     llamaparse_result_type: str = "markdown",
-    mineru_cli_path: str = "mineru",
+    mineru_api_url: str = "http://127.0.0.1:8011",
     mineru_backend: str = "pipeline",
     mineru_method: str = "auto",
     mineru_language: str = "ch",
     mineru_model_source: str = "modelscope",
+    mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
@@ -131,11 +134,12 @@ def build_document_parser(
                     llamaparse_api_key=llamaparse_api_key,
                     llamaparse_base_url=llamaparse_base_url,
                     llamaparse_result_type=llamaparse_result_type,
-                    mineru_cli_path=mineru_cli_path,
+                    mineru_api_url=mineru_api_url,
                     mineru_backend=mineru_backend,
                     mineru_method=mineru_method,
                     mineru_language=mineru_language,
                     mineru_model_source=mineru_model_source,
+                    mineru_formula_enabled=mineru_formula_enabled,
                     mineru_timeout_seconds=mineru_timeout_seconds,
                 )
                 for name in names
@@ -147,11 +151,12 @@ def build_document_parser(
         llamaparse_api_key=llamaparse_api_key,
         llamaparse_base_url=llamaparse_base_url,
         llamaparse_result_type=llamaparse_result_type,
-        mineru_cli_path=mineru_cli_path,
+        mineru_api_url=mineru_api_url,
         mineru_backend=mineru_backend,
         mineru_method=mineru_method,
         mineru_language=mineru_language,
         mineru_model_source=mineru_model_source,
+        mineru_formula_enabled=mineru_formula_enabled,
         mineru_timeout_seconds=mineru_timeout_seconds,
     )
     if normalized_provider == "native" or not fallback_enabled:
@@ -166,22 +171,24 @@ def parser_by_name(
     llamaparse_api_key: str,
     llamaparse_base_url: str,
     llamaparse_result_type: str,
-    mineru_cli_path: str = "mineru",
+    mineru_api_url: str = "http://127.0.0.1:8011",
     mineru_backend: str = "pipeline",
     mineru_method: str = "auto",
     mineru_language: str = "ch",
     mineru_model_source: str = "modelscope",
+    mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
 ) -> DocumentParser:
     """根据名称返回解析器实例。"""
     normalized = normalize_provider(name)
     if normalized == "mineru":
         return MinerUDocumentParser(
-            cli_path=mineru_cli_path,
+            api_url=mineru_api_url,
             backend=mineru_backend,
             method=mineru_method,
             language=mineru_language,
             model_source=mineru_model_source,
+            formula_enabled=mineru_formula_enabled,
             timeout_seconds=mineru_timeout_seconds,
         )
     if normalized == "marker":

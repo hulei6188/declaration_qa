@@ -1,3 +1,12 @@
+-- Combined PostgreSQL SQL files
+-- Source directory: C:\Users\Ivy\declaration-qa\sql\postgresql
+-- Generated at: 2026-07-13 12:25:23 +08:00
+-- File order: filename ascending
+
+-- ============================================================================
+-- Source: 003_declaration_qa_schema.sql
+-- ============================================================================
+
 -- Isolated schema for the Declaration QA Workflow service.
 --
 -- This file is intentionally separate from AgentBase's main schema. The
@@ -1128,3 +1137,1340 @@ COMMENT ON COLUMN declaration_qa.messages.content_json IS '工具调用等结构
 COMMENT ON COLUMN declaration_qa.messages.visible IS '是否出现在普通会话历史中';
 
 COMMIT;
+
+
+-- ============================================================================
+-- Source: 004_declaration_qa_seed_business_real10.sql
+-- ============================================================================
+
+-- Simulated business ticket data generated from:
+-- materials/curated/declaration_qa/2026-06-15-ahzwfw-real-10
+--
+-- This seed is intentionally scoped to apply_uid LIKE 'AHZWFW-REAL10-%' so it
+-- can be rerun without touching real business tickets.
+
+BEGIN;
+
+WITH target_apps AS (
+    SELECT id
+    FROM declaration_qa.business_applications
+    WHERE apply_uid LIKE 'AHZWFW-REAL10-%'
+)
+DELETE FROM declaration_qa.business_reject_infos
+WHERE apply_id IN (SELECT id FROM target_apps);
+
+WITH target_apps AS (
+    SELECT id
+    FROM declaration_qa.business_applications
+    WHERE apply_uid LIKE 'AHZWFW-REAL10-%'
+)
+DELETE FROM declaration_qa.business_application_statuses
+WHERE apply_id IN (SELECT id FROM target_apps);
+
+WITH seed (
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at,
+    completed_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-REAL10-001',
+        1,
+        'engineering_survey_design_master_selection',
+        '340000',
+        'in_review',
+        'REVIEW',
+        '审查',
+        '2026-06-02 09:20:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '安徽省工程勘察设计大师评选',
+            'item_code', '11340000MB0T3248X7234101703500001',
+            'source_file', 'engineering_survey_design_master_selection.md',
+            'materials', jsonb_build_array('申报材料意见函', '安徽省工程勘察设计大师申报表', '勘察设计大师申报附件材料'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '20个工作日',
+            'handle_form', '网上办理,窗口办理,快递申请'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-002',
+        1,
+        'second_level_constructor_additional_registration',
+        '340000',
+        'accepted',
+        'ACCEPT',
+        '受理',
+        '2026-06-03 10:10:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级建造师增项注册',
+            'item_code', '11340000MB0T3248X7200011705500202',
+            'source_file', 'second_level_constructor_additional_registration.md',
+            'materials', jsonb_build_array('二级建造师增项注册表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理,自助端办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-003',
+        1,
+        'second_level_constructor_initial_registration',
+        '340000',
+        'rejected',
+        'MATERIAL_REVIEW',
+        '材料预审',
+        '2026-06-04 14:35:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级建造师初始注册',
+            'item_code', '11340000MB0T3248X7200011705500205',
+            'source_file', 'second_level_constructor_initial_registration.md',
+            'materials', jsonb_build_array('二级建造师初始注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-004',
+        1,
+        'second_level_constructor_re_registration',
+        '340000',
+        'in_review',
+        'REVIEW',
+        '审查',
+        '2026-06-05 09:05:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级建造师重新注册',
+            'item_code', '11340000MB0T3248X7200011705500209',
+            'source_file', 'second_level_constructor_re_registration.md',
+            'materials', jsonb_build_array('二级建造师重新注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-005',
+        1,
+        'second_level_constructor_renewal_registration',
+        '340000',
+        'completed',
+        'FINISH',
+        '办结',
+        '2026-05-28 11:25:00+08',
+        '2026-06-06 16:10:00+08',
+        jsonb_build_object(
+            'item_name', '二级建造师延续注册',
+            'item_code', '11340000MB0T3248X7200011705500206',
+            'source_file', 'second_level_constructor_renewal_registration.md',
+            'materials', jsonb_build_array('二级建造师延续注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-006',
+        1,
+        'second_level_cost_engineer_cancellation_registration',
+        '340000',
+        'pre_accept',
+        'PRE_ACCEPT',
+        '网上预审',
+        '2026-06-07 15:40:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级造价工程师注销注册',
+            'item_code', '11340000MB0T3248X7200011705600003',
+            'source_file', 'second_level_cost_engineer_cancellation_registration.md',
+            'materials', jsonb_build_array('二级造价工程师注销注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-007',
+        1,
+        'second_level_cost_engineer_change_registration',
+        '340000',
+        'rejected',
+        'MATERIAL_REVIEW',
+        '材料预审',
+        '2026-06-08 09:55:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级造价工程师变更注册',
+            'item_code', '11340000MB0T3248X7200011705600005',
+            'source_file', 'second_level_cost_engineer_change_registration.md',
+            'materials', jsonb_build_array('二级造价工程师变更注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-008',
+        1,
+        'second_level_cost_engineer_initial_registration',
+        '340000',
+        'in_decision',
+        'DECISION',
+        '决定',
+        '2026-06-09 13:50:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级造价工程师初始注册',
+            'item_code', '11340000MB0T3248X7200011705600002',
+            'source_file', 'second_level_cost_engineer_initial_registration.md',
+            'materials', jsonb_build_array('二级造价工程师初始注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-009',
+        1,
+        'second_level_cost_engineer_renewal_registration',
+        '340000',
+        'rejected',
+        'MATERIAL_REVIEW',
+        '材料预审',
+        '2026-06-10 10:05:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级造价工程师延续注册',
+            'item_code', '11340000MB0T3248X7200011705600004',
+            'source_file', 'second_level_cost_engineer_renewal_registration.md',
+            'materials', jsonb_build_array('二级造价工程师延续注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    ),
+    (
+        'AHZWFW-REAL10-010',
+        1,
+        'second_level_structural_engineer_initial_registration',
+        '340000',
+        'accepted',
+        'ACCEPT',
+        '受理',
+        '2026-06-11 16:25:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'item_name', '二级结构工程师初始注册',
+            'item_code', '11340000MB0T3248X7200011703900206',
+            'source_file', 'second_level_structural_engineer_initial_registration.md',
+            'materials', jsonb_build_array('二级注册结构工程师初始注册申请表', '承诺函'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '8个工作日',
+            'handle_form', '网上办理,窗口办理'
+        )
+    )
+)
+INSERT INTO declaration_qa.business_applications (
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at,
+    completed_at,
+    payload,
+    deleted_at,
+    created_at,
+    updated_at
+)
+SELECT
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at::timestamptz,
+    completed_at::timestamptz,
+    payload,
+    NULL::timestamptz,
+    submitted_at::timestamptz,
+    COALESCE(completed_at::timestamptz, submitted_at::timestamptz + INTERVAL '2 days')
+FROM seed
+ON CONFLICT (apply_uid) DO UPDATE SET
+    user_id = EXCLUDED.user_id,
+    biz_type = EXCLUDED.biz_type,
+    region_code = EXCLUDED.region_code,
+    status = EXCLUDED.status,
+    current_node = EXCLUDED.current_node,
+    node_name = EXCLUDED.node_name,
+    submitted_at = EXCLUDED.submitted_at,
+    completed_at = EXCLUDED.completed_at,
+    payload = EXCLUDED.payload,
+    deleted_at = NULL,
+    updated_at = EXCLUDED.updated_at;
+
+WITH seed_status (
+    apply_uid,
+    status,
+    current_node,
+    node_name,
+    is_current,
+    created_at,
+    updated_at,
+    payload
+) AS (
+    VALUES
+    ('AHZWFW-REAL10-001', 'in_review', 'REVIEW', '审查', TRUE, '2026-06-04 09:00:00+08'::timestamptz, '2026-06-12 10:20:00+08'::timestamptz, jsonb_build_object('step', '审查', 'message', '已进入主管部门审查环节，正在核验申报材料和业绩证明。')),
+    ('AHZWFW-REAL10-002', 'accepted', 'ACCEPT', '受理', TRUE, '2026-06-03 11:30:00+08'::timestamptz, '2026-06-12 09:10:00+08'::timestamptz, jsonb_build_object('step', '受理', 'message', '窗口已受理二级建造师增项注册申请，等待进入审查环节。')),
+    ('AHZWFW-REAL10-003', 'rejected', 'MATERIAL_REVIEW', '材料预审', TRUE, '2026-06-05 10:15:00+08'::timestamptz, '2026-06-12 14:00:00+08'::timestamptz, jsonb_build_object('step', '受理', 'message', '材料预审未通过，申请表信息需补正后重新提交。')),
+    ('AHZWFW-REAL10-004', 'in_review', 'REVIEW', '审查', TRUE, '2026-06-06 09:20:00+08'::timestamptz, '2026-06-13 10:40:00+08'::timestamptz, jsonb_build_object('step', '审查', 'message', '二级建造师重新注册申请正在审查。')),
+    ('AHZWFW-REAL10-005', 'completed', 'FINISH', '办结', TRUE, '2026-06-06 16:10:00+08'::timestamptz, '2026-06-06 16:10:00+08'::timestamptz, jsonb_build_object('step', '办结', 'message', '二级建造师延续注册已办结，结果已反馈。')),
+    ('AHZWFW-REAL10-006', 'pre_accept', 'PRE_ACCEPT', '网上预审', TRUE, '2026-06-08 09:00:00+08'::timestamptz, '2026-06-13 15:30:00+08'::timestamptz, jsonb_build_object('step', '网上预审', 'message', '二级造价工程师注销注册正在网上预审。')),
+    ('AHZWFW-REAL10-007', 'rejected', 'MATERIAL_REVIEW', '材料预审', TRUE, '2026-06-09 10:30:00+08'::timestamptz, '2026-06-13 16:05:00+08'::timestamptz, jsonb_build_object('step', '受理', 'message', '承诺函未完成在线确认，已退回补正。')),
+    ('AHZWFW-REAL10-008', 'in_decision', 'DECISION', '决定', TRUE, '2026-06-11 09:20:00+08'::timestamptz, '2026-06-14 11:50:00+08'::timestamptz, jsonb_build_object('step', '决定', 'message', '二级造价工程师初始注册已通过审查，等待作出核准决定。')),
+    ('AHZWFW-REAL10-009', 'rejected', 'MATERIAL_REVIEW', '材料预审', TRUE, '2026-06-11 14:25:00+08'::timestamptz, '2026-06-14 15:40:00+08'::timestamptz, jsonb_build_object('step', '受理', 'message', '延续注册申请表不符合受理标准，已退回补正。')),
+    ('AHZWFW-REAL10-010', 'accepted', 'ACCEPT', '受理', TRUE, '2026-06-12 09:35:00+08'::timestamptz, '2026-06-14 17:10:00+08'::timestamptz, jsonb_build_object('step', '受理', 'message', '二级结构工程师初始注册申请已受理。'))
+)
+INSERT INTO declaration_qa.business_application_statuses (
+    apply_id,
+    status,
+    current_node,
+    node_name,
+    is_current,
+    payload,
+    created_at,
+    updated_at
+)
+SELECT
+    a.id,
+    s.status,
+    s.current_node,
+    s.node_name,
+    s.is_current,
+    s.payload,
+    s.created_at,
+    s.updated_at
+FROM seed_status s
+JOIN declaration_qa.business_applications a ON a.apply_uid = s.apply_uid;
+
+WITH seed_reject (
+    apply_uid,
+    material_code,
+    material_name,
+    reject_code,
+    reject_reason,
+    audit_node,
+    is_current,
+    created_at,
+    updated_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-REAL10-003',
+        'CONSTRUCTOR_INITIAL_APPLICATION_FORM',
+        '二级建造师初始注册申请表',
+        'FORM_CONTENT_INCONSISTENT',
+        '申请表中注册专业和聘用单位信息填写不一致。请按示例样表核对后重新提交，表格内容需真实无误。',
+        '材料预审',
+        TRUE,
+        '2026-06-12 13:30:00+08'::timestamptz,
+        '2026-06-12 14:00:00+08'::timestamptz,
+        jsonb_build_object('source_file', 'second_level_constructor_initial_registration.md', 'accept_standard', '表格内容填写真实无误。')
+    ),
+    (
+        'AHZWFW-REAL10-007',
+        'COMMITMENT_LETTER',
+        '承诺函',
+        'COMMITMENT_NOT_CONFIRMED',
+        '承诺函未由企业或个人作为责任主体完成在线勾选确认。请重新进入申报系统完成承诺后提交。',
+        '材料预审',
+        TRUE,
+        '2026-06-13 15:30:00+08'::timestamptz,
+        '2026-06-13 16:05:00+08'::timestamptz,
+        jsonb_build_object('source_file', 'second_level_cost_engineer_change_registration.md', 'accept_standard', '本承诺函需由企业或个人作为责任主体作出承诺，申报时通过在线勾选完成提交。')
+    ),
+    (
+        'AHZWFW-REAL10-009',
+        'COST_RENEWAL_APPLICATION_FORM',
+        '二级造价工程师延续注册申请表',
+        'CONTINUING_EDUCATION_NOT_CONFIRMED',
+        '延续注册申请表未体现注册有效期届满30日内通过注册专业继续教育的相关信息，请补充后重新提交。',
+        '材料预审',
+        TRUE,
+        '2026-06-14 15:05:00+08'::timestamptz,
+        '2026-06-14 15:40:00+08'::timestamptz,
+        jsonb_build_object('source_file', 'second_level_cost_engineer_renewal_registration.md', 'accept_standard', '在注册有效期届满30日内，通过注册专业继续教育后申请延续注册。')
+    )
+)
+INSERT INTO declaration_qa.business_reject_infos (
+    apply_id,
+    material_code,
+    material_name,
+    reject_code,
+    reject_reason,
+    audit_node,
+    is_current,
+    payload,
+    created_at,
+    updated_at
+)
+SELECT
+    a.id,
+    r.material_code,
+    r.material_name,
+    r.reject_code,
+    r.reject_reason,
+    r.audit_node,
+    r.is_current,
+    r.payload,
+    r.created_at,
+    r.updated_at
+FROM seed_reject r
+JOIN declaration_qa.business_applications a ON a.apply_uid = r.apply_uid;
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 005_declaration_qa_seed_business_mock_fire_rejected.sql
+-- ============================================================================
+
+-- Virtual rejected business ticket for testing fire-prevention process routing.
+--
+-- This seed is intentionally scoped to apply_uid LIKE 'AHZWFW-MOCK-FIRE-%' so it
+-- can be rerun without touching real business tickets.
+
+BEGIN;
+
+WITH target_apps AS (
+    SELECT id
+    FROM declaration_qa.business_applications
+    WHERE apply_uid LIKE 'AHZWFW-MOCK-FIRE-%'
+)
+DELETE FROM declaration_qa.business_reject_infos
+WHERE apply_id IN (SELECT id FROM target_apps);
+
+WITH target_apps AS (
+    SELECT id
+    FROM declaration_qa.business_applications
+    WHERE apply_uid LIKE 'AHZWFW-MOCK-FIRE-%'
+)
+DELETE FROM declaration_qa.business_application_statuses
+WHERE apply_id IN (SELECT id FROM target_apps);
+
+WITH seed (
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at,
+    completed_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-MOCK-FIRE-001',
+        1,
+        'grassland_fire_blasting_approval',
+        '340000',
+        'rejected',
+        'MATERIAL_REVIEW',
+        '材料预审',
+        '2026-06-17 09:20:00+08',
+        NULL::timestamptz,
+        jsonb_build_object(
+            'title', '防火办事流程',
+            'item_name', '防火办事流程',
+            'official_item_name', '草原防火期内在草原上进行爆破、勘察和施工等活动审批',
+            'item_code', '11340000002985990J200016407900001',
+            'source_file', 'item_30.md',
+            'materials', jsonb_build_array('身份证件', '单位组织机构代码证', '申请表', '市县林业主管部门审查审核意见', '民用爆炸物品购买许可证', '爆破作业单位许可证'),
+            'legal_limit', '20个工作日',
+            'promise_limit', '10个工作日',
+            'handle_form', '网上办理,移动端办理,窗口办理,快递申请',
+            'consult_phone', '0551-62999817',
+            'complaint_phone', '0551-62634463',
+            'is_mock', true
+        )
+    )
+)
+INSERT INTO declaration_qa.business_applications (
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at,
+    completed_at,
+    payload,
+    deleted_at,
+    created_at,
+    updated_at
+)
+SELECT
+    apply_uid,
+    user_id,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at::timestamptz,
+    completed_at::timestamptz,
+    payload,
+    NULL::timestamptz,
+    submitted_at::timestamptz,
+    '2026-06-17 10:30:00+08'::timestamptz
+FROM seed
+ON CONFLICT (apply_uid) DO UPDATE SET
+    user_id = EXCLUDED.user_id,
+    biz_type = EXCLUDED.biz_type,
+    region_code = EXCLUDED.region_code,
+    status = EXCLUDED.status,
+    current_node = EXCLUDED.current_node,
+    node_name = EXCLUDED.node_name,
+    submitted_at = EXCLUDED.submitted_at,
+    completed_at = EXCLUDED.completed_at,
+    payload = EXCLUDED.payload,
+    deleted_at = NULL,
+    updated_at = EXCLUDED.updated_at;
+
+WITH seed_status (
+    apply_uid,
+    status,
+    current_node,
+    node_name,
+    is_current,
+    created_at,
+    updated_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-MOCK-FIRE-001',
+        'rejected',
+        'MATERIAL_REVIEW',
+        '材料预审',
+        TRUE,
+        '2026-06-17 10:00:00+08'::timestamptz,
+        '2026-06-17 10:30:00+08'::timestamptz,
+        jsonb_build_object('step', '材料预审', 'message', '防火办事流程申请材料预审未通过，已退回补正。')
+    )
+)
+INSERT INTO declaration_qa.business_application_statuses (
+    apply_id,
+    status,
+    current_node,
+    node_name,
+    is_current,
+    payload,
+    created_at,
+    updated_at
+)
+SELECT
+    a.id,
+    s.status,
+    s.current_node,
+    s.node_name,
+    s.is_current,
+    s.payload,
+    s.created_at,
+    s.updated_at
+FROM seed_status s
+JOIN declaration_qa.business_applications a ON a.apply_uid = s.apply_uid;
+
+WITH seed_reject (
+    apply_uid,
+    material_code,
+    material_name,
+    reject_code,
+    reject_reason,
+    audit_node,
+    is_current,
+    created_at,
+    updated_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-MOCK-FIRE-001',
+        'FIRE_PROCESS_APPLICATION_FORM',
+        '申请表',
+        'FIRE_MEASURE_DESCRIPTION_INCOMPLETE',
+        '申请表中的活动地点、作业时间和防火措施说明不完整，未能证明已采取必要防火措施。请补充具体作业地点、时间安排、防火责任人和现场防火措施后重新提交。',
+        '材料预审',
+        TRUE,
+        '2026-06-17 10:10:00+08'::timestamptz,
+        '2026-06-17 10:30:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'item_30.md',
+            'official_item_name', '草原防火期内在草原上进行爆破、勘察和施工等活动审批',
+            'accept_standard', '申请表应填写齐全，单位申请要加盖公章，内容真实详细准确。',
+            'is_mock', true
+        )
+    )
+)
+INSERT INTO declaration_qa.business_reject_infos (
+    apply_id,
+    material_code,
+    material_name,
+    reject_code,
+    reject_reason,
+    audit_node,
+    is_current,
+    payload,
+    created_at,
+    updated_at
+)
+SELECT
+    a.id,
+    r.material_code,
+    r.material_name,
+    r.reject_code,
+    r.reject_reason,
+    r.audit_node,
+    r.is_current,
+    r.payload,
+    r.created_at,
+    r.updated_at
+FROM seed_reject r
+JOIN declaration_qa.business_applications a ON a.apply_uid = r.apply_uid;
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 006_declaration_qa_fix_business_item_code_manifest_id.sql
+-- ============================================================================
+
+-- Fix business ticket payloads where payload.item_code accidentally stores
+-- the curated document manifest id (for example *_official_ahzwfw).
+--
+-- After this migration:
+--   payload.item_code           = official government item code used by chunks.metadata.item_code
+--   payload.source_manifest_id  = curated document manifest id
+--   payload.source_file         = source markdown filename when it can be resolved
+--
+-- The script is idempotent and only touches rows whose current item_code is a
+-- manifest-style id.
+
+BEGIN;
+
+WITH chunk_scope AS (
+    SELECT
+        c.metadata->>'item_name' AS item_name,
+        c.metadata->>'item_code' AS official_item_code,
+        MIN(d.filename) AS source_file
+    FROM declaration_qa.chunks c
+    JOIN declaration_qa.documents d ON d.id = c.document_id
+    WHERE COALESCE(c.metadata->>'item_name', '') <> ''
+      AND COALESCE(c.metadata->>'item_code', '') <> ''
+      AND COALESCE(c.metadata->>'item_code', '') !~ '^[a-z0-9_]+_official_ahzwfw$'
+    GROUP BY c.metadata->>'item_name', c.metadata->>'item_code'
+),
+chunk_mappings AS (
+    SELECT
+        a.id AS application_id,
+        c.official_item_code,
+        c.source_file,
+        1 AS priority
+    FROM declaration_qa.business_applications a
+    JOIN chunk_scope c
+      ON c.item_name = COALESCE(
+          NULLIF(a.payload->>'official_item_name', ''),
+          NULLIF(a.payload->>'item_name', ''),
+          NULLIF(a.payload->>'title', '')
+      )
+    WHERE COALESCE(a.payload->>'item_code', '') ~ '^[a-z0-9_]+_official_ahzwfw$'
+      AND a.deleted_at IS NULL
+),
+known_manifest_mappings (
+    source_manifest_id,
+    official_item_code,
+    source_file
+) AS (
+    VALUES
+    ('foreign_related_adoption_registration_official_ahzwfw', '11340000002986424J200071100200001', 'foreign_related_adoption_registration.md'),
+    ('overseas_chinese_return_settlement_approval_official_ahzwfw', '11340000002986483M200014400100001', 'overseas_chinese_return_settlement_approval.md'),
+    ('foreigners_group_religious_activity_temporary_site_approval_official_ahzwfw', '11340000MB0U046663200014100200001', 'foreigners_group_religious_activity_temporary_site_approval.md'),
+    ('science_technology_archive_query_official_ahzwfw', '11340000002986088E234200603400001', 'science_technology_archive_query.md'),
+    ('mobile_personnel_archive_material_collection_official_ahzwfw', '11340000002986547K200201420400201', 'mobile_personnel_archive_material_collection.md'),
+    ('pine_wood_nematode_infected_timber_processing_change_approval_official_ahzwfw', '11340000002985990J200016413700001', 'pine_wood_nematode_infected_timber_processing_change_approval.md'),
+    ('high_risk_sports_event_permit_official_ahzwfw', '11340000002985974W234013300500001', 'high_risk_sports_event_permit.md'),
+    ('second_level_constructor_initial_registration_official_ahzwfw', '11340000MB0T3248X7200011705500205', 'second_level_constructor_initial_registration.md'),
+    ('foreign_hmt_overseas_chinese_marriage_registration_official_ahzwfw', '11340000002986424J200071100100002', 'foreign_hmt_overseas_chinese_marriage_registration.md'),
+    ('disabled_veterans_centralized_support_determination_official_ahzwfw', '11340000MB1527779M200072400100001', 'disabled_veterans_centralized_support_determination.md')
+),
+manifest_mappings AS (
+    SELECT
+        a.id AS application_id,
+        m.official_item_code,
+        m.source_file,
+        2 AS priority
+    FROM declaration_qa.business_applications a
+    JOIN known_manifest_mappings m
+      ON m.source_manifest_id = a.payload->>'item_code'
+    WHERE a.deleted_at IS NULL
+),
+resolved_mappings AS (
+    SELECT DISTINCT ON (application_id)
+        application_id,
+        official_item_code,
+        source_file
+    FROM (
+        SELECT * FROM chunk_mappings
+        UNION ALL
+        SELECT * FROM manifest_mappings
+    ) mappings
+    ORDER BY application_id, priority
+)
+UPDATE declaration_qa.business_applications a
+SET
+    payload = jsonb_set(
+        jsonb_set(
+            jsonb_set(
+                a.payload,
+                '{source_manifest_id}',
+                to_jsonb(COALESCE(NULLIF(a.payload->>'source_manifest_id', ''), a.payload->>'item_code')),
+                true
+            ),
+            '{item_code}',
+            to_jsonb(r.official_item_code),
+            true
+        ),
+        '{source_file}',
+        to_jsonb(COALESCE(NULLIF(r.source_file, ''), a.payload->>'source_file')),
+        true
+    ),
+    updated_at = CURRENT_TIMESTAMP
+FROM resolved_mappings r
+WHERE a.id = r.application_id
+  AND COALESCE(a.payload->>'item_code', '') ~ '^[a-z0-9_]+_official_ahzwfw$';
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 007_declaration_qa_context_memories.sql
+-- ============================================================================
+
+-- 为申报问答新增长期上下文记忆存储。
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS declaration_qa.context_memories (
+    id BIGSERIAL PRIMARY KEY,
+    memory_uid VARCHAR(120) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    session_uid VARCHAR(80) NOT NULL DEFAULT '',
+    memory_type VARCHAR(40) NOT NULL DEFAULT 'qa_fact',
+    content TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    source_audit_uid VARCHAR(80) NOT NULL DEFAULT '',
+    source_query TEXT NOT NULL DEFAULT '',
+    source_answer TEXT NOT NULL DEFAULT '',
+    region_code VARCHAR(20) NOT NULL DEFAULT '',
+    biz_type VARCHAR(80) NOT NULL DEFAULT '',
+    importance DOUBLE PRECISION NOT NULL DEFAULT 0.5 CHECK (importance >= 0 AND importance <= 1),
+    status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'deprecated')),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_context_memories_user
+    ON declaration_qa.context_memories (user_id, updated_at DESC)
+    WHERE status = 'published';
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_context_memories_session
+    ON declaration_qa.context_memories (session_uid, updated_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_context_memories_metadata_gin
+    ON declaration_qa.context_memories USING GIN (metadata);
+
+COMMENT ON TABLE declaration_qa.context_memories IS '长期上下文记忆表，保存每轮问答后异步抽取的可检索记忆';
+COMMENT ON COLUMN declaration_qa.context_memories.memory_uid IS '长期记忆唯一标识';
+COMMENT ON COLUMN declaration_qa.context_memories.user_id IS '用户 ID，用于强制隔离长期记忆';
+COMMENT ON COLUMN declaration_qa.context_memories.content IS '写入向量和全文索引的长期记忆内容';
+COMMENT ON COLUMN declaration_qa.context_memories.source_audit_uid IS '来源审计日志唯一标识';
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 008_declaration_qa_agentic_ticket_history.sql
+-- ============================================================================
+
+-- Agentic ticket tools require an item-scoped application query and a complete,
+-- stable status timeline for every application. This migration is idempotent.
+
+BEGIN;
+
+ALTER TABLE declaration_qa.business_applications
+    ADD COLUMN IF NOT EXISTS item_code VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS item_name VARCHAR(255) NOT NULL DEFAULT '';
+
+UPDATE declaration_qa.business_applications
+SET
+    item_code = COALESCE(NULLIF(item_code, ''), payload->>'item_code', ''),
+    item_name = COALESCE(
+        NULLIF(item_name, ''),
+        payload->>'item_name',
+        payload->>'official_item_name',
+        payload->>'title',
+        ''
+    )
+WHERE item_code = '' OR item_name = '';
+
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_applications_user_item
+    ON declaration_qa.business_applications (user_id, item_code, updated_at DESC)
+    WHERE deleted_at IS NULL;
+
+ALTER TABLE declaration_qa.business_application_statuses
+    ADD COLUMN IF NOT EXISTS sequence_no INTEGER,
+    ADD COLUMN IF NOT EXISTS from_status VARCHAR(40) NULL,
+    ADD COLUMN IF NOT EXISTS reason_code VARCHAR(80) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS material_code VARCHAR(80) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS material_name VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS source_event_id VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
+
+WITH ordered AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (PARTITION BY apply_id ORDER BY created_at, id) AS generated_sequence,
+        LAG(status) OVER (PARTITION BY apply_id ORDER BY created_at, id) AS generated_from_status
+    FROM declaration_qa.business_application_statuses
+)
+UPDATE declaration_qa.business_application_statuses s
+SET
+    sequence_no = COALESCE(s.sequence_no, ordered.generated_sequence),
+    from_status = COALESCE(s.from_status, ordered.generated_from_status),
+    occurred_at = COALESCE(s.occurred_at, s.created_at)
+FROM ordered
+WHERE ordered.id = s.id;
+
+UPDATE declaration_qa.business_application_statuses s
+SET
+    reason_code = COALESCE(NULLIF(s.reason_code, ''), r.reject_code, ''),
+    reason = COALESCE(NULLIF(s.reason, ''), r.reject_reason, ''),
+    material_code = COALESCE(NULLIF(s.material_code, ''), r.material_code, ''),
+    material_name = COALESCE(NULLIF(s.material_name, ''), r.material_name, '')
+FROM declaration_qa.business_reject_infos r
+WHERE r.apply_id = s.apply_id
+  AND r.is_current = TRUE
+  AND s.is_current = TRUE;
+
+ALTER TABLE declaration_qa.business_application_statuses
+    ALTER COLUMN sequence_no SET NOT NULL,
+    ALTER COLUMN sequence_no SET DEFAULT 1,
+    ALTER COLUMN occurred_at SET NOT NULL,
+    ALTER COLUMN occurred_at SET DEFAULT CURRENT_TIMESTAMP;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_business_status_sequence
+    ON declaration_qa.business_application_statuses (apply_id, sequence_no);
+DROP INDEX IF EXISTS declaration_qa.ux_declaration_qa_business_status_source_event;
+CREATE UNIQUE INDEX ux_declaration_qa_business_status_source_event
+    ON declaration_qa.business_application_statuses (apply_id, source_event_id)
+    WHERE source_event_id <> '';
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_business_status_timeline
+    ON declaration_qa.business_application_statuses (apply_id, occurred_at, sequence_no);
+CREATE OR REPLACE FUNCTION declaration_qa.prepare_business_application_status_event()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    previous_sequence INTEGER;
+    previous_status VARCHAR(40);
+BEGIN
+    PERFORM pg_advisory_xact_lock(NEW.apply_id);
+
+    IF NEW.source_event_id <> ''
+       AND EXISTS (
+           SELECT 1
+           FROM declaration_qa.business_application_statuses
+           WHERE apply_id = NEW.apply_id
+             AND source_event_id = NEW.source_event_id
+       ) THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT sequence_no, status
+    INTO previous_sequence, previous_status
+    FROM declaration_qa.business_application_statuses
+    WHERE apply_id = NEW.apply_id
+    ORDER BY sequence_no DESC, occurred_at DESC, id DESC
+    LIMIT 1;
+
+    IF NEW.sequence_no IS NULL
+       OR NEW.sequence_no <= COALESCE(previous_sequence, 0) THEN
+        NEW.sequence_no := COALESCE(previous_sequence, 0) + 1;
+    END IF;
+    NEW.from_status := COALESCE(NEW.from_status, previous_status);
+    NEW.occurred_at := COALESCE(NEW.occurred_at, CURRENT_TIMESTAMP);
+
+    IF NEW.is_current THEN
+        UPDATE declaration_qa.business_application_statuses
+        SET is_current = FALSE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE apply_id = NEW.apply_id
+          AND is_current = TRUE;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_declaration_qa_prepare_business_status
+    ON declaration_qa.business_application_statuses;
+CREATE TRIGGER trg_declaration_qa_prepare_business_status
+BEFORE INSERT ON declaration_qa.business_application_statuses
+FOR EACH ROW
+EXECUTE FUNCTION declaration_qa.prepare_business_application_status_event();
+
+CREATE OR REPLACE FUNCTION declaration_qa.sync_business_application_current_status()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.is_current THEN
+        UPDATE declaration_qa.business_applications
+        SET status = NEW.status,
+            current_node = NEW.current_node,
+            node_name = NEW.node_name,
+            updated_at = GREATEST(updated_at, NEW.occurred_at)
+        WHERE id = NEW.apply_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_declaration_qa_sync_business_status
+    ON declaration_qa.business_application_statuses;
+CREATE TRIGGER trg_declaration_qa_sync_business_status
+AFTER INSERT ON declaration_qa.business_application_statuses
+FOR EACH ROW
+EXECUTE FUNCTION declaration_qa.sync_business_application_current_status();
+
+
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS agent_query_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS tool_results JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS agent_iteration INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS agent_answer_provider VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS agent_selected_item_code VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS agent_selected_application_id BIGINT NULL;
+
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_tool_results_gin
+    ON declaration_qa.audit_logs USING GIN (tool_results);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_query_plan_gin
+    ON declaration_qa.audit_logs USING GIN (agent_query_plan);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_audit_logs_agent_item
+    ON declaration_qa.audit_logs (agent_selected_item_code, created_at DESC);
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 009_declaration_qa_agent_message_history.sql
+-- ============================================================================
+
+-- Persist a replayable Agent run without exposing internal messages in normal chat history.
+-- This migration is idempotent and preserves all existing session messages.
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS declaration_qa.agent_runs (
+    id BIGSERIAL PRIMARY KEY,
+    run_uid VARCHAR(80) NOT NULL UNIQUE,
+    session_id BIGINT NOT NULL REFERENCES declaration_qa.sessions(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'running'
+        CHECK (status IN ('running', 'succeeded', 'failed', 'cancelled')),
+    iteration_count INTEGER NOT NULL DEFAULT 0,
+    trace_id VARCHAR(120) NOT NULL DEFAULT '',
+    answer_provider VARCHAR(120) NOT NULL DEFAULT '',
+    idempotency_key VARCHAR(160) NOT NULL DEFAULT '',
+    error_code VARCHAR(120) NOT NULL DEFAULT '',
+    error_message TEXT NOT NULL DEFAULT '',
+    prompt_version VARCHAR(80) NOT NULL DEFAULT '',
+    tool_registry_version VARCHAR(80) NOT NULL DEFAULT '',
+    model_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_session
+    ON declaration_qa.agent_runs (session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_user
+    ON declaration_qa.agent_runs (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_agent_runs_trace
+    ON declaration_qa.agent_runs (trace_id)
+    WHERE trace_id <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_agent_runs_idempotency
+    ON declaration_qa.agent_runs (session_id, idempotency_key)
+    WHERE idempotency_key <> '';
+
+ALTER TABLE declaration_qa.messages
+    ADD COLUMN IF NOT EXISTS message_uid VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS sequence_no INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS parent_message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS message_type VARCHAR(30) NOT NULL DEFAULT 'conversation',
+    ADD COLUMN IF NOT EXISTS content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed',
+    ADD COLUMN IF NOT EXISTS visible BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS model VARCHAR(160) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER NULL,
+    ADD COLUMN IF NOT EXISTS latency_ms BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS pii_level VARCHAR(30) NOT NULL DEFAULT 'none',
+    ADD COLUMN IF NOT EXISTS retention_until TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(160) NOT NULL DEFAULT '';
+
+UPDATE declaration_qa.messages
+SET message_uid = 'legacy_message_' || id::text
+WHERE message_uid IS NULL OR message_uid = '';
+
+ALTER TABLE declaration_qa.messages
+    ALTER COLUMN message_uid SET NOT NULL,
+    DROP CONSTRAINT IF EXISTS messages_role_check,
+    DROP CONSTRAINT IF EXISTS messages_status_check;
+ALTER TABLE declaration_qa.messages
+    ADD CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+    ADD CONSTRAINT messages_status_check CHECK (status IN ('pending', 'completed', 'failed', 'cancelled'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_messages_uid
+    ON declaration_qa.messages (message_uid);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_messages_run_sequence
+    ON declaration_qa.messages (agent_run_id, sequence_no)
+    WHERE agent_run_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_run
+    ON declaration_qa.messages (agent_run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_messages_parent
+    ON declaration_qa.messages (parent_message_id);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.tool_calls (
+    id BIGSERIAL PRIMARY KEY,
+    tool_call_uid VARCHAR(100) NOT NULL UNIQUE,
+    agent_run_id BIGINT NOT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE CASCADE,
+    assistant_message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    result_message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL,
+    external_call_id VARCHAR(160) NOT NULL DEFAULT '',
+    sequence_no INTEGER NOT NULL,
+    tool_name VARCHAR(160) NOT NULL,
+    arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(80) NOT NULL DEFAULT 'pending',
+    ok BOOLEAN NOT NULL DEFAULT FALSE,
+    result JSONB NOT NULL DEFAULT '{}'::jsonb,
+    error TEXT NOT NULL DEFAULT '',
+    latency_ms BIGINT NULL CHECK (latency_ms IS NULL OR latency_ms >= 0),
+    started_at TIMESTAMPTZ NULL,
+    completed_at TIMESTAMPTZ NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (agent_run_id, sequence_no)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_run
+    ON declaration_qa.tool_calls (agent_run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_external
+    ON declaration_qa.tool_calls (agent_run_id, external_call_id);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_tool_calls_name
+    ON declaration_qa.tool_calls (tool_name, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.message_parts (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    part_index INTEGER NOT NULL,
+    part_type VARCHAR(30) NOT NULL,
+    text_content TEXT NOT NULL DEFAULT '',
+    asset_uri TEXT NOT NULL DEFAULT '',
+    mime_type VARCHAR(160) NOT NULL DEFAULT '',
+    file_name VARCHAR(500) NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (message_id, part_index)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_parts_message
+    ON declaration_qa.message_parts (message_id, part_index);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_parts_type
+    ON declaration_qa.message_parts (part_type);
+
+CREATE TABLE IF NOT EXISTS declaration_qa.message_sources (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES declaration_qa.messages(id) ON DELETE CASCADE,
+    citation_no INTEGER NOT NULL,
+    chunk_uid VARCHAR(160) NOT NULL DEFAULT '',
+    document_uid VARCHAR(160) NOT NULL DEFAULT '',
+    source_asset_id VARCHAR(200) NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    page_no INTEGER NULL,
+    relevance_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (message_id, citation_no)
+);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_message
+    ON declaration_qa.message_sources (message_id, citation_no);
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_chunk
+    ON declaration_qa.message_sources (chunk_uid)
+    WHERE chunk_uid <> '';
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_message_sources_asset
+    ON declaration_qa.message_sources (source_asset_id)
+    WHERE source_asset_id <> '';
+
+ALTER TABLE declaration_qa.audit_logs
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_audit_logs_agent_run
+    ON declaration_qa.audit_logs (agent_run_id)
+    WHERE agent_run_id IS NOT NULL;
+
+ALTER TABLE declaration_qa.feedback
+    ADD COLUMN IF NOT EXISTS agent_run_id BIGINT NULL REFERENCES declaration_qa.agent_runs(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS message_id BIGINT NULL REFERENCES declaration_qa.messages(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_agent_run
+    ON declaration_qa.feedback (agent_run_id)
+    WHERE agent_run_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_feedback_message
+    ON declaration_qa.feedback (message_id)
+    WHERE message_id IS NOT NULL;
+
+COMMENT ON TABLE declaration_qa.agent_runs IS '一次用户请求对应的 Agent 执行记录';
+COMMENT ON TABLE declaration_qa.tool_calls IS 'Agent 工具调用及其执行生命周期';
+COMMENT ON TABLE declaration_qa.message_parts IS '消息的文本、图片、文件和 OCR 多模态组成部分';
+COMMENT ON TABLE declaration_qa.message_sources IS '最终回答消息与知识证据的引用关系';
+COMMENT ON COLUMN declaration_qa.messages.visible IS '是否出现在普通会话历史中';
+COMMENT ON COLUMN declaration_qa.messages.content_json IS '工具调用等结构化消息内容';
+
+COMMIT;
+
+
+-- ============================================================================
+-- Source: 010_declaration_qa_seed_business_doc40_mock.sql
+-- ============================================================================
+
+-- Simulated tickets for the four currently published AHZWFW documents.
+--
+-- The seed targets demo user_id=1 and is idempotent. Rerunning it only
+-- replaces applications whose apply_uid starts with AHZWFW-DOC40-MOCK-.
+
+BEGIN;
+
+DELETE FROM declaration_qa.business_applications
+WHERE apply_uid LIKE 'AHZWFW-DOC40-MOCK-%';
+
+WITH seed (
+    apply_uid,
+    user_id,
+    item_code,
+    item_name,
+    biz_type,
+    region_code,
+    status,
+    current_node,
+    node_name,
+    submitted_at,
+    completed_at,
+    updated_at,
+    payload
+) AS (
+    VALUES
+    (
+        'AHZWFW-DOC40-MOCK-OCS-2025', 1,
+        '11340000002986483M200014400100001', '华侨回国定居审批',
+        'overseas_chinese_return_settlement_approval', '340000',
+        'completed', 'FINISH', '办结',
+        '2025-03-02 09:10:00+08'::timestamptz,
+        '2025-03-20 16:30:00+08'::timestamptz,
+        '2025-03-20 16:30:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'overseas_chinese_return_settlement_approval.md',
+            'materials', jsonb_build_array('华侨回国定居申请表', '自愿放弃国外居留资格声明书', '中华人民共和国护照', '国外居留证明', '户口注销书面说明', '稳定生活保障证明', '房产证', '出入境记录'),
+            'result', '准予华侨回国定居'
+        )
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-OCS-2026', 1,
+        '11340000002986483M200014400100001', '华侨回国定居审批',
+        'overseas_chinese_return_settlement_approval', '340000',
+        'returned_for_correction', 'MATERIAL_REVIEW', '材料预审',
+        '2026-07-01 10:05:00+08'::timestamptz,
+        NULL::timestamptz,
+        '2026-07-10 14:20:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'overseas_chinese_return_settlement_approval.md',
+            'materials', jsonb_build_array('华侨回国定居申请表', '自愿放弃国外居留资格声明书', '中华人民共和国护照', '国外居留证明', '户口注销书面说明', '稳定生活保障证明', '房产证', '出入境记录')
+        )
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-WATER-2026', 1,
+        '11340000002985923L200011900100001', '取水许可',
+        'water_withdrawal_permit', '340000',
+        'in_review', 'TECHNICAL_REVIEW', '技术审查',
+        '2026-07-03 09:25:00+08'::timestamptz,
+        NULL::timestamptz,
+        '2026-07-11 11:40:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'item_28.md',
+            'materials', jsonb_build_array('建设项目水资源论证报告书（表）', '水权转让可行性研究报告', '备案材料', '营业执照或身份证', '取水许可申请书', '利害关系说明')
+        )
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-ADOPTION-2025', 1,
+        '11340000002986424J200071100200001', '涉外收养登记',
+        'foreign_related_adoption_registration', '340000',
+        'completed', 'FINISH', '办结',
+        '2025-08-12 09:00:00+08'::timestamptz,
+        '2025-08-18 15:10:00+08'::timestamptz,
+        '2025-08-18 15:10:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'foreign_related_adoption_registration.md',
+            'materials', jsonb_build_array('收养人护照', '来华收养子女通知书', '收养人照片', '送养人身份证', '被收养人照片', '授权委托书'),
+            'result', '涉外收养登记完成'
+        )
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-ADOPTION-2026', 1,
+        '11340000002986424J200071100200001', '涉外收养登记',
+        'foreign_related_adoption_registration', '340000',
+        'returned_for_correction', 'MATERIAL_REVIEW', '材料预审',
+        '2026-07-05 14:15:00+08'::timestamptz,
+        NULL::timestamptz,
+        '2026-07-09 16:45:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'foreign_related_adoption_registration.md',
+            'materials', jsonb_build_array('收养人护照', '来华收养子女通知书', '收养人照片', '送养人身份证', '被收养人照片', '授权委托书')
+        )
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-MARRIAGE-2026', 1,
+        '11340000002986424J200071100100002', '涉外、涉港澳台、涉华侨结婚登记',
+        'foreign_hmt_overseas_chinese_marriage_registration', '340000',
+        'accepted', 'ACCEPT', '受理',
+        '2026-07-08 10:30:00+08'::timestamptz,
+        NULL::timestamptz,
+        '2026-07-08 11:05:00+08'::timestamptz,
+        jsonb_build_object(
+            'source_file', 'foreign_hmt_overseas_chinese_marriage_registration.md',
+            'materials', jsonb_build_array('内地居民身份证', '港澳台居民身份证', '港澳台居民通行证', '护照', '无血亲关系证明', '单身证明', '合照')
+        )
+    )
+)
+INSERT INTO declaration_qa.business_applications (
+    apply_uid, user_id, item_code, item_name, biz_type, region_code,
+    status, current_node, node_name, submitted_at, completed_at,
+    payload, deleted_at, created_at, updated_at
+)
+SELECT
+    apply_uid, user_id, item_code, item_name, biz_type, region_code,
+    status, current_node, node_name, submitted_at, completed_at,
+    payload || jsonb_build_object('item_code', item_code, 'item_name', item_name),
+    NULL::timestamptz, submitted_at, updated_at
+FROM seed;
+
+WITH seed_status (
+    apply_uid, sequence_no, from_status, status, current_node, node_name,
+    reason_code, reason, material_code, material_name, is_current,
+    occurred_at, source_event_id
+) AS (
+    VALUES
+    ('AHZWFW-DOC40-MOCK-OCS-2025', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2025-03-02 09:10:00+08'::timestamptz, 'DOC40-OCS-2025-01'),
+    ('AHZWFW-DOC40-MOCK-OCS-2025', 2, 'submitted', 'accepted', 'ACCEPT', '受理', '', '', '', '', FALSE, '2025-03-04 10:20:00+08'::timestamptz, 'DOC40-OCS-2025-02'),
+    ('AHZWFW-DOC40-MOCK-OCS-2025', 3, 'accepted', 'in_review', 'REVIEW', '审查', '', '', '', '', FALSE, '2025-03-10 09:30:00+08'::timestamptz, 'DOC40-OCS-2025-03'),
+    ('AHZWFW-DOC40-MOCK-OCS-2025', 4, 'in_review', 'completed', 'FINISH', '办结', '', '审查通过，准予华侨回国定居。', '', '', TRUE, '2025-03-20 16:30:00+08'::timestamptz, 'DOC40-OCS-2025-04'),
+
+    ('AHZWFW-DOC40-MOCK-OCS-2026', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2026-07-01 10:05:00+08'::timestamptz, 'DOC40-OCS-2026-01'),
+    ('AHZWFW-DOC40-MOCK-OCS-2026', 2, 'submitted', 'pre_accept', 'PRE_ACCEPT', '网上预审', '', '', '', '', FALSE, '2026-07-02 09:15:00+08'::timestamptz, 'DOC40-OCS-2026-02'),
+    ('AHZWFW-DOC40-MOCK-OCS-2026', 3, 'pre_accept', 'returned_for_correction', 'MATERIAL_REVIEW', '材料预审', 'MISSING_PROPERTY_AND_TRAVEL_RECORD', '未提交房产证，且出入境记录缺少最近五年的完整记录，请补充后重新提交。', 'PROPERTY_AND_TRAVEL_RECORD', '房产证、出入境记录', TRUE, '2026-07-10 14:20:00+08'::timestamptz, 'DOC40-OCS-2026-03'),
+
+    ('AHZWFW-DOC40-MOCK-WATER-2026', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2026-07-03 09:25:00+08'::timestamptz, 'DOC40-WATER-2026-01'),
+    ('AHZWFW-DOC40-MOCK-WATER-2026', 2, 'submitted', 'accepted', 'ACCEPT', '受理', '', '', '', '', FALSE, '2026-07-04 14:00:00+08'::timestamptz, 'DOC40-WATER-2026-02'),
+    ('AHZWFW-DOC40-MOCK-WATER-2026', 3, 'accepted', 'in_review', 'TECHNICAL_REVIEW', '技术审查', '', '正在审查建设项目水资源论证报告书及取水合理性。', '', '', TRUE, '2026-07-11 11:40:00+08'::timestamptz, 'DOC40-WATER-2026-03'),
+
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2025', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2025-08-12 09:00:00+08'::timestamptz, 'DOC40-ADOPTION-2025-01'),
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2025', 2, 'submitted', 'accepted', 'ACCEPT', '受理', '', '', '', '', FALSE, '2025-08-13 10:00:00+08'::timestamptz, 'DOC40-ADOPTION-2025-02'),
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2025', 3, 'accepted', 'completed', 'FINISH', '办结', '', '材料审查通过，涉外收养登记已完成。', '', '', TRUE, '2025-08-18 15:10:00+08'::timestamptz, 'DOC40-ADOPTION-2025-03'),
+
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2026', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2026-07-05 14:15:00+08'::timestamptz, 'DOC40-ADOPTION-2026-01'),
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2026', 2, 'submitted', 'pre_accept', 'PRE_ACCEPT', '网上预审', '', '', '', '', FALSE, '2026-07-06 09:40:00+08'::timestamptz, 'DOC40-ADOPTION-2026-02'),
+    ('AHZWFW-DOC40-MOCK-ADOPTION-2026', 3, 'pre_accept', 'returned_for_correction', 'MATERIAL_REVIEW', '材料预审', 'AUTHORIZATION_UNSIGNED', '授权委托书缺少委托人签字，被收养人照片也未按要求提交，请补正后重新申报。', 'AUTHORIZATION_AND_PHOTO', '授权委托书、被收养人照片', TRUE, '2026-07-09 16:45:00+08'::timestamptz, 'DOC40-ADOPTION-2026-03'),
+
+    ('AHZWFW-DOC40-MOCK-MARRIAGE-2026', 1, NULL, 'submitted', 'SUBMIT', '提交申请', '', '', '', '', FALSE, '2026-07-08 10:30:00+08'::timestamptz, 'DOC40-MARRIAGE-2026-01'),
+    ('AHZWFW-DOC40-MOCK-MARRIAGE-2026', 2, 'submitted', 'accepted', 'ACCEPT', '受理', '', '申请材料已核验，等待登记办理。', '', '', TRUE, '2026-07-08 11:05:00+08'::timestamptz, 'DOC40-MARRIAGE-2026-02')
+)
+INSERT INTO declaration_qa.business_application_statuses (
+    apply_id, sequence_no, from_status, status, current_node, node_name,
+    reason_code, reason, material_code, material_name, source_event_id,
+    is_current, payload, occurred_at, created_at, updated_at
+)
+SELECT
+    a.id, s.sequence_no, s.from_status, s.status, s.current_node, s.node_name,
+    s.reason_code, s.reason, s.material_code, s.material_name, s.source_event_id,
+    s.is_current, jsonb_build_object('source', 'doc40_mock_seed'),
+    s.occurred_at, s.occurred_at, s.occurred_at
+FROM seed_status s
+JOIN declaration_qa.business_applications a ON a.apply_uid = s.apply_uid
+ORDER BY s.apply_uid, s.sequence_no;
+
+WITH seed_reject (
+    apply_uid, material_code, material_name, reject_code, reject_reason,
+    audit_node, created_at
+) AS (
+    VALUES
+    (
+        'AHZWFW-DOC40-MOCK-OCS-2026',
+        'PROPERTY_AND_TRAVEL_RECORD', '房产证、出入境记录',
+        'MISSING_PROPERTY_AND_TRAVEL_RECORD',
+        '未提交房产证，且出入境记录缺少最近五年的完整记录，请补充后重新提交。',
+        '材料预审', '2026-07-10 14:20:00+08'::timestamptz
+    ),
+    (
+        'AHZWFW-DOC40-MOCK-ADOPTION-2026',
+        'AUTHORIZATION_AND_PHOTO', '授权委托书、被收养人照片',
+        'AUTHORIZATION_UNSIGNED',
+        '授权委托书缺少委托人签字，被收养人照片也未按要求提交，请补正后重新申报。',
+        '材料预审', '2026-07-09 16:45:00+08'::timestamptz
+    )
+)
+INSERT INTO declaration_qa.business_reject_infos (
+    apply_id, material_code, material_name, reject_code, reject_reason,
+    audit_node, is_current, payload, created_at, updated_at
+)
+SELECT
+    a.id, r.material_code, r.material_name, r.reject_code, r.reject_reason,
+    r.audit_node, TRUE, jsonb_build_object('source', 'doc40_mock_seed'),
+    r.created_at, r.created_at
+FROM seed_reject r
+JOIN declaration_qa.business_applications a ON a.apply_uid = r.apply_uid;
+
+COMMIT;
+
+

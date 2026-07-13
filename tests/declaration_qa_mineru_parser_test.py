@@ -1,5 +1,4 @@
 import json
-import types
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.indexing.attachments.chunks import build_attachment_chunk_specs
@@ -53,41 +52,51 @@ def test_mineru_content_items_are_one_to_one_and_exact_duplicates_are_removed():
     assert "材料清单" in table_specs[0]["content"]
 
 
-def test_mineru_parser_runs_pipeline_with_modelscope_and_reads_native_outputs(monkeypatch, tmp_path):
+def test_mineru_parser_calls_api_and_reads_native_outputs(monkeypatch):
     captured = {}
 
-    monkeypatch.setattr(
-        "declaration_qa.indexing.document_parsing.mineru_parser.shutil.which",
-        lambda value: "C:/tools/mineru.exe",
-    )
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
 
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["env"] = kwargs["env"]
-        output_dir = tmp_path / "mineru-output"
-        actual_output = command[command.index("-o") + 1]
-        output_dir = type(output_dir)(actual_output) / "result" / "auto"
-        output_dir.mkdir(parents=True)
-        (output_dir / "document.md").write_text("# 取水许可\n\n办理材料说明", encoding="utf-8")
-        (output_dir / "document_content_list.json").write_text(
-            json.dumps(
-                [
-                    {"type": "text", "text": "取水许可", "text_level": 1, "page_idx": 0, "bbox": [0, 0, 900, 80]},
-                    {
-                        "type": "table",
-                        "table_caption": ["申请材料"],
-                        "table_body": "<table><tr><td>申请表</td><td>原件</td></tr></table>",
-                        "page_idx": 0,
-                        "bbox": [10, 100, 900, 700],
-                    },
-                ],
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        return types.SimpleNamespace(returncode=0, stdout="ok", stderr="")
+        def json(self):
+            return {
+                "status": "completed",
+                "results": {
+                    "guide": {
+                        "md_content": "# 取水许可\n\n办理材料说明",
+                        "content_list": json.dumps(
+                            [
+                                {
+                                    "type": "text",
+                                    "text": "取水许可",
+                                    "text_level": 1,
+                                    "page_idx": 0,
+                                    "bbox": [0, 0, 900, 80],
+                                },
+                                {
+                                    "type": "table",
+                                    "table_caption": ["申请材料"],
+                                    "table_body": "<table><tr><td>申请表</td><td>原件</td></tr></table>",
+                                    "page_idx": 0,
+                                    "bbox": [10, 100, 900, 700],
+                                },
+                            ],
+                            ensure_ascii=False,
+                        ),
+                        "images": {},
+                    }
+                },
+            }
 
-    monkeypatch.setattr("declaration_qa.indexing.document_parsing.mineru_parser.subprocess.run", fake_run)
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["files"] = kwargs["files"]
+        captured["data"] = dict(kwargs["data"])
+        captured["timeout"] = kwargs["timeout"]
+        return FakeResponse()
+
+    monkeypatch.setattr("declaration_qa.indexing.document_parsing.mineru_parser.requests.post", fake_post)
     parser = MinerUDocumentParser(timeout_seconds=120, backend="pipeline", model_source="modelscope")
 
     parsed = parser.parse(filename="guide.pdf", content_type="application/pdf", data=b"%PDF fake")
@@ -96,16 +105,20 @@ def test_mineru_parser_runs_pipeline_with_modelscope_and_reads_native_outputs(mo
     assert parsed.metadata["mineru_chunk_count"] == 2
     assert len(parsed.metadata["mineru_chunk_specs"]) == 2
     assert [block.block_type for block in parsed.blocks] == ["text", "table"]
-    assert captured["command"][captured["command"].index("-b") + 1] == "pipeline"
-    assert captured["command"][captured["command"].index("-l") + 1] == "ch"
-    assert captured["env"]["MINERU_MODEL_SOURCE"] == "modelscope"
+    assert captured["url"] == "http://127.0.0.1:8011/file_parse"
+    assert captured["files"][0][1][0] == "guide.pdf"
+    assert captured["data"]["backend"] == "pipeline"
+    assert captured["data"]["lang_list"] == "ch"
+    assert captured["data"]["formula_enable"] == "false"
+    assert captured["data"]["return_content_list"] == "true"
+    assert captured["timeout"] == (10, 120)
 
 
 def test_mineru_factory_receives_runtime_settings():
     parser = build_document_parser(
         provider="mineru",
         fallback_enabled=False,
-        mineru_cli_path="custom-mineru",
+        mineru_api_url="http://127.0.0.1:8011",
         mineru_backend="pipeline",
         mineru_method="ocr",
         mineru_language="ch",
@@ -114,8 +127,9 @@ def test_mineru_factory_receives_runtime_settings():
     )
 
     assert isinstance(parser, MinerUDocumentParser)
-    assert parser.cli_path == "custom-mineru"
+    assert parser.api_url == "http://127.0.0.1:8011"
     assert parser.method == "ocr"
+    assert parser.formula_enabled is False
     assert parser.timeout_seconds == 5400
 
 

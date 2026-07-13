@@ -62,11 +62,12 @@ def process_document_index(
             llamaparse_api_key=settings.llamaparse_api_key,
             llamaparse_base_url=settings.llamaparse_base_url,
             llamaparse_result_type=settings.llamaparse_result_type,
-            mineru_cli_path=settings.mineru_cli_path,
+            mineru_api_url=settings.mineru_api_url,
             mineru_backend=settings.mineru_backend,
             mineru_method=settings.mineru_method,
             mineru_language=settings.mineru_language,
             mineru_model_source=settings.mineru_model_source,
+            mineru_formula_enabled=settings.mineru_formula_enabled,
             mineru_timeout_seconds=settings.mineru_timeout_seconds,
         )
         content = parsed.text

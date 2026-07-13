@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import mimetypes
-import os
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from declaration_qa.indexing.document_parsing.models import (
     DocumentParseError,
@@ -18,7 +17,6 @@ from declaration_qa.indexing.document_parsing.models import (
     ParsedDocument,
 )
 from declaration_qa.indexing.document_parsing.native import parse_metadata
-from declaration_qa.indexing.document_parsing.structured import temp_document_file
 from declaration_qa.indexing.document_parsing.text import normalize_extracted_text
 
 
@@ -38,25 +36,27 @@ SUPPORTED_MINERU_SUFFIXES = {
 
 
 class MinerUDocumentParser:
-    """Run MinerU CLI and adapt its native content list to the project model."""
+    """Call MinerU API and adapt its native content list to the project model."""
 
     name = "mineru"
 
     def __init__(
         self,
         *,
-        cli_path: str = "mineru",
+        api_url: str = "http://127.0.0.1:8011",
         backend: str = "pipeline",
         method: str = "auto",
         language: str = "ch",
         model_source: str = "modelscope",
+        formula_enabled: bool = False,
         timeout_seconds: int = 3600,
     ) -> None:
-        self.cli_path = str(cli_path or "mineru").strip() or "mineru"
+        self.api_url = str(api_url or "").strip().rstrip("/")
         self.backend = str(backend or "pipeline").strip() or "pipeline"
         self.method = str(method or "auto").strip() or "auto"
         self.language = str(language or "ch").strip()
         self.model_source = str(model_source or "modelscope").strip()
+        self.formula_enabled = bool(formula_enabled)
         self.timeout_seconds = max(1, int(timeout_seconds))
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
@@ -64,28 +64,18 @@ class MinerUDocumentParser:
         suffix = Path(filename or "").suffix.lower()
         if suffix not in SUPPORTED_MINERU_SUFFIXES:
             raise DocumentParseError(f"MinerU does not support this input type: {suffix or content_type or 'unknown'}")
-        executable = shutil.which(self.cli_path)
-        if executable is None and not Path(self.cli_path).is_file():
-            raise DocumentParseError(f"MinerU CLI is not installed or not found: {self.cli_path}")
-
-        with temp_document_file(filename=filename, data=data) as input_path:
-            with tempfile.TemporaryDirectory(prefix="declaration-qa-mineru-") as output_value:
-                output_path = Path(output_value)
-                self._run_cli(executable or self.cli_path, input_path=input_path, output_path=output_path)
-                markdown_path = find_mineru_markdown(output_path, input_stem=input_path.stem)
-                content_list_path = find_mineru_content_list(output_path, input_stem=input_path.stem)
-                content_items = load_mineru_content_items(content_list_path) if content_list_path else []
-                chunk_specs = mineru_chunk_specs(content_items)
-                markdown = read_text_file(markdown_path) if markdown_path else ""
-                if not markdown.strip():
-                    markdown = "\n\n".join(str(spec.get("content") or "") for spec in chunk_specs).strip()
-                if not markdown.strip():
-                    raise DocumentParseError("MinerU returned no readable Markdown or content blocks")
-                blocks = mineru_parsed_blocks(
-                    content_items,
-                    content_list_dir=content_list_path.parent if content_list_path else output_path,
-                    output_dir=output_path,
-                )
+        if not self.api_url:
+            raise DocumentParseError("MinerU API URL is not configured")
+        result = self._request_parse(filename=filename, content_type=content_type, data=data)
+        content_items = parse_mineru_content_items(result.get("content_list"))
+        chunk_specs = mineru_chunk_specs(content_items)
+        markdown = str(result.get("md_content") or "")
+        if not markdown.strip():
+            markdown = "\n\n".join(str(spec.get("content") or "") for spec in chunk_specs).strip()
+        if not markdown.strip():
+            raise DocumentParseError("MinerU returned no readable Markdown or content blocks")
+        images = result.get("images") if isinstance(result.get("images"), dict) else {}
+        blocks = mineru_parsed_blocks(content_items, images=images)
 
         normalized_markdown = normalize_extracted_text(markdown)
         metadata = {
@@ -95,6 +85,7 @@ class MinerUDocumentParser:
             "mineru_method": self.method,
             "mineru_language": self.language,
             "mineru_model_source": self.model_source,
+            "mineru_api_url": self.api_url,
             "mineru_chunk_count": len(chunk_specs),
             "mineru_chunk_specs": chunk_specs,
             "mineru_content_item_count": len(content_items),
@@ -108,80 +99,57 @@ class MinerUDocumentParser:
             metadata=metadata,
         )
 
-    def _run_cli(self, executable: str, *, input_path: Path, output_path: Path) -> None:
-        command = [
-            executable,
-            "-p",
-            str(input_path),
-            "-o",
-            str(output_path),
-            "-b",
-            self.backend,
-            "-m",
-            self.method,
+    def _request_parse(self, *, filename: str, content_type: str, data: bytes) -> dict[str, Any]:
+        form_data: list[tuple[str, str]] = [
+            ("backend", self.backend),
+            ("parse_method", self.method),
+            ("formula_enable", str(self.formula_enabled).lower()),
+            ("table_enable", "true"),
+            ("return_md", "true"),
+            ("return_content_list", "true"),
+            ("return_images", "true"),
         ]
         if self.language and self.backend == "pipeline":
-            command.extend(["-l", self.language])
-        environment = os.environ.copy()
-        if self.model_source:
-            environment["MINERU_MODEL_SOURCE"] = self.model_source
+            form_data.append(("lang_list", self.language))
         try:
-            completed = subprocess.run(
-                command,
-                check=False,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout_seconds,
-                env=environment,
+            response = requests.post(
+                f"{self.api_url}/file_parse",
+                files=[("files", (filename, data, content_type or "application/octet-stream"))],
+                data=form_data,
+                timeout=(10, self.timeout_seconds),
             )
-        except subprocess.TimeoutExpired as exc:
+            response.raise_for_status()
+        except requests.Timeout as exc:
             raise DocumentParseError(f"MinerU parse timed out after {self.timeout_seconds} seconds") from exc
-        except OSError as exc:
-            raise DocumentParseError(f"MinerU CLI could not start: {type(exc).__name__}: {str(exc)[:240]}") from exc
-        if completed.returncode != 0:
-            details = (completed.stderr or completed.stdout or "unknown error").strip()
-            raise DocumentParseError(f"MinerU parse failed with exit code {completed.returncode}: {details[-500:]}")
+        except requests.RequestException as exc:
+            raise DocumentParseError(
+                f"MinerU API request failed at {self.api_url}: {type(exc).__name__}: {str(exc)[:300]}"
+            ) from exc
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise DocumentParseError("MinerU API returned invalid JSON") from exc
+        if not isinstance(payload, dict):
+            raise DocumentParseError("MinerU API returned an unexpected response")
+        if payload.get("error"):
+            raise DocumentParseError(f"MinerU parse failed: {str(payload['error'])[:500]}")
+        results = payload.get("results")
+        if not isinstance(results, dict) or not results:
+            raise DocumentParseError("MinerU API response contains no document result")
+        result = next(iter(results.values()))
+        if not isinstance(result, dict):
+            raise DocumentParseError("MinerU API document result is invalid")
+        return result
 
 
-def find_mineru_markdown(output_dir: Path, *, input_stem: str) -> Path | None:
-    """Find the primary Markdown generated by MinerU."""
-    paths = [path for path in output_dir.rglob("*.md") if path.is_file()]
-    return preferred_output_path(paths, input_stem=input_stem)
-
-
-def find_mineru_content_list(output_dir: Path, *, input_stem: str) -> Path | None:
-    """Find the stable v1 content list, with v2 as a compatibility fallback."""
-    v1_paths = [path for path in output_dir.rglob("*_content_list.json") if path.is_file()]
-    if v1_paths:
-        return preferred_output_path(v1_paths, input_stem=input_stem)
-    v2_paths = [path for path in output_dir.rglob("*_content_list_v2.json") if path.is_file()]
-    return preferred_output_path(v2_paths, input_stem=input_stem)
-
-
-def preferred_output_path(paths: list[Path], *, input_stem: str) -> Path | None:
-    """Prefer an output whose filename starts with the temporary input stem."""
-    if not paths:
-        return None
-    normalized_stem = input_stem.lower()
-    return sorted(
-        paths,
-        key=lambda path: (not path.stem.lower().startswith(normalized_stem), len(path.parts), str(path).lower()),
-    )[0]
-
-
-def read_text_file(path: Path) -> str:
-    """Read MinerU text output with a tolerant UTF-8 decoder."""
-    return path.read_text(encoding="utf-8", errors="replace")
-
-
-def load_mineru_content_items(path: Path) -> list[dict[str, Any]]:
-    """Load either MinerU content list format into a flat sequence."""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DocumentParseError(f"MinerU content list is invalid: {type(exc).__name__}: {str(exc)[:240]}") from exc
+def parse_mineru_content_items(value: Any) -> list[dict[str, Any]]:
+    """Parse either MinerU content list format into a flat sequence."""
+    payload = value
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise DocumentParseError(f"MinerU content list is invalid: {str(exc)[:240]}") from exc
     if isinstance(payload, dict):
         payload = payload.get("content_list") or payload.get("data") or []
     if not isinstance(payload, list):
@@ -253,8 +221,7 @@ def mineru_chunk_specs(content_items: list[dict[str, Any]]) -> list[dict[str, An
 def mineru_parsed_blocks(
     content_items: list[dict[str, Any]],
     *,
-    content_list_dir: Path,
-    output_dir: Path,
+    images: dict[str, Any],
 ) -> list[ParsedBlock]:
     """Preserve MinerU text, table, equation and image blocks for downstream assets."""
     blocks: list[ParsedBlock] = []
@@ -262,17 +229,8 @@ def mineru_parsed_blocks(
         item_type = mineru_item_type(item)
         text = mineru_item_text(item)
         page_idx = integer_or_none(item.get("page_idx"))
-        image_path = resolve_mineru_image_path(
-            str(item.get("img_path") or item.get("image_path") or ""),
-            content_list_dir=content_list_dir,
-            output_dir=output_dir,
-        )
-        binary_data = b""
-        if image_path is not None:
-            try:
-                binary_data = image_path.read_bytes()
-            except OSError:
-                binary_data = b""
+        image_name = str(item.get("img_path") or item.get("image_path") or "")
+        binary_data = mineru_image_bytes(images, image_name)
         if not text and not binary_data:
             continue
         block_type = {
@@ -281,7 +239,7 @@ def mineru_parsed_blocks(
             "chart": "picture",
             "equation": "equation",
         }.get(item_type, "text")
-        image_content_type = mimetypes.guess_type(str(image_path or ""))[0] or ""
+        image_content_type = mimetypes.guess_type(image_name)[0] or ""
         blocks.append(
             ParsedBlock(
                 block_type=block_type,
@@ -406,18 +364,27 @@ def integer_or_none(value: Any) -> int | None:
         return None
 
 
-def resolve_mineru_image_path(value: str, *, content_list_dir: Path, output_dir: Path) -> Path | None:
-    """Resolve an image path referenced by MinerU output."""
-    normalized = str(value or "").strip().replace("/", os.sep)
-    if not normalized:
-        return None
-    candidate = Path(normalized)
-    candidates = [candidate] if candidate.is_absolute() else [content_list_dir / candidate, output_dir / candidate]
-    for path in candidates:
-        if path.is_file():
-            return path
-    filename = candidate.name
-    return next((path for path in output_dir.rglob(filename) if path.is_file()), None)
+def mineru_image_bytes(images: dict[str, Any], image_name: str) -> bytes:
+    """Decode an image returned inline by MinerU API."""
+    normalized_name = str(image_name or "").strip().replace("\\", "/")
+    if not normalized_name or not images:
+        return b""
+    normalized_images = {str(key).replace("\\", "/"): value for key, value in images.items()}
+    value = normalized_images.get(normalized_name)
+    if value is None:
+        basename = Path(normalized_name).name
+        value = next((item for key, item in normalized_images.items() if Path(key).name == basename), None)
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, dict):
+        value = value.get("data") or value.get("base64") or value.get("content")
+    if not isinstance(value, str) or not value.strip():
+        return b""
+    encoded = value.split(",", 1)[1] if value.lstrip().startswith("data:") and "," in value else value
+    try:
+        return base64.b64decode(encoded)
+    except (ValueError, TypeError):
+        return b""
 
 
 def mineru_chunk_suffix(index: int, *, item_type: str, text: str) -> str:
