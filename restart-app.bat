@@ -5,22 +5,31 @@ cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%\"
 set "CONDA_ENV=langchain-agent"
 set "MINERU_MODEL_SOURCE=modelscope"
+set "PYTHON_EXE="
+set "CONDA_BASE="
+
+for /f "delims=" %%I in ('conda info --base 2^>nul') do if not defined CONDA_BASE set "CONDA_BASE=%%I"
+if defined CONDA_BASE if exist "%CONDA_BASE%\envs\%CONDA_ENV%\python.exe" set "PYTHON_EXE=%CONDA_BASE%\envs\%CONDA_ENV%\python.exe"
+
+if not defined PYTHON_EXE (
+    echo Conda environment "%CONDA_ENV%" was not found.
+    echo Run: conda env list
+    exit /b 1
+)
 
 if /i "%~1"=="api" goto run_api
 if /i "%~1"=="mineru" goto run_mineru
 if /i "%~1"=="worker" goto run_worker
 if /i "%~1"=="frontend" goto run_frontend
 
-echo [1/4] Stopping API, worker, and frontend...
-call "%~dp0stop-app.bat"
-
-echo [2/4] Cleaning stale listeners on ports 8010, 8011, and 5173...
+echo [1/4] Stopping existing application processes...
+echo [2/4] Cleaning listeners on ports 8010, 8011, and 5173...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference = 'SilentlyContinue';" ^
   "$ports = @(8010, 8011, 5173);" ^
   "$processes = @(Get-CimInstance Win32_Process);" ^
   "$roots = @($processes | Where-Object {" ^
-  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match '(start-app|restart-app)\.bat.? (api|mineru|worker|frontend)') -or" ^
+  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|frontend)') -or" ^
   "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker|-m mineru\.cli\.fast_api') -or" ^
   "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'declaration_qa[\\/]frontend.*vite')" ^
   "});" ^
@@ -56,10 +65,8 @@ if errorlevel 1 (
 
 echo [3/4] Starting application...
 set "NO_PROXY=127.0.0.1,localhost,127.0.0.0/8"
-call :activate_conda_env
-if errorlevel 1 exit /b %errorlevel%
 
-python -c "import fastapi, uvicorn" >nul 2>nul
+"%PYTHON_EXE%" -c "import chonkie, fastapi, mineru, uvicorn" >nul 2>nul
 if errorlevel 1 (
     echo Python dependencies were not found in conda environment "%CONDA_ENV%".
     echo Run: conda activate %CONDA_ENV%
@@ -115,7 +122,7 @@ echo [4/4] Waiting for API health check...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ready = $false;" ^
   "$mineruReady = $false;" ^
-  "for ($i = 0; $i -lt 30; $i++) {" ^
+  "for ($i = 0; $i -lt 60; $i++) {" ^
   "  try {" ^
   "    $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8010/api/declaration-qa/health' -TimeoutSec 2;" ^
   "    if ($health.ok) { $ready = $true; break }" ^
@@ -141,48 +148,26 @@ exit /b 0
 
 :run_api
 title Declaration QA API
-call :activate_conda_env
-if errorlevel 1 exit /b %errorlevel%
 echo Starting API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8010 ...
-python -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
+"%PYTHON_EXE%" -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
 exit /b %errorlevel%
 
 :run_mineru
 title MinerU API
-call :activate_conda_env
-if errorlevel 1 exit /b %errorlevel%
 echo Starting MinerU API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8011 ...
-python -m mineru.cli.fast_api --host 127.0.0.1 --port 8011
+"%PYTHON_EXE%" -m mineru.cli.fast_api --host 127.0.0.1 --port 8011
 exit /b %errorlevel%
 
 :run_worker
 title Declaration QA Worker
-call :activate_conda_env
-if errorlevel 1 exit /b %errorlevel%
 set "PYTHONPATH=%PROJECT_ROOT%src"
 echo Starting RQ index worker with conda environment "%CONDA_ENV%" ...
-python -m declaration_qa.indexing.worker
+"%PYTHON_EXE%" -m declaration_qa.indexing.worker
 exit /b %errorlevel%
 
 :run_frontend
 title Declaration QA Frontend
-call :activate_conda_env
-if errorlevel 1 exit /b %errorlevel%
 cd /d "%PROJECT_ROOT%frontend"
 echo Starting frontend at http://127.0.0.1:5173 ...
 call npm run dev
 exit /b %errorlevel%
-
-:activate_conda_env
-if /i "%CONDA_DEFAULT_ENV%"=="%CONDA_ENV%" exit /b 0
-where conda >nul 2>nul || (
-    echo Conda was not found. Install Miniconda or Anaconda and try again.
-    exit /b 1
-)
-call conda activate "%CONDA_ENV%" >nul 2>nul
-if errorlevel 1 (
-    echo Failed to activate conda environment "%CONDA_ENV%".
-    echo Run: conda env list
-    exit /b 1
-)
-exit /b 0

@@ -8,6 +8,7 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument
 from declaration_qa.rag.engine.constants import (
+    CHUNKING_CHONKIE,
     CHUNKING_HIERARCHICAL,
     CHUNKING_MINERU,
     CHUNKING_PARENT_CHILD,
@@ -18,14 +19,14 @@ from declaration_qa.rag.retrieval import sanitize_metadata
 
 def normalize_chunking_strategy(value: Any) -> str:
     """归一化文档切片策略。"""
-    strategy = str(value or CHUNKING_PARENT_CHILD).strip().lower().replace("-", "_")
-    return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_PARENT_CHILD
+    strategy = str(value or CHUNKING_CHONKIE).strip().lower().replace("-", "_")
+    return strategy if strategy in SUPPORTED_CHUNKING_STRATEGIES else CHUNKING_CHONKIE
 
 
 def split_document(document: KnowledgeDocument) -> list[KnowledgeChunk]:
     """按配置的策略切分文档。"""
     strategy = normalize_chunking_strategy(document.metadata.get("chunking_strategy"))
-    if strategy == CHUNKING_MINERU:
+    if strategy in {CHUNKING_CHONKIE, CHUNKING_MINERU}:
         chunks = []
     elif strategy == CHUNKING_HIERARCHICAL:
         chunks = split_hierarchical(document)

@@ -108,24 +108,14 @@ def test_attachment_pipeline_builds_form_chunks_and_keeps_failed_image_non_block
     assert result.success_count == 1
     assert result.failed_count == 1
     assert result.chunk_specs
-    spec = next(spec for spec in result.chunk_specs if spec["metadata"]["chunk_type"] == "attachment_form")
-    assert spec["metadata"]["chunk_type"] == "attachment_form"
+    spec = next(spec for spec in result.chunk_specs if "取水用途" in spec["content"])
+    assert spec["metadata"]["chunk_type"].startswith("attachment_chonkie_")
     assert spec["metadata"]["attachment_role"] == "sample_file"
     assert spec["metadata"]["material_name"] == "取水许可申请书"
     assert "取水用途" in spec["content"]
     assert "制水供水" in spec["content"]
-    field_specs = [
-        spec
-        for spec in result.chunk_specs
-        if spec["metadata"].get("chunk_type") == "form_field"
-    ]
-    fields_by_name = {spec["metadata"]["field_name"]: spec for spec in field_specs}
-    assert {"取水用途", "取水工程类型"} <= set(fields_by_name)
-    water_use = fields_by_name["取水用途"]
-    assert water_use["metadata"]["field_type"] == "checkbox"
-    assert water_use["metadata"]["field_multiple"] is True
-    assert water_use["metadata"]["field_options"] == ["制水供水", "原水供水", "生活用水", "工业用水"]
-    assert "表单字段：取水用途" in water_use["content"]
+    assert all(spec.get("chunk_type") == "child" for spec in result.chunk_specs)
+    assert not any(spec["metadata"].get("chunk_type") == "form_field" for spec in result.chunk_specs)
 
 
 def test_attachment_pipeline_deduplicates_same_file_content(monkeypatch, tmp_path):
@@ -255,7 +245,7 @@ def test_split_document_indexes_derived_attachment_chunks_as_child_siblings():
     assert derived.metadata["sibling_ids"]
 
 
-def test_attachment_non_table_text_uses_hierarchical_parent_child_chunks():
+def test_attachment_non_table_text_uses_chonkie_child_chunks():
     extracted = ExtractedAttachment(
         ref=AttachmentRef(
             index=0,
@@ -297,16 +287,14 @@ def test_attachment_non_table_text_uses_hierarchical_parent_child_chunks():
     )
 
     chunks = split_document(document)
-    text_chunks = [chunk for chunk in chunks if chunk.metadata.get("chunk_type") == "attachment_text"]
+    text_chunks = [chunk for chunk in chunks if str(chunk.metadata.get("chunk_type") or "").startswith("attachment_chonkie_")]
     parent_chunks = [chunk for chunk in text_chunks if chunk.chunk_type == "parent"]
     child_chunks = [chunk for chunk in text_chunks if chunk.chunk_type == "child"]
 
-    assert parent_chunks
+    assert not parent_chunks
     assert child_chunks
-    assert all(chunk.metadata["attachment_text_chunking_strategy"] == "hierarchical" for chunk in text_chunks)
-    assert all(chunk.metadata.get("indexable") is False for chunk in parent_chunks)
     assert all(chunk.metadata.get("indexable") is True for chunk in child_chunks)
-    assert any(chunk.parent_id in {parent.id for parent in parent_chunks} for chunk in child_chunks)
+    assert all(not chunk.parent_id for chunk in child_chunks)
 
 
 def test_attachment_pdf_ocr_text_chunks_include_page_metadata():
@@ -348,7 +336,7 @@ def test_attachment_pdf_ocr_text_chunks_include_page_metadata():
     assert page_metadata[2]["attachment_page_numbers"] == [2]
 
 
-def test_attachment_parent_child_chunk_records_cross_page_range():
+def test_attachment_chonkie_chunks_keep_page_numbers_without_parents():
     extracted = ExtractedAttachment(
         ref=AttachmentRef(
             index=0,
@@ -375,10 +363,8 @@ def test_attachment_parent_child_chunk_records_cross_page_range():
         overlap=20,
     )
 
-    parent_spec = next(spec for spec in specs if spec.get("chunk_type") == "parent")
-    assert parent_spec["metadata"]["attachment_page_numbers"] == [1, 2]
-    assert parent_spec["metadata"]["attachment_page_range"] == "1-2"
-    assert "attachment_page_no" not in parent_spec["metadata"]
+    assert all(spec.get("chunk_type") == "child" for spec in specs)
+    assert {spec["metadata"]["attachment_page_no"] for spec in specs} == {1, 2}
 
 
 def test_attachment_text_child_retrieval_backfills_parent_context():
@@ -889,12 +875,16 @@ def test_uploaded_pdf_picture_flows_into_document_index(monkeypatch, tmp_path):
         parser_name="mineru",
         blocks=[picture],
         metadata={
-            "mineru_chunk_specs": [
+            "chonkie_chunk_specs": [
                 {
                     "id_suffix": "mineru:0",
                     "chunk_type": "child",
                     "content": "办理指南正文",
-                    "metadata": {"chunk_type": "mineru_text"},
+                    "metadata": {
+                        "chunk_type": "chonkie_text",
+                        "chunking_strategy": "chonkie",
+                        "chonkie_chunk_kind": "text",
+                    },
                 }
             ]
         },

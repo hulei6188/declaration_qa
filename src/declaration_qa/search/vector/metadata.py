@@ -42,6 +42,7 @@ MILVUS_METADATA_MAX_BYTES = 48 * 1024
 MILVUS_METADATA_EXCLUDED_FIELDS = frozenset(
     {
         "mineru_chunk_specs",
+        "chonkie_chunk_specs",
         "llm_table_context",
         "table_html",
         "table_json",

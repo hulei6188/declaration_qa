@@ -90,7 +90,7 @@ def register_knowledge_routes(app):
         effective_start_time: str = Form(""),
         effective_end_time: str = Form(""),
         metadata: str = Form(""),
-        chunking_strategy: str = Form("parent_child"),
+        chunking_strategy: str = Form("chonkie"),
     ):
         """接收单个文件上传并创建索引任务。"""
         require_service_or_user(context, settings)
@@ -124,7 +124,7 @@ def register_knowledge_routes(app):
         effective_start_time: str = Form(""),
         effective_end_time: str = Form(""),
         metadata: str = Form(""),
-        chunking_strategy: str = Form("parent_child"),
+        chunking_strategy: str = Form("chonkie"),
     ):
         """接收批量文件上传并创建索引任务。"""
         require_service_or_user(context, settings)

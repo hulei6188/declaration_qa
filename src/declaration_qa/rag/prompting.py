@@ -237,7 +237,17 @@ def table_context_for_llm(source: dict[str, Any]) -> str:
     """返回表格证据的精简结构上下文。"""
     metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
     semantic_type = str(metadata.get("chunk_type") or "")
-    if semantic_type not in {"attachment_table", "mineru_table", "attachment_mineru_table", "table_parent", "table_summary", "table_row", "table_kv"}:
+    if semantic_type not in {
+        "attachment_table",
+        "chonkie_table",
+        "attachment_chonkie_table",
+        "mineru_table",
+        "attachment_mineru_table",
+        "table_parent",
+        "table_summary",
+        "table_row",
+        "table_kv",
+    }:
         return ""
     context = metadata.get("llm_table_context")
     if not context:

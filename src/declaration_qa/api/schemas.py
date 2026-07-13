@@ -108,7 +108,7 @@ class KnowledgeDocumentRequest(BaseModel):
     content: str = Field(min_length=1)
     region_code: str = Field(default="340000", min_length=2, max_length=12)
     policy_version: str = Field(default="2025", max_length=80)
-    chunking_strategy: str = Field(default="parent_child", max_length=40)
+    chunking_strategy: str = Field(default="chonkie", max_length=40)
     source_url: str = Field(default="", max_length=500)
     audit_node: str = Field(default="", max_length=80)
     status: str = Field(default="published", max_length=40)
@@ -128,7 +128,7 @@ class KnowledgeUploadResponse(KnowledgeDocumentResponse):
     """单文件知识上传响应模型。"""
     filename: str
     content_type: str
-    chunking_strategy: str = "parent_child"
+    chunking_strategy: str = "chonkie"
 
 
 class KnowledgeBatchUploadResponse(BaseModel):

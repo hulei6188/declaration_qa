@@ -139,6 +139,9 @@ def build_attachment_chunks_for_document(
                     mineru_model_source=settings.mineru_model_source,
                     mineru_formula_enabled=settings.mineru_formula_enabled,
                     mineru_timeout_seconds=settings.mineru_timeout_seconds,
+                    chonkie_text_max_chars=settings.chonkie_text_max_chars,
+                    chonkie_text_min_chars=settings.chonkie_text_min_chars,
+                    chonkie_table_max_chars=settings.chonkie_table_max_chars,
                     pdf_ocr_fallback_enabled=bool(settings.attachment_pdf_ocr_fallback_enabled),
                     pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
                     pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),
@@ -224,6 +227,9 @@ def build_shared_document_parser(
         mineru_model_source=settings.mineru_model_source,
         mineru_formula_enabled=settings.mineru_formula_enabled,
         mineru_timeout_seconds=settings.mineru_timeout_seconds,
+        chonkie_text_max_chars=settings.chonkie_text_max_chars,
+        chonkie_text_min_chars=settings.chonkie_text_min_chars,
+        chonkie_table_max_chars=settings.chonkie_table_max_chars,
     )
 
 

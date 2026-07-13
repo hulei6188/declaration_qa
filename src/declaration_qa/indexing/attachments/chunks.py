@@ -6,6 +6,7 @@ import hashlib
 import re
 from typing import Any
 
+from declaration_qa.indexing.chunking import ChonkieChunkingError, build_fallback_chunk_specs, build_markdown_chunk_specs
 from declaration_qa.indexing.attachments.form_fields import FormField, extract_form_fields
 from declaration_qa.indexing.attachments.assets import asset_url
 from declaration_qa.indexing.attachments.models import AttachmentAsset, ExtractedAttachment
@@ -29,89 +30,60 @@ def build_attachment_chunk_specs(
 ) -> list[dict[str, Any]]:
     """构建可交给 RAG 切片层合并的附件 chunk 描述。"""
     specs: list[dict[str, Any]] = []
-    chunking_strategy = normalize_chunking_strategy(document_metadata.get("chunking_strategy"))
     for extracted in extracted_items:
         if extracted.status != "success":
             continue
         specs.extend(build_attachment_asset_chunk_specs(extracted, document_metadata=document_metadata))
-        if extracted.chunk_specs:
-            specs.extend(build_attachment_native_chunk_specs(extracted, document_metadata=document_metadata))
-            continue
-        specs.extend(build_attachment_table_chunk_specs(extracted, document_metadata=document_metadata))
-        if not extracted.text.strip():
-            continue
-        semantic_type = str(extracted.metadata.get("semantic_chunk_type") or "attachment_text")
-        if extracted.assets and semantic_type in {"attachment_image", "attachment_image_ocr"}:
-            continue
-        if semantic_type == "attachment_form":
+        chunk_specs = list(extracted.chunk_specs)
+        if not chunk_specs and extracted.text.strip():
+            try:
+                chunk_specs = build_markdown_chunk_specs(
+                    extracted.text,
+                    text_max_chars=max_chunk_size,
+                    text_min_chars=min(120, max_chunk_size),
+                )
+            except ChonkieChunkingError:
+                chunk_specs = build_fallback_chunk_specs(extracted.text)
+        if chunk_specs:
             specs.extend(
-                build_attachment_form_chunk_specs(
+                build_attachment_chonkie_chunk_specs(
                     extracted,
                     document_metadata=document_metadata,
-                    max_chunk_size=max_chunk_size,
-                    overlap=overlap,
+                    chunk_specs=chunk_specs,
                 )
             )
-            specs.extend(build_form_field_chunk_specs(extracted, document_metadata=document_metadata))
-            non_table_text = extract_non_table_attachment_text(extracted.text)
-            if should_index_attachment_text(non_table_text):
-                specs.extend(
-                    build_attachment_text_chunk_specs(
-                        extracted,
-                        document_id=document_id,
-                        document_metadata=document_metadata,
-                        text=non_table_text,
-                        semantic_type="attachment_text",
-                        source_attachment_chunk_type=semantic_type,
-                        chunking_strategy=chunking_strategy,
-                        parent_size=max(900, max_chunk_size),
-                        child_size=min(520, max_chunk_size),
-                        overlap=overlap,
-                    )
-                )
-            continue
-        specs.extend(
-            build_attachment_text_chunk_specs(
-                extracted,
-                document_id=document_id,
-                document_metadata=document_metadata,
-                text=extracted.text,
-                semantic_type=semantic_type,
-                source_attachment_chunk_type=semantic_type,
-                chunking_strategy=chunking_strategy,
-                parent_size=max(900, max_chunk_size),
-                child_size=min(520, max_chunk_size),
-                overlap=overlap,
-            )
-        )
     return specs
 
 
-def build_attachment_native_chunk_specs(
+def build_attachment_chonkie_chunk_specs(
     extracted: ExtractedAttachment,
     *,
     document_metadata: dict[str, Any],
+    chunk_specs: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Map MinerU native content items one-to-one into attachment chunks."""
+    """Map final Chonkie chunks into attachment evidence without extra derivation."""
     specs: list[dict[str, Any]] = []
     attachment_digest = hashlib.sha1(
         f"{extracted.ref.url}\n{extracted.ref.name}\n{extracted.sha256}".encode("utf-8")
     ).hexdigest()[:12]
-    for item_index, native_spec in enumerate(extracted.chunk_specs):
+    for item_index, native_spec in enumerate(chunk_specs if chunk_specs is not None else extracted.chunk_specs):
         content = str(native_spec.get("content") or "").strip()
         if not content:
             continue
         native_metadata = dict(native_spec.get("metadata") or {})
-        item_type = str(native_metadata.get("mineru_item_type") or "text")
+        item_type = str(native_metadata.get("chonkie_chunk_kind") or native_metadata.get("mineru_item_type") or "text")
         semantic_type = "attachment_table" if item_type == "table" else "attachment_text"
         metadata = {
-            **attachment_base_metadata(extracted, document_metadata, semantic_type=semantic_type),
             **native_metadata,
-            "chunk_type": f"attachment_mineru_{item_type}",
+            **attachment_base_metadata(extracted, document_metadata, semantic_type=semantic_type),
+            "chunk_type": f"attachment_chonkie_{item_type}",
+            "chunking_strategy": "chonkie",
             "source_attachment_chunk_type": str(
                 extracted.metadata.get("semantic_chunk_type") or "attachment_text"
             ),
-            "extraction_method": "mineru",
+            "extraction_method": extracted.metadata.get("document_parser")
+            or extracted.metadata.get("extraction_method")
+            or "native",
             "indexable": True,
         }
         page_no = metadata.get("page_no")
@@ -125,7 +97,9 @@ def build_attachment_native_chunk_specs(
                     "attachment_page_range": str(page_no),
                 }
             )
-        native_suffix = str(native_spec.get("id_suffix") or f"mineru:{item_index}")
+        else:
+            metadata.update(attachment_page_metadata(content))
+        native_suffix = str(native_spec.get("id_suffix") or f"chonkie:{item_index}")
         specs.append(
             {
                 "id_suffix": f"attachment:{attachment_digest}:{native_suffix}",

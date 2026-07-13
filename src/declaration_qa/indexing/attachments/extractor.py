@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from declaration_qa.indexing.chunking import ChonkieChunkingError, build_fallback_chunk_specs, build_markdown_chunk_specs
 from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.models import DownloadedAttachment, ExtractedAttachment
 from declaration_qa.indexing.attachments.pdf_ocr import extract_pdf_pages_with_ocr
@@ -29,6 +30,9 @@ def extract_attachment(
     mineru_model_source: str = "modelscope",
     mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
+    chonkie_text_max_chars: int = 900,
+    chonkie_text_min_chars: int = 120,
+    chonkie_table_max_chars: int = 3500,
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -60,12 +64,27 @@ def extract_attachment(
             mineru_model_source=mineru_model_source,
             mineru_formula_enabled=mineru_formula_enabled,
             mineru_timeout_seconds=mineru_timeout_seconds,
+            chonkie_text_max_chars=chonkie_text_max_chars,
+            chonkie_text_min_chars=chonkie_text_min_chars,
+            chonkie_table_max_chars=chonkie_table_max_chars,
         )
         text = parsed.text
         parsed_blocks = list(getattr(parsed, "blocks", None) or [])
         parsed_name = str(getattr(parsed, "parser_name", "") or "")
         parsed_metadata = dict(getattr(parsed, "metadata", None) or {})
-        native_chunk_specs = list(parsed_metadata.pop("mineru_chunk_specs", []) or [])
+        chunk_specs = list(parsed_metadata.pop("chonkie_chunk_specs", []) or [])
+        chunk_specs.extend(list(parsed_metadata.pop("mineru_chunk_specs", []) or []))
+        if not chunk_specs and text.strip():
+            try:
+                chunk_specs = build_markdown_chunk_specs(
+                    text,
+                    text_max_chars=chonkie_text_max_chars,
+                    text_min_chars=chonkie_text_min_chars,
+                    table_max_chars=chonkie_table_max_chars,
+                )
+            except ChonkieChunkingError as exc:
+                parsed_metadata["chonkie_chunking_fallback_reason"] = str(exc)
+                chunk_specs = build_fallback_chunk_specs(text)
         quality_error = attachment_text_quality_error(text, ref.extension)
         if quality_error:
             if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -77,6 +96,9 @@ def extract_attachment(
                     max_pages=pdf_ocr_max_pages,
                     dpi=pdf_ocr_dpi,
                     asset_dir=asset_dir,
+                    chonkie_text_max_chars=chonkie_text_max_chars,
+                    chonkie_text_min_chars=chonkie_text_min_chars,
+                    chonkie_table_max_chars=chonkie_table_max_chars,
                 )
             return failed_attachment(downloaded, reason=quality_error)
         metadata = analyze_extracted_attachment(text=text, extension=ref.extension, role=ref.role)
@@ -103,7 +125,7 @@ def extract_attachment(
             metadata=metadata,
             assets=assets,
             blocks=parsed_blocks,
-            chunk_specs=native_chunk_specs,
+            chunk_specs=chunk_specs,
         )
     except DocumentParseError as exc:
         if ref.extension.lower() == "pdf" and pdf_ocr_fallback_enabled:
@@ -115,6 +137,9 @@ def extract_attachment(
                 max_pages=pdf_ocr_max_pages,
                 dpi=pdf_ocr_dpi,
                 asset_dir=asset_dir,
+                chonkie_text_max_chars=chonkie_text_max_chars,
+                chonkie_text_min_chars=chonkie_text_min_chars,
+                chonkie_table_max_chars=chonkie_table_max_chars,
             )
         return failed_attachment(downloaded, reason=str(exc) or type(exc).__name__)
     except Exception as exc:
@@ -130,6 +155,9 @@ def extract_pdf_attachment_with_ocr(
     max_pages: int,
     dpi: int,
     asset_dir: Path | None = None,
+    chonkie_text_max_chars: int = 900,
+    chonkie_text_min_chars: int = 120,
+    chonkie_table_max_chars: int = 3500,
 ) -> ExtractedAttachment:
     """在 PDF 原生抽取不可用时使用页面 OCR。"""
     try:
@@ -185,6 +213,16 @@ def extract_pdf_attachment_with_ocr(
         pdf_page_fallback=True,
     )
     metadata.update(asset_metadata)
+    try:
+        chunk_specs = build_markdown_chunk_specs(
+            result.text,
+            text_max_chars=chonkie_text_max_chars,
+            text_min_chars=chonkie_text_min_chars,
+            table_max_chars=chonkie_table_max_chars,
+        )
+    except ChonkieChunkingError as exc:
+        metadata["chonkie_chunking_fallback_reason"] = str(exc)
+        chunk_specs = build_fallback_chunk_specs(result.text)
     return ExtractedAttachment(
         ref=downloaded.ref,
         text=result.text,
@@ -195,6 +233,7 @@ def extract_pdf_attachment_with_ocr(
         metadata=metadata,
         assets=assets,
         blocks=result.blocks,
+        chunk_specs=chunk_specs,
     )
 
 
@@ -253,6 +292,7 @@ def failed_attachment(downloaded: DownloadedAttachment, *, reason: str, metadata
 def attachment_parser_metadata(value: dict[str, object] | None) -> dict[str, object]:
     """移除只供解析阶段使用、不可复制到每个附件 chunk 的大型字段。"""
     metadata = dict(value or {})
+    metadata.pop("chonkie_chunk_specs", None)
     metadata.pop("mineru_chunk_specs", None)
     return metadata
 

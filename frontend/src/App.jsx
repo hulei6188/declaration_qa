@@ -345,7 +345,7 @@ export default function App() {
   }
 
   async function uploadBatch(files, title, strategy, policyVersion) {
-    const label = document.getElementById('chunkingStrategy')?.selectedOptions[0]?.textContent || '父子分块';
+    const label = document.getElementById('chunkingStrategy')?.selectedOptions[0]?.textContent || 'Chonkie 结构分块';
     const items = files.map((f, i) => ({
       id: `${f.name}-${f.size}-${f.lastModified}-${i}`,
       name: f.name,

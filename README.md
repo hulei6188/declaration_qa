@@ -19,8 +19,8 @@
 | 后端 | Python 3.10+、FastAPI、Uvicorn、Pydantic、SQLAlchemy、Psycopg |
 | Agent | LangGraph、LangChain、原生 Tool Calling、Pydantic Tool Schema |
 | 模型 | DashScope Qwen3-VL、Qwen3-VL Embedding、Qwen3-VL Rerank、OCR |
-| 检索 | Milvus、Elasticsearch BM25、RRF、Parent Context |
-| 文档解析 | MinerU、LlamaParse、PyMuPDF、PyPDF、Calamine |
+| 检索 | Milvus、Elasticsearch BM25、RRF、结构化证据回填 |
+| 文档解析与切分 | MinerU、Chonkie、LlamaParse、PyMuPDF、PyPDF、Calamine |
 | 数据与任务 | PostgreSQL、Redis、RQ |
 | 前端 | React 18、Vite 5、Lucide React、SSE |
 | 可观测 | Langfuse、结构化审计日志 |
@@ -61,21 +61,20 @@ copy .env.example .env
 
 ```cmd
 start-docker.bat
-start-app.bat
+restart-app.bat
 ```
 
 - 前端：http://127.0.0.1:5173
 - API 文档：http://127.0.0.1:8010/docs
 
-重启或关闭：
+重启应用或关闭基础设施：
 
 ```cmd
 restart-app.bat
-stop-app.bat
 stop-docker.bat
 ```
 
-`stop-app.bat` 只关闭前后端和索引 Worker；`stop-docker.bat` 关闭基础设施但保留数据卷。
+`restart-app.bat` 同时负责首次启动和后续重启；`stop-docker.bat` 关闭基础设施但保留数据卷。
 
 ## 配置
 
@@ -92,10 +91,14 @@ DECLARATION_QA_LLM_PROVIDER=dashscope
 DECLARATION_QA_EMBEDDING_PROVIDER=qwen3-vl-embedding
 DECLARATION_QA_RERANK_PROVIDER=dashscope
 DECLARATION_QA_DOCUMENT_PARSER_PROVIDER=auto
+DECLARATION_QA_CHONKIE_TEXT_MAX_CHARS=900
+DECLARATION_QA_CHONKIE_TABLE_MAX_CHARS=3500
 DECLARATION_QA_INDEX_QUEUE_BACKEND=rq
 ```
 
 本地轻量运行可将向量、关键词、Embedding、Rerank 和模型 Provider 切换为项目提供的内存或确定性实现。
+
+PDF、Office 文档和图片先由 MinerU 输出结构化 `content_list`，再由 Chonkie 生成最终检索块；Markdown 直接进入 Chonkie。新入库不再生成额外的表格 parent、summary 或 KV 块。
 
 ## 目录
 

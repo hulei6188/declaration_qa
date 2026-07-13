@@ -29,6 +29,9 @@ class CompositeDocumentParser:
         """依次调用解析器，直到成功解析。"""
         errors: list[str] = []
         for index, parser in enumerate(self.parsers):
+            supports = getattr(parser, "supports", None)
+            if callable(supports) and not supports(filename=filename, content_type=content_type):
+                continue
             try:
                 parsed = parser.parse(filename=filename, content_type=content_type, data=data)
                 if errors:
@@ -81,6 +84,9 @@ def parse_document_bytes(
     mineru_model_source: str = "modelscope",
     mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
+    chonkie_text_max_chars: int = 900,
+    chonkie_text_min_chars: int = 120,
+    chonkie_table_max_chars: int = 3500,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
     effective_order = parser_order
@@ -101,6 +107,9 @@ def parse_document_bytes(
         mineru_model_source=mineru_model_source,
         mineru_formula_enabled=mineru_formula_enabled,
         mineru_timeout_seconds=mineru_timeout_seconds,
+        chonkie_text_max_chars=chonkie_text_max_chars,
+        chonkie_text_min_chars=chonkie_text_min_chars,
+        chonkie_table_max_chars=chonkie_table_max_chars,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
 
@@ -121,6 +130,9 @@ def build_document_parser(
     mineru_model_source: str = "modelscope",
     mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
+    chonkie_text_max_chars: int = 900,
+    chonkie_text_min_chars: int = 120,
+    chonkie_table_max_chars: int = 3500,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
     normalized_provider = normalize_provider(provider)
@@ -141,6 +153,9 @@ def build_document_parser(
                     mineru_model_source=mineru_model_source,
                     mineru_formula_enabled=mineru_formula_enabled,
                     mineru_timeout_seconds=mineru_timeout_seconds,
+                    chonkie_text_max_chars=chonkie_text_max_chars,
+                    chonkie_text_min_chars=chonkie_text_min_chars,
+                    chonkie_table_max_chars=chonkie_table_max_chars,
                 )
                 for name in names
             ]
@@ -158,6 +173,9 @@ def build_document_parser(
         mineru_model_source=mineru_model_source,
         mineru_formula_enabled=mineru_formula_enabled,
         mineru_timeout_seconds=mineru_timeout_seconds,
+        chonkie_text_max_chars=chonkie_text_max_chars,
+        chonkie_text_min_chars=chonkie_text_min_chars,
+        chonkie_table_max_chars=chonkie_table_max_chars,
     )
     if normalized_provider == "native" or not fallback_enabled:
         return parser
@@ -178,6 +196,9 @@ def parser_by_name(
     mineru_model_source: str = "modelscope",
     mineru_formula_enabled: bool = False,
     mineru_timeout_seconds: int = 3600,
+    chonkie_text_max_chars: int = 900,
+    chonkie_text_min_chars: int = 120,
+    chonkie_table_max_chars: int = 3500,
 ) -> DocumentParser:
     """根据名称返回解析器实例。"""
     normalized = normalize_provider(name)
@@ -190,6 +211,9 @@ def parser_by_name(
             model_source=mineru_model_source,
             formula_enabled=mineru_formula_enabled,
             timeout_seconds=mineru_timeout_seconds,
+            chonkie_text_max_chars=chonkie_text_max_chars,
+            chonkie_text_min_chars=chonkie_text_min_chars,
+            chonkie_table_max_chars=chonkie_table_max_chars,
         )
     if normalized == "marker":
         return MarkerDocumentParser()

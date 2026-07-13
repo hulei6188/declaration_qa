@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeDocument
+from declaration_qa.indexing.chunking import (
+    ChonkieChunkingError,
+    build_fallback_chunk_specs,
+    build_markdown_chunk_specs,
+)
 from declaration_qa.indexing.attachments.assets import extract_visual_assets
 from declaration_qa.indexing.attachments.chunks import build_attachment_asset_chunk_specs
 from declaration_qa.indexing.attachments.models import AttachmentRef, DownloadedAttachment, ExtractedAttachment
@@ -16,7 +21,7 @@ from declaration_qa.indexing.attachments.pipeline import build_attachment_chunks
 from declaration_qa.indexing.documents import HttpOcrClient, parse_document_bytes
 from declaration_qa.indexing.service.metadata import extract_document_metadata
 from declaration_qa.indexing.service.workflow_index import index_document_for_workflow
-from declaration_qa.rag.engine.constants import CHUNKING_MINERU
+from declaration_qa.rag.engine.constants import CHUNKING_CHONKIE, CHUNKING_MINERU
 from declaration_qa.rag.engine.chunking import normalize_chunking_strategy
 from declaration_qa.rag.retrieval import sanitize_metadata
 
@@ -69,6 +74,9 @@ def process_document_index(
             mineru_model_source=settings.mineru_model_source,
             mineru_formula_enabled=settings.mineru_formula_enabled,
             mineru_timeout_seconds=settings.mineru_timeout_seconds,
+            chonkie_text_max_chars=settings.chonkie_text_max_chars,
+            chonkie_text_min_chars=settings.chonkie_text_min_chars,
+            chonkie_table_max_chars=settings.chonkie_table_max_chars,
         )
         content = parsed.text
         filename = parsed.filename
@@ -81,18 +89,34 @@ def process_document_index(
         filename = str(payload.get("filename") or "")
         content_type = str(payload.get("content_type") or "text/plain")
         parse_metadata = {}
-    mineru_chunk_specs = list(parse_metadata.pop("mineru_chunk_specs", []) or [])
+    chonkie_chunk_specs = list(parse_metadata.pop("chonkie_chunk_specs", []) or [])
+    legacy_mineru_chunk_specs = list(parse_metadata.pop("mineru_chunk_specs", []) or [])
     title = str(payload.get("title") or filename or payload["document_id"])
     source_url = str(payload.get("source_url") or "")
     parsed_metadata = extract_document_metadata(content, title=title, source_url=source_url)
     metadata = {**parsed_metadata, **sanitize_metadata(dict(payload.get("metadata") or {}))}
     if parse_metadata:
         metadata["document_parse"] = sanitize_metadata(parse_metadata)
-    metadata["chunking_strategy"] = (
-        CHUNKING_MINERU
-        if mineru_chunk_specs
-        else normalize_chunking_strategy(payload.get("chunking_strategy") or metadata.get("chunking_strategy"))
+    requested_chunking_strategy = normalize_chunking_strategy(
+        payload.get("chunking_strategy") or metadata.get("chunking_strategy") or CHUNKING_CHONKIE
     )
+    if not chonkie_chunk_specs and requested_chunking_strategy == CHUNKING_CHONKIE:
+        try:
+            chonkie_chunk_specs = build_markdown_chunk_specs(
+                content,
+                text_max_chars=settings.chonkie_text_max_chars,
+                text_min_chars=settings.chonkie_text_min_chars,
+                table_max_chars=settings.chonkie_table_max_chars,
+            )
+        except ChonkieChunkingError as exc:
+            metadata["chonkie_chunking_fallback_reason"] = str(exc)
+            chonkie_chunk_specs = build_fallback_chunk_specs(content)
+    if chonkie_chunk_specs:
+        metadata["chunking_strategy"] = CHUNKING_CHONKIE
+    elif legacy_mineru_chunk_specs:
+        metadata["chunking_strategy"] = CHUNKING_MINERU
+    else:
+        metadata["chunking_strategy"] = requested_chunking_strategy
     for key in ["region_code", "policy_version", "effective_start_time", "effective_end_time"]:
         if payload.get(key) not in ("", None) and key not in metadata:
             metadata[key] = payload.get(key)
@@ -151,7 +175,12 @@ def process_document_index(
             "chunk_count": len(attachment_result.chunk_specs),
             "failures": attachment_result.failures[:10],
         }
-    derived_chunks = [*mineru_chunk_specs, *uploaded_asset_specs, *attachment_result.chunk_specs]
+    derived_chunks = [
+        *chonkie_chunk_specs,
+        *legacy_mineru_chunk_specs,
+        *uploaded_asset_specs,
+        *attachment_result.chunk_specs,
+    ]
     document = KnowledgeDocument(
         id=str(payload["document_id"]),
         title=title,

@@ -10,7 +10,7 @@ from declaration_qa.indexing.document_parsing.mineru_parser import (
 )
 
 
-def test_mineru_content_items_are_one_to_one_and_exact_duplicates_are_removed():
+def test_mineru_content_items_become_deduplicated_chonkie_chunks():
     items = [
         {
             "type": "text",
@@ -42,12 +42,12 @@ def test_mineru_content_items_are_one_to_one_and_exact_duplicates_are_removed():
 
     specs = mineru_chunk_specs(items)
 
-    assert len(specs) == 3
+    assert len(specs) == 2
     assert all(spec["chunk_type"] == "child" for spec in specs)
     assert all("parent_id" not in spec and "parent_id_suffix" not in spec for spec in specs)
-    table_specs = [spec for spec in specs if spec["metadata"]["mineru_item_type"] == "table"]
+    table_specs = [spec for spec in specs if spec["metadata"]["chonkie_chunk_kind"] == "table"]
     assert len(table_specs) == 1
-    assert table_specs[0]["metadata"]["chunk_type"] == "mineru_table"
+    assert table_specs[0]["metadata"]["chunk_type"] == "chonkie_table"
     assert table_specs[0]["metadata"]["table_source"] == "mineru_native"
     assert "材料清单" in table_specs[0]["content"]
 
@@ -102,8 +102,8 @@ def test_mineru_parser_calls_api_and_reads_native_outputs(monkeypatch):
     parsed = parser.parse(filename="guide.pdf", content_type="application/pdf", data=b"%PDF fake")
 
     assert parsed.parser_name == "mineru"
-    assert parsed.metadata["mineru_chunk_count"] == 2
-    assert len(parsed.metadata["mineru_chunk_specs"]) == 2
+    assert parsed.metadata["chonkie_chunk_count"] == 1
+    assert len(parsed.metadata["chonkie_chunk_specs"]) == 1
     assert [block.block_type for block in parsed.blocks] == ["text", "table"]
     assert captured["url"] == "http://127.0.0.1:8011/file_parse"
     assert captured["files"][0][1][0] == "guide.pdf"
@@ -144,7 +144,7 @@ def test_markdown_uses_native_fallback_when_mineru_does_not_support_it():
 
     assert parsed.parser_name == "native"
     assert "取水许可" in parsed.text
-    assert parsed.metadata["document_parser_attempt_errors"][0].startswith("mineru:")
+    assert "document_parser_attempt_errors" not in parsed.metadata
 
 
 def test_attachment_reuses_mineru_chunks_without_table_semantic_expansion():
@@ -166,12 +166,13 @@ def test_attachment_reuses_mineru_chunks_without_table_semantic_expansion():
         metadata={"semantic_chunk_type": "attachment_form", "document_parser": "mineru"},
         chunk_specs=[
             {
-                "id_suffix": "mineru:2:table",
+                "id_suffix": "chonkie:table:2-2:0:abc",
                 "chunk_type": "child",
                 "content": "申请人 | 取水用途",
                 "metadata": {
-                    "chunk_type": "mineru_table",
-                    "chunking_strategy": "mineru",
+                    "chunk_type": "chonkie_table",
+                    "chunking_strategy": "chonkie",
+                    "chonkie_chunk_kind": "table",
                     "mineru_item_type": "table",
                     "page_no": 2,
                     "indexable": True,
@@ -183,7 +184,7 @@ def test_attachment_reuses_mineru_chunks_without_table_semantic_expansion():
     specs = build_attachment_chunk_specs([extracted], document_id="doc", document_metadata={})
 
     assert len(specs) == 1
-    assert specs[0]["metadata"]["chunk_type"] == "attachment_mineru_table"
+    assert specs[0]["metadata"]["chunk_type"] == "attachment_chonkie_table"
     assert specs[0]["metadata"]["attachment_page_no"] == 2
     assert "parent_id_suffix" not in specs[0]
     assert "table_semantic" not in specs[0]["id_suffix"]

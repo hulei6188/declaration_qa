@@ -11,6 +11,11 @@ from typing import Any
 
 import requests
 
+from declaration_qa.indexing.chunking import (
+    ChonkieChunkingError,
+    StructuredElement,
+    build_chonkie_chunk_specs,
+)
 from declaration_qa.indexing.document_parsing.models import (
     DocumentParseError,
     ParsedBlock,
@@ -33,6 +38,17 @@ SUPPORTED_MINERU_SUFFIXES = {
     ".pptx",
     ".xlsx",
 }
+SUPPORTED_MINERU_CONTENT_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/bmp",
+    "image/jpeg",
+    "image/png",
+    "image/tiff",
+    "image/webp",
+}
 
 
 class MinerUDocumentParser:
@@ -50,6 +66,9 @@ class MinerUDocumentParser:
         model_source: str = "modelscope",
         formula_enabled: bool = False,
         timeout_seconds: int = 3600,
+        chonkie_text_max_chars: int = 900,
+        chonkie_text_min_chars: int = 120,
+        chonkie_table_max_chars: int = 3500,
     ) -> None:
         self.api_url = str(api_url or "").strip().rstrip("/")
         self.backend = str(backend or "pipeline").strip() or "pipeline"
@@ -58,17 +77,36 @@ class MinerUDocumentParser:
         self.model_source = str(model_source or "modelscope").strip()
         self.formula_enabled = bool(formula_enabled)
         self.timeout_seconds = max(1, int(timeout_seconds))
+        self.chonkie_text_max_chars = max(100, int(chonkie_text_max_chars))
+        self.chonkie_text_min_chars = max(1, int(chonkie_text_min_chars))
+        self.chonkie_table_max_chars = max(200, int(chonkie_table_max_chars))
+
+    def supports(self, *, filename: str, content_type: str) -> bool:
+        """Return whether MinerU accepts this file type."""
+        suffix = Path(filename or "").suffix.lower()
+        normalized_content_type = str(content_type or "").partition(";")[0].strip().lower()
+        return suffix in SUPPORTED_MINERU_SUFFIXES or normalized_content_type in SUPPORTED_MINERU_CONTENT_TYPES
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
-        """Parse a supported document and preserve MinerU content blocks one-to-one."""
+        """Parse a supported document and turn MinerU elements into final Chonkie chunks."""
         suffix = Path(filename or "").suffix.lower()
-        if suffix not in SUPPORTED_MINERU_SUFFIXES:
+        if not self.supports(filename=filename, content_type=content_type):
             raise DocumentParseError(f"MinerU does not support this input type: {suffix or content_type or 'unknown'}")
         if not self.api_url:
             raise DocumentParseError("MinerU API URL is not configured")
         result = self._request_parse(filename=filename, content_type=content_type, data=data)
         content_items = parse_mineru_content_items(result.get("content_list"))
-        chunk_specs = mineru_chunk_specs(content_items)
+        chunking_fallback_reason = ""
+        try:
+            chunk_specs = mineru_chunk_specs(
+                content_items,
+                text_max_chars=self.chonkie_text_max_chars,
+                text_min_chars=self.chonkie_text_min_chars,
+                table_max_chars=self.chonkie_table_max_chars,
+            )
+        except ChonkieChunkingError as exc:
+            chunk_specs = mineru_native_chunk_specs(content_items)
+            chunking_fallback_reason = str(exc)
         markdown = str(result.get("md_content") or "")
         if not markdown.strip():
             markdown = "\n\n".join(str(spec.get("content") or "") for spec in chunk_specs).strip()
@@ -86,8 +124,9 @@ class MinerUDocumentParser:
             "mineru_language": self.language,
             "mineru_model_source": self.model_source,
             "mineru_api_url": self.api_url,
-            "mineru_chunk_count": len(chunk_specs),
-            "mineru_chunk_specs": chunk_specs,
+            "chonkie_chunk_count": len(chunk_specs),
+            "chonkie_chunk_specs": chunk_specs,
+            "chonkie_chunking_fallback_reason": chunking_fallback_reason,
             "mineru_content_item_count": len(content_items),
         }
         return ParsedDocument(
@@ -164,8 +203,57 @@ def parse_mineru_content_items(value: Any) -> list[dict[str, Any]]:
     return [item for item in payload if isinstance(item, dict)]
 
 
-def mineru_chunk_specs(content_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert each unique readable MinerU content item into exactly one chunk spec."""
+def mineru_chunk_specs(
+    content_items: list[dict[str, Any]],
+    *,
+    text_max_chars: int = 900,
+    text_min_chars: int = 120,
+    table_max_chars: int = 3500,
+) -> list[dict[str, Any]]:
+    """Convert MinerU content-list elements into final Chonkie chunks."""
+    elements: list[StructuredElement] = []
+    for item_index, item in enumerate(content_items):
+        item_type = mineru_item_type(item)
+        text = mineru_item_text(item)
+        if not text:
+            continue
+        text_level = mineru_text_level(item)
+        is_heading = item_type == "title" or text_level > 0
+        metadata: dict[str, Any] = {
+            "mineru_item_index": item_index,
+            "mineru_item_type": item_type,
+            "mineru_sub_type": str(item.get("sub_type") or ""),
+            "mineru_text_level": text_level,
+        }
+        if item_type == "table":
+            metadata.update(
+                {
+                    "table_source": "mineru_native",
+                    "table_body": str(item.get("table_body") or text),
+                    "table_caption": join_text_values(item.get("table_caption")),
+                }
+            )
+        elements.append(
+            StructuredElement(
+                source_index=item_index,
+                element_type="title" if is_heading else item_type,
+                text=text,
+                heading_level=max(1, text_level) if is_heading else 0,
+                page_idx=integer_or_none(item.get("page_idx")),
+                bbox=mineru_bbox(item.get("bbox")),
+                metadata=metadata,
+            )
+        )
+    return build_chonkie_chunk_specs(
+        elements,
+        text_max_chars=text_max_chars,
+        text_min_chars=text_min_chars,
+        table_max_chars=table_max_chars,
+    )
+
+
+def mineru_native_chunk_specs(content_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep ingestion available when Chonkie itself cannot split a document."""
     specs: list[dict[str, Any]] = []
     heading_stack: list[tuple[int, str]] = []
     seen: set[tuple[str, int | None, tuple[float, ...], str]] = set()
@@ -186,8 +274,8 @@ def mineru_chunk_specs(content_items: list[dict[str, Any]]) -> list[dict[str, An
             continue
         seen.add(dedupe_key)
         metadata: dict[str, Any] = {
-            "chunk_type": f"mineru_{item_type}",
-            "chunking_strategy": "mineru",
+            "chunk_type": f"chonkie_fallback_{item_type}",
+            "chunking_strategy": "chonkie",
             "mineru_chunk_index": item_index,
             "mineru_item_type": item_type,
             "mineru_sub_type": str(item.get("sub_type") or ""),

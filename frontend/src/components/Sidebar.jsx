@@ -11,7 +11,7 @@ export default function Sidebar({
   const [docTitle, setDocTitle] = useState('');
   const [docContent, setDocContent] = useState('');
   const [docFile, setDocFile] = useState(null);
-  const [chunkingStrategy, setChunkingStrategy] = useState('parent_child');
+  const [chunkingStrategy, setChunkingStrategy] = useState('chonkie');
   const [policyVersion, setPolicyVersion] = useState('2025');
   const [versionContent, setVersionContent] = useState('');
 
@@ -140,6 +140,7 @@ export default function Sidebar({
         <label>
           切分方法
           <select id="chunkingStrategy" value={chunkingStrategy} onChange={(e) => setChunkingStrategy(e.target.value)}>
+            <option value="chonkie">Chonkie 结构分块</option>
             <option value="parent_child">父子分块</option>
             <option value="hierarchical">层级分块</option>
           </select>
