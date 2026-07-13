@@ -216,7 +216,118 @@ def build_fallback_chunk_specs(text: str) -> list[dict[str, Any]]:
 
 
 def markdown_elements(markdown: str) -> list[StructuredElement]:
-    """Convert Markdown headings, paragraphs, and pipe tables into elements."""
+    """Convert a GFM document into structured elements, with a line-parser fallback."""
+    source = str(markdown or "")
+    if not source.strip():
+        return []
+    try:
+        elements = _marko_markdown_elements(source)
+        if elements:
+            return elements
+    except Exception:
+        pass
+    return _legacy_markdown_elements(source)
+
+
+def _marko_markdown_elements(markdown: str) -> list[StructuredElement]:
+    """Parse GFM into the element model consumed by the Chonkie adapter."""
+    import marko
+    from marko import block
+    from marko.ext.gfm import GFM
+    from marko.ext.gfm.elements import Table
+    from marko.md_renderer import MarkdownRenderer
+
+    parser = marko.Markdown(renderer=MarkdownRenderer, extensions=[GFM])
+    document = parser.parse(markdown)
+    renderer = parser.renderer
+    elements: list[StructuredElement] = []
+
+    with renderer:
+        renderer.root_node = document
+        for node in document.children:
+            if isinstance(node, block.BlankLine):
+                continue
+            if isinstance(node, (block.Heading, block.SetextHeading)):
+                _append_markdown_element(
+                    elements,
+                    "title",
+                    renderer.render_children(node),
+                    heading_level=max(1, int(node.level)),
+                )
+                continue
+
+            rendered = renderer.render(node)
+            if isinstance(node, Table):
+                table_text = _normalize_marko_table(rendered)
+                _append_markdown_element(
+                    elements,
+                    "table",
+                    table_text,
+                    metadata={
+                        "table_body": table_text,
+                        "table_source": "markdown_marko_gfm",
+                        "markdown_parser": "marko_gfm",
+                    },
+                )
+                continue
+
+            element_type = _marko_element_type(node, block=block)
+            _append_markdown_element(
+                elements,
+                element_type,
+                _normalize_marko_block(rendered),
+                metadata={"markdown_parser": "marko_gfm"},
+            )
+    return elements
+
+
+def _append_markdown_element(
+    elements: list[StructuredElement],
+    element_type: str,
+    text: str,
+    *,
+    heading_level: int = 0,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    normalized = normalize_extracted_text(text)
+    if not normalized:
+        return
+    element_metadata = {"markdown_parser": "marko_gfm", **dict(metadata or {})}
+    elements.append(
+        StructuredElement(
+            source_index=len(elements),
+            element_type=element_type,
+            text=normalized,
+            heading_level=heading_level,
+            metadata=element_metadata,
+        )
+    )
+
+
+def _marko_element_type(node: Any, *, block: Any) -> str:
+    if isinstance(node, block.List):
+        return "list"
+    if isinstance(node, (block.FencedCode, block.CodeBlock)):
+        return "code"
+    if isinstance(node, block.Quote):
+        return "quote"
+    if isinstance(node, block.HTMLBlock):
+        return "html"
+    return "text"
+
+
+def _normalize_marko_block(text: str) -> str:
+    normalized = re.sub(r"<br\s*/?>", "\n", unescape(str(text or "")), flags=re.IGNORECASE)
+    return normalized.strip()
+
+
+def _normalize_marko_table(text: str) -> str:
+    normalized = re.sub(r"\s*<br\s*/?>\s*", "；", unescape(str(text or "")), flags=re.IGNORECASE)
+    return normalized.strip()
+
+
+def _legacy_markdown_elements(markdown: str) -> list[StructuredElement]:
+    """Keep ingestion available if Marko cannot parse an unusual document."""
     lines = str(markdown or "").splitlines()
     elements: list[StructuredElement] = []
     paragraph_lines: list[str] = []
@@ -225,13 +336,14 @@ def markdown_elements(markdown: str) -> list[StructuredElement]:
         normalized = normalize_extracted_text(text)
         if not normalized:
             return
+        element_metadata = {"markdown_parser": "legacy_line_parser", **dict(metadata or {})}
         elements.append(
             StructuredElement(
                 source_index=len(elements),
                 element_type=element_type,
                 text=normalized,
                 heading_level=heading_level,
-                metadata=dict(metadata or {}),
+                metadata=element_metadata,
             )
         )
 
@@ -386,6 +498,15 @@ def _chunk_metadata(
     source_types = sorted({str(item.element_type or "text") for item in source_elements})
     metadata["source_element_types"] = source_types
     metadata["mineru_item_type"] = "table" if kind == "table" else (source_types[0] if len(source_types) == 1 else "text")
+    markdown_parsers = sorted(
+        {
+            str(item.metadata.get("markdown_parser") or "").strip()
+            for item in source_elements
+            if str(item.metadata.get("markdown_parser") or "").strip()
+        }
+    )
+    if len(markdown_parsers) == 1:
+        metadata["markdown_parser"] = markdown_parsers[0]
     if pages:
         metadata.update(
             {

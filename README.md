@@ -173,7 +173,7 @@ Agent 多查询模式按子查询独立重排：
 | --- | --- | --- |
 | PDF、DOCX、PPTX、XLSX | MinerU API | MinerU `content_list` 转结构元素后交给 Chonkie |
 | PNG、JPG、WEBP、BMP、TIFF | MinerU 或配置的 OCR | 图片资产 + OCR 文本 + Chonkie |
-| Markdown、TXT、JSON、XML | native 文本解码 | Markdown 结构识别 + Chonkie |
+| Markdown、TXT、JSON、XML | native 文本解码 | Marko GFM 结构识别 + Chonkie |
 | CSV | native 表格解析 | 表格元素 + Chonkie TableChunker |
 | 解析失败的受支持文件 | 按 `DOCUMENT_PARSER_ORDER` 降级 | 由成功解析器的结构进入 Chonkie |
 
@@ -185,7 +185,7 @@ DECLARATION_QA_DOCUMENT_PARSER_ORDER=mineru,native
 DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED=true
 ```
 
-Markdown 不发送给 MinerU。`auto` 模式会根据解析器的 `supports()` 结果跳过不支持的解析器，因此 `.md` 会直接由 native 解析器解码。
+Markdown 不发送给 MinerU。`auto` 模式会根据解析器的 `supports()` 结果跳过不支持的解析器，因此 `.md` 会直接由 native 解析器解码，再由 Marko GFM 识别标题、列表、引用、表格、代码块和 HTML 节点。
 
 ### MinerU content_list
 

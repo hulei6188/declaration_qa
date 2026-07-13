@@ -4,6 +4,7 @@ from declaration_qa.application.helpers.retrieval_sources import (
     merge_accumulated_source_payloads,
     merge_query_results_with_coverage,
 )
+from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.core.domain import KnowledgeChunk, RetrievalResult, RetrievedSource
 from declaration_qa.rag.retrieval_plan import normalize_retrieval_plan
 
@@ -112,6 +113,62 @@ def test_retrieval_plan_preserves_only_supported_query_strategy():
     assert normalize_retrieval_plan({"retrieval_strategy": "keyword"})["retrieval_strategy"] == "keyword"
     assert normalize_retrieval_plan({"retrieval_strategy": "semantic"})["retrieval_strategy"] == "semantic"
     assert normalize_retrieval_plan({"retrieval_strategy": "invented"})["retrieval_strategy"] == "hybrid"
+
+
+def test_workflow_uses_per_query_results_instead_of_global_rewrite_rerank():
+    class PerQueryRag:
+        rerank_score_threshold = 0.7
+        rerank_max_sources = 20
+        rerank_top_n_per_query = 2
+
+        def __init__(self):
+            self.queries = []
+
+        def retrieve_many(self, queries, filters, *, retrieval_plan):
+            self.queries = list(queries)
+            return [
+                RetrievalResult(
+                    [
+                        source("material-1", "材料一", 0.95),
+                        source("material-2", "材料二", 0.90),
+                    ],
+                    dict(filters),
+                    {"batch_mode": True, "channels": {"rerank": 2}},
+                ),
+                RetrievalResult(
+                    [source("time-1", "办理时限", 0.71)],
+                    dict(filters),
+                    {"batch_mode": True, "channels": {"rerank": 1}},
+                ),
+            ]
+
+        def retrieve_rewrites(self, *args, **kwargs):
+            raise AssertionError("global rewrite rerank must not be used")
+
+    rag = PerQueryRag()
+    workflow = DeclarationQAWorkflow(
+        rag_engine=rag,
+        min_sources_per_query=1,
+        max_accumulated_sources=2,
+    )
+
+    result = workflow.multi_retrieve(
+        {
+            "query": "申请材料和办理时限",
+            "normalized_query": "申请材料和办理时限",
+            "retrieval_queries": [
+                {"id": "materials", "text": "申请材料", "strategy": "hybrid"},
+                {"id": "time", "text": "办理时限", "strategy": "hybrid"},
+            ],
+            "knowledge_search_round": 1,
+        },
+        {},
+    )
+
+    assert [item["top_k"] for item in rag.queries] == [2, 2]
+    assert [item.chunk.id for item in result.sources] == ["material-1", "time-1"]
+    assert result.status["retrieval_mode"] == "per_query_batch_rerank"
+    assert result.status["coverage_merge"]["selected_count"] == 2
 
 
 def source(chunk_id: str, content: str, rerank_score: float) -> RetrievedSource:

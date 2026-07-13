@@ -118,15 +118,12 @@ def test_ticket_list_only_finishes_without_a_gate():
 
 
 def test_agentic_schema_and_migration_define_complete_application_history():
-    schema = Path("sql/postgresql/003_declaration_qa_schema.sql").read_text(encoding="utf-8")
-    migration = Path("sql/postgresql/008_declaration_qa_agentic_ticket_history.sql").read_text(encoding="utf-8")
+    schema = Path("sql/postgresql/declaration_qa_postgresql_all.sql").read_text(encoding="utf-8")
 
     for token in ["item_code", "sequence_no", "from_status", "occurred_at", "source_event_id"]:
         assert token in schema
-        assert token in migration
     for token in ["agent_plan", "agent_query_plan", "agent_answer_provider", "tool_results", "agent_selected_application_id"]:
         assert token in schema
-        assert token in migration
 
 
 def test_parse_json_object_accepts_fenced_model_output():
