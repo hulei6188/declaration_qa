@@ -31,14 +31,7 @@ class KnowledgeSubQuery(BaseModel):
             "hybrid 使用默认混合检索。执行器始终保留双通道降级能力。"
         ),
     )
-    aspect: str = Field(
-        default="general",
-        min_length=1,
-        max_length=50,
-        description="该查询覆盖的原子问题，例如 materials、process、template。",
-    )
-
-    @field_validator("text", "aspect")
+    @field_validator("text")
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return " ".join(str(value or "").split())
@@ -56,7 +49,6 @@ class KnowledgeSearchInput(BaseModel):
             "根据用户问题自主规划的原子知识查询。简单问题只生成一路；复杂问题按材料、流程、条件等证据需求拆分。"
         ),
     )
-
 
 class KnowledgeSearchTool:
     """调用现有混合 RAG 的受控工具包装器。"""
@@ -80,14 +72,8 @@ class KnowledgeSearchTool:
                 {**query.model_dump(), "text": mask_sensitive_text(query.text)}
                 for query in request.queries
             ],
-            "rerank_query": context.original_query,
-            "query_isolation": (
-                "agent_planned_from_public_evidence"
-                if context.metadata.get("tool_call_origin") == "agent_evidence_retry"
-                else "evidence_gate_public_only"
-                if context.metadata.get("tool_call_origin") == "evidence_gate"
-                else "agent_planned_before_business_observation"
-            ),
+            "rerank_query": "\n".join(mask_sensitive_text(query.text) for query in request.queries),
+            "query_isolation": "agent_planned_queries",
             "source_type": "knowledge_rag",
         }
         return ToolExecutionResult(

@@ -51,7 +51,7 @@ def should_emit_sources(node_name: str, state: DeclarationQAState) -> bool:
     """判断节点完成后是否需要补发检索来源事件。"""
     if not state.get("retrieved_sources"):
         return False
-    return node_name in {"agent_observe", "parallel_knowledge_workers"}
+    return node_name == "agent_observe"
 
 
 def done_event(state: DeclarationQAState) -> dict[str, Any]:

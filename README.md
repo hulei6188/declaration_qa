@@ -4,12 +4,12 @@
 
 ## 核心能力
 
-- Agent 自主调用知识检索和工单工具。
-- 复合问题拆解为独立子 Agent；每个子 Agent 自主选择知识或工单工具，并行执行后统一生成答案。
+- 单 Agent 自主理解问题、规划查询、调用知识和工单工具并直接生成答案。
+- 复合问题由 Agent 在 `knowledge_search.queries` 或同轮多工具调用中自主拆分，独立工具并行执行。
 - Milvus 向量检索与 Elasticsearch BM25，经 RRF 融合和 Qwen3-VL Rerank 重排。
 - 支持 PDF、DOCX、PPTX、XLSX、Markdown 和图片解析，以及表格、OCR、图片摘要与图文检索。
 - 工单列表、申请详情及完整状态历史与知识检索隔离。
-- SSE 流式回答，前端展示 Agent、Worker、工具调用和证据检查过程。
+- SSE 流式回答，前端按 Agent 轮次展示真实工具调用过程。
 - PostgreSQL 持久化会话、Agent Run、消息、工具调用、证据和审计记录。
 
 ## 技术栈
@@ -30,19 +30,16 @@
 
 ```text
 用户问题
-  -> 复合问题拆解
-  -> 独立子 Agent（自主选择工具）
-  -> Tool Registry
+  -> 单 Agent 决策
+  -> Tool Registry（独立工具并行）
        -> knowledge_search
        -> ticket_list_query
        -> ticket_detail_query
-  -> Milvus + Elasticsearch
-  -> RRF + Qwen3-VL Rerank
-  -> Evidence Gate
-  -> 多模态最终回答
+  -> 工具结果写回同一 Agent 消息链
+  -> 继续调用工具或直接多模态回答
 ```
 
-同一轮 `knowledge_search` 的多条查询先融合，再统一 Rerank。不同 Worker 和多轮检索的证据合并去重后进入最终生成。
+`knowledge_search` 只接收 Agent 生成的 `queries`。同一轮多条查询经 Milvus、Elasticsearch、RRF 融合后统一 Rerank；多轮证据累计去重后回填同一 Agent。系统不再使用独立问题拆解器、Worker、Evidence Gate 或最终回答模型调用。
 
 ## 快速启动
 
@@ -105,7 +102,7 @@ DECLARATION_QA_INDEX_QUEUE_BACKEND=rq
 ```text
 src/declaration_qa/
   api/             FastAPI 与 SSE
-  application/     LangGraph、Agent、Worker 和工具
+  application/     LangGraph、单 Agent 和工具
   indexing/        文档解析、切分与异步入库
   rag/             检索、重排和模型适配
   search/          Milvus 与 Elasticsearch

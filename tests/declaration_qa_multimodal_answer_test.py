@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from declaration_qa.application.agent import ToolCallingAgent
 from declaration_qa.rag.model_providers.answers import OpenAIAnswerGenerator
 
 
@@ -110,3 +111,71 @@ def test_text_only_answer_keeps_text_model(tmp_path):
     assert answer == "文本回答"
     assert generator._llm.inputs
     assert not generator._vl_llm.inputs
+
+
+def test_single_agent_turn_receives_user_and_retrieved_images(tmp_path):
+    query_image = tmp_path / "query.png"
+    query_image.write_bytes(b"query-image")
+    evidence_image = tmp_path / "evidence.png"
+    evidence_image.write_bytes(b"evidence-image")
+
+    class Response:
+        content = "已结合图片回答。"
+        tool_calls = []
+        response_metadata = {}
+        usage_metadata = {}
+
+    class Model:
+        model_name = "qwen3-vl-plus"
+
+        def __init__(self):
+            self.inputs = []
+
+        def bind_tools(self, definitions):
+            return self
+
+        def invoke(self, messages, config=None):
+            self.inputs.append(messages)
+            return Response()
+
+    model = Model()
+    agent = ToolCallingAgent(
+        model,
+        multimodal_enabled=True,
+        allowed_image_dirs=[str(tmp_path)],
+        max_evidence_images=3,
+        min_image_score=0.7,
+    )
+    source = {
+        "chunk_id": "image-1",
+        "title": "取水许可流程图",
+        "evidence_text": "窗口受理后转交水资源管理处承办。",
+        "rerank_score": 0.91,
+        "metadata": {
+            "modality": "image",
+            "asset_id": "asset-flow",
+            "asset_path": str(evidence_image),
+            "asset_content_type": "image/png",
+        },
+    }
+    state = {
+        "query": "这张图对应什么办理流程？",
+        "normalized_query": "这张图对应什么办理流程？",
+        "query_image": {
+            "file_path": str(query_image),
+            "filename": "用户流程图.png",
+            "content_type": "image/png",
+        },
+        "retrieved_sources": [source, {**source, "chunk_id": "image-duplicate"}],
+        "agent_messages": [],
+    }
+
+    decision = agent.decide(state, [{"type": "function", "function": {"name": "knowledge_search"}}])
+
+    assert decision.final_answer == "已结合图片回答。"
+    content = model.inputs[0][-1].content
+    image_blocks = [item for item in content if item.get("type") == "image_url"]
+    assert len(image_blocks) == 2
+    text = "\n".join(item.get("text", "") for item in content if item.get("type") == "text")
+    assert "用户查询图片" in text
+    assert "知识库图片证据 1" in text

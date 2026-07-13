@@ -37,55 +37,24 @@ class ResponseNodes:
         add_event(next_state, "refused", {"reason": reason})
         return next_state
 
-    def agent_finalize_answer(self, state: DeclarationQAState) -> DeclarationQAState:
-        """使用 Agent 的最终响应；仅在 Agent 无法作答时走本地兼容兜底。"""
+    def commit_agent_answer(self, state: DeclarationQAState) -> DeclarationQAState:
+        """直接使用单 Agent 最后一轮无 Tool Call 的文本响应。"""
         next_state = dict(state)
         answer = str(next_state.get("agent_final_answer") or "").strip()
         prompt = str(next_state.get("agent_final_prompt") or "")
         provider = str(next_state.get("agent_answer_provider") or "")
-        model = ""
-        token_usage: dict[str, int] = {}
-        latency_ms: int | None = None
-        generation_plan: dict[str, object] = {}
-        fallback = False
-        finalizer = getattr(self.agent, "finalize", None)
-        direct_answer = next_state.get("answer_mode") == "direct" and bool(answer)
-        if callable(finalizer) and not direct_answer:
-            try:
-                multimodal_response = finalizer(next_state)
-            except Exception as exc:
-                multimodal_response = None
-                add_event(
-                    next_state,
-                    "agent_final_failed",
-                    {"error_type": type(exc).__name__},
-                )
-            if multimodal_response is not None and str(multimodal_response.answer or "").strip():
-                answer = str(multimodal_response.answer).strip()
-                prompt = str(multimodal_response.prompt or "")
-                provider = str(multimodal_response.provider or "agent_multimodal_final")
-                model = str(multimodal_response.model or "")
-                token_usage = dict(multimodal_response.token_usage or {})
-                latency_ms = multimodal_response.latency_ms
-                generation_plan = dict(multimodal_response.generation_plan or {})
         if not answer:
-            answer, prompt = self.answer_generator.generate(next_state)
-            provider = f"fallback:{getattr(self.answer_generator, 'name', type(self.answer_generator).__name__)}"
-            fallback = True
+            next_state["refused"] = True
+            next_state["refuse_reason"] = next_state.get("refuse_reason") or "agent_empty_answer"
+            answer = "当前无法生成可靠回答，请稍后重试。"
         answer, history_fallback = ensure_complete_application_history(answer, next_state)
-        fallback = fallback or history_fallback
         generation_plan = {
-            "mode": generation_plan.get("mode") or ("direct" if direct_answer else "agent"),
-            **generation_plan,
+            "mode": next_state.get("answer_mode") or "direct",
             "provider": provider or "native_tool_calling",
-            "fallback": fallback,
             "history_integrity_fallback": history_fallback,
         }
         next_state["answer"] = answer
         next_state["agent_answer_provider"] = provider
-        next_state["agent_final_model"] = model
-        next_state["agent_final_token_usage"] = token_usage
-        next_state["agent_final_latency_ms"] = latency_ms
         next_state["answer_generation_plan"] = generation_plan
         audit_payload = dict(next_state.get("audit_payload") or {})
         audit_payload["final_prompt"] = prompt
@@ -121,8 +90,6 @@ class ResponseNodes:
             "business_snapshot": next_state.get("business_snapshot"),
             "agent_plan": next_state.get("agent_plan") or {},
             "agent_query_plan": next_state.get("agent_query_plan") or {},
-            "question_decomposition": next_state.get("question_decomposition") or {},
-            "knowledge_worker_results": next_state.get("knowledge_worker_results") or [],
             "agent_iteration": int(next_state.get("agent_iteration") or 0),
             "agent_answer_provider": next_state.get("agent_answer_provider") or "",
             "answer_mode": next_state.get("answer_mode") or "",
@@ -130,7 +97,7 @@ class ResponseNodes:
             "agent_final_token_usage": next_state.get("agent_final_token_usage") or {},
             "agent_final_latency_ms": next_state.get("agent_final_latency_ms"),
             "agent_system_prompt": AGENT_SYSTEM_PROMPT,
-            "agent_prompt_version": "orchestrator-workers-context-memory-v3",
+            "agent_prompt_version": "single-agent-tool-loop-v1",
             "tool_registry_version": "tool-registry-v1",
             "agent_model_config": agent_model_config(getattr(self, "agent", None)),
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
@@ -142,8 +109,8 @@ class ResponseNodes:
             "retrieval_queries": next_state.get("retrieval_queries") or [],
             "retrieved_sources": next_state.get("retrieved_sources") or [],
             "rag_status": next_state.get("rag_status"),
-            "evidence_ok": next_state.get("evidence_ok"),
-            "evidence_decision": next_state.get("evidence_decision") or {},
+            "evidence_ok": bool(next_state.get("agent_final_answer")),
+            "evidence_decision": {},
             "refused": next_state.get("refused"),
             "refuse_reason": next_state.get("refuse_reason"),
             "answer": next_state.get("answer"),
@@ -169,15 +136,9 @@ def agent_model_config(agent: object | None) -> dict[str, object]:
     model = getattr(agent, "model", None)
     if model is None:
         return {}
-    final_model = getattr(agent, "final_model", None)
     return {
         "class": type(model).__name__,
         "model": str(getattr(model, "model_name", None) or getattr(model, "model", None) or ""),
-        "final_model": str(
-            getattr(final_model, "model_name", None)
-            or getattr(final_model, "model", None)
-            or ""
-        ),
         "multimodal_enabled": bool(getattr(agent, "multimodal_enabled", False)),
         "max_evidence_images": int(getattr(agent, "max_evidence_images", 0) or 0),
     }

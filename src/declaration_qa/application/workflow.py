@@ -21,7 +21,6 @@ from declaration_qa.application.helpers.streaming import (
     token_events,
 )
 from declaration_qa.application.nodes import ApplicationNodes
-from declaration_qa.application.nodes.agent_runtime import ticket_list_requires_agent_observation
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
@@ -30,7 +29,6 @@ from declaration_qa.observability.langfuse import create_trace_id, observation, 
 from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, recent_messages_from_session
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
-from declaration_qa.rag.prompting import DeterministicAnswerGenerator
 from declaration_qa.storage.audit import InMemoryAuditStore
 
 
@@ -51,9 +49,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         rag_engine: RAGEngine | None = None,
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
-        answer_generator: DeterministicAnswerGenerator | None = None,
         agent_model: Any | None = None,
-        agent_final_model: Any | None = None,
         agent: Any | None = None,
         agent_planner: Any | None = None,
         agent_multimodal_enabled: bool = False,
@@ -72,12 +68,10 @@ class DeclarationQAWorkflow(ApplicationNodes):
         self.rag_engine = rag_engine or build_seed_rag_engine()
         self.business_adapter = business_adapter or InMemoryBusinessDataAdapter()
         self.audit_store = audit_store or InMemoryAuditStore()
-        self.answer_generator = answer_generator or DeterministicAnswerGenerator()
         if agent is not None and agent_planner is not None:
             raise ValueError("agent and legacy agent_planner cannot both be provided")
         self.agent = agent or agent_planner or ToolCallingAgent(
             agent_model,
-            final_model=agent_final_model,
             multimodal_enabled=agent_multimodal_enabled,
             allowed_image_dirs=agent_allowed_image_dirs,
             max_evidence_images=agent_max_evidence_images,
@@ -179,7 +173,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
                         yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
                     if node_name == "refuse_or_human":
                         yield from token_events(str(state.get("answer") or ""))
-                    elif node_name == "agent_finalize_answer" and not streamed_answer:
+                    elif node_name == "commit_agent_answer" and not streamed_answer:
                         yield from token_events(str(state.get("answer") or ""))
 
             span.update(output=chat_trace_output(state), metadata=chat_trace_metadata(state))
@@ -210,12 +204,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "agent_query_plan": {},
             "agent_pending_tool_calls": [],
             "agent_call_signatures": [],
-            "agent_required_evidence": [],
-            "agent_evidence_coverage": {},
-            "question_decomposition": {},
-            "knowledge_worker_results": [],
-            "use_parallel_knowledge_workers": False,
-            "partial_answer": False,
+            "agent_messages": [],
             "answer_mode": "",
             "agent_final_answer": "",
             "agent_final_prompt": "",
@@ -246,8 +235,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "retrieval_filter": {},
             "retrieved_sources": [],
             "rag_status": {},
-            "evidence_ok": False,
-            "evidence_decision": {},
             "refuse_reason": None,
             "answer": "",
             "refused": False,
@@ -304,14 +291,11 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
-        builder.add_node("agent_decompose", self.agent_decompose)
-        builder.add_node("parallel_knowledge_workers", self.parallel_knowledge_workers)
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
-        builder.add_node("agent_evidence_check", self.agent_evidence_check)
         builder.add_node("refuse_or_human", self.refuse_or_human)
-        builder.add_node("agent_finalize_answer", self.agent_finalize_answer)
+        builder.add_node("commit_agent_answer", self.commit_agent_answer)
         builder.add_node("answer_postprocess", self.answer_postprocess)
         builder.add_node("audit_log", self.audit_log)
 
@@ -319,73 +303,31 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_edge("query_preprocess", "agent_prepare")
-        builder.add_edge("agent_prepare", "agent_decompose")
-        builder.add_conditional_edges(
-            "agent_decompose",
-            lambda state: "workers" if state.get("use_parallel_knowledge_workers") else "agent",
-            {"workers": "parallel_knowledge_workers", "agent": "agent_decide"},
-        )
-        builder.add_conditional_edges(
-            "parallel_knowledge_workers",
-            lambda state: "ok" if state.get("evidence_ok") or state.get("partial_answer") else "refuse",
-            {"ok": "agent_finalize_answer", "refuse": "refuse_or_human"},
-        )
+        builder.add_edge("agent_prepare", "agent_decide")
         builder.add_conditional_edges(
             "agent_decide",
             self._agent_decision_route,
             {
                 "tools": "agent_execute_tools",
-                "ready": "agent_finalize_answer",
-                "check": "agent_evidence_check",
-            },
-        )
-        builder.add_edge("agent_execute_tools", "agent_observe")
-        builder.add_edge("agent_observe", "agent_evidence_check")
-        builder.add_conditional_edges(
-            "agent_evidence_check",
-            self._agent_evidence_route,
-            {
-                "ok": "agent_finalize_answer",
-                "retry": "agent_decide",
+                "ready": "commit_agent_answer",
                 "refuse": "refuse_or_human",
             },
         )
-        builder.add_edge("agent_finalize_answer", "answer_postprocess")
+        builder.add_edge("agent_execute_tools", "agent_observe")
+        builder.add_edge("agent_observe", "agent_decide")
+        builder.add_edge("commit_agent_answer", "answer_postprocess")
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
         return builder.compile()
 
     def _agent_decision_route(self, state: DeclarationQAState) -> str:
-        """复用已通过的 Gate，避免 Agent 观察结果后重复检查同一批证据。"""
+        """Tool Call 继续循环，无 Tool Call 的文本直接作为最终回答。"""
         if state.get("agent_next") == "tools":
             return "tools"
-        if state.get("answer_mode") == "direct" and state.get("agent_final_answer"):
+        if state.get("agent_final_answer"):
             return "ready"
-        if state.get("evidence_ok"):
-            return "ready"
-        return "check"
-
-    def _agent_evidence_route(self, state: DeclarationQAState) -> str:
-        """Route complete evidence directly to one final model call."""
-        iteration = int(state.get("agent_iteration") or 0)
-        latest_calls = list((state.get("agent_plan") or {}).get("tool_calls") or [])
-        if (
-            iteration < self.agent_max_iterations
-            and ticket_list_requires_agent_observation(
-                latest_calls,
-                state.get("tool_results") or [],
-            )
-        ):
-            return "retry"
-        if state.get("evidence_ok"):
-            can_finalize = callable(getattr(self.agent, "finalize", None))
-            if can_finalize or state.get("agent_final_answer") or iteration >= self.agent_max_iterations:
-                return "ok"
-            return "retry"
-        if state.get("refuse_reason") or iteration >= self.agent_max_iterations:
-            return "refuse"
-        return "retry"
+        return "refuse"
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
     """根据聊天请求构建脱敏后的 trace 输入。"""

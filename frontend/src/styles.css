@@ -594,20 +594,6 @@ select {
   line-height: 1.5;
 }
 
-.tool-step.is-worker-child {
-  margin-left: 24px;
-  border-left: 2px solid #c9e7df;
-  padding-left: 10px;
-}
-
-.worker-group + .worker-group {
-  margin-top: 8px;
-}
-
-.worker-group-children {
-  margin-left: 12px;
-}
-
 .tool-step.status-partial .tool-step-icon,
 .tool-step.status-partial .tool-step-head > span {
   color: #b66a12;

@@ -314,6 +314,8 @@ def test_workflow_async_memory_is_available_to_followup_prompt():
 
     class KnowledgeCallingAgent:
         def decide(self, state, tool_definitions):
+            if not tool_definitions or state.get("tool_results"):
+                return AgentDecision("finish", final_answer="已根据现有证据完成回答。")
             return AgentDecision(
                 "tools",
                 tool_calls=[
@@ -348,8 +350,8 @@ def test_workflow_async_memory_is_available_to_followup_prompt():
 
     assert memory_results[0]["memory_count"] == 1
     assert audit["long_term_context"]["items"]
-    assert "长期上下文记忆" in audit["final_prompt"]
-    assert "办理居住证需要哪些材料" in audit["final_prompt"]
+    memory_content = " ".join(item["content"] for item in audit["long_term_context"]["items"])
+    assert "办理居住证需要哪些材料" in memory_content
 
 
 def build_manager(*, distance_threshold: float = 0.4, keyword_min_score: float = 0.2) -> ContextMemoryManager:

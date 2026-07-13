@@ -302,7 +302,6 @@ export function createToolTrace(status = 'running') {
     phase: status === 'running' ? 'planning' : status,
     loaded: status === 'running',
     tools: [],
-    gates: [],
     observation: null,
     error: '',
   };
@@ -311,7 +310,6 @@ export function createToolTrace(status = 'running') {
 export function reduceToolTrace(current, event, data = {}) {
   const trace = current ? { ...current } : createToolTrace();
   trace.tools = [...(trace.tools || [])];
-  trace.gates = [...(trace.gates || [])];
   trace.loaded = true;
 
   if (event === 'agent_decision') {
@@ -333,121 +331,6 @@ export function reduceToolTrace(current, event, data = {}) {
       if (existingIndex >= 0) trace.tools[existingIndex] = { ...trace.tools[existingIndex], ...tool };
       else trace.tools.push(tool);
     }
-  } else if (event === 'question_decomposed') {
-    trace.phase = 'executing';
-    trace.subQuestions = Array.isArray(data.sub_questions) ? data.sub_questions : [];
-    trace.isCompound = Boolean(data.is_compound || trace.subQuestions.length > 1);
-    for (const item of trace.isCompound ? trace.subQuestions : []) {
-      const workerId = `worker:${String(item.sub_question_id || '')}`;
-      if (trace.tools.some((tool) => tool.callId === workerId)) continue;
-      trace.tools.push({
-        callId: workerId,
-        toolName: 'knowledge_worker',
-        arguments: {},
-        iteration: 0,
-        status: 'running',
-        ok: null,
-        latencyMs: null,
-        parallel: trace.subQuestions.length > 1,
-        dependency: '',
-        subQuestion: String(item.question || ''),
-        isCompound: trace.isCompound,
-        sourceCount: 0,
-      });
-    }
-  } else if (event === 'knowledge_worker_started') {
-    trace.phase = 'executing';
-    const workerId = `worker:${String(data.sub_question_id || '')}`;
-    const index = trace.tools.findIndex((item) => item.callId === workerId);
-    const runningWorker = {
-      callId: workerId,
-      toolName: 'knowledge_worker',
-      arguments: {},
-      iteration: 0,
-      status: 'running',
-      ok: null,
-      latencyMs: null,
-      parallel: Boolean(data.parallel),
-      dependency: String(data.dependency || ''),
-      subQuestion: String(data.question || ''),
-      sourceCount: 0,
-    };
-    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...runningWorker };
-    else trace.tools.push(runningWorker);
-  } else if (event === 'knowledge_worker_tool_started') {
-    trace.phase = 'executing';
-    const callId = String(data.tool_call_id || '');
-    const tool = {
-      callId,
-      toolName: String(data.tool_name || 'knowledge_search'),
-      arguments: data.arguments || {},
-      iteration: Number(data.iteration || 0),
-      status: 'running',
-      ok: null,
-      latencyMs: null,
-      parallel: true,
-      dependency: String(data.dependency || ''),
-      subQuestion: String(data.question || ''),
-      subQuestionId: String(data.sub_question_id || ''),
-      parentWorkerId: `worker:${String(data.sub_question_id || '')}`,
-      sourceCount: 0,
-    };
-    const index = trace.tools.findIndex((item) => item.callId === callId);
-    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...tool };
-    else trace.tools.push(tool);
-  } else if (event === 'knowledge_worker_tool_completed') {
-    trace.phase = 'checking';
-    const callId = String(data.tool_call_id || '');
-    const index = trace.tools.findIndex((item) => item.callId === callId);
-    const completedTool = {
-      callId,
-      toolName: String(data.tool_name || 'knowledge_search'),
-      arguments: data.arguments || {},
-      iteration: Number(data.iteration || 0),
-      status: data.ok ? 'completed' : 'failed',
-      ok: Boolean(data.ok),
-      latencyMs: numberOrNull(data.latency_ms),
-      parallel: true,
-      dependency: '',
-      subQuestion: String(data.question || ''),
-      subQuestionId: String(data.sub_question_id || ''),
-      parentWorkerId: `worker:${String(data.sub_question_id || '')}`,
-      sourceCount: Number(data.source_count || 0),
-    };
-    if (index >= 0) trace.tools[index] = { ...trace.tools[index], ...completedTool };
-    else trace.tools.push(completedTool);
-  } else if (event === 'knowledge_worker_evidence_checked') {
-    trace.phase = data.ok ? 'executing' : 'planning';
-    const gate = normalizeEvidenceGate({
-      ...data,
-      required_evidence: Array.isArray(data.required_evidence) ? data.required_evidence : ['knowledge'],
-      checks: data.checks || { knowledge: Boolean(data.ok) },
-      tool_result_count: Number(data.tool_result_count || 0),
-      scope: 'worker',
-    });
-    const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
-    if (index >= 0) trace.gates[index] = gate;
-    else trace.gates.push(gate);
-  } else if (event === 'knowledge_worker_completed') {
-    trace.phase = 'checking';
-    const workerId = `worker:${String(data.sub_question_id || trace.tools.length + 1)}`;
-    const tool = {
-      callId: workerId,
-      toolName: 'knowledge_worker',
-      arguments: {},
-      iteration: Number(data.iterations || 0),
-      status: data.evidence_complete ? 'completed' : 'failed',
-      ok: Boolean(data.evidence_complete),
-      latencyMs: null,
-      parallel: true,
-      dependency: '',
-      subQuestion: String(data.question || ''),
-      sourceCount: Number(data.source_count || 0),
-      failureReason: String(data.failure_reason || ''),
-    };
-    const index = trace.tools.findIndex((item) => item.callId === workerId);
-    if (index >= 0) trace.tools[index] = tool;
-    else trace.tools.push(tool);
   } else if (event === 'tool_executed') {
     trace.phase = 'checking';
     const callId = String(data.call_id || '');
@@ -491,15 +374,6 @@ export function reduceToolTrace(current, event, data = {}) {
       selectedItemCode: String(data.selected_item_code || ''),
       selectedApplicationId: data.selected_application_id ?? null,
     };
-  } else if (event === 'evidence' || event === 'evidence_aggregated') {
-    trace.phase = data.ok ? 'answering' : 'planning';
-    const gate = normalizeEvidenceGate({
-      ...data,
-      scope: event === 'evidence_aggregated' ? 'aggregate' : (data.scope || 'global'),
-    });
-    const index = trace.gates.findIndex((item) => item.subQuestionId === gate.subQuestionId && item.iteration === gate.iteration);
-    if (index >= 0) trace.gates[index] = gate;
-    else trace.gates.push(gate);
   } else if (event === 'answer_generated') {
     trace.phase = 'answering';
   } else if (event === 'done') {
@@ -540,61 +414,13 @@ export function traceFromAgentRun(run) {
       dependency: String(call.metadata?.dependency || ''),
     };
   });
-  const outputMessage = [...(run?.messages || [])].reverse().find((message) => message?.message_type === 'output');
-  const evidence = outputMessage?.content_json?.evidence_decision;
   return {
     ...createToolTrace(run?.status === 'failed' ? 'failed' : 'completed'),
     phase: run?.status === 'failed' ? 'failed' : 'completed',
     loaded: true,
     runId: String(run?.run_id || ''),
     tools,
-    gates: evidenceGatesFromDecision(evidence),
     error: String(run?.error_message || ''),
-  };
-}
-
-function evidenceGatesFromDecision(evidence) {
-  if (!evidence || !Object.keys(evidence).length) return [];
-  const workers = Array.isArray(evidence.workers) ? evidence.workers : [];
-  if (!workers.length) return [normalizeEvidenceGate(evidence)];
-  const workerGates = workers.map((worker) => normalizeEvidenceGate({
-    ...worker,
-    ok: worker.evidence_complete,
-    source_count: worker.source_count,
-    tool_result_count: worker.tool_result_count,
-    required_evidence: worker.required_evidence,
-    checks: worker.checks,
-    sub_question_id: worker.sub_question_id,
-    question: worker.question,
-    scope: 'worker',
-  }));
-  if (workers.length === 1) return workerGates;
-  return [
-    ...workerGates,
-    normalizeEvidenceGate({ ...evidence, scope: 'aggregate' }),
-  ];
-}
-
-function normalizeEvidenceGate(data = {}) {
-  const coverage = data.coverage && typeof data.coverage === 'object' ? data.coverage : {};
-  return {
-    iteration: Number(data.iteration || 0),
-    ok: Boolean(data.ok),
-    answerable: Boolean(data.answerable),
-    partial: Boolean(data.partial),
-    required: Array.isArray(data.required_evidence) ? data.required_evidence : [],
-    checks: data.checks && typeof data.checks === 'object' ? data.checks : {},
-    sourceCount: Number(data.source_count || 0),
-    toolResultCount: Number(data.tool_result_count || 0),
-    subQuestionId: String(data.sub_question_id || ''),
-    subQuestion: String(data.question || ''),
-    scope: String(data.scope || ''),
-    workerCount: Number(data.worker_count || 0),
-    coverage: {
-      assessed: Boolean(coverage.assessed),
-      provider: String(coverage.provider || ''),
-      evidenceIncomplete: Boolean(coverage.evidence_incomplete),
-    },
   };
 }
 

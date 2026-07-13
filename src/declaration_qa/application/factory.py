@@ -31,10 +31,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
     agent_model = build_agent_model(settings)
-    agent_final_model = build_agent_model(
-        settings,
-        timeout_seconds=settings.agent_final_timeout_seconds,
-    )
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,
@@ -169,7 +165,6 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         business_adapter=business_adapter,
         audit_store=audit_store,
         agent_model=agent_model,
-        agent_final_model=agent_final_model,
         agent_max_iterations=settings.agent_max_iterations,
         agent_multimodal_enabled=(
             settings.agent_vl_enabled

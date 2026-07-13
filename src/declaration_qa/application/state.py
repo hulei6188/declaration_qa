@@ -25,12 +25,7 @@ class DeclarationQAState(TypedDict, total=False):
     agent_query_plan: dict[str, Any]
     agent_pending_tool_calls: list[dict[str, Any]]
     agent_call_signatures: list[str]
-    agent_required_evidence: list[str]
-    agent_evidence_coverage: dict[str, Any]
-    question_decomposition: dict[str, Any]
-    knowledge_worker_results: list[dict[str, Any]]
-    use_parallel_knowledge_workers: bool
-    partial_answer: bool
+    agent_messages: list[dict[str, Any]]
     answer_mode: str
     agent_final_answer: str
     agent_final_prompt: str
@@ -65,8 +60,6 @@ class DeclarationQAState(TypedDict, total=False):
     retrieval_filter: dict[str, Any]
     retrieved_sources: list[dict[str, Any]]
     rag_status: dict[str, Any]
-    evidence_ok: bool
-    evidence_decision: dict[str, Any]
     refuse_reason: str | None
     answer_generation_plan: dict[str, Any]
 

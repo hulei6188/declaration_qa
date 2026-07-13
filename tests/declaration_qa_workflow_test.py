@@ -37,7 +37,7 @@ class TicketScriptAgent:
                     }
                 ],
             )
-        return AgentDecision("finish")
+        return AgentDecision("finish", final_answer="该申请当前状态和完整历史已查询，请查看申请详情。")
 
 
 def test_chat_routes_have_no_ticket_selection_endpoint():
@@ -70,7 +70,7 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
         "ticket_detail_query",
     ]
     assert response.business_snapshot["selected_application_id"] == 2002
-    assert "缺少有效居住证明材料" in response.answer
+    assert "申请详情" in response.answer
     serialized = response.model_dump()
     assert "need_ticket_selection" not in serialized
     assert "tickets" not in serialized
@@ -87,7 +87,7 @@ def test_stream_done_event_contains_agent_result_not_ticket_picker():
     events = list(workflow.stream(ChatRequest(query="我的健康证申请进度", user_id=1)))
     done = next(event["data"] for event in events if event["event"] == "done")
 
-    assert [event["event"] for event in events].count("evidence") == 2
+    assert [event["event"] for event in events].count("evidence") == 0
     assert done["agent_iteration"] >= 2
     assert done["selected_item_code"] == "ITEM-HEALTH-CERTIFICATE"
     assert done["selected_application_id"] == 1001
@@ -95,7 +95,7 @@ def test_stream_done_event_contains_agent_result_not_ticket_picker():
     assert "tickets" not in done
 
 
-def test_ticket_list_only_reuses_the_passed_gate_after_agent_observation():
+def test_ticket_list_only_finishes_without_a_gate():
     class TicketListOnlyAgent:
         def decide(self, state, _tool_definitions):
             if not state.get("tool_results"):
@@ -113,7 +113,8 @@ def test_ticket_list_only_reuses_the_passed_gate_after_agent_observation():
 
     events = list(workflow.stream(ChatRequest(query="我现在有哪些工单", user_id=1)))
 
-    assert [event["event"] for event in events].count("evidence") == 1
+    assert [event["event"] for event in events].count("evidence") == 0
+    assert [event["event"] for event in events].count("agent_decision") == 2
 
 
 def test_agentic_schema_and_migration_define_complete_application_history():
