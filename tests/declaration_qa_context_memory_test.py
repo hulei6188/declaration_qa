@@ -2,11 +2,7 @@ from declaration_qa.application.factory import create_workflow
 from declaration_qa.application.agent import AgentDecision
 from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.core.config import DeclarationQASettings
-from declaration_qa.memory.manager import (
-    ContextMemoryManager,
-    extract_verified_ticket_facts,
-)
-from declaration_qa.memory.context import build_short_term_context
+from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.memory.retrieval import ContextMemoryRetriever
 from declaration_qa.memory.store import InMemoryContextMemoryStore
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
@@ -14,106 +10,33 @@ from declaration_qa.search.vector.memory import MemoryVectorIndex
 from declaration_qa.storage.cache import InMemoryCacheStore
 
 
-def test_short_memory_uses_cache_and_summary():
+def test_short_memory_uses_cache_for_agent_messages_only():
     manager = build_manager()
 
-    first = manager.load_short_memory(
-        user_id=1,
-        session_id="s1",
-        fallback_messages=[{"role": "user", "content": "取水许可怎么办理"}],
+    first = manager.load_short_memory(user_id=1, session_id="s1")
+    manager.update_short_memory(
+        payload={
+            "user_id": 1,
+            "session_id": "s1",
+            "agent_messages": [
+                {"role": "user", "content": "取水许可怎么办理"},
+                {"role": "assistant", "content": "请按办事指南办理。"},
+            ],
+        }
     )
-    second = manager.load_short_memory(
-        user_id=1,
-        session_id="s1",
-        fallback_messages=[{"role": "user", "content": "不应该覆盖"}],
-    )
+    second = manager.load_short_memory(user_id=1, session_id="s1")
 
     assert first["cache_hit"] is False
     assert second["cache_hit"] is True
-    assert "取水许可怎么办理" in second["summary"]
-    assert "不应该覆盖" not in second["summary"]
+    assert second["agent_messages"][0]["content"] == "取水许可怎么办理"
+    assert set(second) == {"version", "agent_messages", "cache_hit", "backend"}
 
 
-def test_verified_ticket_facts_are_deduplicated_and_enter_short_context():
-    manager = build_manager()
-    tool_result = {
-        "tool_name": "ticket_detail_query",
-        "ok": True,
-        "data": {
-            "item_code": "ITEM-RESIDENCE-PERMIT",
-            "applications": [
-                {
-                    "application_id": 2002,
-                    "item_name": "居住证办理",
-                    "current_status": "returned_for_correction",
-                    "updated_at": "2026-07-10T09:00:00+08:00",
-                    "status_history": [
-                        {
-                            "sequence_no": 2,
-                            "status": "returned_for_correction",
-                            "reason": "未提交房产证",
-                            "material_name": "房产证",
-                        }
-                    ],
-                }
-            ],
-        },
-    }
-    payload = {
-        "user_id": 9,
-        "session_id": "s9",
-        "query": "为什么退回",
-        "answer": "因为未提交房产证。",
-        "tool_results": [tool_result, tool_result],
-    }
-
-    facts = extract_verified_ticket_facts(payload["tool_results"])
-    manager.update_short_memory(payload=payload)
-    cached = manager.load_short_memory(user_id=9, session_id="s9", fallback_messages=[])
-    context = build_short_term_context({"short_memory": cached})
-
-    assert len(facts) == 2
-    assert "verified_facts" not in cached
-    assert len(cached["verified_ticket_facts"]) == 1
-    assert context["verified_ticket_facts"][0]["reason"] == "未提交房产证"
-    assert context["verified_ticket_facts"][0]["refresh_required_for_current_status"] is True
-
-
-def test_ticket_list_overview_and_tool_messages_enter_short_context():
+def test_tool_messages_enter_short_memory_without_truncating_results():
     manager = build_manager()
     payload = {
         "user_id": 10,
         "session_id": "s10",
-        "query": "取水许可怎么办理",
-        "answer": "请按办事指南办理。",
-        "tool_results": [
-            {
-                "tool_name": "ticket_list_query",
-                "ok": True,
-                "data": {
-                    "items": [
-                        {
-                            "item_code": "ITEM-WATER",
-                            "item_name": "取水许可",
-                            "application_count": 2,
-                            "statuses": ["completed", "in_review"],
-                            "updated_at": "2026-07-13T09:00:00+08:00",
-                        }
-                    ]
-                },
-            }
-        ],
-        "retrieved_sources": [
-            {
-                "chunk_id": "chunk-water-process",
-                "doc_id": "doc-water",
-                "title": "取水许可办事指南",
-                "snippet": "办理流程包括申请、受理、审查、决定和送达。",
-                "region_code": "340000",
-                "policy_version": "2025",
-                "metadata": {"section_path": "取水许可 > 办理流程"},
-            }
-        ],
         "agent_messages": [
             {"role": "user", "content": "取水许可怎么办理"},
             {"role": "assistant", "content": "", "tool_calls": [{"id": "call-1", "name": "knowledge_search"}]},
@@ -122,15 +45,12 @@ def test_ticket_list_overview_and_tool_messages_enter_short_context():
     }
 
     manager.update_short_memory(payload=payload)
-    cached = manager.load_short_memory(user_id=10, session_id="s10", fallback_messages=[])
-    context = build_short_term_context({"short_memory": cached})
+    cached = manager.load_short_memory(user_id=10, session_id="s10")
 
-    assert cached["ticket_item_overviews"][0]["application_count"] == 2
-    assert context["ticket_item_overviews"][0]["refresh_required"] is True
     assert cached["agent_messages"][2]["content"]["data"]["sources"][0]["chunk_id"] == "chunk-water-process"
 
 
-def test_old_verified_facts_cache_is_migrated_on_update():
+def test_old_short_memory_cache_is_migrated_to_agent_messages_only():
     manager = build_manager()
     key = "declaration_qa:context:short:11:s11"
     manager.cache_store.set_json(
@@ -138,27 +58,18 @@ def test_old_verified_facts_cache_is_migrated_on_update():
         {
             "version": 2,
             "recent_messages": [],
-            "verified_facts": [
-                {
-                    "source": "ticket_detail_query",
-                    "fact_type": "application_status",
-                    "trusted": True,
-                    "item_code": "ITEM-OLD",
-                    "application_id": 1,
-                    "reason": "旧事实",
-                }
-            ],
+            "verified_facts": [{"reason": "旧事实"}],
+            "ticket_item_overviews": [{"item_code": "ITEM-OLD"}],
+            "agent_messages": [{"role": "user", "content": "继续"}],
         },
         ttl_seconds=60,
     )
 
-    updated = manager.update_short_memory(
-        payload={"user_id": 11, "session_id": "s11", "query": "继续", "answer": "好的"}
-    )
+    migrated = manager.load_short_memory(user_id=11, session_id="s11")
 
-    assert updated["version"] == 3
-    assert updated["verified_ticket_facts"][0]["reason"] == "旧事实"
-    assert "verified_facts" not in updated
+    assert migrated["version"] == 4
+    assert migrated["agent_messages"] == [{"role": "user", "content": "继续"}]
+    assert set(migrated) == {"version", "agent_messages", "cache_hit", "backend"}
 
 
 def test_long_memory_async_indexes_and_retrieves_hybrid_context():

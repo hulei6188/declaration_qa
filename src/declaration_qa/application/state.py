@@ -14,7 +14,6 @@ class DeclarationQAState(TypedDict, total=False):
     query_image: dict[str, Any] | None
     query_image_ocr_text: str
     query_image_ocr_status: dict[str, Any]
-    session_messages: list[dict[str, Any]]
     short_term_context: dict[str, Any]
     short_memory: dict[str, Any]
     long_term_context: dict[str, Any]

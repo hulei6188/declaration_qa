@@ -26,7 +26,7 @@ from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQu
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
-from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, RECENT_TURN_LIMIT, recent_messages_from_session
+from declaration_qa.memory.context import RECENT_TURN_LIMIT
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.audit import InMemoryAuditStore
@@ -187,9 +187,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
         session_id = request.session_id or uuid4().hex
-        fallback_messages = self._recent_session_messages(request)
-        short_memory = self._load_short_memory(request, session_id=session_id, fallback_messages=fallback_messages)
-        session_messages = list(short_memory.get("recent_messages") or fallback_messages)
+        short_memory = self._load_short_memory(request, session_id=session_id)
         return {
             "user_id": request.user_id,
             "session_id": session_id,
@@ -198,7 +196,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
             "query_image_ocr_text": "",
             "query_image_ocr_status": {},
-            "session_messages": session_messages,
             "short_memory": short_memory,
             "short_term_context": {},
             "long_term_context": {},
@@ -253,15 +250,12 @@ class DeclarationQAWorkflow(ApplicationNodes):
         request: ChatRequest,
         *,
         session_id: str,
-        fallback_messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """从 Redis 加载短期上下文记忆，异常时回退到会话消息。"""
+        """从 Redis 加载短期 Agent 消息，持久化记录优先。"""
         persistent_agent_messages = self._recent_agent_messages(request, session_id=session_id)
         if self.context_memory_manager is None:
             return {
-                "recent_messages": fallback_messages,
                 "agent_messages": persistent_agent_messages,
-                "summary": "",
                 "backend": "none",
                 "cache_hit": False,
             }
@@ -269,16 +263,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
             short_memory = self.context_memory_manager.load_short_memory(
                 user_id=int(request.user_id),
                 session_id=session_id,
-                fallback_messages=fallback_messages,
             )
             if persistent_agent_messages:
                 short_memory["agent_messages"] = persistent_agent_messages
             return short_memory
         except Exception:
             return {
-                "recent_messages": fallback_messages,
                 "agent_messages": persistent_agent_messages,
-                "summary": "",
                 "backend": "error",
                 "cache_hit": False,
             }
@@ -297,27 +288,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
                 )
                 or []
             )
-        except Exception:
-            return []
-
-    def _recent_session_messages(self, request: ChatRequest) -> list[dict[str, Any]]:
-        """读取当前会话最近消息，避免把全量历史送入模型。"""
-        session_id = str(request.session_id or "").strip()
-        if not session_id:
-            return []
-        try:
-            recent_messages = getattr(self.audit_store, "recent_messages", None)
-            if callable(recent_messages):
-                return list(
-                    recent_messages(
-                        user_id=int(request.user_id),
-                        session_id=session_id,
-                        limit=RECENT_MESSAGE_LIMIT,
-                    )
-                    or []
-                )
-            session = self.audit_store.get_session(user_id=int(request.user_id), session_id=session_id)
-            return recent_messages_from_session(session, limit=RECENT_MESSAGE_LIMIT)
         except Exception:
             return []
 
@@ -404,7 +374,7 @@ def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:
             "tool_result_count": len(state.get("tool_results") or []),
             "answer_mode": state.get("answer_mode") or "",
             "has_query_image": bool(state.get("query_image")),
-            "recent_message_count": len(state.get("session_messages") or []),
+            "agent_message_count": len(state.get("agent_messages") or []),
             "short_term_context": ((state.get("short_term_context") or {}).get("metrics") or {}),
             "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),
             "refused": bool(state.get("refused")),

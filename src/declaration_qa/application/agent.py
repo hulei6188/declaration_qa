@@ -26,7 +26,7 @@ AGENT_SYSTEM_PROMPT = """你是政务申报系统的单 Agent。你负责理解�
 
 规则：
 1. 寒暄、简单计算、语言解释，以及不依赖外部实时事实的问题可以不调用工具，直接回答。
-2. 短期上下文中标记为 verified_ticket_facts 的内容来自此前成功的业务工具调用。解释这些已核验事实时可以直接回答；但询问“现在、最新、是否已通过”等动态状态时必须重新调用工单工具刷新。
+2. 历史工具结果可以用于理解上下文；但询问“现在、最新、是否已通过”等动态状态时必须重新调用工单工具刷新。
 3. 政策法规、材料要求、办理流程、条件、费用、时限、模板和公开规范必须调用 knowledge_search，不能仅凭模型记忆回答。
 4. 无法确认上下文指代时应请求用户澄清，不得编造事实。
 5. 查询个人申请列表时调用 ticket_list_query；查询进度、状态、退回原因时先调用 ticket_list_query，再从返回事项中自主确定 item_code，调用 ticket_detail_query。
@@ -98,7 +98,7 @@ class ToolCallingAgent:
 
         bound = self.model.bind_tools(tool_definitions) if tool_definitions else self.model
         short_context = dict(state.get("short_term_context") or {})
-        for key in ("recent_messages", "summary", "recent_knowledge_evidence_refs", "evidence_overview"):
+        for key in ("recent_knowledge_evidence_refs", "evidence_overview"):
             short_context.pop(key, None)
         prompt = {
             "iteration": int(state.get("agent_iteration") or 0),

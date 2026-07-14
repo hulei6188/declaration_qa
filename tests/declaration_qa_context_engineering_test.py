@@ -1,18 +1,4 @@
-from declaration_qa.memory.context import build_short_term_context, normalize_recent_messages
-
-
-def test_normalize_recent_messages_keeps_last_five_turns_and_truncates():
-    messages = [
-        {"role": "user" if index % 2 == 0 else "assistant", "content": f"消息{index}" + "很长" * 300}
-        for index in range(12)
-    ]
-
-    recent = normalize_recent_messages(messages)
-
-    assert len(recent) == 10
-    assert recent[0]["content"].startswith("消息2")
-    assert all(not item["content"].startswith("消息0") for item in recent)
-    assert all(len(item["content"]) <= 503 for item in recent)
+from declaration_qa.memory.context import build_short_term_context
 
 
 def test_build_short_term_context_summarizes_current_tool_image_and_evidence_without_binding():
@@ -22,7 +8,10 @@ def test_build_short_term_context_summarizes_current_tool_image_and_evidence_wit
             "normalized_query": "这个材料怎么补",
             "intent": "correction",
             "route": "agentic_rag",
-            "session_messages": [{"role": "user", "content": "上一轮问了办理进度"}],
+            "agent_messages": [
+                {"role": "user", "content": "上一轮问了办理进度"},
+                {"role": "assistant", "content": "请提供申请编号"},
+            ],
             "query_image": {"filename": "flow.png", "content_type": "image/png", "size_bytes": 1234, "text_present": True},
             "business_snapshot": {
                 "source": "ticket_detail_query",
@@ -46,7 +35,7 @@ def test_build_short_term_context_summarizes_current_tool_image_and_evidence_wit
         }
     )
 
-    assert context["metrics"]["recent_message_count"] == 1
+    assert context["metrics"]["agent_message_count"] == 2
     assert context["metrics"]["has_business_tool_context"] is True
     assert context["metrics"]["has_query_image"] is True
     assert context["business_tool_context"]["item_code"] == "WATER-001"

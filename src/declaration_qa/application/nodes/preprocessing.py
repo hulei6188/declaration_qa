@@ -22,7 +22,7 @@ class PreprocessingNodes:
             "context_built",
             {
                 "ticket_context_bound": False,
-                "recent_message_count": len(next_state.get("session_messages") or []),
+                "agent_message_count": len(next_state.get("agent_messages") or []),
             },
         )
         return next_state
