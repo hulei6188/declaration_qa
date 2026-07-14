@@ -63,6 +63,7 @@ class DeclarationQASettings(BaseSettings):
     openai_api_base: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_BASE")
     external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
     agent_model: str = Field(default="", alias="DECLARATION_QA_AGENT_MODEL")
+    agent_timeout_seconds: float = Field(default=60.0, alias="DECLARATION_QA_AGENT_TIMEOUT_SECONDS")
     agent_max_iterations: int = Field(default=4, alias="DECLARATION_QA_AGENT_MAX_ITERATIONS")
     agent_vl_enabled: bool = Field(default=False, alias="DECLARATION_QA_AGENT_VL_ENABLED")
     agent_vl_max_evidence_images: int = Field(default=3, alias="DECLARATION_QA_AGENT_VL_MAX_EVIDENCE_IMAGES")

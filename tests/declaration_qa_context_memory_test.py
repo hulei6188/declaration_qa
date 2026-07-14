@@ -4,7 +4,6 @@ from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.memory.manager import (
     ContextMemoryManager,
-    extract_knowledge_evidence_refs,
     extract_verified_ticket_facts,
 )
 from declaration_qa.memory.context import build_short_term_context
@@ -80,7 +79,7 @@ def test_verified_ticket_facts_are_deduplicated_and_enter_short_context():
     assert context["verified_ticket_facts"][0]["refresh_required_for_current_status"] is True
 
 
-def test_ticket_list_overview_and_knowledge_refs_enter_short_context_without_chunk_id():
+def test_ticket_list_overview_and_tool_messages_enter_short_context():
     manager = build_manager()
     payload = {
         "user_id": 10,
@@ -115,6 +114,11 @@ def test_ticket_list_overview_and_knowledge_refs_enter_short_context_without_chu
                 "metadata": {"section_path": "取水许可 > 办理流程"},
             }
         ],
+        "agent_messages": [
+            {"role": "user", "content": "取水许可怎么办理"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "call-1", "name": "knowledge_search"}]},
+            {"role": "tool", "tool_call_id": "call-1", "name": "knowledge_search", "content": {"data": {"sources": [{"chunk_id": "chunk-water-process"}]}}},
+        ],
     }
 
     manager.update_short_memory(payload=payload)
@@ -122,10 +126,8 @@ def test_ticket_list_overview_and_knowledge_refs_enter_short_context_without_chu
     context = build_short_term_context({"short_memory": cached})
 
     assert cached["ticket_item_overviews"][0]["application_count"] == 2
-    assert cached["recent_knowledge_evidence_refs"][0]["chunk_id"] == "chunk-water-process"
     assert context["ticket_item_overviews"][0]["refresh_required"] is True
-    assert context["recent_knowledge_evidence_refs"][0]["evidence_ref"].startswith("ev_")
-    assert "chunk_id" not in context["recent_knowledge_evidence_refs"][0]
+    assert cached["agent_messages"][2]["content"]["data"]["sources"][0]["chunk_id"] == "chunk-water-process"
 
 
 def test_old_verified_facts_cache_is_migrated_on_update():
@@ -157,28 +159,6 @@ def test_old_verified_facts_cache_is_migrated_on_update():
     assert updated["version"] == 3
     assert updated["verified_ticket_facts"][0]["reason"] == "旧事实"
     assert "verified_facts" not in updated
-
-
-def test_knowledge_evidence_refs_are_session_bound_and_expiring():
-    refs = extract_knowledge_evidence_refs(
-        [
-            {
-                "chunk_id": "chunk-1",
-                "doc_id": "doc-1",
-                "title": "指南",
-                "snippet": "证据摘要",
-                "region_code": "340000",
-                "policy_version": "2025",
-            }
-        ],
-        session_id="session-a",
-        query="刚才的证据",
-        ttl_seconds=60,
-    )
-
-    assert refs[0]["session_id"] == "session-a"
-    assert refs[0]["evidence_ref"].startswith("ev_")
-    assert refs[0]["expires_at"] > refs[0]["retrieved_at"]
 
 
 def test_long_memory_async_indexes_and_retrieves_hybrid_context():

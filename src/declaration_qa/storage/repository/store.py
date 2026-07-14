@@ -44,6 +44,20 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """按用户读取可重放的完整 Agent 执行记录。"""
         return self.agent_runs.get(user_id=user_id, run_id=run_id)
 
+    def recent_agent_messages(
+        self,
+        *,
+        user_id: int,
+        session_id: str,
+        limit_turns: int = 5,
+    ) -> list[dict[str, Any]]:
+        """读取当前会话最近若干轮可重放的 Agent 消息。"""
+        return self.agent_runs.recent_messages(
+            user_id=user_id,
+            session_id=session_id,
+            limit_turns=limit_turns,
+        )
+
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""
         return self.audit.add_feedback(audit_id=audit_id, rating=rating, comment=comment)

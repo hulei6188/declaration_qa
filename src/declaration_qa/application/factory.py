@@ -30,7 +30,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     assert_production_ready(settings)
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
-    agent_model = build_agent_model(settings)
+    agent_model = build_agent_model(settings, timeout_seconds=settings.agent_timeout_seconds)
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,

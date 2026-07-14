@@ -101,6 +101,39 @@ class AgentRunRepository(EngineBackedRepository):
         payload["tool_calls"] = [_json_safe_row(item) for item in tool_calls]
         return payload
 
+    def recent_messages(self, *, user_id: int, session_id: str, limit_turns: int = 5) -> list[dict[str, Any]]:
+        """Return replayable messages from the most recent complete runs in a session."""
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    WITH recent_runs AS (
+                        SELECT r.id, r.created_at
+                        FROM declaration_qa.agent_runs r
+                        JOIN declaration_qa.sessions s ON s.id = r.session_id
+                        WHERE s.session_uid = :session_id
+                          AND r.user_id = :user_id
+                        ORDER BY r.created_at DESC, r.id DESC
+                        LIMIT :limit_turns
+                    )
+                    SELECT m.role, m.message_type, m.content, m.content_json,
+                           tc.external_call_id, rr.created_at AS run_created_at,
+                           m.sequence_no, m.id
+                    FROM recent_runs rr
+                    JOIN declaration_qa.messages m ON m.agent_run_id = rr.id
+                    LEFT JOIN declaration_qa.tool_calls tc ON tc.result_message_id = m.id
+                    WHERE m.message_type IN ('input', 'tool_call', 'tool_result', 'output')
+                    ORDER BY rr.created_at, rr.id, m.sequence_no, m.id
+                    """
+                ),
+                {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "limit_turns": max(1, int(limit_turns or 5)),
+                },
+            ).mappings().all()
+        return [message for row in rows if (message := _replay_message(row)) is not None]
+
 
 def persist_agent_run(
     connection,
@@ -815,6 +848,44 @@ def _load_message_sources(connection, message_ids: list[int]) -> dict[int, list[
     for row in rows:
         output.setdefault(int(row["message_id"]), []).append(_json_safe_row(row, exclude={"message_id"}))
     return output
+
+
+def _replay_message(row: Any) -> dict[str, Any] | None:
+    """Convert one persisted message row into the model-facing message shape."""
+    payload = dict(row)
+    message_type = str(payload.get("message_type") or "")
+    content_json = payload.get("content_json") if isinstance(payload.get("content_json"), dict) else {}
+    if message_type == "input":
+        return {"role": "user", "content": str(payload.get("content") or "")}
+    if message_type == "output":
+        return {"role": "assistant", "content": str(payload.get("content") or "")}
+    if message_type == "tool_call":
+        calls = []
+        for call in content_json.get("tool_calls") or []:
+            if not isinstance(call, dict) or not str(call.get("name") or ""):
+                continue
+            calls.append(
+                {
+                    "id": str(call.get("id") or call.get("call_id") or call.get("name") or ""),
+                    "name": str(call.get("name") or ""),
+                    "args": dict(call.get("args") or call.get("arguments") or {}),
+                    "type": "tool_call",
+                }
+            )
+        return {
+            "role": "assistant",
+            "content": str(payload.get("content") or ""),
+            "tool_calls": calls,
+        }
+    if message_type == "tool_result":
+        result = content_json.get("result") if isinstance(content_json.get("result"), dict) else {}
+        return {
+            "role": "tool",
+            "tool_call_id": str(payload.get("external_call_id") or content_json.get("tool_call_id") or ""),
+            "name": str(result.get("tool_name") or ""),
+            "content": result,
+        }
+    return None
 
 
 def _json_safe_row(row: Any, *, exclude: set[str] | None = None) -> dict[str, Any]:

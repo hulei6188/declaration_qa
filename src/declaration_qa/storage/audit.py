@@ -126,6 +126,32 @@ class InMemoryAuditStore:
             "final_message_id": final_message_id,
         }
 
+    def recent_agent_messages(
+        self,
+        *,
+        user_id: int,
+        session_id: str,
+        limit_turns: int = 5,
+    ) -> list[dict[str, Any]]:
+        """读取内存审计中最近若干轮完整 Agent 消息。"""
+        matching = [
+            item
+            for item in self._items.values()
+            if int(item.get("user_id") or 0) == int(user_id)
+            and str(item.get("session_id") or "") == str(session_id or "")
+        ]
+        matching.sort(key=lambda item: str(item.get("created_at") or ""))
+        if not matching:
+            return []
+        latest_messages = list(matching[-1].get("agent_messages") or [])
+        if latest_messages:
+            return _last_agent_turns(latest_messages, limit_turns=limit_turns)
+        output: list[dict[str, Any]] = []
+        for item in matching[-max(1, int(limit_turns or 5)) :]:
+            output.append({"role": "user", "content": str(item.get("query") or "")})
+            output.append({"role": "assistant", "content": str(item.get("answer") or "")})
+        return output
+
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""
         payload = {
@@ -374,3 +400,13 @@ class InMemoryAuditStore:
         item["annotation_comment"] = comment
         item["annotated_at"] = datetime.now(timezone.utc).isoformat()
         return dict(item)
+
+
+def _last_agent_turns(messages: list[dict[str, Any]], *, limit_turns: int) -> list[dict[str, Any]]:
+    """按 user 消息边界保留最近完整轮次。"""
+    normalized = [dict(item) for item in messages if isinstance(item, dict)]
+    user_indexes = [index for index, item in enumerate(normalized) if item.get("role") == "user"]
+    limit = max(1, int(limit_turns or 5))
+    if len(user_indexes) <= limit:
+        return normalized
+    return normalized[user_indexes[-limit] :]

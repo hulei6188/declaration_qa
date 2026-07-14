@@ -56,9 +56,6 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
             short_memory.get("verified_ticket_facts") or short_memory.get("verified_facts") or []
         ),
         "ticket_item_overviews": normalize_ticket_item_overviews(short_memory.get("ticket_item_overviews") or []),
-        "recent_knowledge_evidence_refs": normalize_knowledge_evidence_refs(
-            short_memory.get("recent_knowledge_evidence_refs") or []
-        ),
         "business_tool_context": business_tool_context_summary(state),
         "query_image": query_image_summary(state.get("query_image")),
         "evidence_overview": evidence_overview(state.get("retrieved_sources") or []),
@@ -71,7 +68,6 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
         "has_short_memory_summary": bool(context.get("summary")),
         "verified_ticket_fact_count": len(context["verified_ticket_facts"]),
         "ticket_item_overview_count": len(context["ticket_item_overviews"]),
-        "knowledge_evidence_ref_count": len(context["recent_knowledge_evidence_refs"]),
         "has_business_tool_context": bool(context["business_tool_context"]),
         "has_query_image": bool(context["query_image"]),
         "source_count": len(state.get("retrieved_sources") or []),
@@ -125,29 +121,6 @@ def normalize_ticket_item_overviews(items: list[dict[str, Any]]) -> list[dict[st
                     "verified_at": item.get("verified_at") or "",
                     "refresh_required": True,
                     "usage": "仅用于事项指代消歧，具体状态、进度和退回原因必须查询详情工具",
-                }
-            )
-        )
-    return output
-
-
-def normalize_knowledge_evidence_refs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """向 Agent 暴露会话证据别名和摘要，不暴露可伪造的内部 chunk id。"""
-    output = []
-    for item in list(items or [])[-8:]:
-        if not isinstance(item, dict) or not str(item.get("evidence_ref") or ""):
-            continue
-        output.append(
-            compact_dict(
-                {
-                    "evidence_ref": truncate_text(item.get("evidence_ref") or "", 80),
-                    "query": truncate_text(item.get("query") or "", FIELD_CONTENT_LIMIT),
-                    "title": truncate_text(item.get("title") or "", 200),
-                    "section": truncate_text(item.get("section") or "", FIELD_CONTENT_LIMIT),
-                    "summary": truncate_text(item.get("summary") or "", 320),
-                    "policy_version": truncate_text(item.get("policy_version") or "", 80),
-                    "retrieved_at": item.get("retrieved_at") or "",
-                    "expires_at": item.get("expires_at") or "",
                 }
             )
         )

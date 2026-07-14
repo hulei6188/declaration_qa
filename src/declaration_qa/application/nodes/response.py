@@ -73,6 +73,11 @@ class ResponseNodes:
     def audit_log(self, state: DeclarationQAState) -> DeclarationQAState:
         """写入问答审计日志。"""
         next_state = dict(state)
+        agent_messages = list(next_state.get("agent_messages") or [])
+        answer = str(next_state.get("answer") or "")
+        if answer:
+            agent_messages.append({"role": "assistant", "content": answer})
+        next_state["agent_messages"] = agent_messages
         payload = {
             "user_id": next_state.get("user_id"),
             "session_id": next_state.get("session_id"),
@@ -103,6 +108,7 @@ class ResponseNodes:
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
             "agent_selected_application_id": next_state.get("agent_selected_application_id"),
             "tool_results": next_state.get("tool_results") or [],
+            "agent_messages": agent_messages,
             "retrieval_filter": next_state.get("retrieval_filter"),
             "retrieval_query": next_state.get("retrieval_query") or "",
             "rag_query": next_state.get("rag_query") or "",

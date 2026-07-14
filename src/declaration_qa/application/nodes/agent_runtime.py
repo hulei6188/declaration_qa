@@ -14,9 +14,6 @@ from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.helpers.events import add_event
-from declaration_qa.application.helpers.historical_evidence import (
-    trusted_historical_evidence_candidates,
-)
 from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.memory.context import build_short_term_context
@@ -45,7 +42,9 @@ class AgentRuntimeNodes:
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
-        next_state["agent_messages"] = []
+        messages = list(next_state.get("agent_messages") or [])
+        messages.append({"role": "user", "content": str(next_state.get("query") or "")})
+        next_state["agent_messages"] = messages
         next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
@@ -370,42 +369,17 @@ class AgentRuntimeNodes:
         }
         filters = normalize_retrieval_filter(state.get("metadata_filter") or {})
         result = self.multi_retrieve(isolated_state, filters)
-        historical_candidates, historical_ref_status = trusted_historical_evidence_candidates(
-            self.rag_engine,
-            state,
-            filters=filters,
-            session_id=context.session_id,
-            region_code=context.region_code,
-        )
         current_payloads = [source.payload() for source in result.sources]
-        historical_payloads = []
-        for local_rank, source in enumerate(historical_candidates, start=1):
-            payload = source.payload()
-            metadata = dict(payload.get("metadata") or {})
-            metadata["retrieval_matches"] = [
-                {
-                    "match_id": "r0:history",
-                    "search_round": 0,
-                    "query_id": "history",
-                    "query": "可信历史证据",
-                    "strategy": "history_ref",
-                    "local_rank": local_rank,
-                }
-            ]
-            payload["metadata"] = metadata
-            historical_payloads.append(payload)
         final_sources = merge_accumulated_source_payloads(
-            [*current_payloads, *historical_payloads],
+            current_payloads,
             min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
             max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
         )
         rag_status = {
             **(result.status or {}),
-            "historical_evidence_refs": historical_ref_status,
-            "historical_candidate_count": len(historical_candidates),
             "final_source_count": len(final_sources),
             "final_rerank_applied": False,
-            "historical_merge_mode": "coverage_merge_without_rerank",
+            "historical_merge_mode": "current_search_only",
         }
         return {
             "sources": final_sources,
@@ -552,23 +526,7 @@ def append_tool_message(
     payload: dict[str, Any],
 ) -> None:
     """按 tool_call_id 保存可重放的工具观察，知识正文由证据槽单独提供。"""
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    if payload.get("tool_name") == "knowledge_search":
-        observation = {
-            "ok": bool(payload.get("ok")),
-            "status": payload.get("status") or "",
-            "error": payload.get("error") or "",
-            "requested_queries": data.get("requested_queries") or [],
-            "executed_queries": data.get("executed_queries") or [],
-            "source_count": len(data.get("sources") or []),
-        }
-    else:
-        observation = {
-            "ok": bool(payload.get("ok")),
-            "status": payload.get("status") or "",
-            "error": payload.get("error") or "",
-            "data": data,
-        }
+    observation = dict(payload)
     messages = list(state.get("agent_messages") or [])
     messages.append(
         {

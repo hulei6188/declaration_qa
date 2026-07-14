@@ -26,7 +26,7 @@ from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQu
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory.manager import ContextMemoryManager
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
-from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, recent_messages_from_session
+from declaration_qa.memory.context import RECENT_MESSAGE_LIMIT, RECENT_TURN_LIMIT, recent_messages_from_session
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.audit import InMemoryAuditStore
@@ -208,7 +208,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "agent_query_plan": {},
             "agent_pending_tool_calls": [],
             "agent_call_signatures": [],
-            "agent_messages": [],
+            "agent_messages": list(short_memory.get("agent_messages") or []),
             "answer_mode": "",
             "agent_final_answer": "",
             "agent_final_prompt": "",
@@ -256,16 +256,49 @@ class DeclarationQAWorkflow(ApplicationNodes):
         fallback_messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """从 Redis 加载短期上下文记忆，异常时回退到会话消息。"""
+        persistent_agent_messages = self._recent_agent_messages(request, session_id=session_id)
         if self.context_memory_manager is None:
-            return {"recent_messages": fallback_messages, "summary": "", "backend": "none", "cache_hit": False}
+            return {
+                "recent_messages": fallback_messages,
+                "agent_messages": persistent_agent_messages,
+                "summary": "",
+                "backend": "none",
+                "cache_hit": False,
+            }
         try:
-            return self.context_memory_manager.load_short_memory(
+            short_memory = self.context_memory_manager.load_short_memory(
                 user_id=int(request.user_id),
                 session_id=session_id,
                 fallback_messages=fallback_messages,
             )
+            if persistent_agent_messages:
+                short_memory["agent_messages"] = persistent_agent_messages
+            return short_memory
         except Exception:
-            return {"recent_messages": fallback_messages, "summary": "", "backend": "error", "cache_hit": False}
+            return {
+                "recent_messages": fallback_messages,
+                "agent_messages": persistent_agent_messages,
+                "summary": "",
+                "backend": "error",
+                "cache_hit": False,
+            }
+
+    def _recent_agent_messages(self, request: ChatRequest, *, session_id: str) -> list[dict[str, Any]]:
+        """从持久化审计存储读取最近完整 Agent 轮次。"""
+        loader = getattr(self.audit_store, "recent_agent_messages", None)
+        if not callable(loader) or not session_id:
+            return []
+        try:
+            return list(
+                loader(
+                    user_id=int(request.user_id),
+                    session_id=session_id,
+                    limit_turns=RECENT_TURN_LIMIT,
+                )
+                or []
+            )
+        except Exception:
+            return []
 
     def _recent_session_messages(self, request: ChatRequest) -> list[dict[str, Any]]:
         """读取当前会话最近消息，避免把全量历史送入模型。"""
