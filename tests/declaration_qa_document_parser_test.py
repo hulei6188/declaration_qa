@@ -4,6 +4,7 @@ import types
 import zipfile
 
 from declaration_qa.indexing.attachments.form_fields import extract_form_fields
+from declaration_qa.indexing.document_parsing.legacy_doc import DOCX_CONTENT_TYPE, LegacyDocConversionResult
 from declaration_qa.indexing.documents import HttpOcrClient, parse_docx, parse_document_bytes, parse_pdf
 from declaration_qa.indexing.service.workflow_index import chunk_storage_status
 
@@ -117,6 +118,53 @@ def test_parse_xls_with_calamine_preserves_table_for_form_fields(monkeypatch):
 
     field_names = {field.field_name for field in extract_form_fields(parsed.text)}
     assert {"申请单位、个人", "联系人", "联系电话", "采集目的", "物种中文名", "保护级别"}.issubset(field_names)
+
+
+def test_legacy_doc_is_converted_to_docx_before_parsing(monkeypatch):
+    captured = {}
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="{WORD_NS}">
+  <w:body>
+    <w:p><w:r><w:t>退出现役残疾军人集中供养申请书</w:t></w:r></w:p>
+    <w:p><w:r><w:t>申请人应填写本人基本情况。</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+"""
+
+    def fake_convert(**kwargs):
+        captured.update(kwargs)
+        return LegacyDocConversionResult(
+            filename="退出现役残疾军人集中供养申请书.docx",
+            content_type=DOCX_CONTENT_TYPE,
+            data=make_docx(xml),
+            converter_command="fake-soffice",
+        )
+
+    monkeypatch.setattr(
+        "declaration_qa.indexing.document_parsing.factory.convert_legacy_doc_to_docx",
+        fake_convert,
+    )
+
+    parsed = parse_document_bytes(
+        filename="退出现役残疾军人集中供养申请书.doc",
+        content_type="application/msword",
+        data=b"legacy-doc-bytes",
+        parser_provider="native",
+        legacy_doc_converter_command="fake-soffice",
+        legacy_doc_conversion_timeout_seconds=9,
+    )
+
+    assert "退出现役残疾军人集中供养申请书" in parsed.text
+    assert "申请人应填写本人基本情况" in parsed.text
+    assert parsed.filename == "退出现役残疾军人集中供养申请书.doc"
+    assert parsed.content_type == "application/msword"
+    assert parsed.metadata["legacy_doc_converted"] is True
+    assert parsed.metadata["legacy_doc_converted_filename"] == "退出现役残疾军人集中供养申请书.docx"
+    assert parsed.metadata["document_parser"] == "native"
+    assert captured["filename"] == "退出现役残疾军人集中供养申请书.doc"
+    assert captured["data"] == b"legacy-doc-bytes"
+    assert captured["converter_command"] == "fake-soffice"
+    assert captured["timeout_seconds"] == 9
 
 
 def test_chunk_storage_status_keeps_staging_rows_database_safe():

@@ -142,6 +142,9 @@ def build_attachment_chunks_for_document(
                     chonkie_text_max_chars=settings.chonkie_text_max_chars,
                     chonkie_text_min_chars=settings.chonkie_text_min_chars,
                     chonkie_table_max_chars=settings.chonkie_table_max_chars,
+                    legacy_doc_conversion_enabled=settings.legacy_doc_conversion_enabled,
+                    legacy_doc_converter_command=settings.legacy_doc_converter_command,
+                    legacy_doc_conversion_timeout_seconds=settings.legacy_doc_conversion_timeout_seconds,
                     pdf_ocr_fallback_enabled=bool(settings.attachment_pdf_ocr_fallback_enabled),
                     pdf_ocr_max_pages=int(settings.attachment_pdf_ocr_max_pages),
                     pdf_ocr_dpi=int(settings.attachment_pdf_ocr_dpi),
@@ -230,6 +233,9 @@ def build_shared_document_parser(
         chonkie_text_max_chars=settings.chonkie_text_max_chars,
         chonkie_text_min_chars=settings.chonkie_text_min_chars,
         chonkie_table_max_chars=settings.chonkie_table_max_chars,
+        legacy_doc_conversion_enabled=settings.legacy_doc_conversion_enabled,
+        legacy_doc_converter_command=settings.legacy_doc_converter_command,
+        legacy_doc_conversion_timeout_seconds=settings.legacy_doc_conversion_timeout_seconds,
     )
 
 

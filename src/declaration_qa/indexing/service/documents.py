@@ -77,6 +77,9 @@ def process_document_index(
             chonkie_text_max_chars=settings.chonkie_text_max_chars,
             chonkie_text_min_chars=settings.chonkie_text_min_chars,
             chonkie_table_max_chars=settings.chonkie_table_max_chars,
+            legacy_doc_conversion_enabled=settings.legacy_doc_conversion_enabled,
+            legacy_doc_converter_command=settings.legacy_doc_converter_command,
+            legacy_doc_conversion_timeout_seconds=settings.legacy_doc_conversion_timeout_seconds,
         )
         content = parsed.text
         filename = parsed.filename

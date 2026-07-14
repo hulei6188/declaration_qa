@@ -172,6 +172,7 @@ Agent 多查询模式按子查询独立重排：
 | 文件类型 | 首选解析路径 | 切分方式 |
 | --- | --- | --- |
 | PDF、DOCX、PPTX、XLSX | MinerU API | MinerU `content_list` 转结构元素后交给 Chonkie |
+| DOC | LibreOffice headless 转 DOCX 后进入解析链 | 转换后的 DOCX 继续按 MinerU/native 解析 |
 | PNG、JPG、WEBP、BMP、TIFF | MinerU 或配置的 OCR | 图片资产 + OCR 文本 + Chonkie |
 | Markdown、TXT、JSON、XML | native 文本解码 | Marko GFM 结构识别 + Chonkie |
 | CSV | native 表格解析 | 表格元素 + Chonkie TableChunker |
@@ -183,9 +184,12 @@ Agent 多查询模式按子查询独立重排：
 DECLARATION_QA_DOCUMENT_PARSER_PROVIDER=auto
 DECLARATION_QA_DOCUMENT_PARSER_ORDER=mineru,native
 DECLARATION_QA_DOCUMENT_PARSER_FALLBACK_ENABLED=true
+DECLARATION_QA_LEGACY_DOC_CONVERSION_ENABLED=true
 ```
 
 Markdown 不发送给 MinerU。`auto` 模式会根据解析器的 `supports()` 结果跳过不支持的解析器，因此 `.md` 会直接由 native 解析器解码，再由 Marko GFM 识别标题、列表、引用、表格、代码块和 HTML 节点。
+
+老版二进制 `.doc` 会先调用 LibreOffice headless 转成 `.docx`，再进入上述解析顺序。生产环境需要安装 LibreOffice，并可通过 `DECLARATION_QA_LEGACY_DOC_CONVERTER_COMMAND` 指定 `soffice.com` / `soffice` 的完整路径。
 
 ### MinerU content_list
 
@@ -467,6 +471,9 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 | `DECLARATION_QA_MINERU_LANGUAGE` | 解析语言，中文使用 `ch` |
 | `DECLARATION_QA_MINERU_MODEL_SOURCE` | 模型来源，默认 `modelscope` |
 | `DECLARATION_QA_MINERU_TIMEOUT_SECONDS` | 单文件解析超时 |
+| `DECLARATION_QA_LEGACY_DOC_CONVERSION_ENABLED` | 是否将老版 `.doc` 转成 `.docx` 后再解析 |
+| `DECLARATION_QA_LEGACY_DOC_CONVERTER_COMMAND` | LibreOffice `soffice.com` / `soffice` 路径，留空时自动查找 |
+| `DECLARATION_QA_LEGACY_DOC_CONVERSION_TIMEOUT_SECONDS` | 单个 `.doc` 转换超时 |
 | `DECLARATION_QA_OCR_API_URL` | 图片 OCR 网关 |
 | `DECLARATION_QA_OCR_API_KEY` | OCR Key |
 | `DECLARATION_QA_OCR_MODEL` | OCR 模型 |

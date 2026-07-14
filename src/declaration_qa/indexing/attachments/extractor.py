@@ -33,6 +33,9 @@ def extract_attachment(
     chonkie_text_max_chars: int = 900,
     chonkie_text_min_chars: int = 120,
     chonkie_table_max_chars: int = 3500,
+    legacy_doc_conversion_enabled: bool = True,
+    legacy_doc_converter_command: str = "",
+    legacy_doc_conversion_timeout_seconds: int = 120,
     pdf_ocr_fallback_enabled: bool = True,
     pdf_ocr_max_pages: int = 8,
     pdf_ocr_dpi: int = 180,
@@ -67,6 +70,9 @@ def extract_attachment(
             chonkie_text_max_chars=chonkie_text_max_chars,
             chonkie_text_min_chars=chonkie_text_min_chars,
             chonkie_table_max_chars=chonkie_table_max_chars,
+            legacy_doc_conversion_enabled=legacy_doc_conversion_enabled,
+            legacy_doc_converter_command=legacy_doc_converter_command,
+            legacy_doc_conversion_timeout_seconds=legacy_doc_conversion_timeout_seconds,
         )
         text = parsed.text
         parsed_blocks = list(getattr(parsed, "blocks", None) or [])

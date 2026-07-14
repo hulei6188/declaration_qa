@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 
 from declaration_qa.indexing.document_parsing.llamaparse_parser import LlamaParseDocumentParser
+from declaration_qa.indexing.document_parsing.legacy_doc import (
+    convert_legacy_doc_to_docx,
+    is_legacy_word_document,
+)
 from declaration_qa.indexing.document_parsing.marker_parser import MarkerDocumentParser
 from declaration_qa.indexing.document_parsing.mineru_parser import MinerUDocumentParser
 from declaration_qa.indexing.document_parsing.models import DocumentParseError, DocumentParser, ParsedDocument
@@ -65,6 +69,58 @@ class CompositeDocumentParser:
         raise DocumentParseError("; ".join(errors) if errors else "No document parser configured")
 
 
+class LegacyDocConvertingDocumentParser:
+    """Convert legacy .doc files to .docx before delegating to the configured parser."""
+
+    name = "legacy-doc-converter"
+
+    def __init__(
+        self,
+        parser: DocumentParser,
+        *,
+        converter_command: str = "",
+        timeout_seconds: int = 120,
+    ) -> None:
+        """Initialize the conversion wrapper."""
+        self.parser = parser
+        self.converter_command = converter_command
+        self.timeout_seconds = timeout_seconds
+
+    def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
+        """Convert old Word files first, then parse the generated DOCX."""
+        if not is_legacy_word_document(filename, content_type):
+            return self.parser.parse(filename=filename, content_type=content_type, data=data)
+        converted = convert_legacy_doc_to_docx(
+            filename=filename,
+            data=data,
+            converter_command=self.converter_command,
+            timeout_seconds=self.timeout_seconds,
+        )
+        parsed = self.parser.parse(
+            filename=converted.filename,
+            content_type=converted.content_type,
+            data=converted.data,
+        )
+        metadata = {
+            **parsed.metadata,
+            "legacy_doc_converted": True,
+            "legacy_doc_converter": "libreoffice",
+            "legacy_doc_converter_command": converted.converter_command,
+            "legacy_doc_original_filename": filename,
+            "legacy_doc_original_content_type": content_type,
+            "legacy_doc_converted_filename": converted.filename,
+            "legacy_doc_converted_content_type": converted.content_type,
+        }
+        return ParsedDocument(
+            filename=filename,
+            content_type=(content_type or "").lower(),
+            text=parsed.text,
+            parser_name=parsed.parser_name,
+            blocks=parsed.blocks,
+            metadata=metadata,
+        )
+
+
 def parse_document_bytes(
     *,
     filename: str,
@@ -87,6 +143,9 @@ def parse_document_bytes(
     chonkie_text_max_chars: int = 900,
     chonkie_text_min_chars: int = 120,
     chonkie_table_max_chars: int = 3500,
+    legacy_doc_conversion_enabled: bool = True,
+    legacy_doc_converter_command: str = "",
+    legacy_doc_conversion_timeout_seconds: int = 120,
 ) -> ParsedDocument:
     """根据配置解析上传文档字节。"""
     effective_order = parser_order
@@ -110,6 +169,9 @@ def parse_document_bytes(
         chonkie_text_max_chars=chonkie_text_max_chars,
         chonkie_text_min_chars=chonkie_text_min_chars,
         chonkie_table_max_chars=chonkie_table_max_chars,
+        legacy_doc_conversion_enabled=legacy_doc_conversion_enabled,
+        legacy_doc_converter_command=legacy_doc_converter_command,
+        legacy_doc_conversion_timeout_seconds=legacy_doc_conversion_timeout_seconds,
     )
     return parser.parse(filename=filename, content_type=content_type, data=data)
 
@@ -133,12 +195,15 @@ def build_document_parser(
     chonkie_text_max_chars: int = 900,
     chonkie_text_min_chars: int = 120,
     chonkie_table_max_chars: int = 3500,
+    legacy_doc_conversion_enabled: bool = False,
+    legacy_doc_converter_command: str = "",
+    legacy_doc_conversion_timeout_seconds: int = 120,
 ) -> DocumentParser:
     """根据 provider 构建文档解析器。"""
     normalized_provider = normalize_provider(provider)
     if normalized_provider == "auto":
         names = parser_order(order or DEFAULT_AUTO_ORDER)
-        return CompositeDocumentParser(
+        parser = CompositeDocumentParser(
             [
                 parser_by_name(
                     name,
@@ -160,6 +225,12 @@ def build_document_parser(
                 for name in names
             ]
         )
+        return wrap_legacy_doc_converter(
+            parser,
+            enabled=legacy_doc_conversion_enabled,
+            converter_command=legacy_doc_converter_command,
+            timeout_seconds=legacy_doc_conversion_timeout_seconds,
+        )
     parser = parser_by_name(
         normalized_provider,
         ocr_client=ocr_client,
@@ -178,8 +249,35 @@ def build_document_parser(
         chonkie_table_max_chars=chonkie_table_max_chars,
     )
     if normalized_provider == "native" or not fallback_enabled:
+        return wrap_legacy_doc_converter(
+            parser,
+            enabled=legacy_doc_conversion_enabled,
+            converter_command=legacy_doc_converter_command,
+            timeout_seconds=legacy_doc_conversion_timeout_seconds,
+        )
+    return wrap_legacy_doc_converter(
+        CompositeDocumentParser([parser, NativeDocumentParser(ocr_client=ocr_client)]),
+        enabled=legacy_doc_conversion_enabled,
+        converter_command=legacy_doc_converter_command,
+        timeout_seconds=legacy_doc_conversion_timeout_seconds,
+    )
+
+
+def wrap_legacy_doc_converter(
+    parser: DocumentParser,
+    *,
+    enabled: bool,
+    converter_command: str,
+    timeout_seconds: int,
+) -> DocumentParser:
+    """Optionally wrap a parser with legacy DOC conversion."""
+    if not enabled:
         return parser
-    return CompositeDocumentParser([parser, NativeDocumentParser(ocr_client=ocr_client)])
+    return LegacyDocConvertingDocumentParser(
+        parser,
+        converter_command=converter_command,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def parser_by_name(
