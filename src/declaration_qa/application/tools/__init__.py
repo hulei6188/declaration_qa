@@ -7,13 +7,35 @@ from declaration_qa.application.tools.registry import (
     ToolExecutionResult,
     ToolRegistry,
 )
+from declaration_qa.application.tools.service_queries import (
+    AppointmentBookTool,
+    AppointmentListQueryTool,
+    AppointmentSlotQueryTool,
+    ConsultationRecordQueryTool,
+    DeliveryStatusQueryTool,
+    PaymentOrderQueryTool,
+    PaymentReceiptQueryTool,
+    QueueStatusQueryTool,
+    ResultCertificateQueryTool,
+    SubmissionReceiptQueryTool,
+)
 from declaration_qa.application.tools.ticket import TicketDetailQueryTool, TicketListQueryTool
 
 __all__ = [
     "AgentTool",
+    "AppointmentBookTool",
+    "AppointmentListQueryTool",
+    "AppointmentSlotQueryTool",
+    "ConsultationRecordQueryTool",
+    "DeliveryStatusQueryTool",
     "KnowledgeSearchInput",
     "KnowledgeSearchTool",
     "KnowledgeSubQuery",
+    "PaymentOrderQueryTool",
+    "PaymentReceiptQueryTool",
+    "QueueStatusQueryTool",
+    "ResultCertificateQueryTool",
+    "SubmissionReceiptQueryTool",
     "TicketDetailQueryTool",
     "TicketListQueryTool",
     "ToolExecutionContext",

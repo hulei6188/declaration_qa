@@ -64,6 +64,86 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
             application_id=application_id,
         )
 
+    def list_appointments(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None = None,
+        status: str = "active",
+    ) -> list[dict[str, Any]]:
+        return self.business.list_appointments(user_id=user_id, region_code=region_code, status=status)
+
+    def query_appointment_slots(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+        service_date: str | None = None,
+        hall_code: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.business.query_appointment_slots(
+            item_code=item_code,
+            region_code=region_code,
+            service_date=service_date,
+            hall_code=hall_code,
+        )
+
+    def book_appointment(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        slot_id: int,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self.business.book_appointment(
+            user_id=user_id,
+            region_code=region_code,
+            slot_id=slot_id,
+            idempotency_key=idempotency_key,
+        )
+
+    def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
+        return self.business.get_queue_status(user_id=user_id, appointment_id=appointment_id)
+
+    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        return self.business.get_payment_orders(user_id=user_id, application_id=application_id)
+
+    def get_payment_receipts(
+        self,
+        *,
+        user_id: int,
+        application_id: int,
+        payment_order_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.business.get_payment_receipts(
+            user_id=user_id,
+            application_id=application_id,
+            payment_order_id=payment_order_id,
+        )
+
+    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        return self.business.get_submission_receipts(user_id=user_id, application_id=application_id)
+
+    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        return self.business.get_result_certificates(user_id=user_id, application_id=application_id)
+
+    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        return self.business.get_delivery_statuses(user_id=user_id, application_id=application_id)
+
+    def list_consultation_records(
+        self,
+        *,
+        user_id: int,
+        status: str = "all",
+        consultation_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.business.list_consultation_records(
+            user_id=user_id,
+            status=status,
+            consultation_id=consultation_id,
+        )
+
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""
         return self.evaluation.create_eval_dataset(name=name, description=description, cases=cases)

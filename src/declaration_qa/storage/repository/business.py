@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from hashlib import sha256
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 
-from declaration_qa.core.business import region_code_variants
+from declaration_qa.core.business import AppointmentBookingError, region_code_variants
 from declaration_qa.storage.repository.base import EngineBackedRepository
+
+
+BOOKING_APPOINTMENT_COLUMNS = """
+    a.id AS appointment_id,
+    a.slot_id,
+    a.item_code,
+    a.item_name,
+    a.region_code,
+    a.hall_code,
+    a.hall_name,
+    a.hall_address,
+    a.service_date,
+    a.start_time,
+    a.end_time,
+    a.status,
+    a.created_at,
+    a.updated_at
+"""
 
 
 class BusinessRepository(EngineBackedRepository):
@@ -173,4 +194,465 @@ class BusinessRepository(EngineBackedRepository):
                 }
             )
         return output
+
+    def list_appointments(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None = None,
+        status: str = "active",
+    ) -> list[dict[str, Any]]:
+        """按可信用户查询预约记录。"""
+        region_codes = region_code_variants(region_code)
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.id AS appointment_id,
+                        a.item_code,
+                        a.item_name,
+                        a.region_code,
+                        a.hall_code,
+                        a.hall_name,
+                        a.hall_address,
+                        a.service_date,
+                        a.start_time,
+                        a.end_time,
+                        a.status,
+                        a.updated_at
+                    FROM declaration_qa.business_appointments a
+                    WHERE a.user_id = :user_id
+                      AND (:use_region_filter = FALSE OR a.region_code = ANY(:region_codes))
+                      AND (
+                          :status = 'all'
+                          OR (:status = 'active' AND a.status = ANY(:active_statuses))
+                          OR a.status = :status
+                      )
+                    ORDER BY a.service_date, a.start_time, a.id
+                    """
+                ),
+                {
+                    "user_id": int(user_id),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
+                    "status": str(status or "active"),
+                    "active_statuses": ["booked", "checked_in", "waiting", "called"],
+                },
+            ).mappings().all()
+        return [business_row(row) for row in rows]
+
+    def query_appointment_slots(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+        service_date: str | None = None,
+        hall_code: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """查询事项在可信地区内的公开号源。"""
+        region_codes = region_code_variants(region_code)
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        s.id AS slot_id,
+                        s.item_code,
+                        s.item_name,
+                        s.region_code,
+                        s.hall_code,
+                        s.hall_name,
+                        s.hall_address,
+                        s.service_date,
+                        s.start_time,
+                        s.end_time,
+                        s.capacity,
+                        s.reserved_count,
+                        GREATEST(s.capacity - s.reserved_count, 0) AS remaining_count,
+                        s.status,
+                        s.updated_at
+                    FROM declaration_qa.business_appointment_slots s
+                    WHERE s.item_code = :item_code
+                      AND (:use_region_filter = FALSE OR s.region_code = ANY(:region_codes))
+                      AND (CAST(:service_date AS DATE) IS NULL OR s.service_date = CAST(:service_date AS DATE))
+                      AND (:hall_code = '' OR s.hall_code = :hall_code)
+                    ORDER BY s.service_date, s.start_time, s.id
+                    """
+                ),
+                {
+                    "item_code": str(item_code or "").strip(),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
+                    "service_date": service_date,
+                    "hall_code": str(hall_code or "").strip(),
+                },
+            ).mappings().all()
+        return [business_row(row) for row in rows]
+
+    def book_appointment(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        slot_id: int,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """锁定号源后创建预约，确保并发和重试不会重复扣号。"""
+        key = str(idempotency_key or "").strip()
+        if not key:
+            raise AppointmentBookingError("invalid_request", "预约幂等键不能为空")
+        region_codes = region_code_variants(region_code)
+        appointment_uid = f"APPT-{sha256(f'{user_id}:{key}'.encode('utf-8')).hexdigest()}"
+        with self.engine.begin() as connection:
+            replay = connection.execute(
+                text(f"""
+                    SELECT {BOOKING_APPOINTMENT_COLUMNS}
+                    FROM declaration_qa.business_appointments a
+                    WHERE a.user_id = :user_id AND a.idempotency_key = :idempotency_key
+                """),
+                {"user_id": int(user_id), "idempotency_key": key},
+            ).mappings().first()
+            if replay:
+                return {**business_row(replay), "booking_status": "idempotent_replay"}
+
+            slot = connection.execute(
+                text(
+                    """
+                    SELECT
+                        s.id AS slot_id,
+                        s.item_code,
+                        s.item_name,
+                        s.region_code,
+                        s.hall_code,
+                        s.hall_name,
+                        s.hall_address,
+                        s.service_date,
+                        s.start_time,
+                        s.end_time,
+                        s.capacity,
+                        s.reserved_count,
+                        s.status
+                    FROM declaration_qa.business_appointment_slots s
+                    WHERE s.id = :slot_id
+                      AND (:use_region_filter = FALSE OR s.region_code = ANY(:region_codes))
+                    FOR UPDATE
+                    """
+                ),
+                {
+                    "slot_id": int(slot_id),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
+                },
+            ).mappings().first()
+            if not slot:
+                raise AppointmentBookingError("slot_not_found", "未找到当前地区的预约号源")
+
+            existing = connection.execute(
+                text(f"""
+                    SELECT {BOOKING_APPOINTMENT_COLUMNS}
+                    FROM declaration_qa.business_appointments a
+                    WHERE a.user_id = :user_id
+                      AND a.slot_id = :slot_id
+                      AND a.status = ANY(:active_statuses)
+                    ORDER BY a.created_at DESC, a.id DESC
+                    LIMIT 1
+                """),
+                {
+                    "user_id": int(user_id),
+                    "slot_id": int(slot_id),
+                    "active_statuses": ["booked", "checked_in", "waiting", "called"],
+                },
+            ).mappings().first()
+            if existing:
+                return {**business_row(existing), "booking_status": "already_booked"}
+
+            remaining = int(slot.get("capacity") or 0) - int(slot.get("reserved_count") or 0)
+            if str(slot.get("status") or "") != "available" or remaining <= 0:
+                raise AppointmentBookingError("slot_unavailable", "该预约时段已无剩余号源")
+
+            appointment = connection.execute(
+                text(
+                    """
+                    INSERT INTO declaration_qa.business_appointments (
+                        appointment_uid, slot_id, idempotency_key, user_id, item_code, item_name,
+                        region_code, hall_code, hall_name, hall_address, service_date,
+                        start_time, end_time, status, payload
+                    ) VALUES (
+                        :appointment_uid, :slot_id, :idempotency_key, :user_id, :item_code, :item_name,
+                        :region_code, :hall_code, :hall_name, :hall_address, :service_date,
+                        :start_time, :end_time, 'booked', jsonb_build_object('source', 'appointment_book')
+                    )
+                    RETURNING
+                        id AS appointment_id, slot_id, item_code, item_name, region_code,
+                        hall_code, hall_name, hall_address, service_date, start_time, end_time,
+                        status, created_at, updated_at
+                    """
+                ),
+                {
+                    "appointment_uid": appointment_uid,
+                    "slot_id": int(slot_id),
+                    "idempotency_key": key,
+                    "user_id": int(user_id),
+                    "item_code": str(slot.get("item_code") or ""),
+                    "item_name": str(slot.get("item_name") or ""),
+                    "region_code": str(slot.get("region_code") or ""),
+                    "hall_code": str(slot.get("hall_code") or ""),
+                    "hall_name": str(slot.get("hall_name") or ""),
+                    "hall_address": str(slot.get("hall_address") or ""),
+                    "service_date": slot["service_date"],
+                    "start_time": slot["start_time"],
+                    "end_time": slot["end_time"],
+                },
+            ).mappings().one()
+            next_reserved_count = int(slot.get("reserved_count") or 0) + 1
+            connection.execute(
+                text(
+                    """
+                    UPDATE declaration_qa.business_appointment_slots
+                    SET reserved_count = :reserved_count,
+                        status = CASE WHEN :reserved_count >= capacity THEN 'full' ELSE status END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :slot_id
+                    """
+                ),
+                {"slot_id": int(slot_id), "reserved_count": next_reserved_count},
+            )
+        return {**business_row(appointment), "booking_status": "created"}
+
+    def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
+        """按可信用户查询单条预约的排队状态。"""
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT
+                        a.id AS appointment_id,
+                        a.item_code,
+                        a.item_name,
+                        a.region_code,
+                        a.hall_code,
+                        a.hall_name,
+                        a.hall_address,
+                        a.service_date,
+                        a.start_time,
+                        a.end_time,
+                        a.status,
+                        a.queue_number,
+                        a.people_ahead,
+                        a.estimated_wait_minutes,
+                        a.counter_name,
+                        a.checked_in_at,
+                        a.updated_at
+                    FROM declaration_qa.business_appointments a
+                    WHERE a.id = :appointment_id AND a.user_id = :user_id
+                    """
+                ),
+                {"appointment_id": int(appointment_id), "user_id": int(user_id)},
+            ).mappings().first()
+        return business_row(row) if row else None
+
+    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        """查询当前用户指定申请的缴费订单。"""
+        return self._application_rows(
+            user_id=user_id,
+            application_id=application_id,
+            statement="""
+                SELECT
+                    p.id AS payment_order_id,
+                    p.apply_id AS application_id,
+                    p.order_no,
+                    p.fee_item,
+                    p.amount,
+                    p.currency,
+                    p.status,
+                    p.payment_channel,
+                    p.payable_at,
+                    p.expires_at,
+                    p.paid_at,
+                    p.updated_at
+                FROM declaration_qa.business_payment_orders p
+                JOIN declaration_qa.business_applications a ON a.id = p.apply_id
+                WHERE p.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY p.created_at DESC, p.id DESC
+            """,
+        )
+
+    def get_payment_receipts(
+        self,
+        *,
+        user_id: int,
+        application_id: int,
+        payment_order_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """查询当前用户指定申请的缴费票据。"""
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        r.id AS payment_receipt_id,
+                        r.payment_order_id,
+                        p.apply_id AS application_id,
+                        r.receipt_no,
+                        r.receipt_type,
+                        r.title,
+                        r.amount,
+                        r.status,
+                        r.issued_at,
+                        r.file_name,
+                        r.download_status
+                    FROM declaration_qa.business_payment_receipts r
+                    JOIN declaration_qa.business_payment_orders p ON p.id = r.payment_order_id
+                    JOIN declaration_qa.business_applications a ON a.id = p.apply_id
+                    WHERE p.apply_id = :application_id
+                      AND a.user_id = :user_id
+                      AND a.deleted_at IS NULL
+                      AND (CAST(:payment_order_id AS BIGINT) IS NULL OR r.payment_order_id = CAST(:payment_order_id AS BIGINT))
+                    ORDER BY r.issued_at DESC, r.id DESC
+                    """
+                ),
+                {
+                    "user_id": int(user_id),
+                    "application_id": int(application_id),
+                    "payment_order_id": int(payment_order_id) if payment_order_id is not None else None,
+                },
+            ).mappings().all()
+        return [business_row(row) for row in rows]
+
+    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        """查询当前用户指定申请的提交和受理回执。"""
+        return self._application_rows(
+            user_id=user_id,
+            application_id=application_id,
+            statement="""
+                SELECT
+                    r.id AS submission_receipt_id,
+                    r.apply_id AS application_id,
+                    r.receipt_no,
+                    r.receipt_type,
+                    r.status,
+                    r.issued_at,
+                    r.file_name,
+                    r.download_status
+                FROM declaration_qa.business_submission_receipts r
+                JOIN declaration_qa.business_applications a ON a.id = r.apply_id
+                WHERE r.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY r.issued_at DESC, r.id DESC
+            """,
+        )
+
+    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        """查询当前用户指定申请的办结结果。"""
+        return self._application_rows(
+            user_id=user_id,
+            application_id=application_id,
+            statement="""
+                SELECT
+                    r.id AS result_certificate_id,
+                    r.apply_id AS application_id,
+                    r.certificate_name,
+                    r.certificate_no,
+                    r.certificate_type,
+                    r.status,
+                    r.issued_at,
+                    r.valid_until,
+                    r.file_name,
+                    r.download_status
+                FROM declaration_qa.business_result_certificates r
+                JOIN declaration_qa.business_applications a ON a.id = r.apply_id
+                WHERE r.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY r.issued_at DESC, r.id DESC
+            """,
+        )
+
+    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
+        """查询当前用户指定申请的结果送达状态。"""
+        return self._application_rows(
+            user_id=user_id,
+            application_id=application_id,
+            statement="""
+                SELECT
+                    d.id AS delivery_id,
+                    d.apply_id AS application_id,
+                    d.delivery_type,
+                    d.status,
+                    d.courier_name,
+                    d.tracking_no,
+                    d.pickup_address,
+                    d.shipped_at,
+                    d.delivered_at,
+                    d.updated_at
+                FROM declaration_qa.business_deliveries d
+                JOIN declaration_qa.business_applications a ON a.id = d.apply_id
+                WHERE d.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY d.created_at DESC, d.id DESC
+            """,
+        )
+
+    def list_consultation_records(
+        self,
+        *,
+        user_id: int,
+        status: str = "all",
+        consultation_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """查询当前用户的咨询、投诉和建议记录。"""
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT
+                        c.id AS consultation_id,
+                        c.consultation_type,
+                        c.subject,
+                        c.content_summary,
+                        c.status,
+                        c.channel,
+                        c.created_at,
+                        c.replied_at,
+                        c.reply_summary,
+                        c.updated_at
+                    FROM declaration_qa.business_consultations c
+                    WHERE c.user_id = :user_id
+                      AND (:status = 'all' OR c.status = :status)
+                      AND (CAST(:consultation_id AS BIGINT) IS NULL OR c.id = CAST(:consultation_id AS BIGINT))
+                    ORDER BY c.created_at DESC, c.id DESC
+                    """
+                ),
+                {
+                    "user_id": int(user_id),
+                    "status": str(status or "all"),
+                    "consultation_id": int(consultation_id) if consultation_id is not None else None,
+                },
+            ).mappings().all()
+        return [business_row(row) for row in rows]
+
+    def _application_rows(
+        self,
+        *,
+        user_id: int,
+        application_id: int,
+        statement: str,
+    ) -> list[dict[str, Any]]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(statement),
+                {"user_id": int(user_id), "application_id": int(application_id)},
+            ).mappings().all()
+        return [business_row(row) for row in rows]
+
+
+def business_row(row) -> dict[str, Any]:
+    """将 SQLAlchemy 行转换为 JSON 安全的业务结果。"""
+    output = {}
+    for key, value in dict(row).items():
+        if isinstance(value, datetime) and value.tzinfo is not None:
+            value = value.astimezone(ZoneInfo("Asia/Shanghai")).isoformat()
+        elif hasattr(value, "isoformat"):
+            value = value.isoformat()
+        elif key == "amount" and value is not None:
+            value = f"{value:.2f}"
+        output[str(key)] = value
+    return output
 

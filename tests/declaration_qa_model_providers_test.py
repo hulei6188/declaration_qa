@@ -71,7 +71,8 @@ def test_dashscope_reranker_uses_sdk_text_rerank(monkeypatch):
 
     reranked = DashScopeReranker(api_key="sdk-key", model="qwen3-rerank").rerank("多久办完", sources, {}, top_n=2)
 
-    assert fake_dashscope.api_key == "sdk-key"
+    assert fake_dashscope.api_key == ""
+    assert captured["api_key"] == "sdk-key"
     assert captured["model"] == "qwen3-rerank"
     assert captured["query"] == "多久办完"
     assert captured["documents"] == ["办理时限为10个工作日。", "承诺办结时限为5个工作日。"]
@@ -142,6 +143,7 @@ def test_dashscope_vl_reranker_uses_image_query_and_image_documents(monkeypatch,
     assert captured["query"]["image"].startswith("data:image/png;base64,")
     assert captured["documents"][0] == {"text": "取水许可申请流程包括受理、审查、决定。"}
     assert captured["documents"][1]["image"].startswith("data:image/png;base64,")
+    assert captured["api_key"] == "sdk-key"
     assert captured["return_documents"] is False
     assert [source.chunk.id for source in reranked] == ["image-chunk", "text-chunk"]
     assert reranked[0].rerank_score == 0.93

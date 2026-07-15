@@ -1,3 +1,6 @@
+from threading import Lock, get_ident
+from time import sleep
+
 from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
 from declaration_qa.rag.engine.external_index import ExternalIndexRAGEngine
 
@@ -226,30 +229,61 @@ def test_remote_multi_query_retrieval_batches_io_and_reranks_each_query():
 
         def __init__(self):
             self.calls = []
+            self.active_calls = 0
+            self.max_active_calls = 0
+            self.lock = Lock()
 
         def rerank(self, query, sources, filters, *, top_n):
-            self.calls.append({"query": query, "count": len(sources), "top_n": top_n})
-            return [
-                RetrievedSource(
-                    chunk=source.chunk,
-                    score=source.score,
-                    dense_score=source.dense_score,
-                    bm25_score=source.bm25_score,
-                    rerank_score=1.0 - index * 0.1,
-                    retrieval_channel=f"{source.retrieval_channel}+rerank",
-                )
-                for index, source in enumerate(sources[:top_n])
-            ]
+            with self.lock:
+                self.calls.append({"query": query, "count": len(sources), "top_n": top_n})
+                self.active_calls += 1
+                self.max_active_calls = max(self.max_active_calls, self.active_calls)
+            try:
+                sleep(0.05)
+                return [
+                    RetrievedSource(
+                        chunk=source.chunk,
+                        score=source.score,
+                        dense_score=source.dense_score,
+                        bm25_score=source.bm25_score,
+                        rerank_score=1.0 - index * 0.1,
+                        retrieval_channel=f"{source.retrieval_channel}+rerank",
+                    )
+                    for index, source in enumerate(sources[:top_n])
+                ]
+            finally:
+                with self.lock:
+                    self.active_calls -= 1
+
+    class RecordingCache:
+        backend = "recording"
+
+        def __init__(self):
+            self.write_thread_ids = []
+            self.items = {}
+
+        def get_json(self, key):
+            return self.items.get(key)
+
+        def set_json(self, key, value, *, ttl_seconds):
+            self.write_thread_ids.append(get_ident())
+            self.items[key] = dict(value)
+
+        def clear(self):
+            self.items.clear()
 
     vector_index = BatchVectorIndex()
     keyword_index = BatchKeywordIndex()
     chunk_store = ChunkStore()
     reranker = CountingReranker()
+    cache_store = RecordingCache()
+    caller_thread_id = get_ident()
     engine = ExternalIndexRAGEngine(
         vector_index=vector_index,
         keyword_index=keyword_index,
         chunk_store=chunk_store,
         reranker=reranker,
+        cache_store=cache_store,
     )
 
     results = engine.retrieve_many(
@@ -269,10 +303,12 @@ def test_remote_multi_query_retrieval_batches_io_and_reranks_each_query():
         }
     ]
     assert keyword_index.search_calls == []
-    assert [call["query"] for call in reranker.calls] == ["办理时限", "承诺办结时限"]
+    assert sorted(call["query"] for call in reranker.calls) == ["办理时限", "承诺办结时限"]
     assert all(call["top_n"] == 2 for call in reranker.calls)
+    assert reranker.max_active_calls == 2
     assert len(results) == 2
     assert all(result.status["batch_mode"] is True for result in results)
     assert all(result.status["channels"]["rerank"] == 2 for result in results)
     assert all(result.status["candidate_source"] == "external_indexes" for result in results)
     assert len(chunk_store.chunk_calls) == 1
+    assert cache_store.write_thread_ids == [caller_thread_id, caller_thread_id]

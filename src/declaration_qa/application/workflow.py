@@ -22,7 +22,22 @@ from declaration_qa.application.helpers.streaming import (
 )
 from declaration_qa.application.nodes import ApplicationNodes
 from declaration_qa.application.state import DeclarationQAState
-from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
+from declaration_qa.application.tools import (
+    AppointmentBookTool,
+    AppointmentListQueryTool,
+    AppointmentSlotQueryTool,
+    ConsultationRecordQueryTool,
+    DeliveryStatusQueryTool,
+    KnowledgeSearchTool,
+    PaymentOrderQueryTool,
+    PaymentReceiptQueryTool,
+    QueueStatusQueryTool,
+    ResultCertificateQueryTool,
+    SubmissionReceiptQueryTool,
+    TicketDetailQueryTool,
+    TicketListQueryTool,
+    ToolRegistry,
+)
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory import LangGraphMemoryRuntime, build_memory_resources
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
@@ -105,6 +120,21 @@ class DeclarationQAWorkflow(ApplicationNodes):
             self.tool_registry.register(TicketDetailQueryTool(self.business_adapter))
         if self.tool_registry.get("knowledge_search") is None:
             self.tool_registry.register(KnowledgeSearchTool(self.execute_knowledge_search))
+        business_query_tools = [
+            AppointmentListQueryTool(self.business_adapter),
+            AppointmentSlotQueryTool(self.business_adapter),
+            AppointmentBookTool(self.business_adapter),
+            QueueStatusQueryTool(self.business_adapter),
+            PaymentOrderQueryTool(self.business_adapter),
+            PaymentReceiptQueryTool(self.business_adapter),
+            SubmissionReceiptQueryTool(self.business_adapter),
+            ResultCertificateQueryTool(self.business_adapter),
+            DeliveryStatusQueryTool(self.business_adapter),
+            ConsultationRecordQueryTool(self.business_adapter),
+        ]
+        for tool in business_query_tools:
+            if self.tool_registry.get(tool.name) is None:
+                self.tool_registry.register(tool)
         self.graph = self._build_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:

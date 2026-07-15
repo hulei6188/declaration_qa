@@ -225,7 +225,7 @@ def persist_agent_run(
             total_tokens=_token_value(decision, "total_tokens"),
             latency_ms=_nullable_int(decision.get("latency_ms")),
             intent=str(decision.get("intent") or payload.get("intent") or ""),
-            pii_level="personal" if any(_is_ticket_call(item) for item in calls) else "none",
+            pii_level="personal" if any(_is_business_call(item) for item in calls) else "none",
         )
         _insert_part(
             connection,
@@ -266,7 +266,7 @@ def persist_agent_run(
                 status="completed" if result.get("ok") else "failed",
                 visible=False,
                 latency_ms=_nullable_int(result.get("latency_ms")),
-                pii_level="sensitive" if _is_ticket_call(call) else "none",
+                pii_level="sensitive" if _is_business_call(call) else "none",
             )
             _insert_part(
                 connection,
@@ -305,7 +305,7 @@ def persist_agent_run(
             visible=False,
             provider="recovered_audit",
             intent=str(payload.get("intent") or ""),
-            pii_level="personal" if any(_is_ticket_call(item) for item in synthetic_calls) else "none",
+            pii_level="personal" if any(_is_business_call(item) for item in synthetic_calls) else "none",
         )
         parent_message_id = assistant_message_id
         for (result_index, result), call in zip(unmatched, synthetic_calls):
@@ -335,7 +335,7 @@ def persist_agent_run(
                 status="completed" if result.get("ok") else "failed",
                 visible=False,
                 latency_ms=_nullable_int(result.get("latency_ms")),
-                pii_level="sensitive" if _is_ticket_call(call) else "none",
+                pii_level="sensitive" if _is_business_call(call) else "none",
             )
             _insert_part(
                 connection,
@@ -446,7 +446,7 @@ def persist_agent_run(
             "evidence_ok": bool(payload.get("evidence_ok")),
             "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
         },
-        pii_level="personal" if any(_is_ticket_result(item) for item in results) else "none",
+        pii_level="personal" if any(_is_business_result(item) for item in results) else "none",
     )
     answer = str(payload.get("answer") or "")
     if answer:
@@ -829,12 +829,28 @@ def _json_safe_row(row: Any, *, exclude: set[str] | None = None) -> dict[str, An
     return output
 
 
-def _is_ticket_call(call: dict[str, Any]) -> bool:
-    return str(call.get("name") or "") in {"ticket_list_query", "ticket_detail_query"}
+BUSINESS_TOOL_NAMES = {
+    "ticket_list_query",
+    "ticket_detail_query",
+    "appointment_list_query",
+    "appointment_slot_query",
+    "appointment_book",
+    "queue_status_query",
+    "payment_order_query",
+    "payment_receipt_query",
+    "submission_receipt_query",
+    "result_certificate_query",
+    "delivery_status_query",
+    "consultation_record_query",
+}
 
 
-def _is_ticket_result(result: dict[str, Any]) -> bool:
-    return str(result.get("tool_name") or "") in {"ticket_list_query", "ticket_detail_query"}
+def _is_business_call(call: dict[str, Any]) -> bool:
+    return str(call.get("name") or "") in BUSINESS_TOOL_NAMES
+
+
+def _is_business_result(result: dict[str, Any]) -> bool:
+    return str(result.get("tool_name") or "") in BUSINESS_TOOL_NAMES
 
 
 def _json_text(value: Any) -> str:

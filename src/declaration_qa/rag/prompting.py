@@ -170,7 +170,7 @@ def format_tool_result_payload(results: list[dict[str, Any]]) -> str:
     """格式化业务工具结果，不混入知识证据。"""
     safe_results = []
     for result in results:
-        if not isinstance(result, dict) or not str(result.get("tool_name") or "").startswith("ticket_"):
+        if not isinstance(result, dict) or result.get("tool_name") == "knowledge_search":
             continue
         safe_results.append(
             {

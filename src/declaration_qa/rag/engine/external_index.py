@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
@@ -17,6 +19,9 @@ from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, metadata_cov
 from declaration_qa.search.keyword import KeywordIndex
 from declaration_qa.search.vector.base import VectorIndex
 from declaration_qa.storage.cache import CacheStore
+
+
+MAX_PARALLEL_RERANK_WORKERS = 3
 
 
 class ExternalIndexRAGEngine(BaseRAGEngine):
@@ -256,7 +261,7 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             for chunk_id, _ in scores
         ]
         chunks_by_id = {chunk.id: chunk for chunk in self._load_chunks_by_ids(all_chunk_ids)}
-        for spec, limit in zip(query_specs, limits):
+        def build_query_result(spec: dict[str, Any], limit: int) -> tuple[int, str, RetrievalResult]:
             index = int(spec["index"])
             query = str(spec["query"])
             dense_hits = self._sources_from_scored_ids_lookup(
@@ -286,7 +291,27 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
                 candidate_source="external_indexes",
                 retrieval_plan=spec.get("retrieval_plan") or retrieval_plan,
             )
-            self._cache_result(str(spec["cache_key"]), result)
+            return index, str(spec["cache_key"]), result
+
+        built_results: dict[int, tuple[str, RetrievalResult]] = {}
+        max_workers = min(MAX_PARALLEL_RERANK_WORKERS, len(query_specs))
+        if max_workers <= 1:
+            index, cache_key, result = build_query_result(query_specs[0], limits[0])
+            built_results[index] = (cache_key, result)
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="rag-rerank") as executor:
+                futures = {
+                    executor.submit(copy_context().run, build_query_result, spec, limit): int(spec["index"])
+                    for spec, limit in zip(query_specs, limits)
+                }
+                for future in as_completed(futures):
+                    index, cache_key, result = future.result()
+                    built_results[index] = (cache_key, result)
+
+        for spec in query_specs:
+            index = int(spec["index"])
+            cache_key, result = built_results[index]
+            self._cache_result(cache_key, result)
             results[index] = result
         return [result for result in results if result is not None]
 

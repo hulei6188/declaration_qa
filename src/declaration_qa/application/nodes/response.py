@@ -160,6 +160,10 @@ def agent_model_config(agent: object | None) -> dict[str, object]:
 
 def ensure_complete_application_history(answer: str, state: dict[str, object]) -> tuple[str, bool]:
     """保留 Agent 回答，仅在遗漏整次申请时追加对应历史。"""
+    query = str(state.get("normalized_query") or state.get("query") or "")
+    history_intents = ["进度", "状态", "节点", "退回", "驳回", "补正", "审核", "受理", "办结", "是否通过", "申请记录", "历史申请"]
+    if not any(token in query for token in history_intents):
+        return answer, False
     applications = ticket_applications(state)
     if not applications:
         return answer, False

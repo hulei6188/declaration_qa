@@ -193,55 +193,42 @@ class AgentRuntimeNodes:
         return next_state
 
     def agent_execute_tools(self, state: DeclarationQAState) -> DeclarationQAState:
-        """并发执行独立工具，并在列表结果就绪后执行依赖详情。"""
+        """并发执行独立工具，并按可信列表和详情结果分波执行依赖工具。"""
         next_state = dict(state)
         results = list(next_state.get("tool_results") or [])
         signatures = list(next_state.get("agent_call_signatures") or [])
-        pending_calls = list(next_state.get("agent_pending_tool_calls") or [])
-        batch_has_list = any(str(call.get("name") or "") == "ticket_list_query" for call in pending_calls)
-        has_prior_list = bool(listed_item_codes(results))
-        deferred = [
-            call
-            for call in pending_calls
-            if str(call.get("name") or "") == "ticket_detail_query" and batch_has_list and not has_prior_list
-        ]
-        primary = [call for call in pending_calls if call not in deferred]
-
-        for call, payload, signature in self._execute_tool_wave(primary, next_state, results):
-            results.append(payload)
-            append_tool_message(next_state, call, payload)
-            if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
-                signatures.append(signature)
-            add_event(
-                next_state,
-                "tool_executed",
-                {
+        remaining = list(next_state.get("agent_pending_tool_calls") or [])
+        while remaining:
+            pending_names = {str(call.get("name") or "") for call in remaining}
+            observed_names = successful_tool_names(results)
+            wave = []
+            deferred = []
+            for call in remaining:
+                dependency = tool_dependency_name(str(call.get("name") or ""))
+                if dependency and dependency in pending_names and dependency not in observed_names:
+                    deferred.append(call)
+                else:
+                    wave.append(call)
+            if not wave:
+                wave, deferred = remaining, []
+            for call, payload, signature in self._execute_tool_wave(wave, next_state, results):
+                results.append(payload)
+                append_tool_message(next_state, call, payload)
+                if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
+                    signatures.append(signature)
+                event_data = {
                     "tool_name": call.get("name") or "",
                     "call_id": payload["call_id"],
                     "ok": payload["ok"],
                     "status": payload["status"],
                     "latency_ms": payload.get("latency_ms"),
-                    "parallel": len(primary) > 1,
-                },
-            )
-        for call, payload, signature in self._execute_tool_wave(deferred, next_state, results):
-            results.append(payload)
-            append_tool_message(next_state, call, payload)
-            if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
-                signatures.append(signature)
-            add_event(
-                next_state,
-                "tool_executed",
-                {
-                    "tool_name": call.get("name") or "",
-                    "call_id": payload["call_id"],
-                    "ok": payload["ok"],
-                    "status": payload["status"],
-                    "latency_ms": payload.get("latency_ms"),
-                    "parallel": len(deferred) > 1,
-                    "dependency": "ticket_list_query",
-                },
-            )
+                    "parallel": len(wave) > 1,
+                }
+                dependency = tool_dependency_name(str(call.get("name") or ""))
+                if dependency:
+                    event_data["dependency"] = dependency
+                add_event(next_state, "tool_executed", event_data)
+            remaining = deferred
         next_state["tool_results"] = results
         next_state["agent_call_signatures"] = signatures
         next_state["agent_pending_tool_calls"] = []
@@ -547,6 +534,50 @@ def agent_tool_call_denial_reason(
             if requested_code not in listed_codes:
                 return "item_code was not returned by ticket_list_query for the authenticated user"
         return ""
+    if tool_name in {"appointment_list_query", "appointment_slot_query", "consultation_record_query"}:
+        return ""
+    if tool_name == "appointment_book":
+        if (arguments or {}).get("confirmed") is not True:
+            return "appointment_book requires confirmed=true"
+        if not booking_intent_confirmed(query):
+            return "appointment_book requires explicit user confirmation in the current query"
+        slot_ids = observed_bookable_slot_ids(prior_results or [])
+        if not slot_ids:
+            return "appointment_book requires a successful appointment_slot_query observation"
+        requested_id = positive_int((arguments or {}).get("slot_id"))
+        if requested_id not in slot_ids:
+            return "slot_id was not returned as available by appointment_slot_query"
+        return ""
+    if tool_name == "queue_status_query":
+        appointment_ids = listed_appointment_ids(prior_results or [])
+        if not appointment_ids:
+            return "queue_status_query requires a successful appointment_list_query observation"
+        requested_id = positive_int((arguments or {}).get("appointment_id"))
+        if requested_id not in appointment_ids:
+            return "appointment_id was not returned by appointment_list_query for the authenticated user"
+        return ""
+    application_tools = {
+        "payment_order_query",
+        "payment_receipt_query",
+        "submission_receipt_query",
+        "result_certificate_query",
+        "delivery_status_query",
+    }
+    if tool_name in application_tools:
+        application_ids = observed_application_ids(prior_results or [])
+        if not application_ids:
+            return f"{tool_name} requires a successful ticket_detail_query observation"
+        requested_id = positive_int((arguments or {}).get("application_id"))
+        if requested_id not in application_ids:
+            return "application_id was not returned by ticket_detail_query for the authenticated user"
+        if tool_name == "payment_receipt_query":
+            observed_orders = observed_payment_orders(prior_results or [])
+            if requested_id not in observed_orders:
+                return "payment_receipt_query requires a successful payment_order_query observation"
+            payment_order_id = (arguments or {}).get("payment_order_id")
+            if payment_order_id is not None and positive_int(payment_order_id) not in observed_orders[requested_id]:
+                return "payment_order_id was not returned by payment_order_query for the authenticated user"
+        return ""
     return ""
 
 
@@ -561,6 +592,116 @@ def listed_item_codes(results: list[dict[str, Any]]) -> set[str]:
             if isinstance(item, dict) and str(item.get("item_code") or "").strip():
                 codes.add(str(item["item_code"]).strip())
     return codes
+
+
+def listed_appointment_ids(results: list[dict[str, Any]]) -> set[int]:
+    """读取当前用户预约列表中出现的预约主键。"""
+    ids = set()
+    for result in results:
+        if not isinstance(result, dict) or result.get("tool_name") != "appointment_list_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for item in data.get("appointments") or []:
+            if isinstance(item, dict) and int(item.get("appointment_id") or 0) > 0:
+                ids.add(int(item["appointment_id"]))
+    return ids
+
+
+def observed_bookable_slot_ids(results: list[dict[str, Any]]) -> set[int]:
+    """读取号源查询中仍可预约且有余量的号源主键。"""
+    ids = set()
+    for result in results:
+        if not isinstance(result, dict) or result.get("tool_name") != "appointment_slot_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for item in data.get("slots") or []:
+            if not isinstance(item, dict):
+                continue
+            slot_id = positive_int(item.get("slot_id"))
+            remaining_count = positive_int(item.get("remaining_count"))
+            if slot_id and str(item.get("status") or "") == "available" and remaining_count > 0:
+                ids.add(slot_id)
+    return ids
+
+
+def booking_intent_confirmed(query: str) -> bool:
+    """判断当前用户表达是否明确授权执行预约写操作。"""
+    normalized = str(query or "").strip().lower()
+    confirmations = {
+        "确认预约",
+        "确定预约",
+        "帮我预约",
+        "请预约",
+        "我要预约",
+        "立即预约",
+        "现在预约",
+        "预约这个",
+        "就约这个",
+        "给我预约",
+        "confirm booking",
+        "book it",
+    }
+    return any(term in normalized for term in confirmations)
+
+
+def observed_application_ids(results: list[dict[str, Any]]) -> set[int]:
+    """读取工单详情工具已证明归属当前用户的申请主键。"""
+    ids = set()
+    for result in results:
+        if not isinstance(result, dict) or result.get("tool_name") != "ticket_detail_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for item in data.get("applications") or []:
+            if isinstance(item, dict) and int(item.get("application_id") or 0) > 0:
+                ids.add(int(item["application_id"]))
+    return ids
+
+
+def observed_payment_orders(results: list[dict[str, Any]]) -> dict[int, set[int]]:
+    """按申请主键整理缴费订单工具已返回的订单主键。"""
+    output: dict[int, set[int]] = {}
+    for result in results:
+        if not isinstance(result, dict) or result.get("tool_name") != "payment_order_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for item in data.get("payment_orders") or []:
+            if not isinstance(item, dict):
+                continue
+            application_id = int(item.get("application_id") or data.get("application_id") or 0)
+            payment_order_id = int(item.get("payment_order_id") or 0)
+            if application_id > 0 and payment_order_id > 0:
+                output.setdefault(application_id, set()).add(payment_order_id)
+    return output
+
+
+def successful_tool_names(results: list[dict[str, Any]]) -> set[str]:
+    return {
+        str(result.get("tool_name") or "")
+        for result in results
+        if isinstance(result, dict) and result.get("ok")
+    }
+
+
+def tool_dependency_name(tool_name: str) -> str:
+    """返回业务工具在同一批调用中的直接可信依赖。"""
+    return {
+        "ticket_detail_query": "ticket_list_query",
+        "appointment_book": "appointment_slot_query",
+        "queue_status_query": "appointment_list_query",
+        "payment_order_query": "ticket_detail_query",
+        "payment_receipt_query": "payment_order_query",
+        "submission_receipt_query": "ticket_detail_query",
+        "result_certificate_query": "ticket_detail_query",
+        "delivery_status_query": "ticket_detail_query",
+    }.get(tool_name, "")
+
+
+def positive_int(value: Any) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return parsed if parsed > 0 else 0
 
 
 def append_tool_message(

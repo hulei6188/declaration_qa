@@ -52,13 +52,12 @@ class DashScopeReranker:
     def _rerank_text(self, query: str, sources: list[Any], *, top_n: int) -> list[Any]:
         """调用 DashScope 文本重排。"""
         dashscope = import_dashscope()
-        if self.api_key:
-            dashscope.api_key = self.api_key
         response = dashscope.TextReRank.call(
             model=self.model,
             query=query,
             documents=[source.chunk.content for source in sources],
             top_n=max(1, int(top_n)),
+            api_key=self.api_key or None,
             instruct=self.instruct,
         )
         if response_value(response, "status_code") != HTTPStatus.OK:
@@ -87,8 +86,6 @@ class DashScopeReranker:
     ) -> list[Any]:
         """调用 DashScope Qwen3-VL 多模态重排。"""
         dashscope = import_dashscope()
-        if self.api_key:
-            dashscope.api_key = self.api_key
         documents, source_indexes = build_vl_documents(sources)
         if not documents:
             return []
@@ -97,6 +94,7 @@ class DashScopeReranker:
             query=build_vl_query(query, retrieval_plan),
             documents=documents,
             top_n=max(1, int(top_n)),
+            api_key=self.api_key or None,
             instruct=self.instruct,
             return_documents=False,
         )
