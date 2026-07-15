@@ -1,4 +1,4 @@
-"""LangGraph persistence and LangMem-backed conversation memory."""
+"""基于 LangGraph 持久化和 LangMem 的会话记忆运行时。"""
 
 from __future__ import annotations
 
@@ -24,31 +24,32 @@ from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
-LONG_TERM_MEMORY_INSTRUCTIONS = """Extract only durable, explicitly stated user memory that will improve future conversations.
+LONG_TERM_MEMORY_INSTRUCTIONS = """只提取能够改善后续对话、由用户明确表达且长期稳定的记忆。
 
-Store stable preferences, stable non-sensitive profile facts, explicit corrections, and reusable outcomes the user asked the assistant to remember.
+可以保存：稳定偏好、不包含敏感信息的稳定用户事实、用户明确提出的纠正，以及用户要求记住的可复用结论。
 
-Never store ticket status, application progress, rejection reasons, policy text, retrieved evidence, tool results, generated answers, guesses, inferred preferences, one-off questions, temporary task details, identity numbers, phone numbers, addresses, credentials, or other sensitive personal data.
+禁止保存：工单状态、申请进度、退回原因、政策正文、检索证据、工具结果、模型生成的回答、猜测、推断出的偏好、一次性问题、临时任务细节、身份号码、电话号码、地址、凭据或其他敏感个人数据。
 
-Keep each memory concise, self-contained, and attributable to an explicit user statement. Update an existing memory when the user corrects it instead of creating a duplicate."""
+每条记忆必须简洁、语义完整，并能追溯到用户的明确陈述。用户纠正已有信息时，应更新原记忆，不要创建重复记忆。"""
 
 
 @dataclass
 class MemoryResources:
-    """Resources shared by the compiled graph and LangMem."""
+    """封装已编译工作流和 LangMem 共享的持久化资源。"""
 
     checkpointer: BaseCheckpointSaver
     store: BaseStore
     pool: ConnectionPool | None = None
 
     def close(self) -> None:
+        """关闭 PostgreSQL 连接池。"""
         if self.pool is not None:
             self.pool.close()
             self.pool = None
 
 
 class LangGraphMemoryRuntime:
-    """Single memory implementation built on LangGraph persistence and LangMem."""
+    """基于 LangGraph 持久化和 LangMem 的唯一记忆实现。"""
 
     def __init__(
         self,
@@ -61,6 +62,7 @@ class LangGraphMemoryRuntime:
         long_term_top_k: int,
         background_workers: int,
     ) -> None:
+        """初始化会话摘要、长期记忆管理器和后台执行线程。"""
         self.resources = resources
         self.long_term_top_k = max(1, int(long_term_top_k))
         self._executor = ThreadPoolExecutor(
@@ -98,10 +100,12 @@ class LangGraphMemoryRuntime:
 
     @property
     def checkpointer(self) -> BaseCheckpointSaver:
+        """返回工作流使用的状态检查点存储器。"""
         return self.resources.checkpointer
 
     @property
     def store(self) -> BaseStore:
+        """返回长期记忆使用的 LangGraph Store。"""
         return self.resources.store
 
     def summarize(
@@ -109,6 +113,7 @@ class LangGraphMemoryRuntime:
         messages: list[dict[str, Any]],
         context: dict[str, Any] | None,
     ) -> tuple[list[BaseMessage], dict[str, Any]]:
+        """在消息超过阈值时生成滚动摘要，并返回本轮模型输入。"""
         converted = message_dicts_to_langchain(messages)
         if self._summarizer is None:
             return converted, dict(context or {})
@@ -121,6 +126,7 @@ class LangGraphMemoryRuntime:
         )
 
     def retrieve(self, *, user_id: int, query: str) -> dict[str, Any]:
+        """按用户命名空间检索与当前问题相关的长期记忆。"""
         if self._manager is None or not str(query or "").strip():
             return {"items": [], "count": 0, "backend": "langgraph_store"}
         items = self._manager.search(
@@ -133,6 +139,7 @@ class LangGraphMemoryRuntime:
         return {"items": normalized, "count": len(normalized), "backend": "langgraph_store"}
 
     def schedule_extraction(self, *, user_id: int, query: str, answer: str) -> dict[str, Any]:
+        """在后台从一次成功问答中提取并更新长期记忆。"""
         if self._manager is None or not str(query or "").strip() or not str(answer or "").strip():
             return {"scheduled": False, "backend": "langmem"}
         future = self._executor.submit(
@@ -150,13 +157,15 @@ class LangGraphMemoryRuntime:
         return {"scheduled": True, "backend": "langmem"}
 
     def _extraction_done(self, future: Future[Any]) -> None:
+        """回收后台任务并记录长期记忆提取异常。"""
         self._pending.discard(future)
         try:
             future.result()
         except Exception:
-            logger.exception("LangMem background extraction failed")
+            logger.exception("LangMem 后台长期记忆提取失败")
 
     def close(self) -> None:
+        """等待后台任务结束并释放全部记忆资源。"""
         if self._closed:
             return
         self._closed = True
@@ -171,7 +180,7 @@ def build_memory_resources(
     pool_min_size: int = 1,
     pool_max_size: int = 10,
 ) -> MemoryResources:
-    """Create the sole persistence implementation for graph state and long-term memory."""
+    """创建工作流状态与长期记忆共用的唯一持久化实现。"""
     index = {
         "dims": int(embedding_provider.dimension),
         "embed": embedding_provider.embed_documents,
@@ -204,6 +213,7 @@ def build_memory_resources(
 
 
 def message_dicts_to_langchain(messages: list[dict[str, Any]]) -> list[BaseMessage]:
+    """将项目消息字典转换为 LangChain 标准消息对象。"""
     output: list[BaseMessage] = []
     for item in messages:
         if not isinstance(item, dict):
@@ -240,6 +250,7 @@ def message_dicts_to_langchain(messages: list[dict[str, Any]]) -> list[BaseMessa
 
 
 def memory_search_item(item: Any) -> dict[str, Any]:
+    """将 LangMem 检索结果整理为可注入 Agent 上下文的结构。"""
     value = getattr(item, "value", None) or {}
     if hasattr(value, "model_dump"):
         value = value.model_dump()
@@ -260,8 +271,10 @@ def memory_search_item(item: Any) -> dict[str, Any]:
 
 
 def memory_config(user_id: int) -> dict[str, Any]:
+    """构造按用户隔离长期记忆的 LangGraph 配置。"""
     return {"configurable": {"langgraph_user_id": str(int(user_id))}}
 
 
 def psycopg_connection_url(database_url: str) -> str:
+    """将 SQLAlchemy PostgreSQL URL 转换为 Psycopg 可识别的 URL。"""
     return str(database_url).replace("postgresql+psycopg://", "postgresql://", 1)

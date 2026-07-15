@@ -66,7 +66,7 @@ if errorlevel 1 (
 echo [3/4] Starting application...
 set "NO_PROXY=127.0.0.1,localhost,127.0.0.0/8"
 
-"%PYTHON_EXE%" -c "import chonkie, fastapi, mineru, uvicorn" >nul 2>nul
+"%PYTHON_EXE%" -c "import chonkie, fastapi, langmem, mineru, uvicorn; from langgraph.checkpoint.postgres import PostgresSaver; from langgraph.store.postgres import PostgresStore" >nul 2>nul
 if errorlevel 1 (
     echo Python dependencies were not found in conda environment "%CONDA_ENV%".
     echo Run: conda activate %CONDA_ENV%
