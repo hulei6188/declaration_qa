@@ -50,6 +50,17 @@ def test_checkpointer_threads_are_isolated_by_user():
     workflow.close()
 
 
+def test_tool_observation_refreshes_input_without_resummarizing():
+    workflow = DeclarationQAWorkflow(agent=DirectAgent())
+
+    edges = {(edge.source, edge.target) for edge in workflow.graph.get_graph().edges}
+
+    assert ("agent_observe", "agent_summarize") not in edges
+    assert ("agent_observe", "agent_refresh_input") in edges
+    assert ("agent_refresh_input", "agent_decide") in edges
+    workflow.close()
+
+
 def test_session_deletion_removes_matching_checkpoint_thread():
     workflow = DeclarationQAWorkflow(agent=DirectAgent())
     workflow.invoke(ChatRequest(query="需要删除的会话", user_id=9, session_id="delete-me"))
@@ -111,6 +122,11 @@ def test_langmem_creates_running_summary_after_token_threshold():
         [
             {"id": "u1", "role": "user", "content": "较长的用户消息。" * 20},
             {"id": "a1", "role": "assistant", "content": "较长的回答。" * 20},
+            {"id": "u2", "role": "user", "content": "第二轮问题"},
+            {"id": "a2", "role": "assistant", "content": "第二轮回答"},
+            {"id": "u3", "role": "user", "content": "第三轮问题"},
+            {"id": "a3", "role": "assistant", "content": "第三轮回答"},
+            {"id": "u4", "role": "user", "content": "第四轮问题"},
         ],
         {},
     )
@@ -119,6 +135,29 @@ def test_langmem_creates_running_summary_after_token_threshold():
     assert running_summary.summary == "会话摘要"
     assert running_summary.summarized_message_ids == {"u1", "a1"}
     assert summarized[0].type == "system"
+    assert [message.id for message in summarized[1:]] == [
+        "u2",
+        "a2",
+        "u3",
+        "a3",
+        "u4",
+    ]
+    runtime.close()
+
+
+def test_prepare_input_does_not_trigger_summary_after_tool_execution():
+    runtime = build_test_memory_runtime(summary_max_tokens=200, summary_trigger_tokens=10)
+
+    prepared, context = runtime.prepare_input(
+        [
+            {"id": "u1", "role": "user", "content": "较长的用户消息。" * 20},
+            {"id": "a1", "role": "assistant", "content": "较长的回答。" * 20},
+        ],
+        {},
+    )
+
+    assert context == {}
+    assert [message.id for message in prepared] == ["u1", "a1"]
     runtime.close()
 
 

@@ -58,10 +58,12 @@ def convert_legacy_doc_to_docx(
 
     with TemporaryDirectory(prefix="declaration-qa-doc-") as temp_dir:
         work_dir = Path(temp_dir)
+        profile_dir = work_dir / "libreoffice-profile"
         source_path = work_dir / safe_name
         source_path.write_bytes(data)
         args = [
             *command,
+            f"-env:UserInstallation={profile_dir.as_uri()}",
             "--headless",
             "--convert-to",
             "docx",

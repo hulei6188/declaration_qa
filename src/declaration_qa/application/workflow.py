@@ -312,6 +312,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
         builder.add_node("agent_summarize", self.agent_summarize)
+        builder.add_node("agent_refresh_input", self.agent_refresh_input)
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
@@ -336,7 +337,8 @@ class DeclarationQAWorkflow(ApplicationNodes):
             },
         )
         builder.add_edge("agent_execute_tools", "agent_observe")
-        builder.add_edge("agent_observe", "agent_summarize")
+        builder.add_edge("agent_observe", "agent_refresh_input")
+        builder.add_edge("agent_refresh_input", "agent_decide")
         builder.add_edge("commit_agent_answer", "answer_postprocess")
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")

@@ -1,10 +1,17 @@
 import io
 import sys
+import threading
 import types
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from declaration_qa.indexing.attachments.form_fields import extract_form_fields
-from declaration_qa.indexing.document_parsing.legacy_doc import DOCX_CONTENT_TYPE, LegacyDocConversionResult
+from declaration_qa.indexing.document_parsing.legacy_doc import (
+    DOCX_CONTENT_TYPE,
+    LegacyDocConversionResult,
+    convert_legacy_doc_to_docx,
+)
 from declaration_qa.indexing.documents import HttpOcrClient, parse_docx, parse_document_bytes, parse_pdf
 from declaration_qa.indexing.service.workflow_index import chunk_storage_status
 
@@ -165,6 +172,37 @@ def test_legacy_doc_is_converted_to_docx_before_parsing(monkeypatch):
     assert captured["data"] == b"legacy-doc-bytes"
     assert captured["converter_command"] == "fake-soffice"
     assert captured["timeout_seconds"] == 9
+
+
+def test_concurrent_legacy_doc_conversions_use_isolated_libreoffice_profiles(monkeypatch):
+    profile_uris = []
+    barrier = threading.Barrier(2)
+
+    def fake_run(args, **kwargs):
+        profile_arg = next(arg for arg in args if arg.startswith("-env:UserInstallation="))
+        profile_uris.append(profile_arg.split("=", 1)[1])
+        barrier.wait(timeout=2)
+        output_dir = Path(args[args.index("--outdir") + 1])
+        source_path = Path(args[-1])
+        (output_dir / f"{source_path.stem}.docx").write_bytes(b"converted-docx")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("declaration_qa.indexing.document_parsing.legacy_doc.subprocess.run", fake_run)
+
+    def convert(filename):
+        return convert_legacy_doc_to_docx(
+            filename=filename,
+            data=b"legacy-doc-bytes",
+            converter_command="fake-soffice",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(convert, ["application.doc", "blank.doc"]))
+
+    assert [result.data for result in results] == [b"converted-docx", b"converted-docx"]
+    assert len(profile_uris) == 2
+    assert len(set(profile_uris)) == 2
+    assert all(uri.startswith("file:///") for uri in profile_uris)
 
 
 def test_chunk_storage_status_keeps_staging_rows_database_safe():

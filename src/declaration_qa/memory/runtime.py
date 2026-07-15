@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -23,6 +24,9 @@ from psycopg_pool import ConnectionPool
 
 
 logger = logging.getLogger(__name__)
+
+SUMMARY_RECENT_USER_TURNS = 3
+NO_SUMMARY_TRIGGER_TOKENS = 2**63 - 1
 
 LONG_TERM_MEMORY_INSTRUCTIONS = """只提取能够改善后续对话、由用户明确表达且长期稳定的记忆。
 
@@ -71,23 +75,16 @@ class LangGraphMemoryRuntime:
         )
         self._pending: set[Future[Any]] = set()
         self._closed = False
-        self._summarizer = None
+        self._summary_model = None
+        self._summary_max_tokens = max(2, int(summary_max_tokens))
+        self._summary_trigger_tokens = max(1, int(summary_trigger_tokens))
+        self._summary_output_tokens = min(
+            self._summary_max_tokens - 1,
+            max(1, int(summary_output_tokens)),
+        )
         self._manager = None
         if model is not None:
-            summary_max = max(2, int(summary_max_tokens))
-            summary_output = min(
-                summary_max - 1,
-                max(1, int(summary_output_tokens)),
-            )
-            summary_model = model.bind(max_tokens=summary_output)
-            self._summarizer = SummarizationNode(
-                model=summary_model,
-                max_tokens=summary_max,
-                max_tokens_before_summary=max(1, int(summary_trigger_tokens)),
-                max_summary_tokens=summary_output,
-                input_messages_key="messages",
-                output_messages_key="summarized_messages",
-            )
+            self._summary_model = model.bind(max_tokens=self._summary_output_tokens)
             self._manager = create_memory_store_manager(
                 model,
                 instructions=LONG_TERM_MEMORY_INSTRUCTIONS,
@@ -113,16 +110,87 @@ class LangGraphMemoryRuntime:
         messages: list[dict[str, Any]],
         context: dict[str, Any] | None,
     ) -> tuple[list[BaseMessage], dict[str, Any]]:
-        """在消息超过阈值时生成滚动摘要，并返回本轮模型输入。"""
+        """摘要较早历史，并完整保留最近三个用户轮次。"""
         converted = message_dicts_to_langchain(messages)
-        if self._summarizer is None:
-            return converted, dict(context or {})
-        result = self._summarizer.invoke(
-            {"messages": converted, "context": dict(context or {})}
+        current_context = dict(context or {})
+        if self._summary_model is None:
+            return converted, current_context
+
+        active_messages, current_context = self._prepare_messages(
+            converted,
+            current_context,
+            trigger_tokens=NO_SUMMARY_TRIGGER_TOKENS,
+        )
+        last_summarized_index = find_last_summarized_message_index(
+            converted,
+            current_context,
+        )
+        unsummarized = converted[last_summarized_index + 1 :]
+        if count_tokens_approximately(unsummarized) < self._summary_trigger_tokens:
+            return active_messages, current_context
+
+        recent_start = recent_user_turn_start(
+            unsummarized,
+            keep=SUMMARY_RECENT_USER_TURNS,
+        )
+        if recent_start <= 0:
+            return active_messages, current_context
+
+        history_end = last_summarized_index + 1 + recent_start
+        history = converted[:history_end]
+        recent = converted[history_end:]
+        eligible = converted[last_summarized_index + 1 : history_end]
+        eligible_tokens = count_tokens_approximately(eligible)
+        if eligible_tokens <= 0:
+            return active_messages, current_context
+
+        summarized_history, updated_context = self._prepare_messages(
+            history,
+            current_context,
+            trigger_tokens=eligible_tokens,
+        )
+        return [*summarized_history, *recent], updated_context
+
+    def prepare_input(
+        self,
+        messages: list[dict[str, Any]],
+        context: dict[str, Any] | None,
+    ) -> tuple[list[BaseMessage], dict[str, Any]]:
+        """应用已有摘要并保留新消息，但不触发新的摘要。"""
+        converted = message_dicts_to_langchain(messages)
+        current_context = dict(context or {})
+        if self._summary_model is None:
+            return converted, current_context
+        return self._prepare_messages(
+            converted,
+            current_context,
+            trigger_tokens=NO_SUMMARY_TRIGGER_TOKENS,
+        )
+
+    def _prepare_messages(
+        self,
+        messages: list[BaseMessage],
+        context: dict[str, Any],
+        *,
+        trigger_tokens: int,
+    ) -> tuple[list[BaseMessage], dict[str, Any]]:
+        """按给定阈值投影 LangMem 模型输入。"""
+        if self._summary_model is None:
+            return list(messages), dict(context)
+        summarizer = SummarizationNode(
+            model=self._summary_model,
+            max_tokens=self._summary_max_tokens,
+            max_tokens_before_summary=max(1, int(trigger_tokens)),
+            max_summary_tokens=self._summary_output_tokens,
+            input_messages_key="messages",
+            output_messages_key="summarized_messages",
+        )
+        result = summarizer.invoke(
+            {"messages": messages, "context": dict(context)}
         )
         return (
-            list(result.get("summarized_messages") or converted),
-            dict(result.get("context") or context or {}),
+            list(result.get("summarized_messages") or messages),
+            dict(result.get("context") or context),
         )
 
     def retrieve(self, *, user_id: int, query: str) -> dict[str, Any]:
@@ -247,6 +315,42 @@ def message_dicts_to_langchain(messages: list[dict[str, Any]]) -> list[BaseMessa
                 )
             )
     return output
+
+
+def find_last_summarized_message_index(
+    messages: list[BaseMessage],
+    context: dict[str, Any],
+) -> int:
+    """定位已有滚动摘要覆盖到的最后一条原始消息。"""
+    running_summary = context.get("running_summary")
+    last_message_id = getattr(
+        running_summary,
+        "last_summarized_message_id",
+        None,
+    )
+    if isinstance(running_summary, dict):
+        last_message_id = running_summary.get("last_summarized_message_id")
+    if not last_message_id:
+        return -1
+    for index, message in enumerate(messages):
+        if message.id == last_message_id:
+            return index
+    return -1
+
+
+def recent_user_turn_start(messages: list[BaseMessage], *, keep: int) -> int:
+    """返回最近若干完整用户轮次在未摘要消息中的起点。"""
+    keep_count = max(0, int(keep))
+    if keep_count == 0:
+        return len(messages)
+    user_indexes = [
+        index
+        for index, message in enumerate(messages)
+        if isinstance(message, HumanMessage)
+    ]
+    if len(user_indexes) <= keep_count:
+        return 0
+    return user_indexes[-keep_count]
 
 
 def memory_search_item(item: Any) -> dict[str, Any]:

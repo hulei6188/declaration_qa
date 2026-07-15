@@ -88,6 +88,22 @@ class AgentRuntimeNodes:
         )
         return next_state
 
+    def agent_refresh_input(self, state: DeclarationQAState) -> DeclarationQAState:
+        """工具执行后应用已有摘要，不在当前用户轮次触发新摘要。"""
+        next_state = dict(state)
+        prepared, memory_context = self.memory_runtime.prepare_input(
+            list(next_state.get("agent_messages") or []),
+            dict(next_state.get("memory_context") or {}),
+        )
+        next_state["agent_input_messages"] = prepared
+        next_state["memory_context"] = memory_context
+        add_event(
+            next_state,
+            "agent_input_refreshed",
+            {"active_message_count": len(prepared)},
+        )
+        return next_state
+
     def agent_decide(self, state: DeclarationQAState) -> DeclarationQAState:
         """让 Agent 决定下一批工具调用或结束循环。"""
         next_state = dict(state)
