@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.8.5-pg16-trixie
+    platform: linux/amd64
     environment:
       POSTGRES_DB: agentbase
       POSTGRES_USER: agentbase

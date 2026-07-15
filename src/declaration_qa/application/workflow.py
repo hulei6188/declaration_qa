@@ -89,9 +89,9 @@ class DeclarationQAWorkflow(ApplicationNodes):
                 embedding_provider=HashEmbeddingProvider(),
             ),
             model=getattr(self.agent, "model", agent_model),
-            summary_max_tokens=12000,
-            summary_trigger_tokens=9000,
-            summary_output_tokens=800,
+            summary_max_tokens=72000,
+            summary_trigger_tokens=48000,
+            summary_output_tokens=5000,
             long_term_top_k=5,
             background_workers=1,
         )

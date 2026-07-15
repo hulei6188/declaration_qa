@@ -21,9 +21,9 @@ class DeclarationQASettings(BaseSettings):
     redis_url: str | None = Field(default=None, alias="DECLARATION_QA_REDIS_URL")
     redis_ttl_seconds: int = Field(default=600, alias="DECLARATION_QA_REDIS_TTL_SECONDS")
 
-    memory_summary_max_tokens: int = Field(default=12000, alias="DECLARATION_QA_MEMORY_SUMMARY_MAX_TOKENS")
-    memory_summary_trigger_tokens: int = Field(default=9000, alias="DECLARATION_QA_MEMORY_SUMMARY_TRIGGER_TOKENS")
-    memory_summary_output_tokens: int = Field(default=800, alias="DECLARATION_QA_MEMORY_SUMMARY_OUTPUT_TOKENS")
+    memory_summary_max_tokens: int = Field(default=72000, alias="DECLARATION_QA_MEMORY_SUMMARY_MAX_TOKENS")
+    memory_summary_trigger_tokens: int = Field(default=48000, alias="DECLARATION_QA_MEMORY_SUMMARY_TRIGGER_TOKENS")
+    memory_summary_output_tokens: int = Field(default=5000, alias="DECLARATION_QA_MEMORY_SUMMARY_OUTPUT_TOKENS")
     long_term_memory_top_k: int = Field(default=5, alias="DECLARATION_QA_LONG_TERM_MEMORY_TOP_K")
     long_term_memory_workers: int = Field(default=1, alias="DECLARATION_QA_LONG_TERM_MEMORY_WORKERS")
 
