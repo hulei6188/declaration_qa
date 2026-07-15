@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from declaration_qa.core.domain import RetrievedSource
+from declaration_qa.observability.performance import performance_stage
 
 QWEN3_VL_RERANK_MODELS = {"qwen3-vl-rerank"}
 MAX_VL_DOCUMENTS = 100
@@ -52,14 +53,22 @@ class DashScopeReranker:
     def _rerank_text(self, query: str, sources: list[Any], *, top_n: int) -> list[Any]:
         """调用 DashScope 文本重排。"""
         dashscope = import_dashscope()
-        response = dashscope.TextReRank.call(
+        with performance_stage(
+            "dashscope.rerank",
+            provider=self.name,
             model=self.model,
-            query=query,
-            documents=[source.chunk.content for source in sources],
+            candidate_count=len(sources),
             top_n=max(1, int(top_n)),
-            api_key=self.api_key or None,
-            instruct=self.instruct,
-        )
+            multimodal=False,
+        ):
+            response = dashscope.TextReRank.call(
+                model=self.model,
+                query=query,
+                documents=[source.chunk.content for source in sources],
+                top_n=max(1, int(top_n)),
+                api_key=self.api_key or None,
+                instruct=self.instruct,
+            )
         if response_value(response, "status_code") != HTTPStatus.OK:
             code = response_value(response, "code", "")
             message = response_value(response, "message", "")
@@ -89,15 +98,23 @@ class DashScopeReranker:
         documents, source_indexes = build_vl_documents(sources)
         if not documents:
             return []
-        response = dashscope.TextReRank.call(
+        with performance_stage(
+            "dashscope.rerank",
+            provider=self.name,
             model=self.model,
-            query=build_vl_query(query, retrieval_plan),
-            documents=documents,
+            candidate_count=len(documents),
             top_n=max(1, int(top_n)),
-            api_key=self.api_key or None,
-            instruct=self.instruct,
-            return_documents=False,
-        )
+            multimodal=True,
+        ):
+            response = dashscope.TextReRank.call(
+                model=self.model,
+                query=build_vl_query(query, retrieval_plan),
+                documents=documents,
+                top_n=max(1, int(top_n)),
+                api_key=self.api_key or None,
+                instruct=self.instruct,
+                return_documents=False,
+            )
         if response_value(response, "status_code") != HTTPStatus.OK:
             code = response_value(response, "code", "")
             message = response_value(response, "message", "")

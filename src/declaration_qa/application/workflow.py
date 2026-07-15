@@ -41,6 +41,7 @@ from declaration_qa.application.tools import (
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
 from declaration_qa.memory import LangGraphMemoryRuntime, build_memory_resources
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
+from declaration_qa.observability.performance import performance_request
 from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
@@ -140,7 +141,12 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def invoke(self, request: ChatRequest) -> ChatResponse:
         """同步执行问答工作流并返回最终响应。"""
         initial_state = self._initial_state(request)
-        with observation(
+        with performance_request(
+            "workflow.invoke",
+            session_id=str(initial_state.get("session_id") or ""),
+            trace_id=str(initial_state.get("langfuse_trace_id") or ""),
+            user_id=int(initial_state.get("user_id") or 0),
+        ), observation(
             "workflow.invoke",
             input=chat_trace_input(request),
             metadata=chat_trace_metadata(initial_state),
@@ -186,7 +192,12 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def stream(self, request: ChatRequest) -> Iterable[dict[str, Any]]:
         """通过 LangGraph 流式执行问答工作流并产出 SSE 事件。"""
         state: DeclarationQAState = self._initial_state(request)
-        with observation(
+        with performance_request(
+            "workflow.stream",
+            session_id=str(state.get("session_id") or ""),
+            trace_id=str(state.get("langfuse_trace_id") or ""),
+            user_id=int(state.get("user_id") or 0),
+        ), observation(
             "workflow.stream",
             input=chat_trace_input(request),
             metadata=chat_trace_metadata(state),

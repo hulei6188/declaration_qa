@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.observability.performance import performance_stage
 from declaration_qa.search.vector.memory import MemoryVectorIndex
 from declaration_qa.search.vector.metadata import (
     MILVUS_JSON_METADATA_FIELD,
@@ -87,13 +88,19 @@ class MilvusVectorIndex:
             return self._fallback.search(vector, filters, limit=limit)
         expr = milvus_filter_expr(filters)
         try:
-            results = self._client.search(
-                collection_name=self.collection_name,
-                data=[list(vector)],
+            with performance_stage(
+                "milvus.search",
+                backend=self.backend,
+                query_count=1,
                 limit=limit,
-                filter=expr or "",
-                output_fields=["id"],
-            )
+            ):
+                results = self._client.search(
+                    collection_name=self.collection_name,
+                    data=[list(vector)],
+                    limit=limit,
+                    filter=expr or "",
+                    output_fields=["id"],
+                )
         except Exception:
             if self._fallback is None:
                 raise
@@ -118,13 +125,19 @@ class MilvusVectorIndex:
             return self._fallback.search_batch(vectors, filters, limit=limit)
         expr = milvus_filter_expr(filters)
         try:
-            results = self._client.search(
-                collection_name=self.collection_name,
-                data=[list(vector) for vector in vectors],
+            with performance_stage(
+                "milvus.search_batch",
+                backend=self.backend,
+                query_count=len(vectors),
                 limit=limit,
-                filter=expr or "",
-                output_fields=["id"],
-            )
+            ):
+                results = self._client.search(
+                    collection_name=self.collection_name,
+                    data=[list(vector) for vector in vectors],
+                    limit=limit,
+                    filter=expr or "",
+                    output_fields=["id"],
+                )
         except Exception:
             if self._fallback is None:
                 raise

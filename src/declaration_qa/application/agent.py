@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import Any
 
 from declaration_qa.observability.langfuse import invoke_with_langfuse
+from declaration_qa.observability.performance import log_performance, performance_stage
 from declaration_qa.rag.model_providers.answers import (
     MULTIMODAL_EVIDENCE_RULES,
     image_content_block,
@@ -112,12 +113,18 @@ class ToolCallingAgent:
         messages.extend(list(state.get("agent_input_messages") or []))
         messages.append(build_agent_human_message(self, state, prompt_text))
         started_at = perf_counter()
-        response = invoke_with_langfuse(
-            bound,
-            messages,
-            state,
-            run_name="agent.decide",
-        )
+        with performance_stage(
+            "agent.model_call",
+            iteration=int(state.get("agent_iteration") or 0),
+            model=str(getattr(self.model, "model_name", "") or getattr(self.model, "model", "")),
+            tool_definition_count=len(tool_definitions),
+        ):
+            response = invoke_with_langfuse(
+                bound,
+                messages,
+                state,
+                run_name="agent.decide",
+            )
         latency_ms = max(0, round((perf_counter() - started_at) * 1000))
         model_name, usage = response_model_metadata(response, self.model)
         content = normalize_model_content(getattr(response, "content", response))
@@ -138,6 +145,15 @@ class ToolCallingAgent:
             )
         intent = "agentic_rag"
         if calls:
+            log_performance(
+                "agent.decision",
+                started_at,
+                action="tools",
+                iteration=int(state.get("agent_iteration") or 0),
+                tool_call_count=len(calls),
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+            )
             return AgentDecision(
                 "tools",
                 calls,
@@ -149,6 +165,15 @@ class ToolCallingAgent:
                 token_usage=usage,
                 latency_ms=latency_ms,
             )
+        log_performance(
+            "agent.decision",
+            started_at,
+            action="finish",
+            iteration=int(state.get("agent_iteration") or 0),
+            tool_call_count=0,
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+        )
         return AgentDecision(
             "finish",
             intent=intent,

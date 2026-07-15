@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.observability.performance import performance_stage
 
 
 QWEN3_VL_SUPPORTED_DIMENSIONS = {256, 512, 768, 1024, 1536, 2048, 2560}
@@ -100,7 +101,15 @@ class Qwen3VLEmbeddingProvider:
             kwargs["enable_fusion"] = True
         if self.image_res_level > 0:
             kwargs["res_level"] = self.image_res_level
-        response = MultiModalEmbedding.call(**kwargs)
+        with performance_stage(
+            "dashscope.embedding",
+            provider=self.name,
+            model=self.model,
+            item_count=len(items),
+            enable_fusion=enable_fusion,
+            dimension=self.dimension,
+        ):
+            response = MultiModalEmbedding.call(**kwargs)
         return parse_dashscope_embedding_response(response, expected_count=1 if enable_fusion else len(items))
 
 

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from time import perf_counter
 from typing import Any, Protocol
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.observability.langfuse import observation, record_error, retrieved_source_summary, safe_value
+from declaration_qa.observability.performance import log_performance, performance_stage
 from declaration_qa.rag.engine.chunking import split_document
 from declaration_qa.rag.engine.constants import EMBEDDING_DIMS
 from declaration_qa.rag.engine.scoring import rrf_fuse
@@ -280,7 +282,15 @@ class BaseRAGEngine:
             input={"query": normalized_query, "filter": effective_filter, "top_k": top_k, "mode": "single"},
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
+            cache_started = perf_counter()
             cached_payload = self.cache_store.get_json(cache_key)
+            log_performance(
+                "rag.cache_lookup",
+                cache_started,
+                backend=self.cache_store.backend,
+                mode="single",
+                hit=bool(cached_payload),
+            )
             span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
@@ -314,7 +324,16 @@ class BaseRAGEngine:
                 input={"query": text, "filter": effective_filter, "top_k": top_k, "mode": "many", "index": index},
                 metadata=self._observability_metadata(retrieval_plan=policy),
             ) as span:
+                cache_started = perf_counter()
                 cached_payload = self.cache_store.get_json(cache_key)
+                log_performance(
+                    "rag.cache_lookup",
+                    cache_started,
+                    backend=self.cache_store.backend,
+                    mode="many",
+                    query_index=index,
+                    hit=bool(cached_payload),
+                )
                 span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
             if cached_payload:
                 results[index] = self._result_from_cache(cached_payload, effective_filter)
@@ -376,7 +395,16 @@ class BaseRAGEngine:
             },
             metadata=self._observability_metadata(retrieval_plan=policy),
         ) as span:
+            cache_started = perf_counter()
             cached_payload = self.cache_store.get_json(cache_key)
+            log_performance(
+                "rag.cache_lookup",
+                cache_started,
+                backend=self.cache_store.backend,
+                mode="agent_queries",
+                query_count=len(query_specs),
+                hit=bool(cached_payload),
+            )
             span.update(output={"hit": bool(cached_payload), "backend": self.cache_store.backend})
         if cached_payload:
             return self._result_from_cache(cached_payload, effective_filter)
@@ -538,7 +566,11 @@ class BaseRAGEngine:
             dense_hits,
             bm25_hits,
         )
-        with observation(
+        with performance_stage(
+            "rag.rrf_merge",
+            dense_count=len(dense_hits),
+            bm25_count=len(bm25_hits),
+        ), observation(
             "rag.rrf_merge",
             input={
                 "dense_count": len(dense_hits),
@@ -690,7 +722,11 @@ class BaseRAGEngine:
                 candidate_source=candidate_source,
                 prefilter_child_count=prefilter_child_count,
             )
-        with observation(
+        with performance_stage(
+            "rag.rrf_merge",
+            mode="agent_queries",
+            hit_list_count=len(hit_lists),
+        ), observation(
             "rag.rrf_merge",
             input={
                 "hit_list_count": len(hit_lists),
@@ -1156,7 +1192,11 @@ class BaseRAGEngine:
 
     def _cache_result(self, cache_key: str, result: RetrievalResult) -> None:
         """将检索结果写入缓存。"""
-        with observation(
+        with performance_stage(
+            "rag.cache_write",
+            backend=self.cache_store.backend,
+            source_count=len(result.sources),
+        ), observation(
             "rag.cache.write",
             input={"source_count": len(result.sources), "ttl_seconds": self.cache_ttl_seconds},
             metadata=self._observability_metadata(retrieval_plan=result.status.get("retrieval_plan") or {}),

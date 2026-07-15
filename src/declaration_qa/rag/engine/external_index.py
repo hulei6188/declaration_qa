@@ -8,6 +8,7 @@ from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievalResult, RetrievedSource
 from declaration_qa.observability.langfuse import observation, record_error, safe_value
+from declaration_qa.observability.performance import performance_stage
 from declaration_qa.rag.engine.base import BaseRAGEngine, ChunkStore, strategy_weighted_hit_lists
 from declaration_qa.rag.engine.embeddings import embed_knowledge_chunk_batch
 from declaration_qa.rag.engine.parent_context import expand_parent_context
@@ -623,7 +624,10 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         unique_ids = unique_ordered_strings(chunk_ids)
         if not unique_ids:
             return []
-        with observation(
+        with performance_stage(
+            "rag.chunk_hydrate",
+            requested_count=len(unique_ids),
+        ), observation(
             "rag.chunk_hydrate",
             input={"requested_count": len(unique_ids), "chunk_ids": unique_ids[:20]},
             metadata=self._observability_metadata(),
@@ -663,7 +667,10 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
             if source.chunk.chunk_type == "child" and source.chunk.parent_id
         ]
         unique_parent_ids = unique_ordered_strings(parent_ids)
-        with observation(
+        with performance_stage(
+            "rag.parent_context_load",
+            parent_count=len(unique_parent_ids),
+        ), observation(
             "rag.parent_context.load_parents",
             input={"parent_count": len(unique_parent_ids), "parent_ids": unique_parent_ids[:20]},
             metadata=self._observability_metadata(),

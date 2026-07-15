@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from declaration_qa.core.domain import KnowledgeChunk
+from declaration_qa.observability.performance import performance_stage
 from declaration_qa.search.keyword.elasticsearch_utils import (
     elasticsearch_chunk_document,
     elasticsearch_filter_clauses,
@@ -118,10 +119,16 @@ class ElasticsearchKeywordIndex:
             request_indexes.append(index)
         if not searches:
             return results
-        try:
-            response = self._client.msearch(searches=searches)
-        except TypeError:
-            response = self._client.msearch(body=searches)
+        with performance_stage(
+            "elasticsearch.msearch",
+            backend=self.backend,
+            query_count=len(request_indexes),
+            max_limit=max(limits or [0]),
+        ):
+            try:
+                response = self._client.msearch(searches=searches)
+            except TypeError:
+                response = self._client.msearch(body=searches)
         responses = response.get("responses", [])
         for index, item in zip(request_indexes, responses):
             if item.get("error"):

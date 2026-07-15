@@ -17,6 +17,7 @@ from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.helpers.events import add_event
 from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
+from declaration_qa.observability.performance import log_performance, performance_stage
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
@@ -299,6 +300,14 @@ class AgentRuntimeNodes:
                 call_id=str(call.get("id") or name),
             )
         completed_at = datetime.now(timezone.utc)
+        log_performance(
+            "agent.tool_call",
+            started_clock,
+            tool_name=name,
+            call_id=str(call.get("id") or name),
+            tool_status=result.status,
+            ok=result.ok,
+        )
         return {
             **result.payload(),
             "arguments": audit_tool_arguments(name, arguments),
@@ -398,7 +407,12 @@ class AgentRuntimeNodes:
             "knowledge_search_round": search_round,
         }
         filters = normalize_retrieval_filter(state.get("metadata_filter") or {})
-        result = self.multi_retrieve(isolated_state, filters)
+        with performance_stage(
+            "knowledge_search.retrieve",
+            query_count=len(retrieval_queries),
+            search_round=search_round,
+        ):
+            result = self.multi_retrieve(isolated_state, filters)
         current_payloads = [source.payload() for source in result.sources]
         final_sources = merge_accumulated_source_payloads(
             current_payloads,
