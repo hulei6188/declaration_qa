@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from declaration_qa.memory.context import format_long_term_context, format_short_term_context
+from declaration_qa.memory.context import format_long_term_context
 
 try:
     from langchain_core.prompts import PromptTemplate
@@ -32,7 +32,6 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 
 问题：{query}
 链路：{retrieval_chain}
-短期上下文（仅用于理解多轮省略和本轮附件，不得替代工具结果或检索证据）：{short_term_context}
 长期上下文记忆（仅用于理解历史咨询主题，不含实时个人工单事实；如与检索证据冲突，以本轮检索证据为准）：{long_term_context}
 业务工具结果（只用于个人申请事实，不能作为公开政策依据）：{tool_payload}
 知识检索证据（只用于公开政策、材料、流程和规范，不能作为实时工单事实）：{source_payload}
@@ -57,7 +56,6 @@ class DeterministicAnswerGenerator:
         prompt = ANSWER_PROMPT.format(
             query=state.get("query") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
-            short_term_context=format_short_term_context(state),
             long_term_context=format_long_term_context(state),
             tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,

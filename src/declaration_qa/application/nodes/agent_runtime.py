@@ -17,7 +17,6 @@ from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
 from declaration_qa.application.helpers.events import add_event
 from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
-from declaration_qa.memory.context import build_short_term_context
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
@@ -40,7 +39,6 @@ class AgentRuntimeNodes:
             user_id=int(next_state.get("user_id") or 0),
             query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
         )
-        next_state["short_term_context"] = build_short_term_context(next_state)
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []

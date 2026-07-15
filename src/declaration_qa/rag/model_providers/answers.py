@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
-from declaration_qa.memory.context import format_long_term_context, format_short_term_context
+from declaration_qa.memory.context import format_long_term_context
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 from declaration_qa.rag.model_providers.langchain_compat import create_chat_openai
 from declaration_qa.rag.prompting import (
@@ -72,7 +72,6 @@ class OpenAIAnswerGenerator:
             query=state.get("query") or "",
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
-            short_term_context=format_short_term_context(state),
             long_term_context=format_long_term_context(state),
             tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,

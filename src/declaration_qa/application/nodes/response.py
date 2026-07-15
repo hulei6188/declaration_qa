@@ -130,7 +130,6 @@ class ResponseNodes:
             "suggested_actions": next_state.get("suggested_actions") or [],
             "events": next_state.get("events") or [],
             "langfuse_trace_id": next_state.get("langfuse_trace_id") or "",
-            "short_term_context": next_state.get("short_term_context") or {},
             "long_term_context": next_state.get("long_term_context") or {},
             **(next_state.get("audit_payload") or {}),
         }

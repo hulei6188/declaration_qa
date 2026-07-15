@@ -18,7 +18,7 @@ from declaration_qa.rag.model_providers.answers import (
     valid_query_image,
     visual_evidence_label,
 )
-from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload, knowledge_answer
+from declaration_qa.rag.prompting import format_source_payload, knowledge_answer
 
 
 AGENT_SYSTEM_PROMPT = """你是政务申报系统的单 Agent。你负责理解问题、选择工具、观察工具结果，并直接回答用户。
@@ -97,20 +97,15 @@ class ToolCallingAgent:
         from langchain_core.messages import SystemMessage
 
         bound = self.model.bind_tools(tool_definitions) if tool_definitions else self.model
-        short_context = dict(state.get("short_term_context") or {})
-        for key in ("recent_knowledge_evidence_refs", "evidence_overview"):
-            short_context.pop(key, None)
         prompt = {
             "iteration": int(state.get("agent_iteration") or 0),
-            "short_term_context": short_context,
             "long_term_context": state.get("long_term_context") or {},
             "query_image_ocr_text": str(state.get("query_image_ocr_text") or "")[:4000],
         }
         prompt_text = json.dumps(prompt, ensure_ascii=False, default=str)
         messages: list[Any] = [SystemMessage(content=AGENT_SYSTEM_PROMPT)]
         messages.extend(list(state.get("agent_input_messages") or []))
-        current_context = build_current_agent_context(state)
-        messages.append(build_agent_human_message(self, state, f"{prompt_text}\n\n{current_context}"))
+        messages.append(build_agent_human_message(self, state, prompt_text))
         started_at = perf_counter()
         response = invoke_with_langfuse(
             bound,
@@ -223,17 +218,6 @@ def choose_application_id(query: str, applications: list[dict[str, Any]]) -> int
         scored.append((semantic_score, str(item.get("updated_at") or ""), int(item["application_id"])))
     scored.sort(reverse=True)
     return scored[0][2]
-
-
-def build_current_agent_context(state: dict[str, Any]) -> str:
-    """构造当前轮控制信息；知识结果通过 ToolMessage 传递。"""
-    return "\n\n".join(
-        [
-            "请根据当前问题和以下已执行结果决定继续调用工具，或在信息足够时直接回答。",
-            f"当前轮次：{int(state.get('agent_iteration') or 0)}",
-            f"业务工具事实：\n{format_tool_result_payload([item for item in (state.get('tool_results') or []) if isinstance(item, dict) and item.get('tool_name') != 'knowledge_search'])}",
-        ]
-    )
 
 
 def build_agent_human_message(agent: ToolCallingAgent, state: dict[str, Any], text: str) -> Any:
