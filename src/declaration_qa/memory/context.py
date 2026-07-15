@@ -6,14 +6,12 @@ import json
 from typing import Any
 
 
-RECENT_TURN_LIMIT = 5
 FIELD_CONTENT_LIMIT = 300
 EVIDENCE_OVERVIEW_LIMIT = 6
 
 
 def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
     """构建答案生成使用的短期上下文。"""
-    short_memory = state.get("short_memory") if isinstance(state.get("short_memory"), dict) else {}
     context = {
         "current_question": current_question_context(state),
         "business_tool_context": business_tool_context_summary(state),
@@ -22,8 +20,7 @@ def build_short_term_context(state: dict[str, Any]) -> dict[str, Any]:
     }
     context["metrics"] = {
         "agent_message_count": len(state.get("agent_messages") or []),
-        "short_memory_backend": short_memory.get("backend") or "",
-        "short_memory_cache_hit": bool(short_memory.get("cache_hit")),
+        "checkpoint_backend": "langgraph",
         "has_business_tool_context": bool(context["business_tool_context"]),
         "has_query_image": bool(context["query_image"]),
         "source_count": len(state.get("retrieved_sources") or []),

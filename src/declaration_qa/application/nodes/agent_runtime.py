@@ -8,6 +8,7 @@ from contextvars import copy_context
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
+from uuid import uuid4
 
 from declaration_qa.application.agent import accumulated_knowledge_queries, choose_application_id
 from declaration_qa.application.state import DeclarationQAState
@@ -35,15 +36,22 @@ class AgentRuntimeNodes:
             next_state["refuse_reason"] = "clarification_required"
         frozen_query = normalize_text(mask_sensitive_text(next_state.get("normalized_query") or next_state.get("query") or ""))
         next_state["frozen_knowledge_query"] = frozen_query
-        memory_manager = getattr(self, "context_memory_manager", None)
-        if memory_manager is not None:
-            next_state["long_term_context"] = memory_manager.retrieve_long_term_context(next_state)
+        next_state["long_term_context"] = self.memory_runtime.retrieve(
+            user_id=int(next_state.get("user_id") or 0),
+            query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
+        )
         next_state["short_term_context"] = build_short_term_context(next_state)
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
         messages = list(next_state.get("agent_messages") or [])
-        messages.append({"role": "user", "content": str(next_state.get("query") or "")})
+        messages.append(
+            {
+                "id": uuid4().hex,
+                "role": "user",
+                "content": str(next_state.get("query") or ""),
+            }
+        )
         next_state["agent_messages"] = messages
         next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
@@ -60,6 +68,26 @@ class AgentRuntimeNodes:
         next_state["route"] = "agentic_rag"
         next_state["retrieval_chain"] = "agentic_rag"
         add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_planner": "agent_tool_schema"})
+        return next_state
+
+    def agent_summarize(self, state: DeclarationQAState) -> DeclarationQAState:
+        """Build the model input from the running summary and recent complete messages."""
+        next_state = dict(state)
+        summarized, memory_context = self.memory_runtime.summarize(
+            list(next_state.get("agent_messages") or []),
+            dict(next_state.get("memory_context") or {}),
+        )
+        next_state["agent_input_messages"] = summarized
+        next_state["memory_context"] = memory_context
+        running_summary = memory_context.get("running_summary")
+        add_event(
+            next_state,
+            "conversation_summarized",
+            {
+                "active_message_count": len(summarized),
+                "has_running_summary": bool(getattr(running_summary, "summary", "")),
+            },
+        )
         return next_state
 
     def agent_decide(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -121,6 +149,7 @@ class AgentRuntimeNodes:
                 messages = list(next_state.get("agent_messages") or [])
                 messages.append(
                     {
+                        "id": uuid4().hex,
                         "role": "assistant",
                         "content": decision.assistant_content,
                         "tool_calls": [
@@ -530,6 +559,7 @@ def append_tool_message(
     messages = list(state.get("agent_messages") or [])
     messages.append(
         {
+            "id": uuid4().hex,
             "role": "tool",
             "tool_call_id": str(call.get("id") or payload.get("call_id") or call.get("name") or ""),
             "name": str(call.get("name") or payload.get("tool_name") or ""),

@@ -56,6 +56,7 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
 
 - 知识文档支持发布、下线、灰度比例、版本创建、版本对比和回滚。
 - PostgreSQL 持久化会话、消息、Agent Run、工具调用、证据、审计、反馈和评测记录。
+- LangGraph Checkpointer 持久化完整 thread 状态；LangMem 维护滚动摘要和跨会话长期记忆。
 - SSE 流式返回回答和工具事件。
 - 前端支持暗色模式、可折叠知识库侧栏、Markdown 回答、GFM 表格和证据展开。
 - 可选接入 Langfuse 记录模型调用、检索和重排链路。
@@ -75,7 +76,7 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
                                │
 ┌──────────────────────────────▼──────────────────────────────┐
 │ LangGraph / Tool-Calling Agent                               │
-│ knowledge_search | ticket_list_query | ticket_detail_query  │
+│ Checkpointer + LangMem | knowledge/ticket tools             │
 └───────────────┬───────────────────────────────┬─────────────┘
                 │                               │
 ┌───────────────▼────────────────┐  ┌──────────▼──────────────┐
@@ -98,7 +99,7 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
 | 本地进程 | MinerU API | `http://127.0.0.1:8011` |
 | 本地进程 | RQ Worker | 异步执行知识索引任务 |
 | 本地进程 | Vite Frontend | `http://127.0.0.1:5173` |
-| Docker | PostgreSQL 16 | `localhost:5433` |
+| Docker | PostgreSQL 16 + pgvector | `localhost:5433` |
 | Docker | Redis 7 | `localhost:6380` |
 | Docker | Milvus Standalone | `http://localhost:19530` |
 | Docker | Elasticsearch 8 | `http://localhost:9200` |
@@ -110,7 +111,8 @@ Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将�
 
 ```text
 用户问题或图片
-  -> 加载会话上下文和已验证事实
+  -> Checkpointer 恢复 thread 状态
+  -> LangMem 生成滚动摘要并检索用户长期记忆
   -> Agent 选择工具
        -> knowledge_search：公开知识
        -> ticket_list_query：个人申请列表
@@ -260,7 +262,7 @@ attachment_chonkie_text
 | 层次 | 技术 |
 | --- | --- |
 | API | Python 3.10+、FastAPI、Uvicorn、Pydantic 2 |
-| Agent | LangGraph、LangChain Core、原生 Tool Calling |
+| Agent 与记忆 | LangGraph、LangMem、LangChain Core、原生 Tool Calling |
 | 模型 | DashScope/OpenAI Compatible Chat API、Qwen3-VL |
 | Embedding | Qwen3-VL Embedding、OpenAI Compatible Embedding、Hashing fallback |
 | Rerank | Qwen3-VL Rerank、Heuristic fallback |
@@ -268,7 +270,7 @@ attachment_chonkie_text
 | 切分 | Chonkie RecursiveChunker、TableChunker |
 | 向量检索 | Milvus |
 | 关键词检索 | Elasticsearch BM25 |
-| 持久化 | PostgreSQL、SQLAlchemy、Psycopg |
+| 持久化 | PostgreSQL + pgvector、LangGraph Postgres Checkpointer/Store、SQLAlchemy、Psycopg |
 | 缓存和任务 | Redis、RQ |
 | 前端 | React 18、Vite 5、Lucide React、React Markdown |
 | 可观测 | Langfuse、数据库审计、Agent Run 回放 |
@@ -426,6 +428,16 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 | `DECLARATION_QA_DATABASE_URL` | PostgreSQL SQLAlchemy URL | 本地 5433 |
 | `DECLARATION_QA_REDIS_URL` | Redis URL | 本地 6380/1 |
 | `DECLARATION_QA_REDIS_TTL_SECONDS` | RAG 缓存 TTL | `600` |
+
+### 会话与长期记忆
+
+| 环境变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `DECLARATION_QA_MEMORY_SUMMARY_MAX_TOKENS` | 摘要后模型输入最大 token | `12000` |
+| `DECLARATION_QA_MEMORY_SUMMARY_TRIGGER_TOKENS` | 触发滚动摘要的 token | `9000` |
+| `DECLARATION_QA_MEMORY_SUMMARY_OUTPUT_TOKENS` | 摘要预算 | `800` |
+| `DECLARATION_QA_LONG_TERM_MEMORY_TOP_K` | 跨会话长期记忆召回数 | `5` |
+| `DECLARATION_QA_LONG_TERM_MEMORY_WORKERS` | LangMem 后台提取线程数 | `1` |
 
 ### 检索后端
 
@@ -637,6 +649,7 @@ curl -X POST http://127.0.0.1:8010/api/declaration-qa/knowledge/reindex
 - `assets`：图片和附件视觉资产。
 - `index_jobs`：索引任务和 ETL 状态。
 - 会话、消息、Agent Run、工具调用、证据和反馈表。
+- LangGraph Checkpointer 表保存完整 thread 状态，LangGraph Store 表保存用户长期记忆和向量索引。
 - `business_*`：示例或接入的个人工单数据。
 - 评测数据集、用例、运行和人工标注表。
 
@@ -681,7 +694,7 @@ declaration-qa/
 │   │   ├── chunking/                 Chonkie 结构适配器
 │   │   ├── document_parsing/         MinerU、native、OCR、LlamaParse
 │   │   └── service/                  入库、删除和重建索引流程
-│   ├── memory/                       上下文记忆
+│   ├── memory/                       LangGraph Checkpointer/Store 与 LangMem
 │   ├── observability/                Langfuse 和观测辅助
 │   ├── rag/                          RAG 引擎、融合、重排和模型 Provider
 │   ├── search/                       Milvus 与 Elasticsearch 适配器

@@ -24,9 +24,9 @@ from declaration_qa.application.nodes import ApplicationNodes
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import KnowledgeSearchTool, TicketDetailQueryTool, TicketListQueryTool, ToolRegistry
 from declaration_qa.core.business import BusinessDataAdapter, InMemoryBusinessDataAdapter
-from declaration_qa.memory.manager import ContextMemoryManager
+from declaration_qa.memory import LangGraphMemoryRuntime, build_memory_resources
 from declaration_qa.observability.langfuse import create_trace_id, observation, safe_value
-from declaration_qa.memory.context import RECENT_TURN_LIMIT
+from declaration_qa.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from declaration_qa.rag.engine.base import RAGEngine
 from declaration_qa.rag.engine.seed import build_seed_rag_engine
 from declaration_qa.storage.audit import InMemoryAuditStore
@@ -61,7 +61,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         agent_max_iterations: int = 4,
         query_image_ocr_client: Any | None = None,
         query_image_ocr_max_chars: int = 4000,
-        context_memory_manager: ContextMemoryManager | None = None,
+        memory_runtime: LangGraphMemoryRuntime | None = None,
         max_retrieval_workers: int = 4,
         min_sources_per_query: int = 2,
         max_accumulated_sources: int = 48,
@@ -83,7 +83,18 @@ class DeclarationQAWorkflow(ApplicationNodes):
         self.agent_max_iterations = max(1, int(agent_max_iterations or 4))
         self.query_image_ocr_client = query_image_ocr_client
         self.query_image_ocr_max_chars = max(1, int(query_image_ocr_max_chars or 4000))
-        self.context_memory_manager = context_memory_manager
+        self.memory_runtime = memory_runtime or LangGraphMemoryRuntime(
+            resources=build_memory_resources(
+                database_url=None,
+                embedding_provider=HashEmbeddingProvider(),
+            ),
+            model=getattr(self.agent, "model", agent_model),
+            summary_max_tokens=12000,
+            summary_trigger_tokens=9000,
+            summary_output_tokens=800,
+            long_term_top_k=5,
+            background_workers=1,
+        )
         self.max_retrieval_workers = max(1, int(max_retrieval_workers))
         self.min_sources_per_query = max(0, int(min_sources_per_query or 0))
         self.max_accumulated_sources = max(1, int(max_accumulated_sources or 48))
@@ -109,7 +120,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
             tags=["declaration-qa", "chat"],
             trace_name="declaration_qa.chat",
         ) as span:
-            final_state = self.graph.invoke(initial_state)
+            final_state = self.graph.invoke(
+                initial_state,
+                config=self._graph_config(
+                    user_id=int(initial_state["user_id"]),
+                    session_id=str(initial_state["session_id"]),
+                ),
+            )
             span.update(output=chat_trace_output(final_state), metadata=chat_trace_metadata(final_state))
             span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(final_state))
         return ChatResponse(
@@ -153,7 +170,11 @@ class DeclarationQAWorkflow(ApplicationNodes):
 
             emitted_event_count = 0
             streamed_answer = False
-            config = {"configurable": {"declaration_qa_stream": True}}
+            config = self._graph_config(
+                user_id=int(state["user_id"]),
+                session_id=str(state["session_id"]),
+                stream=True,
+            )
             for chunk in self.graph.stream(state, config=config, stream_mode=["updates", "custom"]):
                 mode, payload = graph_stream_part(chunk)
                 if mode == "custom":
@@ -187,7 +208,10 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
         session_id = request.session_id or uuid4().hex
-        short_memory = self._load_short_memory(request, session_id=session_id)
+        checkpoint_state = self._checkpoint_state(
+            user_id=int(request.user_id),
+            session_id=session_id,
+        )
         return {
             "user_id": request.user_id,
             "session_id": session_id,
@@ -196,16 +220,17 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
             "query_image_ocr_text": "",
             "query_image_ocr_status": {},
-            "short_memory": short_memory,
             "short_term_context": {},
             "long_term_context": {},
+            "memory_context": dict(checkpoint_state.get("memory_context") or {}),
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},
             "agent_query_plan": {},
             "agent_pending_tool_calls": [],
             "agent_call_signatures": [],
-            "agent_messages": list(short_memory.get("agent_messages") or []),
+            "agent_messages": list(checkpoint_state.get("agent_messages") or []),
+            "agent_input_messages": [],
             "answer_mode": "",
             "agent_final_answer": "",
             "agent_final_prompt": "",
@@ -245,51 +270,40 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "langfuse_trace_id": create_trace_id(f"{session_id}:{request.query}"),
         }
 
-    def _load_short_memory(
-        self,
-        request: ChatRequest,
-        *,
-        session_id: str,
-    ) -> dict[str, Any]:
-        """从 Redis 加载短期 Agent 消息，持久化记录优先。"""
-        persistent_agent_messages = self._recent_agent_messages(request, session_id=session_id)
-        if self.context_memory_manager is None:
-            return {
-                "agent_messages": persistent_agent_messages,
-                "backend": "none",
-                "cache_hit": False,
-            }
-        try:
-            short_memory = self.context_memory_manager.load_short_memory(
-                user_id=int(request.user_id),
-                session_id=session_id,
-            )
-            if persistent_agent_messages:
-                short_memory["agent_messages"] = persistent_agent_messages
-            return short_memory
-        except Exception:
-            return {
-                "agent_messages": persistent_agent_messages,
-                "backend": "error",
-                "cache_hit": False,
-            }
+    def _checkpoint_state(self, *, user_id: int, session_id: str) -> dict[str, Any]:
+        """Load prior thread state exclusively from the LangGraph checkpointer."""
+        snapshot = self.graph.get_state(
+            self._graph_config(user_id=user_id, session_id=session_id)
+        )
+        return dict(snapshot.values or {})
 
-    def _recent_agent_messages(self, request: ChatRequest, *, session_id: str) -> list[dict[str, Any]]:
-        """从持久化审计存储读取最近完整 Agent 轮次。"""
-        loader = getattr(self.audit_store, "recent_agent_messages", None)
-        if not callable(loader) or not session_id:
-            return []
-        try:
-            return list(
-                loader(
-                    user_id=int(request.user_id),
-                    session_id=session_id,
-                    limit_turns=RECENT_TURN_LIMIT,
-                )
-                or []
-            )
-        except Exception:
-            return []
+    @staticmethod
+    def _graph_config(*, user_id: int, session_id: str, stream: bool = False) -> dict[str, Any]:
+        return {
+            "configurable": {
+                "thread_id": f"user:{int(user_id)}:session:{session_id}",
+                "langgraph_user_id": str(int(user_id)),
+                "declaration_qa_stream": bool(stream),
+            }
+        }
+
+    def close(self) -> None:
+        """Close background memory work and PostgreSQL persistence resources."""
+        self.memory_runtime.close()
+
+    def delete_session(self, *, user_id: int, session_id: str) -> bool:
+        """Delete product history and the matching LangGraph thread state."""
+        deleter = getattr(self.audit_store, "delete_session", None)
+        if not callable(deleter):
+            return False
+        deleted = bool(deleter(user_id=user_id, session_id=session_id))
+        if deleted:
+            thread_id = self._graph_config(
+                user_id=user_id,
+                session_id=session_id,
+            )["configurable"]["thread_id"]
+            self.memory_runtime.checkpointer.delete_thread(thread_id)
+        return deleted
 
     def _build_graph(self):
         """构建受控 Agent Tool-Calling 工作流。"""
@@ -298,6 +312,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
+        builder.add_node("agent_summarize", self.agent_summarize)
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
@@ -310,7 +325,8 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_edge("query_preprocess", "agent_prepare")
-        builder.add_edge("agent_prepare", "agent_decide")
+        builder.add_edge("agent_prepare", "agent_summarize")
+        builder.add_edge("agent_summarize", "agent_decide")
         builder.add_conditional_edges(
             "agent_decide",
             self._agent_decision_route,
@@ -321,12 +337,15 @@ class DeclarationQAWorkflow(ApplicationNodes):
             },
         )
         builder.add_edge("agent_execute_tools", "agent_observe")
-        builder.add_edge("agent_observe", "agent_decide")
+        builder.add_edge("agent_observe", "agent_summarize")
         builder.add_edge("commit_agent_answer", "answer_postprocess")
         builder.add_edge("refuse_or_human", "answer_postprocess")
         builder.add_edge("answer_postprocess", "audit_log")
         builder.add_edge("audit_log", END)
-        return builder.compile()
+        return builder.compile(
+            checkpointer=self.memory_runtime.checkpointer,
+            store=self.memory_runtime.store,
+        )
 
     def _agent_decision_route(self, state: DeclarationQAState) -> str:
         """Tool Call 继续循环，无 Tool Call 的文本直接作为最终回答。"""

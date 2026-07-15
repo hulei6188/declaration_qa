@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 from declaration_qa.api.schemas import ChatRequest
 from declaration_qa.application.tools import (
     KnowledgeSearchTool,
@@ -15,7 +13,6 @@ from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.application.nodes.agent_runtime import agent_tool_call_allowed, agent_tool_call_denial_reason
 from declaration_qa.core.business import InMemoryBusinessDataAdapter
 from declaration_qa.core.domain import KnowledgeChunk, RetrievalResult, RetrievedSource
-from declaration_qa.storage.audit import InMemoryAuditStore
 
 
 class CapturingKnowledgeRag:
@@ -206,37 +203,6 @@ def test_single_agent_replays_assistant_and_tool_messages_by_call_id():
     assert assistant["tool_calls"][0]["id"] == "list-call"
     assert tool["tool_call_id"] == "list-call"
     assert response.answer == "已查询申请列表。"
-
-
-def test_persistent_agent_history_keeps_only_five_recent_turns_for_model_context():
-    store = InMemoryAuditStore()
-    history = []
-    for index in range(1, 7):
-        history.extend(
-            [
-                {"role": "user", "content": f"问题{index}"},
-                {"role": "assistant", "content": f"回答{index}"},
-            ]
-        )
-        store.append(
-            {
-                "user_id": 1,
-                "session_id": "session-history-limit",
-                "query": f"问题{index}",
-                "answer": f"回答{index}",
-                "agent_messages": list(history),
-            }
-        )
-
-    messages = store.recent_agent_messages(
-        user_id=1,
-        session_id="session-history-limit",
-        limit_turns=5,
-    )
-
-    assert len(messages) == 10
-    assert messages[0] == {"role": "user", "content": "问题2"}
-    assert messages[-1] == {"role": "assistant", "content": "回答6"}
 
 
 def test_chat_request_has_no_bound_ticket_fields():
@@ -621,7 +587,7 @@ def test_single_agent_never_forces_tool_choice_required():
     assert retry.final_answer == "直接回答"
 
 
-def test_knowledge_search_does_not_implicitly_refill_history():
+def test_knowledge_search_uses_only_current_search_sources():
     rag = HistoricalEvidenceRag()
 
     def decide(state, definitions):
@@ -636,19 +602,10 @@ def test_knowledge_search_does_not_implicitly_refill_history():
     initial = workflow._initial_state(
         ChatRequest(query="华侨回国定居审批呢", user_id=1, session_id="session-history")
     )
-    initial["short_memory"]["recent_knowledge_evidence_refs"] = [
-        {
-            "evidence_ref": "ev_history",
-            "session_id": "session-history",
-            "chunk_id": "chunk-history",
-            "document_id": "doc-history",
-            "region_code": "340000",
-            "policy_version": "2025",
-            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
-        }
-    ]
-
-    result = workflow.graph.invoke(initial)
+    result = workflow.graph.invoke(
+        initial,
+        config=workflow._graph_config(user_id=1, session_id="session-history"),
+    )
 
     assert {source["chunk_id"] for source in result["retrieved_sources"]} == {"chunk-materials"}
     assert result["rag_status"]["historical_merge_mode"] == "current_search_only"

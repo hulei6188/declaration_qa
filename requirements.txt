@@ -21,6 +21,10 @@ langchain-core==0.3.80
 langchain-community==0.3.31
 langchain-openai==0.3.35
 langgraph==0.6.11
+langgraph-checkpoint-postgres==3.0.5
+langmem==0.0.30
+langchain-anthropic==0.3.3
+anthropic==0.46.0
 dashscope
 langfuse>=4.0.0
 pymupdf>=1.24

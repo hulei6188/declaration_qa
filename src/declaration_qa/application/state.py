@@ -15,8 +15,8 @@ class DeclarationQAState(TypedDict, total=False):
     query_image_ocr_text: str
     query_image_ocr_status: dict[str, Any]
     short_term_context: dict[str, Any]
-    short_memory: dict[str, Any]
     long_term_context: dict[str, Any]
+    memory_context: dict[str, Any]
 
     agent_iteration: int
     agent_next: str
@@ -25,6 +25,7 @@ class DeclarationQAState(TypedDict, total=False):
     agent_pending_tool_calls: list[dict[str, Any]]
     agent_call_signatures: list[str]
     agent_messages: list[dict[str, Any]]
+    agent_input_messages: list[Any]
     answer_mode: str
     agent_final_answer: str
     agent_final_prompt: str

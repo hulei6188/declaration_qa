@@ -37,8 +37,6 @@ def register_session_routes(app):
         effective_user_id = context.user_id or user_id
         if settings.effective_auth_required and not effective_user_id:
             raise HTTPException(status_code=401, detail="Authenticated user_id is required")
-        if not hasattr(workflow.audit_store, "delete_session"):
-            raise HTTPException(status_code=501, detail="Session deletion is not supported")
-        deleted = workflow.audit_store.delete_session(user_id=int(effective_user_id), session_id=session_id)
+        deleted = workflow.delete_session(user_id=int(effective_user_id), session_id=session_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Session not found")

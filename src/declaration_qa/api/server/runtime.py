@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from atexit import register
+
 from declaration_qa.application.factory import create_index_job_store, create_workflow
 from declaration_qa.core.config import get_settings
 from declaration_qa.core.runtime import assert_production_ready
@@ -12,6 +14,7 @@ from declaration_qa.indexing.service.processor import process_index_job
 settings = get_settings()
 assert_production_ready(settings)
 workflow = create_workflow(settings)
+register(workflow.close)
 index_job_store = create_index_job_store(workflow)
 
 

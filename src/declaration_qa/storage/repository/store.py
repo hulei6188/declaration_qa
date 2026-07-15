@@ -13,7 +13,6 @@ from declaration_qa.storage.repository.business import BusinessRepository
 from declaration_qa.storage.repository.evaluation import EvaluationRepository
 from declaration_qa.storage.repository.jobs import IndexJobRepository
 from declaration_qa.storage.repository.knowledge import KnowledgeRepository
-from declaration_qa.storage.repository.memory import ContextMemoryRepository
 from declaration_qa.storage.repository.sessions import SessionRepository
 
 
@@ -28,7 +27,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         self.business = BusinessRepository(self.engine)
         self.evaluation = EvaluationRepository(self.engine)
         self.knowledge = KnowledgeRepository(self.engine)
-        self.memory = ContextMemoryRepository(self.engine)
         self.index_jobs = IndexJobRepository(self.engine)
         self.sessions = SessionRepository(self.engine)
 
@@ -43,20 +41,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
     def get_agent_run(self, *, user_id: int, run_id: str) -> dict[str, Any] | None:
         """按用户读取可重放的完整 Agent 执行记录。"""
         return self.agent_runs.get(user_id=user_id, run_id=run_id)
-
-    def recent_agent_messages(
-        self,
-        *,
-        user_id: int,
-        session_id: str,
-        limit_turns: int = 5,
-    ) -> list[dict[str, Any]]:
-        """读取当前会话最近若干轮可重放的 Agent 消息。"""
-        return self.agent_runs.recent_messages(
-            user_id=user_id,
-            session_id=session_id,
-            limit_turns=limit_turns,
-        )
 
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""
@@ -207,18 +191,6 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
     def rollback_document(self, *, target_document_uid: str, change_note: str) -> dict[str, Any]:
         """回滚到指定知识文档版本。"""
         return self.knowledge.rollback_document(target_document_uid=target_document_uid, change_note=change_note)
-
-    def upsert_memory(self, memory) -> None:
-        """写入或更新长期上下文记忆。"""
-        self.memory.upsert_memory(memory)
-
-    def get_memories_by_ids(self, memory_ids: list[str]):
-        """按记忆 ID 批量读取长期上下文记忆。"""
-        return self.memory.get_memories_by_ids(memory_ids)
-
-    def list_user_memories(self, *, user_id: int, limit: int = 100):
-        """读取指定用户最近长期上下文记忆。"""
-        return self.memory.list_user_memories(user_id=user_id, limit=limit)
 
     def create_index_job(self, *, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         """创建索引任务。"""

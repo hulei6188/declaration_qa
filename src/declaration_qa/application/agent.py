@@ -94,7 +94,7 @@ class ToolCallingAgent:
         return rule_agent_decision(state)
 
     def _model_decision(self, state: dict[str, Any], tool_definitions: list[dict[str, Any]]) -> AgentDecision:
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+        from langchain_core.messages import SystemMessage
 
         bound = self.model.bind_tools(tool_definitions) if tool_definitions else self.model
         short_context = dict(state.get("short_term_context") or {})
@@ -108,26 +108,7 @@ class ToolCallingAgent:
         }
         prompt_text = json.dumps(prompt, ensure_ascii=False, default=str)
         messages: list[Any] = [SystemMessage(content=AGENT_SYSTEM_PROMPT)]
-        for item in state.get("agent_messages") or []:
-            if not isinstance(item, dict):
-                continue
-            if item.get("role") == "user":
-                messages.append(HumanMessage(content=str(item.get("content") or "")))
-            elif item.get("role") == "assistant":
-                messages.append(
-                    AIMessage(
-                        content=str(item.get("content") or ""),
-                        tool_calls=list(item.get("tool_calls") or []),
-                    )
-                )
-            elif item.get("role") == "tool" and item.get("tool_call_id"):
-                messages.append(
-                    ToolMessage(
-                        content=json.dumps(item.get("content") or {}, ensure_ascii=False, default=str),
-                        tool_call_id=str(item["tool_call_id"]),
-                        name=str(item.get("name") or ""),
-                    )
-                )
+        messages.extend(list(state.get("agent_input_messages") or []))
         current_context = build_current_agent_context(state)
         messages.append(build_agent_human_message(self, state, f"{prompt_text}\n\n{current_context}"))
         started_at = perf_counter()

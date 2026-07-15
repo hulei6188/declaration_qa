@@ -11,5 +11,8 @@ def process_index_job_task(job_uid: str) -> dict:
     """创建工作流并处理后台索引任务。"""
     settings = get_settings()
     workflow = create_workflow(settings)
-    job_store = create_index_job_store(workflow)
-    return process_index_job(job_uid, workflow=workflow, job_store=job_store, settings=settings)
+    try:
+        job_store = create_index_job_store(workflow)
+        return process_index_job(job_uid, workflow=workflow, job_store=job_store, settings=settings)
+    finally:
+        workflow.close()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from uuid import uuid4
 
 from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT
 from declaration_qa.application.state import DeclarationQAState
@@ -76,7 +77,13 @@ class ResponseNodes:
         agent_messages = list(next_state.get("agent_messages") or [])
         answer = str(next_state.get("answer") or "")
         if answer:
-            agent_messages.append({"role": "assistant", "content": answer})
+            agent_messages.append(
+                {
+                    "id": uuid4().hex,
+                    "role": "assistant",
+                    "content": answer,
+                }
+            )
         next_state["agent_messages"] = agent_messages
         payload = {
             "user_id": next_state.get("user_id"),
@@ -129,10 +136,12 @@ class ResponseNodes:
         }
         audit_id = self.audit_store.append(payload)
         next_state["audit_id"] = audit_id
-        memory_manager = getattr(self, "context_memory_manager", None)
-        if memory_manager is not None:
-            memory_status = memory_manager.after_interaction(payload, audit_id=audit_id)
-            add_event(next_state, "context_memory", memory_status)
+        memory_status = self.memory_runtime.schedule_extraction(
+            user_id=int(next_state.get("user_id") or 0),
+            query=str(next_state.get("query") or ""),
+            answer=answer,
+        )
+        add_event(next_state, "long_term_memory", memory_status)
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
 
