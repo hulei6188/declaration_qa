@@ -61,7 +61,7 @@ def build_attachment_chonkie_chunk_specs(
     document_metadata: dict[str, Any],
     chunk_specs: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Map final Chonkie chunks into attachment evidence without extra derivation."""
+    """将最终 Chonkie 分块映射为附件证据，不再额外派生内容。"""
     specs: list[dict[str, Any]] = []
     attachment_digest = hashlib.sha1(
         f"{extracted.ref.url}\n{extracted.ref.name}\n{extracted.sha256}".encode("utf-8")

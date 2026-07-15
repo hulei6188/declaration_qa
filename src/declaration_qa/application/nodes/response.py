@@ -146,13 +146,20 @@ class ResponseNodes:
 
 
 def agent_model_config(agent: object | None) -> dict[str, object]:
-    """Return non-secret model identity fields for run reproducibility."""
+    """返回用于复现实验的非敏感模型标识字段。"""
     model = getattr(agent, "model", None)
     if model is None:
         return {}
+    multimodal_model = getattr(agent, "multimodal_model", None)
     return {
         "class": type(model).__name__,
         "model": str(getattr(model, "model_name", None) or getattr(model, "model", None) or ""),
+        "text_model": str(getattr(model, "model_name", None) or getattr(model, "model", None) or ""),
+        "multimodal_model": str(
+            getattr(multimodal_model, "model_name", None)
+            or getattr(multimodal_model, "model", None)
+            or ""
+        ),
         "multimodal_enabled": bool(getattr(agent, "multimodal_enabled", False)),
         "max_evidence_images": int(getattr(agent, "max_evidence_images", 0) or 0),
     }
@@ -181,7 +188,7 @@ def ensure_complete_application_history(answer: str, state: dict[str, object]) -
 
 
 def answer_mentions_application(answer: str, application_id: object) -> bool:
-    """Match an application identifier only when it is labeled as an application."""
+    """仅在明确标注为申请时匹配申请标识。"""
     identifier = str(application_id or "").strip()
     if not identifier:
         return False

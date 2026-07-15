@@ -29,7 +29,21 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
     assert_production_ready(settings)
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
-    agent_model = build_agent_model(settings, timeout_seconds=settings.agent_timeout_seconds)
+    text_agent_model = build_agent_model(
+        settings,
+        timeout_seconds=settings.agent_timeout_seconds,
+        model_name=settings.llm_model,
+    )
+    multimodal_model_name = settings.agent_model or settings.llm_model
+    multimodal_agent_model = (
+        text_agent_model
+        if multimodal_model_name == settings.llm_model
+        else build_agent_model(
+            settings,
+            timeout_seconds=settings.agent_timeout_seconds,
+            model_name=multimodal_model_name,
+        )
+    )
     cache_store = (
         RedisCacheStore(
             settings.effective_redis_url,
@@ -128,7 +142,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             database_url=settings.effective_database_url,
             embedding_provider=embedding_provider,
         ),
-        model=agent_model,
+        model=text_agent_model,
         summary_max_tokens=settings.memory_summary_max_tokens,
         summary_trigger_tokens=settings.memory_summary_trigger_tokens,
         summary_output_tokens=settings.memory_summary_output_tokens,
@@ -140,7 +154,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             rag_engine=rag_engine,
             business_adapter=business_adapter,
             audit_store=audit_store,
-            agent_model=agent_model,
+            agent_model=text_agent_model,
+            agent_multimodal_model=multimodal_agent_model,
             agent_max_iterations=settings.agent_max_iterations,
             agent_multimodal_enabled=(
                 settings.agent_vl_enabled

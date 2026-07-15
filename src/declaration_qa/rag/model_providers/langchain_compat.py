@@ -1,4 +1,4 @@
-"""LangChain model construction compatibility helpers."""
+"""LangChain 模型构建兼容性辅助函数。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 
 def create_chat_openai(**kwargs: Any):
-    """Create ChatOpenAI and tolerate malformed process-level proxy variables."""
+    """创建 ChatOpenAI，并兼容格式错误的进程级代理变量。"""
     import httpx
     from langchain_openai import ChatOpenAI
 

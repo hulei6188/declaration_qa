@@ -45,6 +45,7 @@ def build_reranker(settings: DeclarationQASettings) -> Reranker:
         return DashScopeReranker(
             api_key=settings.rerank_api_key,
             model=settings.rerank_model,
+            text_model=settings.text_rerank_model,
         )
     if provider == "heuristic":
         return HeuristicReranker()
@@ -55,13 +56,14 @@ def build_agent_model(
     settings: DeclarationQASettings,
     *,
     timeout_seconds: float | None = None,
+    model_name: str | None = None,
 ):
     """创建支持原生 Tool Calling 的 Agent 模型；本地模式返回 None。"""
     if settings.llm_provider.strip().lower() not in {"openai", "dashscope"} or not settings.openai_api_key:
         return None
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
-        "model": settings.agent_model or settings.llm_model,
+        "model": model_name or settings.agent_model or settings.llm_model,
         "temperature": 0.0,
         "timeout": (
             float(timeout_seconds)

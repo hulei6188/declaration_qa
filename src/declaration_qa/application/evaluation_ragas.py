@@ -1,4 +1,4 @@
-"""Ragas single-turn evaluation adapter isolated from the online request path."""
+"""与在线请求链路隔离的 Ragas 单轮评估适配器。"""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from typing import Any
 
 @dataclass(frozen=True)
 class RagasCaseResult:
-    """Per-case Ragas scores and non-fatal metric errors."""
+    """单个用例的 Ragas 分数和非致命指标错误。"""
 
     scores: dict[str, float]
     status: dict[str, Any]
 
 
 class RagasEvaluator:
-    """Evaluate one answer with the model and embeddings already used by the service."""
+    """使用服务现有的模型和向量化能力评估单个回答。"""
 
     def __init__(
         self,
@@ -97,7 +97,7 @@ class RagasEvaluator:
 
 
 class LangChainEmbeddingAdapter:
-    """Expose the project's embedding provider through LangChain's Embeddings contract."""
+    """通过 LangChain 的 Embeddings 协议暴露项目向量化提供方。"""
 
     def __new__(cls, provider: Any):
         from langchain_core.embeddings import Embeddings
@@ -113,7 +113,7 @@ class LangChainEmbeddingAdapter:
 
 
 def create_ragas_evaluator(workflow: Any, settings: Any) -> tuple[RagasEvaluator | None, str]:
-    """Build an evaluator without importing Ragas during API startup."""
+    """构建评估器，同时避免在 API 启动阶段导入 Ragas。"""
     model = getattr(getattr(workflow, "agent", None), "model", None)
     embedding_provider = getattr(getattr(workflow, "rag_engine", None), "embedding_provider", None)
     if model is None:
@@ -135,7 +135,7 @@ def create_ragas_evaluator(workflow: Any, settings: Any) -> tuple[RagasEvaluator
 
 
 def load_ragas_components() -> dict[str, Any]:
-    """Load Ragas lazily so online chat startup does not depend on it."""
+    """延迟加载 Ragas，避免在线聊天启动依赖该组件。"""
     os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
     import ragas
     from ragas.dataset_schema import SingleTurnSample

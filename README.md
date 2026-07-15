@@ -334,7 +334,12 @@ DECLARATION_QA_EMBEDDING_DIMENSIONS=1024
 DECLARATION_QA_RERANK_PROVIDER=dashscope
 DECLARATION_QA_RERANK_API_KEY=replace-with-your-api-key
 DECLARATION_QA_RERANK_MODEL=qwen3-vl-rerank
+DECLARATION_QA_TEXT_RERANK_MODEL=qwen3-rerank
 ```
+
+纯文本查询使用 `DECLARATION_QA_TEXT_RERANK_MODEL`，图片查询才使用多模态 `DECLARATION_QA_RERANK_MODEL`；两条路径共用原有候选数量和 `top_n` 配置。
+
+Agent 在用户本轮未上传图片时使用 `DECLARATION_QA_LLM_MODEL`，只有存在用户查询图片时才使用 `DECLARATION_QA_AGENT_MODEL`。后台记忆摘要同样使用文本模型。Embedding 模型保持统一，避免查询向量和已有索引的向量空间不一致。
 
 不要提交包含真实密钥的 `.env`。
 

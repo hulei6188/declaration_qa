@@ -23,10 +23,18 @@ class DashScopeReranker:
     name = "dashscope"
     default_instruct = "根据用户问题，从候选材料中找出最相关、最能支撑回答的证据。"
 
-    def __init__(self, *, api_key: str = "", model: str = "", instruct: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str = "",
+        model: str = "",
+        text_model: str = "",
+        instruct: str = "",
+    ) -> None:
         """初始化DashScopeReranker。"""
         self.api_key = api_key
         self.model = model or "qwen3-vl-rerank"
+        self.text_model = text_model or "qwen3-rerank"
         self.instruct = instruct or self.default_instruct
 
     def rerank(
@@ -41,7 +49,7 @@ class DashScopeReranker:
         """按查询相关性重新排序候选来源。"""
         if not sources:
             return []
-        if self.is_vl_model:
+        if self.is_vl_model and rerank_query_is_multimodal(retrieval_plan):
             return self._rerank_multimodal(query, sources, top_n=top_n, retrieval_plan=retrieval_plan)
         return self._rerank_text(query, sources, top_n=top_n)
 
@@ -56,13 +64,13 @@ class DashScopeReranker:
         with performance_stage(
             "dashscope.rerank",
             provider=self.name,
-            model=self.model,
+            model=self.text_model,
             candidate_count=len(sources),
             top_n=max(1, int(top_n)),
             multimodal=False,
         ):
             response = dashscope.TextReRank.call(
-                model=self.model,
+                model=self.text_model,
                 query=query,
                 documents=[source.chunk.content for source in sources],
                 top_n=max(1, int(top_n)),
@@ -84,7 +92,6 @@ class DashScopeReranker:
             source = sources[index]
             reranked.append(clone_with_rerank_score(source, score))
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
-
     def _rerank_multimodal(
         self,
         query: str,
@@ -130,6 +137,12 @@ class DashScopeReranker:
             source = sources[source_indexes[document_index]]
             reranked.append(clone_with_rerank_score(source, score))
         return sorted(reranked, key=lambda item: (item.rerank_score, item.score), reverse=True)[:top_n]
+
+
+def rerank_query_is_multimodal(retrieval_plan: dict[str, Any] | None) -> bool:
+    """仅允许图片查询向多模态重排模型发送图片载荷。"""
+    plan = retrieval_plan or {}
+    return str(plan.get("query_modality") or "text").strip().lower() == "image"
 
 
 def response_value(payload: Any, key: str, default: Any = None) -> Any:

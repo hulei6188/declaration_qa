@@ -1,4 +1,4 @@
-"""LangGraph and LangMem memory integration."""
+"""LangGraph 与 LangMem 记忆集成。"""
 
 from declaration_qa.memory.runtime import LangGraphMemoryRuntime, build_memory_resources
 

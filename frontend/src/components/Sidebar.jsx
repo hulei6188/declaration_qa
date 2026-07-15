@@ -41,7 +41,7 @@ export default function Sidebar({
           <PanelLeftClose size={16} />
         </button>
       </div>
-      {/* Sessions */}
+      {/* 会话 */}
       <section className="panel panel-compact session-panel">
         <div className="panel-title">
           <span>会话历史</span>
@@ -68,7 +68,7 @@ export default function Sidebar({
         </div>
       </section>
 
-      {/* Version Management */}
+      {/* 版本管理 */}
       <section className="panel version-panel">
         <div className="panel-title">
           <span>版本管理</span>
@@ -132,7 +132,7 @@ export default function Sidebar({
         <p className="hint">{docManageResult}</p>
       </section>
 
-      {/* Upload */}
+      {/* 上传 */}
       <section className="panel upload-panel">
         <div className="panel-title">
           <span>知识入库</span>

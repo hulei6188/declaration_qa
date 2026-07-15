@@ -1,4 +1,4 @@
-// ---- Constants ----
+// ---- 常量 ----
 export const API_BASE = '';
 export const INDEX_JOB_MAX_ATTEMPTS = 180;
 
@@ -10,7 +10,7 @@ export const DEFAULT_CONTEXT = {
   policyVersion: '2025',
 };
 
-// ---- Formatters ----
+// ---- 格式化工具 ----
 export function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -90,7 +90,7 @@ export async function copyText(value) {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // Fall through to the textarea fallback for non-secure contexts.
+      // 非安全上下文中继续使用文本框兜底方案。
     }
   }
 
@@ -110,7 +110,7 @@ export async function copyText(value) {
   }
 }
 
-// ---- API ----
+// ---- 接口 ----
 async function request(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -125,7 +125,7 @@ async function requestJson(url, options) {
   return res.json();
 }
 
-// Chat SSE
+// 聊天服务端事件流
 export function buildChatRequest(query, sessionId, ctx, queryImage) {
   const payload = {
     query,
@@ -156,7 +156,7 @@ export async function startChatStream(body) {
   });
 }
 
-// Sessions
+// 会话
 export function fetchSessions(userId) {
   return requestJson(`/api/declaration-qa/sessions?user_id=${encodeURIComponent(userId || 1)}`);
 }
@@ -175,7 +175,7 @@ export function deleteSession(sessionId, userId) {
   });
 }
 
-// Documents
+// 文档
 export function fetchDocuments() {
   return requestJson('/api/declaration-qa/knowledge/documents');
 }
@@ -232,12 +232,12 @@ export function rollbackDocument(targetDocumentId) {
   });
 }
 
-// Index jobs
+// 索引任务
 export function fetchIndexJob(jobId) {
   return requestJson(`/api/declaration-qa/index-jobs/${jobId}`);
 }
 
-// Feedback
+// 反馈
 export function sendFeedback(auditId, rating) {
   return request('/api/declaration-qa/feedback', {
     method: 'POST',
@@ -245,7 +245,7 @@ export function sendFeedback(auditId, rating) {
   });
 }
 
-// Evaluation
+// 评估
 export function createDataset(name, cases) {
   return request('/api/declaration-qa/evaluation/datasets', {
     method: 'POST',
@@ -267,7 +267,7 @@ export function annotateEvalItem(itemId, label) {
   });
 }
 
-// SSE helpers
+// 服务端事件流辅助函数
 export function parseSSE(raw) {
   const event = { event: 'message', data: {} };
   raw.split('\n').forEach((line) => {

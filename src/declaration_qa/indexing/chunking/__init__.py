@@ -1,4 +1,4 @@
-"""Knowledge document chunking adapters."""
+"""知识文档分块适配器。"""
 
 from declaration_qa.indexing.chunking.chonkie_chunker import (
     ChonkieChunkingError,

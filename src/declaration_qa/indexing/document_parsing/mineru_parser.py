@@ -1,4 +1,4 @@
-"""MinerU document parser adapter."""
+"""MinerU 文档解析适配器。"""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ SUPPORTED_MINERU_CONTENT_TYPES = {
 
 
 class MinerUDocumentParser:
-    """Call MinerU API and adapt its native content list to the project model."""
+    """调用 MinerU API，并将其原生内容列表适配为项目模型。"""
 
     name = "mineru"
 
@@ -82,13 +82,13 @@ class MinerUDocumentParser:
         self.chonkie_table_max_chars = max(200, int(chonkie_table_max_chars))
 
     def supports(self, *, filename: str, content_type: str) -> bool:
-        """Return whether MinerU accepts this file type."""
+        """判断 MinerU 是否接受该文件类型。"""
         suffix = Path(filename or "").suffix.lower()
         normalized_content_type = str(content_type or "").partition(";")[0].strip().lower()
         return suffix in SUPPORTED_MINERU_SUFFIXES or normalized_content_type in SUPPORTED_MINERU_CONTENT_TYPES
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
-        """Parse a supported document and turn MinerU elements into final Chonkie chunks."""
+        """解析受支持的文档，并将 MinerU 元素转换为最终 Chonkie 分块。"""
         suffix = Path(filename or "").suffix.lower()
         if not self.supports(filename=filename, content_type=content_type):
             raise DocumentParseError(f"MinerU does not support this input type: {suffix or content_type or 'unknown'}")
@@ -182,7 +182,7 @@ class MinerUDocumentParser:
 
 
 def parse_mineru_content_items(value: Any) -> list[dict[str, Any]]:
-    """Parse either MinerU content list format into a flat sequence."""
+    """将任一 MinerU 内容列表格式解析为扁平序列。"""
     payload = value
     if isinstance(payload, str):
         try:
@@ -210,7 +210,7 @@ def mineru_chunk_specs(
     text_min_chars: int = 120,
     table_max_chars: int = 3500,
 ) -> list[dict[str, Any]]:
-    """Convert MinerU content-list elements into final Chonkie chunks."""
+    """将 MinerU 内容列表元素转换为最终 Chonkie 分块。"""
     elements: list[StructuredElement] = []
     for item_index, item in enumerate(content_items):
         item_type = mineru_item_type(item)
@@ -253,7 +253,7 @@ def mineru_chunk_specs(
 
 
 def mineru_native_chunk_specs(content_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep ingestion available when Chonkie itself cannot split a document."""
+    """Chonkie 无法切分文档时仍保持入库能力可用。"""
     specs: list[dict[str, Any]] = []
     heading_stack: list[tuple[int, str]] = []
     seen: set[tuple[str, int | None, tuple[float, ...], str]] = set()
@@ -311,7 +311,7 @@ def mineru_parsed_blocks(
     *,
     images: dict[str, Any],
 ) -> list[ParsedBlock]:
-    """Preserve MinerU text, table, equation and image blocks for downstream assets."""
+    """保留 MinerU 文本、表格、公式和图片块，供下游资产处理。"""
     blocks: list[ParsedBlock] = []
     for item_index, item in enumerate(content_items):
         item_type = mineru_item_type(item)
@@ -353,7 +353,7 @@ def mineru_parsed_blocks(
 
 
 def mineru_item_type(item: dict[str, Any]) -> str:
-    """Normalize v1 and v2 MinerU item types."""
+    """统一 MinerU 第一版和第二版的元素类型。"""
     value = str(item.get("type") or "text").strip().lower()
     aliases = {
         "paragraph": "text",
@@ -365,7 +365,7 @@ def mineru_item_type(item: dict[str, Any]) -> str:
 
 
 def mineru_item_text(item: dict[str, Any]) -> str:
-    """Serialize one MinerU item without creating synthetic summary or KV chunks."""
+    """序列化单个 MinerU 元素，不创建合成摘要块或键值块。"""
     item_type = mineru_item_type(item)
     content = item.get("content")
     if isinstance(content, dict):
@@ -389,7 +389,7 @@ def mineru_item_text(item: dict[str, Any]) -> str:
 
 
 def mineru_v2_content_text(item_type: str, content: dict[str, Any]) -> str:
-    """Extract readable text from MinerU content_list_v2 entries."""
+    """从 MinerU 第二版内容列表元素中提取可读文本。"""
     keys_by_type = {
         "title": ["title_content"],
         "text": ["paragraph_content", "text"],
@@ -405,7 +405,7 @@ def mineru_v2_content_text(item_type: str, content: dict[str, Any]) -> str:
 
 
 def join_text_values(value: Any) -> str:
-    """Flatten MinerU strings, caption arrays and span dictionaries."""
+    """扁平化 MinerU 字符串、标题数组和文本片段字典。"""
     if value in (None, ""):
         return ""
     if isinstance(value, str):
@@ -421,7 +421,7 @@ def join_text_values(value: Any) -> str:
 
 
 def mineru_text_level(item: dict[str, Any]) -> int:
-    """Return heading level from either content list format."""
+    """从任一内容列表格式中读取标题层级。"""
     value = item.get("text_level")
     if value is None and isinstance(item.get("content"), dict):
         value = item["content"].get("level")
@@ -430,12 +430,12 @@ def mineru_text_level(item: dict[str, Any]) -> int:
 
 
 def mineru_picture_caption(item: dict[str, Any]) -> str:
-    """Return image or chart caption text."""
+    """返回图片或图表的标题文本。"""
     return join_text_values(item.get("image_caption") or item.get("chart_caption"))
 
 
 def mineru_bbox(value: Any) -> list[float] | None:
-    """Normalize MinerU's 0-1000 bounding box."""
+    """规范化 MinerU 的 0 到 1000 坐标边界框。"""
     if not isinstance(value, (list, tuple)) or len(value) != 4:
         return None
     try:
@@ -445,7 +445,7 @@ def mineru_bbox(value: Any) -> list[float] | None:
 
 
 def integer_or_none(value: Any) -> int | None:
-    """Parse an optional integer value."""
+    """解析可选整数值。"""
     try:
         return int(value) if value not in (None, "") else None
     except (TypeError, ValueError):
@@ -453,7 +453,7 @@ def integer_or_none(value: Any) -> int | None:
 
 
 def mineru_image_bytes(images: dict[str, Any], image_name: str) -> bytes:
-    """Decode an image returned inline by MinerU API."""
+    """解码 MinerU API 内联返回的图片。"""
     normalized_name = str(image_name or "").strip().replace("\\", "/")
     if not normalized_name or not images:
         return b""
@@ -476,6 +476,6 @@ def mineru_image_bytes(images: dict[str, Any], image_name: str) -> bytes:
 
 
 def mineru_chunk_suffix(index: int, *, item_type: str, text: str) -> str:
-    """Build a stable native chunk suffix."""
+    """构建稳定的原生分块后缀。"""
     digest = hashlib.sha1(f"{item_type}\n{text}".encode("utf-8")).hexdigest()[:12]
     return f"mineru:{index}:{digest}"

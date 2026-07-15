@@ -66,6 +66,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         business_adapter: BusinessDataAdapter | None = None,
         audit_store: InMemoryAuditStore | None = None,
         agent_model: Any | None = None,
+        agent_multimodal_model: Any | None = None,
         agent: Any | None = None,
         agent_planner: Any | None = None,
         agent_multimodal_enabled: bool = False,
@@ -90,6 +91,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             raise ValueError("agent and legacy agent_planner cannot both be provided")
         self.agent = agent or agent_planner or ToolCallingAgent(
             agent_model,
+            multimodal_model=agent_multimodal_model,
             multimodal_enabled=agent_multimodal_enabled,
             allowed_image_dirs=agent_allowed_image_dirs,
             max_evidence_images=agent_max_evidence_images,
@@ -311,7 +313,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         }
 
     def _checkpoint_state(self, *, user_id: int, session_id: str) -> dict[str, Any]:
-        """Load prior thread state exclusively from the LangGraph checkpointer."""
+        """仅从 LangGraph 检查点存储加载先前的线程状态。"""
         snapshot = self.graph.get_state(
             self._graph_config(user_id=user_id, session_id=session_id)
         )
@@ -328,11 +330,11 @@ class DeclarationQAWorkflow(ApplicationNodes):
         }
 
     def close(self) -> None:
-        """Close background memory work and PostgreSQL persistence resources."""
+        """关闭后台记忆任务和 PostgreSQL 持久化资源。"""
         self.memory_runtime.close()
 
     def delete_session(self, *, user_id: int, session_id: str) -> bool:
-        """Delete product history and the matching LangGraph thread state."""
+        """删除产品历史记录及其对应的 LangGraph 线程状态。"""
         deleter = getattr(self.audit_store, "delete_session", None)
         if not callable(deleter):
             return False

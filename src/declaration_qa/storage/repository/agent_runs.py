@@ -1,4 +1,4 @@
-"""Replayable Agent run, message, tool call, and citation persistence."""
+"""可重放的 Agent 运行、消息、工具调用和引用持久化。"""
 
 from __future__ import annotations
 
@@ -18,17 +18,17 @@ MAX_INLINE_TOOL_RESULT_CHARS = 100_000
 
 @dataclass(frozen=True)
 class PersistedAgentRun:
-    """Primary keys created for one replayable Agent run."""
+    """一次可重放 Agent 运行所创建的主键。"""
 
     run_id: int
     final_message_id: int
 
 
 class AgentRunRepository(EngineBackedRepository):
-    """Read complete Agent runs with user ownership enforcement."""
+    """在校验用户归属的前提下读取完整 Agent 运行记录。"""
 
     def get(self, *, user_id: int, run_id: str) -> dict[str, Any] | None:
-        """Return an ordered, replayable Agent run."""
+        """返回有序且可重放的 Agent 运行记录。"""
         with self.engine.begin() as connection:
             run = connection.execute(
                 text(
@@ -109,7 +109,7 @@ def persist_agent_run(
     run_uid: str,
     payload: dict[str, Any],
 ) -> PersistedAgentRun:
-    """Persist the observable Agent transcript in deterministic replay order."""
+    """按确定性的重放顺序持久化可观测 Agent 对话记录。"""
     run_id = _insert_run(connection, session_id=session_id, run_uid=run_uid, payload=payload)
     existing_final = connection.execute(
         text(
@@ -456,7 +456,7 @@ def persist_agent_run(
 
 
 def compact_tool_result(result: dict[str, Any], *, audit_uid: str) -> dict[str, Any]:
-    """Keep normal results inline and replace oversized payloads with an audit reference."""
+    """普通结果保持内联，超大载荷则替换为审计引用。"""
     normalized = dict(result)
     if len(_json_text(normalized)) <= MAX_INLINE_TOOL_RESULT_CHARS:
         return normalized

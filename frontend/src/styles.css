@@ -90,7 +90,7 @@
   --shadow-lg: 0 20px 48px rgba(0, 0, 0, .42);
 }
 
-/* ----- Reset ----- */
+/* ----- 样式重置 ----- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; }
 
 html,
@@ -112,7 +112,7 @@ body {
 
 button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
-/* ----- Scrollbar ----- */
+/* ----- 滚动条 ----- */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
@@ -124,7 +124,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 /* ============================================================
-   Layout
+   布局
    ============================================================ */
 .app-shell {
   height: 100vh;
@@ -144,7 +144,7 @@ h2 {
   letter-spacing: 0;
 }
 
-/* ----- Workspace ----- */
+/* ----- 工作区 ----- */
 .workspace {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -225,7 +225,7 @@ h2 {
 }
 
 /* ============================================================
-   Panel / Card
+   面板与卡片
    ============================================================ */
 .panel {
   display: grid;
@@ -290,7 +290,7 @@ h2 {
 }
 
 /* ============================================================
-   Chat Pane
+   聊天面板
    ============================================================ */
 .chat-pane {
   display: grid;
@@ -347,7 +347,7 @@ h2 {
 }
 
 /* ============================================================
-   BUTTONS
+   按钮
    ============================================================ */
 button {
   display: inline-flex;
@@ -381,7 +381,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Primary */
+/* 主要按钮 */
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -399,7 +399,7 @@ button.primary:hover {
 button.primary.full { width: 100%; }
 button.full          { width: 100%; }
 
-/* Ghost */
+/* 幽灵按钮 */
 button.ghost {
   background: transparent;
   border-color: transparent;
@@ -412,14 +412,14 @@ button.ghost:hover {
   color: var(--text);
 }
 
-/* Compact */
+/* 紧凑按钮 */
 button.compact {
   padding: 4px 10px;
   font-size: 12px;
   border-radius: var(--radius-sm);
 }
 
-/* Icon */
+/* 图标按钮 */
 button.icon-button {
   width: 30px;
   height: 30px;
@@ -439,7 +439,7 @@ button.icon-button:hover {
 }
 
 /* ============================================================
-   FORMS
+   表单
    ============================================================ */
 label {
   display: grid;
@@ -481,14 +481,14 @@ select {
   padding-right: 32px;
 }
 
-/* Hint */
+/* 提示文字 */
 .hint {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
 
-/* Field Grid */
+/* 字段网格 */
 .field-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -500,7 +500,7 @@ select {
 }
 
 /* ============================================================
-   MESSAGES
+   消息
    ============================================================ */
 .messages {
   overflow: auto;
@@ -711,7 +711,7 @@ select {
   border-radius: 8px;
 }
 
-/* Agent tool execution trace */
+/* Agent 工具执行轨迹 */
 .tool-trace {
   width: min(660px, 100%);
   margin: 0 0 10px;
@@ -1173,7 +1173,7 @@ select {
 }
 
 /* ============================================================
-   COMPOSER
+   输入区
    ============================================================ */
 .composer {
   padding: 10px max(24px, calc((100% - 840px) / 2)) 20px;
@@ -1288,7 +1288,7 @@ select {
 }
 
 /* ============================================================
-   LISTS
+   列表
    ============================================================ */
 .timeline,
 .sources,
@@ -1661,7 +1661,7 @@ select {
 }
 
 /* ============================================================
-   UPLOAD QUEUE
+   上传队列
    ============================================================ */
 .upload-queue {
   display: grid;
@@ -1749,7 +1749,7 @@ select {
 }
 
 /* ============================================================
-   DARK THEME
+   深色主题
    ============================================================ */
 :root[data-theme="dark"] body,
 :root[data-theme="dark"] .app-shell,
@@ -1840,7 +1840,7 @@ select {
 }
 
 /* ============================================================
-   RESPONSIVE
+   响应式布局
    ============================================================ */
 @media (max-width: 1320px) {
   .workspace {

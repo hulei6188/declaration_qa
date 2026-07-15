@@ -1,17 +1,17 @@
--- Combined PostgreSQL SQL files
--- Source directory: C:\Users\Ivy\declaration-qa\sql\postgresql
--- Generated at: 2026-07-13 12:25:23 +08:00
--- File order: filename ascending
+-- 合并后的 PostgreSQL SQL 文件
+-- 来源目录：C:\Users\Ivy\declaration-qa\sql\postgresql
+-- 生成时间：2026-07-13 12:25:23 +08:00
+-- 文件顺序：按文件名升序排列
 
 -- ============================================================================
--- Source: 003_declaration_qa_schema.sql
+-- 来源：003_declaration_qa_schema.sql
 -- ============================================================================
 
--- Isolated schema for the Declaration QA Workflow service.
+-- 申报问答工作流服务使用的独立数据库模式。
 --
--- This file is intentionally separate from AgentBase's main schema. The
--- declaration QA service starts from declaration_qa.api.server.app:app and stores its
--- own knowledge, chat, audit, and feedback data under the declaration_qa schema.
+-- 此文件有意与 AgentBase 的主数据库模式分离。申报问答服务从
+-- declaration_qa.api.server.app:app 启动，并在 declaration_qa 模式下存储
+-- 自身的知识、聊天、审计和反馈数据。
 
 BEGIN;
 
@@ -1112,14 +1112,14 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 004_declaration_qa_seed_business_real10.sql
+-- 来源：004_declaration_qa_seed_business_real10.sql
 -- ============================================================================
 
--- Simulated business ticket data generated from:
+-- 模拟业务工单数据生成自：
 -- materials/curated/declaration_qa/2026-06-15-ahzwfw-real-10
 --
--- This seed is intentionally scoped to apply_uid LIKE 'AHZWFW-REAL10-%' so it
--- can be rerun without touching real business tickets.
+-- 此种子数据特意限定为 apply_uid LIKE 'AHZWFW-REAL10-%'，因此可重复运行，
+-- 且不会影响真实业务工单。
 
 BEGIN;
 
@@ -1520,13 +1520,13 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 005_declaration_qa_seed_business_mock_fire_rejected.sql
+-- 来源：005_declaration_qa_seed_business_mock_fire_rejected.sql
 -- ============================================================================
 
--- Virtual rejected business ticket for testing fire-prevention process routing.
+-- 用于测试消防流程路由的虚拟退回业务工单。
 --
--- This seed is intentionally scoped to apply_uid LIKE 'AHZWFW-MOCK-FIRE-%' so it
--- can be rerun without touching real business tickets.
+-- 此种子数据特意限定为 apply_uid LIKE 'AHZWFW-MOCK-FIRE-%'，因此可重复运行，
+-- 且不会影响真实业务工单。
 
 BEGIN;
 
@@ -1733,19 +1733,18 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 006_declaration_qa_fix_business_item_code_manifest_id.sql
+-- 来源：006_declaration_qa_fix_business_item_code_manifest_id.sql
 -- ============================================================================
 
--- Fix business ticket payloads where payload.item_code accidentally stores
--- the curated document manifest id (for example *_official_ahzwfw).
+-- 修复 payload.item_code 误存整理后文档清单标识的业务工单载荷，
+-- 例如 *_official_ahzwfw。
 --
--- After this migration:
---   payload.item_code           = official government item code used by chunks.metadata.item_code
---   payload.source_manifest_id  = curated document manifest id
---   payload.source_file         = source markdown filename when it can be resolved
+-- 此迁移完成后：
+--   payload.item_code           = chunks.metadata.item_code 使用的政府官方事项编码
+--   payload.source_manifest_id  = 整理后文档的清单标识
+--   payload.source_file         = 能够解析时对应的 Markdown 来源文件名
 --
--- The script is idempotent and only touches rows whose current item_code is a
--- manifest-style id.
+-- 此脚本具备幂等性，并且只修改当前 item_code 为清单样式标识的记录。
 
 BEGIN;
 
@@ -1844,11 +1843,11 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 008_declaration_qa_agentic_ticket_history.sql
+-- 来源：008_declaration_qa_agentic_ticket_history.sql
 -- ============================================================================
 
--- Agentic ticket tools require an item-scoped application query and a complete,
--- stable status timeline for every application. This migration is idempotent.
+-- Agent 工单工具要求按事项查询申请，并为每条申请提供完整、稳定的状态时间线。
+-- 此迁移具备幂等性。
 
 BEGIN;
 
@@ -2020,11 +2019,11 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 009_declaration_qa_agent_message_history.sql
+-- 来源：009_declaration_qa_agent_message_history.sql
 -- ============================================================================
 
--- Persist a replayable Agent run without exposing internal messages in normal chat history.
--- This migration is idempotent and preserves all existing session messages.
+-- 持久化可重放的 Agent 运行记录，同时不在普通聊天历史中暴露内部消息。
+-- 此迁移具备幂等性，并保留所有现有会话消息。
 
 BEGIN;
 
@@ -2201,13 +2200,13 @@ COMMIT;
 
 
 -- ============================================================================
--- Source: 010_declaration_qa_seed_business_doc40_mock.sql
+-- 来源：010_declaration_qa_seed_business_doc40_mock.sql
 -- ============================================================================
 
--- Simulated tickets for the four currently published AHZWFW documents.
+-- 为当前已发布的四份 AHZWFW 文档生成模拟工单。
 --
--- The seed targets demo user_id=1 and is idempotent. Rerunning it only
--- replaces applications whose apply_uid starts with AHZWFW-DOC40-MOCK-.
+-- 此种子数据面向演示用户 user_id=1，并具备幂等性。重复运行时只会替换
+-- apply_uid 以 AHZWFW-DOC40-MOCK- 开头的申请。
 
 BEGIN;
 
@@ -2401,10 +2400,10 @@ JOIN declaration_qa.business_applications a ON a.apply_uid = r.apply_uid;
 COMMIT;
 
 -- ============================================================================
--- Source: 005_business_query_tools.sql
+-- 来源：005_business_query_tools.sql
 -- ============================================================================
 
--- Business data used by appointment booking and read-only service query tools.
+-- 预约办理和只读服务查询工具使用的业务数据。
 
 BEGIN;
 
@@ -2725,11 +2724,11 @@ ON CONFLICT (consultation_uid) DO UPDATE SET
 COMMIT;
 
 -- ============================================================================
--- Source: 011_submitted_document_mock_appointments.sql
+-- 来源：011_submitted_document_mock_appointments.sql
 -- ============================================================================
 
--- Mock service data derived from published government-service documents.
--- Stable source_manifest_id values preserve the link back to curated sources.
+-- 根据已发布政务服务材料构造的模拟服务数据。
+-- 使用稳定的 source_manifest_id 值保留与整理后来源的关联。
 
 BEGIN;
 

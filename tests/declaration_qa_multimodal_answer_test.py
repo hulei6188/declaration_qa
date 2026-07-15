@@ -179,3 +179,75 @@ def test_single_agent_turn_receives_user_and_retrieved_images(tmp_path):
     text = "\n".join(item.get("text", "") for item in content if item.get("type") == "text")
     assert "用户查询图片" in text
     assert "知识库图片证据 1" in text
+
+
+def test_single_agent_routes_by_user_input_image_instead_of_retrieved_images(tmp_path):
+    class Response:
+        content = "模型回答"
+        tool_calls = []
+        response_metadata = {}
+        usage_metadata = {}
+
+    class Model:
+        def __init__(self, model_name):
+            self.model_name = model_name
+            self.inputs = []
+
+        def bind_tools(self, definitions):
+            return self
+
+        def invoke(self, messages, config=None):
+            self.inputs.append(messages)
+            return Response()
+
+    text_model = Model("qwen-plus")
+    multimodal_model = Model("qwen3-vl-plus")
+    agent = ToolCallingAgent(
+        text_model,
+        multimodal_model=multimodal_model,
+        multimodal_enabled=True,
+        allowed_image_dirs=[str(tmp_path)],
+    )
+    retrieved_image = tmp_path / "evidence.png"
+    retrieved_image.write_bytes(b"evidence-image")
+    base_state = {
+        "query": "办理需要哪些材料？",
+        "normalized_query": "办理需要哪些材料？",
+        "retrieved_sources": [
+            {
+                "chunk_id": "image-1",
+                "title": "材料样表示例",
+                "evidence_text": "申请材料包括申请表。",
+                "rerank_score": 0.91,
+                "metadata": {
+                    "modality": "image",
+                    "asset_path": str(retrieved_image),
+                    "asset_content_type": "image/png",
+                },
+            }
+        ],
+        "agent_messages": [],
+    }
+
+    agent.decide(base_state, [])
+
+    assert len(text_model.inputs) == 1
+    assert not multimodal_model.inputs
+    assert isinstance(text_model.inputs[0][-1].content, str)
+
+    query_image = tmp_path / "query.png"
+    query_image.write_bytes(b"query-image")
+    agent.decide(
+        {
+            **base_state,
+            "query_image": {
+                "file_path": str(query_image),
+                "filename": "用户图片.png",
+                "content_type": "image/png",
+            },
+        },
+        [],
+    )
+
+    assert len(multimodal_model.inputs) == 1
+    assert isinstance(multimodal_model.inputs[0][-1].content, list)

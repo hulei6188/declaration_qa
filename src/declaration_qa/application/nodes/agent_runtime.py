@@ -70,7 +70,7 @@ class AgentRuntimeNodes:
         return next_state
 
     def agent_summarize(self, state: DeclarationQAState) -> DeclarationQAState:
-        """Build the model input from the running summary and recent complete messages."""
+        """根据滚动摘要和最近的完整消息构建模型输入。"""
         next_state = dict(state)
         summarized, memory_context = self.memory_runtime.summarize(
             list(next_state.get("agent_messages") or []),

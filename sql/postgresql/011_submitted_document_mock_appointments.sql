@@ -1,5 +1,5 @@
--- Mock service data derived from published government-service documents.
--- Stable source_manifest_id values preserve the link back to curated sources.
+-- 根据已发布政务服务材料构造的模拟服务数据。
+-- 使用稳定的 source_manifest_id 值保留与整理后来源的关联。
 
 BEGIN;
 

@@ -70,7 +70,7 @@ class CompositeDocumentParser:
 
 
 class LegacyDocConvertingDocumentParser:
-    """Convert legacy .doc files to .docx before delegating to the configured parser."""
+    """先将旧版 .doc 文件转换为 .docx，再交给已配置的解析器处理。"""
 
     name = "legacy-doc-converter"
 
@@ -81,13 +81,13 @@ class LegacyDocConvertingDocumentParser:
         converter_command: str = "",
         timeout_seconds: int = 120,
     ) -> None:
-        """Initialize the conversion wrapper."""
+        """初始化格式转换包装器。"""
         self.parser = parser
         self.converter_command = converter_command
         self.timeout_seconds = timeout_seconds
 
     def parse(self, *, filename: str, content_type: str, data: bytes) -> ParsedDocument:
-        """Convert old Word files first, then parse the generated DOCX."""
+        """先转换旧版 Word 文件，再解析生成的 DOCX。"""
         if not is_legacy_word_document(filename, content_type):
             return self.parser.parse(filename=filename, content_type=content_type, data=data)
         converted = convert_legacy_doc_to_docx(
@@ -270,7 +270,7 @@ def wrap_legacy_doc_converter(
     converter_command: str,
     timeout_seconds: int,
 ) -> DocumentParser:
-    """Optionally wrap a parser with legacy DOC conversion."""
+    """按需为解析器包装旧版 DOC 转换能力。"""
     if not enabled:
         return parser
     return LegacyDocConvertingDocumentParser(

@@ -1,4 +1,4 @@
-"""Structure-aware Chonkie adapter for parsed knowledge documents."""
+"""面向已解析知识文档的结构感知 Chonkie 适配器。"""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from typing import Any
 
 
 class ChonkieChunkingError(RuntimeError):
-    """Raised when Chonkie cannot produce retrieval chunks."""
+    """Chonkie 无法生成检索分块时抛出的异常。"""
 
 
 @dataclass(frozen=True)
 class StructuredElement:
-    """One normalized parser element with source provenance."""
+    """带有来源信息的单个标准化解析元素。"""
 
     source_index: int
     element_type: str
@@ -41,7 +41,7 @@ class _TextSlice:
 
 
 def normalize_extracted_text(text: str) -> str:
-    """Normalize parser text without importing the parser package initializer."""
+    """在不导入解析器包初始化模块的情况下规范化解析文本。"""
     normalized = unescape(str(text or ""))
     normalized = re.sub(r"[ \t\r\f\v]+", " ", normalized)
     normalized = re.sub(r"\n{3,}", "\n\n", normalized)
@@ -55,7 +55,7 @@ def build_chonkie_chunk_specs(
     text_min_chars: int = 120,
     table_max_chars: int = 3500,
 ) -> list[dict[str, Any]]:
-    """Build final retrieval chunks without synthetic parent, summary, or KV chunks."""
+    """构建最终检索分块，不生成合成父块、摘要块或键值块。"""
     text_max_chars = max(100, int(text_max_chars))
     text_min_chars = max(1, min(int(text_min_chars), text_max_chars))
     table_max_chars = max(200, int(table_max_chars))
@@ -185,7 +185,7 @@ def build_markdown_chunk_specs(
     text_min_chars: int = 120,
     table_max_chars: int = 3500,
 ) -> list[dict[str, Any]]:
-    """Parse Markdown structure and build Chonkie retrieval chunks."""
+    """解析 Markdown 结构并构建 Chonkie 检索分块。"""
     return build_chonkie_chunk_specs(
         markdown_elements(markdown),
         text_max_chars=text_max_chars,
@@ -195,7 +195,7 @@ def build_markdown_chunk_specs(
 
 
 def build_fallback_chunk_specs(text: str) -> list[dict[str, Any]]:
-    """Build one final child chunk when Chonkie is unexpectedly unavailable."""
+    """Chonkie 意外不可用时构建一个最终子分块。"""
     content = normalize_extracted_text(text)
     if not content:
         return []
@@ -216,7 +216,7 @@ def build_fallback_chunk_specs(text: str) -> list[dict[str, Any]]:
 
 
 def markdown_elements(markdown: str) -> list[StructuredElement]:
-    """Convert a GFM document into structured elements, with a line-parser fallback."""
+    """将 GFM 文档转换为结构化元素，并提供逐行解析兜底。"""
     source = str(markdown or "")
     if not source.strip():
         return []
@@ -230,7 +230,7 @@ def markdown_elements(markdown: str) -> list[StructuredElement]:
 
 
 def _marko_markdown_elements(markdown: str) -> list[StructuredElement]:
-    """Parse GFM into the element model consumed by the Chonkie adapter."""
+    """将 GFM 解析为 Chonkie 适配器所需的元素模型。"""
     import marko
     from marko import block
     from marko.ext.gfm import GFM
@@ -327,7 +327,7 @@ def _normalize_marko_table(text: str) -> str:
 
 
 def _legacy_markdown_elements(markdown: str) -> list[StructuredElement]:
-    """Keep ingestion available if Marko cannot parse an unusual document."""
+    """Marko 无法解析异常文档时仍保持入库能力可用。"""
     lines = str(markdown or "").splitlines()
     elements: list[StructuredElement] = []
     paragraph_lines: list[str] = []

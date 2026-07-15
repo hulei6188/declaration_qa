@@ -1,4 +1,4 @@
-"""Conversion support for legacy Microsoft Word .doc files."""
+"""旧版 Microsoft Word .doc 文件转换支持。"""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ LEGACY_DOC_CONTENT_TYPES = {
 
 @dataclass(frozen=True)
 class LegacyDocConversionResult:
-    """A converted DOCX payload and the converter used to produce it."""
+    """转换后的 DOCX 载荷及其所用转换器。"""
 
     filename: str
     content_type: str
@@ -33,7 +33,7 @@ class LegacyDocConversionResult:
 
 
 def is_legacy_word_document(filename: str, content_type: str) -> bool:
-    """Return whether the upload is an old binary Word document."""
+    """判断上传文件是否为旧版二进制 Word 文档。"""
     suffix = Path(str(filename or "")).suffix.lower()
     normalized_type = str(content_type or "").strip().lower()
     if suffix == ".docx":
@@ -48,7 +48,7 @@ def convert_legacy_doc_to_docx(
     converter_command: str = "",
     timeout_seconds: int = 120,
 ) -> LegacyDocConversionResult:
-    """Convert one legacy Word document with LibreOffice in headless mode."""
+    """使用 LibreOffice 无界面模式转换一个旧版 Word 文档。"""
     if not data:
         raise DocumentParseError("Legacy Word document is empty")
     command = resolve_converter_command(converter_command)
@@ -111,7 +111,7 @@ def convert_legacy_doc_to_docx(
 
 
 def resolve_converter_command(converter_command: str) -> list[str]:
-    """Resolve an explicit converter path or an installed LibreOffice executable."""
+    """解析显式转换器路径或已安装的 LibreOffice 可执行文件。"""
     configured = str(converter_command or "").strip().strip('"')
     if configured:
         if Path(configured).is_file():

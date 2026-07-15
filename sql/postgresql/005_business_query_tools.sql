@@ -1,4 +1,4 @@
--- Business data used by appointment booking and read-only service query tools.
+-- 预约办理和只读服务查询工具使用的业务数据。
 
 BEGIN;
 

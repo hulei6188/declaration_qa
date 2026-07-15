@@ -82,7 +82,7 @@ export default function ChatPane({
 
   return (
     <section className="chat-pane">
-      {/* Header */}
+      {/* 页头 */}
       <div className="chat-header">
         <div className="chat-heading">
           {sidebarCollapsed && (
@@ -105,7 +105,7 @@ export default function ChatPane({
         </div>
       </div>
 
-      {/* Messages */}
+      {/* 消息 */}
       <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
@@ -163,7 +163,7 @@ export default function ChatPane({
         <div ref={messagesEnd} />
       </div>
 
-      {/* Composer */}
+      {/* 输入区 */}
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-box">
           {imageDraft && (

@@ -82,6 +82,69 @@ def test_dashscope_reranker_uses_sdk_text_rerank(monkeypatch):
     assert reranked[0].rerank_score == 0.91
 
 
+def test_dashscope_vl_reranker_uses_text_model_for_text_query_without_dropping_candidates(monkeypatch):
+    captured = {}
+
+    class FakeTextReRank:
+        @staticmethod
+        def call(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                status_code=HTTPStatus.OK,
+                output={"results": [{"index": 1, "relevance_score": 0.9}, {"index": 0, "relevance_score": 0.8}]},
+            )
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dashscope",
+        SimpleNamespace(TextReRank=FakeTextReRank, api_key=""),
+    )
+    sources = [
+        RetrievedSource(
+            chunk=KnowledgeChunk(
+                id="text-chunk",
+                doc_id="doc",
+                parent_id="",
+                chunk_type="child",
+                title="文本",
+                content="涉外收养登记材料清单。",
+            ),
+            score=0.2,
+        ),
+        RetrievedSource(
+            chunk=KnowledgeChunk(
+                id="image-chunk",
+                doc_id="doc",
+                parent_id="",
+                chunk_type="child",
+                title="图片 OCR",
+                content="授权委托书应当签字并认证。",
+                metadata={"modality": "image", "asset_path": "unused-for-text-query.png"},
+            ),
+            score=0.3,
+        ),
+    ]
+
+    reranked = DashScopeReranker(
+        api_key="sdk-key",
+        model="qwen3-vl-rerank",
+        text_model="qwen3-rerank",
+    ).rerank(
+        "涉外收养登记需要哪些材料",
+        sources,
+        {},
+        top_n=2,
+        retrieval_plan={"query_modality": "text"},
+    )
+
+    assert captured["model"] == "qwen3-rerank"
+    assert captured["query"] == "涉外收养登记需要哪些材料"
+    assert captured["documents"] == [source.chunk.content for source in sources]
+    assert len(captured["documents"]) == len(sources) == 2
+    assert "return_documents" not in captured
+    assert [source.chunk.id for source in reranked] == ["image-chunk", "text-chunk"]
+
+
 def test_dashscope_vl_reranker_uses_image_query_and_image_documents(monkeypatch, tmp_path):
     captured = {}
 
@@ -156,8 +219,10 @@ def test_build_reranker_uses_dashscope_sdk_provider():
             DECLARATION_QA_RERANK_PROVIDER="dashscope",
             DECLARATION_QA_RERANK_API_KEY="sdk-key",
             DECLARATION_QA_RERANK_MODEL="qwen3-vl-rerank",
+            DECLARATION_QA_TEXT_RERANK_MODEL="qwen3-rerank",
         )
     )
 
     assert isinstance(reranker, DashScopeReranker)
     assert reranker.model == "qwen3-vl-rerank"
+    assert reranker.text_model == "qwen3-rerank"

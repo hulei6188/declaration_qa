@@ -74,6 +74,7 @@ class ToolCallingAgent:
         self,
         model: Any | None = None,
         *,
+        multimodal_model: Any | None = None,
         multimodal_enabled: bool = False,
         allowed_image_dirs: list[str] | None = None,
         max_evidence_images: int = 3,
@@ -82,6 +83,7 @@ class ToolCallingAgent:
     ) -> None:
         self.model = model
         self.multimodal_enabled = bool(multimodal_enabled)
+        self.multimodal_model = multimodal_model or (model if self.multimodal_enabled else None)
         self.allowed_image_dirs = [
             Path(item).resolve()
             for item in (allowed_image_dirs or [])
@@ -102,7 +104,9 @@ class ToolCallingAgent:
     def _model_decision(self, state: dict[str, Any], tool_definitions: list[dict[str, Any]]) -> AgentDecision:
         from langchain_core.messages import SystemMessage
 
-        bound = self.model.bind_tools(tool_definitions) if tool_definitions else self.model
+        use_multimodal_model = bool(state.get("query_image")) and self.multimodal_model is not None
+        active_model = self.multimodal_model if use_multimodal_model else self.model
+        bound = active_model.bind_tools(tool_definitions) if tool_definitions else active_model
         prompt = {
             "iteration": int(state.get("agent_iteration") or 0),
             "long_term_context": state.get("long_term_context") or {},
@@ -111,12 +115,19 @@ class ToolCallingAgent:
         prompt_text = json.dumps(prompt, ensure_ascii=False, default=str)
         messages: list[Any] = [SystemMessage(content=AGENT_SYSTEM_PROMPT)]
         messages.extend(list(state.get("agent_input_messages") or []))
-        messages.append(build_agent_human_message(self, state, prompt_text))
+        messages.append(
+            build_agent_human_message(
+                self,
+                state,
+                prompt_text,
+                include_images=use_multimodal_model,
+            )
+        )
         started_at = perf_counter()
         with performance_stage(
             "agent.model_call",
             iteration=int(state.get("agent_iteration") or 0),
-            model=str(getattr(self.model, "model_name", "") or getattr(self.model, "model", "")),
+            model=str(getattr(active_model, "model_name", "") or getattr(active_model, "model", "")),
             tool_definition_count=len(tool_definitions),
         ):
             response = invoke_with_langfuse(
@@ -126,7 +137,7 @@ class ToolCallingAgent:
                 run_name="agent.decide",
             )
         latency_ms = max(0, round((perf_counter() - started_at) * 1000))
-        model_name, usage = response_model_metadata(response, self.model)
+        model_name, usage = response_model_metadata(response, active_model)
         content = normalize_model_content(getattr(response, "content", response))
         raw_calls = list(getattr(response, "tool_calls", None) or [])
         calls = []
@@ -250,11 +261,17 @@ def choose_application_id(query: str, applications: list[dict[str, Any]]) -> int
     return scored[0][2]
 
 
-def build_agent_human_message(agent: ToolCallingAgent, state: dict[str, Any], text: str) -> Any:
+def build_agent_human_message(
+    agent: ToolCallingAgent,
+    state: dict[str, Any],
+    text: str,
+    *,
+    include_images: bool = True,
+) -> Any:
     """把用户图片和召回图片直接加入当前 Agent 轮。"""
     from langchain_core.messages import HumanMessage
 
-    use_images = agent.multimodal_enabled and bool(agent.allowed_image_dirs)
+    use_images = include_images and agent.multimodal_enabled and bool(agent.allowed_image_dirs)
     if not use_images:
         return HumanMessage(content=text)
     query_image = valid_query_image(
@@ -389,7 +406,7 @@ def table_node_key(source: dict[str, Any]) -> str:
 
 
 def response_model_metadata(response: Any, model: Any) -> tuple[str, dict[str, int]]:
-    """Read non-secret model identity and token usage from a provider response."""
+    """从模型响应中读取非敏感的模型标识和令牌用量。"""
     response_metadata = getattr(response, "response_metadata", None) or {}
     usage = normalize_token_usage(
         getattr(response, "usage_metadata", None)
@@ -406,7 +423,7 @@ def response_model_metadata(response: Any, model: Any) -> tuple[str, dict[str, i
 
 
 def normalize_token_usage(value: Any) -> dict[str, int]:
-    """Normalize LangChain and OpenAI-compatible usage metadata."""
+    """统一 LangChain 和 OpenAI 兼容接口的用量元数据。"""
     payload = value if isinstance(value, dict) else {}
     aliases = {
         "input_tokens": ("input_tokens", "prompt_tokens"),

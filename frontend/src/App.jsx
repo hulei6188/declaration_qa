@@ -36,36 +36,36 @@ export default function App() {
   const [theme, setTheme] = useState(initialTheme);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(initialSidebarCollapsed);
 
-  // ---- Request context ----
+  // ---- 请求上下文 ----
   const [ctx, setCtx] = useState(DEFAULT_CONTEXT);
 
-  // ---- Chat ----
+  // ---- 聊天 ----
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [sendState, setSendState] = useState('等待输入');
   const assistantRef = useRef(null);
 
-  // ---- Timeline / Audit ----
+  // ---- 时间线与审计 ----
   const [timeline, setTimeline] = useState([]);
   const [audit, setAudit] = useState({ intent: '-', auditId: '-', refused: '-' });
   const [feedbackResult, setFeedbackResult] = useState('');
 
-  // ---- Sessions ----
+  // ---- 会话 ----
   const [sessions, setSessions] = useState([]);
 
-  // ---- Documents ----
+  // ---- 文档 ----
   const [documents, setDocuments] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [latestVersionId, setLatestVersionId] = useState(null);
   const [docManageResult, setDocManageResult] = useState('选择文档后可发布、灰度、创建新版本或回滚。');
 
-  // ---- Upload ----
+  // ---- 上传 ----
   const [uploadItems, setUploadItems] = useState([]);
   const [uploadResult, setUploadResult] = useState('支持单文件、批量文件和文本内容入库。');
   const [uploadInFlight, setUploadInFlight] = useState(false);
 
-  // ---- Init ----
+  // ---- 初始化 ----
   useEffect(() => {
     loadSessions();
     loadDocuments();
@@ -80,7 +80,7 @@ export default function App() {
     window.localStorage.setItem('declaration-qa-sidebar-collapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // ---- Chat ----
+  // ---- 聊天 ----
   async function sendMessage(query, displayText, meta, ctxOverride, queryImage) {
     const userMsg = {
       role: 'user',
@@ -150,12 +150,12 @@ export default function App() {
     setTimeline((prev) => [{ event, data: compactJson(data) }, ...prev]);
   }
 
-  // ---- Sessions ----
+  // ---- 会话 ----
   async function loadSessions() {
     try {
       const list = await fetchSessions(ctx.userId);
       setSessions(list || []);
-    } catch { /* ignore */ }
+    } catch { /* 忽略 */ }
   }
 
   async function loadSession(sid) {
@@ -226,12 +226,12 @@ export default function App() {
     }
   }
 
-  // ---- Documents ----
+  // ---- 文档 ----
   async function loadDocuments() {
     try {
       const docs = await fetchDocuments();
       setDocuments(docs || []);
-    } catch { /* ignore */ }
+    } catch { /* 忽略 */ }
   }
 
   function selectDocument(docId) {
@@ -308,7 +308,7 @@ export default function App() {
     }
   }
 
-  // ---- Upload ----
+  // ---- 上传 ----
   async function doUpload(title, content, files, chunkingStrategy, policyVersion) {
     if (uploadInFlight) return;
     if (!files.length && !content) {
@@ -454,13 +454,13 @@ export default function App() {
         }
         if (['succeeded', 'failed', 'cancelled'].includes(job.status)) return job;
         setUploadResult(summary);
-      } catch { /* retry */ }
+      } catch { /* 重试 */ }
       await sleep(1000);
     }
     return { status: 'pending', progress: 0, payload: {} };
   }
 
-  // ---- Feedback ----
+  // ---- 反馈 ----
   async function doFeedback(rating) {
     if (!audit.auditId || audit.auditId === '-') {
       setFeedbackResult('暂无审计 ID。');
@@ -474,7 +474,7 @@ export default function App() {
     }
   }
 
-  // ---- Render ----
+  // ---- 渲染 ----
   return (
     <div className="app-shell" data-theme={theme}>
       <main className={`workspace${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
