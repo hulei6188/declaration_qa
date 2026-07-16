@@ -52,7 +52,7 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
   }
 
   return (
-    <section className={`tool-trace ${failed ? 'is-failed' : ''}`} aria-label="Agent 工具执行过程">
+    <section className={`tool-trace ${failed ? 'is-failed' : ''}`} aria-label="办理进度">
       <button type="button" className="tool-trace-toggle" onClick={toggle} aria-expanded={expanded}>
         <span className={`tool-trace-state ${running ? 'is-running' : ''}`}>
           {running ? <LoaderCircle size={15} /> : failed ? <XCircle size={15} /> : <Activity size={15} />}
@@ -64,13 +64,13 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
 
       {expanded && (
         <div className="tool-trace-body">
-          {activeTrace.status === 'loading' && <div className="tool-trace-empty">正在读取执行记录</div>}
+          {activeTrace.status === 'loading' && <div className="tool-trace-empty">正在读取办理进度</div>}
           {activeTrace.error && <div className="tool-trace-error">{activeTrace.error}</div>}
           {tools.map((tool, index) => (
             <ToolStep key={tool.callId || `${tool.toolName}-${index}`} tool={tool} />
           ))}
           {!running && !activeTrace.error && tools.length === 0 && activeTrace.loaded && (
-            <div className="tool-trace-empty">本次回答未调用外部工具</div>
+            <div className="tool-trace-empty">本次问题无需查询业务信息</div>
           )}
         </div>
       )}
@@ -81,7 +81,7 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
 function ToolStep({ tool }) {
   const Icon = toolIcon(tool.toolName);
   const details = argumentDetails(tool.toolName, tool.arguments);
-  const label = TOOL_LABELS[tool.toolName] || tool.toolName || '执行工具';
+  const label = TOOL_LABELS[tool.toolName] || '处理业务信息';
   return (
     <div className={`tool-step status-${tool.status || 'running'} ${tool.parentWorkerId ? 'is-worker-child' : ''}`}>
       <span className="tool-step-icon"><Icon size={14} /></span>
@@ -96,10 +96,10 @@ function ToolStep({ tool }) {
           </div>
         )}
         <div className="tool-step-meta">
-          {tool.iteration > 0 && <span>第 {tool.iteration} 轮</span>}
-          {tool.parallel && <span>并行执行</span>}
+          {tool.iteration > 0 && <span>第 {tool.iteration} 步</span>}
+          {tool.parallel && <span>同时处理</span>}
           {tool.latencyMs !== null && tool.latencyMs !== undefined && <span>{formatLatency(tool.latencyMs)}</span>}
-          {tool.sourceCount > 0 && <span>{tool.sourceCount} 条证据</span>}
+          {tool.sourceCount > 0 && <span>{tool.sourceCount} 条参考信息</span>}
           {tool.failureReason && <span>{failureReasonLabel(tool.failureReason)}</span>}
         </div>
       </div>
@@ -111,22 +111,17 @@ function argumentDetails(toolName, args = {}) {
   if (toolName === 'knowledge_search') {
     return (args.queries || []).map((query) => {
       const text = typeof query === 'string' ? query : query?.text;
-      const strategy = typeof query === 'object' ? query?.strategy : '';
-      return [text, strategy && `(${strategy})`].filter(Boolean).join(' ');
+      return text;
     }).filter(Boolean);
   }
   const details = [];
-  if (args.item_code) details.push(`事项编码：${args.item_code}`);
-  if (Array.isArray(args.item_codes)) details.push(`事项编码：${args.item_codes.join('、')}`);
-  if (args.application_id !== undefined && args.application_id !== null) details.push(`申请 ID：${args.application_id}`);
-  if (Array.isArray(args.application_ids)) details.push(`申请 ID：${args.application_ids.join('、')}`);
+  if (args.item_code) details.push('已匹配办理事项');
+  if (Array.isArray(args.item_codes)) details.push(`已匹配 ${args.item_codes.length} 个办理事项`);
+  if (Array.isArray(args.hall_codes)) details.push(`正在查询 ${args.hall_codes.length} 个预约大厅`);
+  if (args.application_id !== undefined && args.application_id !== null) details.push(`申请编号：${args.application_id}`);
+  if (Array.isArray(args.application_ids)) details.push(`申请编号：${args.application_ids.join('、')}`);
   if (Array.isArray(args.targets)) {
-    const targets = args.targets.map((target) => (
-      target?.payment_order_id
-        ? `申请 ${target.application_id} / 缴费订单 ${target.payment_order_id}`
-        : `申请 ${target?.application_id}`
-    ));
-    if (targets.length > 0) details.push(`查询目标：${targets.join('；')}`);
+    if (args.targets.length > 0) details.push(`正在查询 ${args.targets.length} 笔申请或缴费信息`);
   }
   if (args.query) details.push(String(args.query));
   return details;
@@ -156,16 +151,16 @@ function statusLabel(status) {
 }
 
 function traceTitle(trace, count) {
-  if (trace.status === 'loading') return '正在读取执行过程';
-  if (trace.status === 'failed') return '工具执行未完成';
-  if (trace.status === 'paused' || trace.phase === 'awaiting_confirmation') return '等待人工确认';
+  if (trace.status === 'loading') return '正在读取办理进度';
+  if (trace.status === 'failed') return '处理未完成';
+  if (trace.status === 'paused' || trace.phase === 'awaiting_confirmation') return '等待您确认';
   if (trace.status === 'running') {
-    if (trace.phase === 'answering') return '证据已就绪，正在生成回答';
-    if (trace.phase === 'checking') return '正在检查工具结果';
-    if (count > 0) return '正在调用工具';
-    return '正在规划工具';
+    if (trace.phase === 'answering') return '正在整理答复';
+    if (trace.phase === 'checking') return '正在核对查询结果';
+    if (count > 0) return '正在查询办理信息';
+    return '正在理解您的问题';
   }
-  return '查看工具调用过程';
+  return '查看办理进度';
 }
 
 function formatLatency(value) {
@@ -175,7 +170,7 @@ function formatLatency(value) {
 }
 
 function failureReasonLabel(reason) {
-  if (reason === 'worker_failed_to_plan_query') return '未生成补充检索';
-  if (reason === 'evidence_coverage_incomplete') return '证据仍不完整';
-  return reason;
+  if (reason === 'worker_failed_to_plan_query') return '未找到合适的查询方式';
+  if (reason === 'evidence_coverage_incomplete') return '参考信息暂不完整';
+  return '处理未完成';
 }

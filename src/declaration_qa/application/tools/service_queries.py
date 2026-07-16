@@ -38,12 +38,13 @@ class AppointmentSlotQueryInput(BaseModel):
         ),
     )
     service_date: date | None = None
-    hall_code: str = Field(
+    hall_codes: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(
         min_length=1,
-        max_length=80,
+        max_length=20,
         description=(
             "必须直接取自本轮先行调用 appointment_hall_query 成功返回的 "
-            "data.halls[].hall_code；不得猜测、编造或使用历史对话中的 hall_code"
+            "data.halls[].hall_code；把所有待查询大厅编码放入同一个数组一次查询，"
+            "不得拆分调用、猜测、编造或使用历史对话中的 hall_code"
         ),
     )
 
@@ -231,9 +232,10 @@ class AppointmentHallQueryTool:
 class AppointmentSlotQueryTool:
     name = "appointment_slot_query"
     description = (
-        "按事项编码查询当前地区服务大厅的可预约日期、时间段、容量和剩余号源。调用前必须先在"
+        "批量查询当前事项在多个服务大厅的可预约日期、时间段、容量和剩余号源。调用前必须先在"
         "本轮调用 knowledge_search 获取 data.sources[].item_code，再调用 appointment_hall_query，"
-        "并仅使用其成功返回的 data.halls[].hall_code；不得猜测、编造或复用历史对话中的编码。"
+        "并把其成功返回的全部 data.halls[].hall_code 放入 hall_codes 数组一次调用；"
+        "不得按大厅拆分调用，也不得猜测、编造或复用历史对话中的编码。"
         "只查询公开号源，不查询或创建个人预约；如需预约，必须从本工具本轮成功返回的 "
         "data.slots[].slot_id 中选择并传给 appointment_book。"
     )
@@ -244,13 +246,22 @@ class AppointmentSlotQueryTool:
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
         request = AppointmentSlotQueryInput.model_validate(arguments)
-        slots = self.adapter.query_appointment_slots(
+        hall_codes = list(dict.fromkeys(request.hall_codes))
+        all_slots = self.adapter.query_appointment_slots(
             item_code=request.item_code,
             region_code=context.region_code or None,
             service_date=request.service_date.isoformat() if request.service_date else None,
-            hall_code=request.hall_code,
+            hall_code=None,
         )
-        return business_result(self.name, "slots", slots, item_code=request.item_code)
+        allowed_halls = set(hall_codes)
+        slots = [slot for slot in all_slots if str(slot.get("hall_code") or "") in allowed_halls]
+        return business_result(
+            self.name,
+            "slots",
+            slots,
+            item_code=request.item_code,
+            hall_codes=hall_codes,
+        )
 
 
 class AppointmentBookTool:

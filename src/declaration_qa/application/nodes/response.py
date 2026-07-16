@@ -49,18 +49,27 @@ class ResponseNodes:
             next_state.get("retrieved_sources") or [],
             next_state.get("tool_results") or [],
         )
+        transaction_answer = authoritative_appointment_write_answer(next_state)
+        if transaction_answer:
+            answer = transaction_answer
         if not answer:
             next_state["refused"] = True
             next_state["refuse_reason"] = next_state.get("refuse_reason") or "agent_empty_answer"
             answer = "当前无法生成可靠回答，请稍后重试。"
         answer, history_fallback = ensure_complete_application_history(answer, next_state)
+        effective_provider = (
+            "deterministic_transaction_result"
+            if transaction_answer
+            else provider or "native_tool_calling"
+        )
         generation_plan = {
             "mode": next_state.get("answer_mode") or "direct",
-            "provider": provider or "native_tool_calling",
+            "provider": effective_provider,
             "history_integrity_fallback": history_fallback,
+            "transaction_result_override": bool(transaction_answer),
         }
         next_state["answer"] = answer
-        next_state["agent_answer_provider"] = provider
+        next_state["agent_answer_provider"] = effective_provider
         next_state["answer_generation_plan"] = generation_plan
         audit_payload = dict(next_state.get("audit_payload") or {})
         audit_payload["final_prompt"] = prompt
@@ -157,6 +166,108 @@ def strip_historical_assistant_prefix(value: object) -> str:
     while answer.startswith(HISTORICAL_ASSISTANT_PREFIX):
         answer = answer[len(HISTORICAL_ASSISTANT_PREFIX) :].lstrip()
     return answer
+
+
+def authoritative_appointment_write_answer(state: dict) -> str:
+    """根据已提交的预约写工具结果生成不可歧义的最终状态。"""
+    results = list(state.get("tool_results") or [])
+    registry = (state.get("evidence_registry") or {}).get("business") or []
+    for result in reversed(results):
+        if not isinstance(result, dict) or not result.get("ok"):
+            continue
+        tool_name = str(result.get("tool_name") or "")
+        if tool_name not in {"appointment_book", "appointment_cancel"}:
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        appointment = data.get("appointment") if isinstance(data.get("appointment"), dict) else {}
+        if not appointment:
+            continue
+        citation = next(
+            (
+                f"[{entry['evidence_id']}]"
+                for entry in registry
+                if entry.get("tool_name") == tool_name
+                and str(entry.get("call_id") or "") == str(result.get("call_id") or "")
+            ),
+            "",
+        )
+        if not citation:
+            continue
+        if tool_name == "appointment_book":
+            return booking_result_answer(appointment, citation)
+        return cancellation_result_answer(appointment, citation)
+    return ""
+
+
+def booking_result_answer(appointment: dict, citation: str) -> str:
+    """格式化已经经过人工确认的预约落库结果。"""
+    booking_status = str(appointment.get("booking_status") or "")
+    if booking_status == "created":
+        headline = "预约成功，人工确认已完成，预约已经正式生效。"
+    elif booking_status in {"already_booked", "idempotent_replay"}:
+        headline = "该时段已有有效预约，本次没有重复创建预约。"
+    else:
+        headline = "预约操作已成功完成。"
+    return "\n".join(
+        [
+            f"{headline}{citation}",
+            "",
+            f"- 预约编号：{appointment.get('appointment_id')} {citation}",
+            f"- 事项：{appointment.get('item_name') or '-'} {citation}",
+            f"- 时间：{appointment_time_text(appointment)} {citation}",
+            f"- 大厅：{appointment.get('hall_name') or '-'} {citation}",
+            f"- 地址：{appointment.get('hall_address') or '-'} {citation}",
+            f"- 当前状态：{appointment_status_text(appointment.get('status') or 'booked')} {citation}",
+        ]
+    )
+
+
+def cancellation_result_answer(appointment: dict, citation: str) -> str:
+    """格式化已经经过人工确认的预约取消结果。"""
+    cancellation_status = str(appointment.get("cancellation_status") or "")
+    headline = (
+        "预约此前已经取消，本次没有重复释放号源。"
+        if cancellation_status == "already_cancelled"
+        else "预约已成功取消，人工确认已完成，取消结果已经正式生效。"
+    )
+    return "\n".join(
+        [
+            f"{headline}{citation}",
+            "",
+            f"- 预约编号：{appointment.get('appointment_id')} {citation}",
+            f"- 事项：{appointment.get('item_name') or '-'} {citation}",
+            f"- 原预约时间：{appointment_time_text(appointment)} {citation}",
+            f"- 大厅：{appointment.get('hall_name') or '-'} {citation}",
+            f"- 当前状态：{appointment_status_text(appointment.get('status') or 'cancelled')} {citation}",
+        ]
+    )
+
+
+def appointment_time_text(appointment: dict) -> str:
+    """组合预约日期和起止时间。"""
+    date = str(appointment.get("service_date") or "-")
+    start = display_clock(appointment.get("start_time"))
+    end = display_clock(appointment.get("end_time"))
+    time = "-".join(value for value in (start, end) if value)
+    return " ".join(value for value in (date, time) if value)
+
+
+def display_clock(value: object) -> str:
+    """把数据库时间统一显示为时分。"""
+    raw = str(value or "")
+    return raw[:5] if len(raw) >= 5 and raw[2:3] == ":" else raw
+
+
+def appointment_status_text(value: object) -> str:
+    """把预约机器状态转换成中文。"""
+    return {
+        "booked": "已预约",
+        "checked_in": "已签到",
+        "waiting": "排队中",
+        "called": "已叫号",
+        "completed": "已完成",
+        "cancelled": "已取消",
+    }.get(str(value or ""), str(value or "-"))
 
 
 def agent_model_config(agent: object | None) -> dict[str, object]:

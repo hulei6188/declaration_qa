@@ -381,6 +381,16 @@ class AgentRuntimeNodes:
                 context,
                 call_id=str(call.get("id") or name),
             )
+        result_payload = result.payload()
+        if human_approved and requires_human_confirmation(name):
+            result_payload["data"] = {
+                **(result_payload.get("data") or {}),
+                "human_confirmation": {
+                    "required": True,
+                    "approved": True,
+                    "completed": True,
+                },
+            }
         completed_at = datetime.now(timezone.utc)
         log_performance(
             "agent.tool_call",
@@ -391,7 +401,7 @@ class AgentRuntimeNodes:
             ok=result.ok,
         )
         return {
-            **result.payload(),
+            **result_payload,
             "arguments": audit_tool_arguments(name, arguments),
             "started_at": started_at.isoformat(),
             "completed_at": completed_at.isoformat(),

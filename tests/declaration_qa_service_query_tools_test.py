@@ -109,7 +109,7 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
         "appointment_slot_query",
         {
             "item_code": "11340000002985923L200011900100001",
-            "hall_code": "AH-ZW-GCJS",
+            "hall_codes": ["AH-ZW-GCJS", "AH-SLT-SLZW", "AH-HF-SWZW"],
             "service_date": "2026-07-20",
         },
         user,
@@ -121,7 +121,16 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
         "AH-SLT-SLZW",
         "AH-HF-SWZW",
     }
-    assert [slot["remaining_count"] for slot in slots.data["slots"]] == [7, 0, 10]
+    assert slots.data["hall_codes"] == ["AH-ZW-GCJS", "AH-SLT-SLZW", "AH-HF-SWZW"]
+    assert {slot["hall_code"] for slot in slots.data["slots"]} == {
+        "AH-ZW-GCJS",
+        "AH-SLT-SLZW",
+        "AH-HF-SWZW",
+    }
+    original_hall_slots = [
+        slot for slot in slots.data["slots"] if slot["hall_code"] == "AH-ZW-GCJS"
+    ]
+    assert [slot["remaining_count"] for slot in original_hall_slots] == [7, 0, 10]
     assert all(slot["source_manifest_id"] == "item_28_official_ahzwfw" for slot in slots.data["slots"])
     assert any(
         item["appointment_id"] == 4301 and item["hall_code"] == "AH-ZW-GCJS"
@@ -131,9 +140,10 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
 
 
 def test_service_query_tool_schemas_never_accept_user_identity():
+    registry = service_query_registry()
     definitions = {
         item["function"]["name"]: item["function"]
-        for item in service_query_registry().definitions()
+        for item in registry.definitions()
     }
 
     assert set(definitions) == {
@@ -155,8 +165,15 @@ def test_service_query_tool_schemas_never_accept_user_identity():
         assert "user_id" not in properties
         assert "region_code" not in properties
     slot_schema = definitions["appointment_slot_query"]["parameters"]
-    assert "hall_code" in slot_schema["required"]
-    assert "appointment_hall_query" in slot_schema["properties"]["hall_code"]["description"]
+    assert "hall_codes" in slot_schema["required"]
+    assert "hall_code" not in slot_schema["properties"]
+    assert "appointment_hall_query" in slot_schema["properties"]["hall_codes"]["description"]
+    legacy = registry.execute(
+        "appointment_slot_query",
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01"},
+        ToolExecutionContext(user_id=1, region_code="340000"),
+    )
+    assert legacy.status == "invalid_arguments"
 
 
 def test_dependent_tool_schemas_require_current_turn_source_results():
@@ -167,7 +184,7 @@ def test_dependent_tool_schemas_require_current_turn_source_results():
 
     dependencies = {
         "appointment_hall_query": ("knowledge_search", "item_code"),
-        "appointment_slot_query": ("appointment_hall_query", "hall_code"),
+        "appointment_slot_query": ("appointment_hall_query", "hall_codes"),
         "appointment_book": ("appointment_slot_query", "slot_id"),
         "appointment_cancel": ("appointment_list_query", "appointment_id"),
         "queue_status_query": ("appointment_list_query", "appointment_id"),
@@ -201,7 +218,7 @@ def test_service_query_tools_return_realistic_user_scoped_records():
     )
     slots = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_codes": ["AH-ZW-01"], "service_date": "2026-07-16"},
         user,
     )
     queue = registry.execute("queue_status_query", {"appointment_id": 4101}, user)
@@ -313,14 +330,14 @@ def test_appointment_book_is_idempotent_and_only_decrements_once():
 
     before = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_codes": ["AH-ZW-01"], "service_date": "2026-07-16"},
         user,
     )
     first = registry.execute("appointment_book", {"slot_id": 6103, "confirmed": True}, user)
     replay = registry.execute("appointment_book", {"slot_id": 6103, "confirmed": True}, user)
     after = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_codes": ["AH-ZW-01"], "service_date": "2026-07-16"},
         user,
     )
 
@@ -360,7 +377,7 @@ def test_appointment_cancel_is_idempotent_and_only_releases_slot_once():
         "appointment_slot_query",
         {
             "item_code": "11340000002985923L200011900100001",
-            "hall_code": "AH-ZW-GCJS",
+            "hall_codes": ["AH-ZW-GCJS"],
             "service_date": "2026-07-20",
         },
         user,
@@ -379,7 +396,7 @@ def test_appointment_cancel_is_idempotent_and_only_releases_slot_once():
         "appointment_slot_query",
         {
             "item_code": "11340000002985923L200011900100001",
-            "hall_code": "AH-ZW-GCJS",
+            "hall_codes": ["AH-ZW-GCJS"],
             "service_date": "2026-07-20",
         },
         user,
@@ -507,7 +524,7 @@ def test_agent_allows_human_to_select_queried_slot_before_booking():
                             "appointment_slot_query",
                             {
                                 "item_code": "ITEM-RESIDENCE-PERMIT",
-                                "hall_code": "AH-ZW-01",
+                                "hall_codes": ["AH-ZW-01"],
                                 "service_date": "2026-07-16",
                             },
                         )
@@ -518,7 +535,10 @@ def test_agent_allows_human_to_select_queried_slot_before_booking():
                     "tools",
                     [tool_call("book", "appointment_book", {"slot_id": 6101, "confirmed": True})],
                 )
-            return AgentDecision("finish", final_answer="已预约成功。[业务2]")
+            return AgentDecision(
+                "finish",
+                final_answer="预约请求已提交，但仍需人工确认后才会生效。[业务2]",
+            )
 
     workflow = DeclarationQAWorkflow(agent=ScriptedAgent())
     session_id = "human-booking-test"
@@ -552,7 +572,11 @@ def test_agent_allows_human_to_select_queried_slot_before_booking():
     assert all(result["ok"] for result in snapshot["tool_results"])
     assert snapshot["tool_results"][1]["data"]["appointment"]["slot_id"] == 6103
     assert snapshot["tool_results"][1]["data"]["appointment"]["booking_status"] == "created"
-    assert snapshot["answer"] == "已预约成功。[业务2]"
+    assert snapshot["tool_results"][1]["data"]["human_confirmation"]["completed"] is True
+    assert "预约成功，人工确认已完成，预约已经正式生效" in snapshot["answer"]
+    assert "仍需人工确认" not in snapshot["answer"]
+    assert "才会生效" not in snapshot["answer"]
+    assert snapshot["answer_generation_plan"]["transaction_result_override"] is True
 
 
 def test_agent_executes_appointment_cancellation_after_human_confirmation():
@@ -569,7 +593,10 @@ def test_agent_executes_appointment_cancellation_after_human_confirmation():
                         )
                     ],
                 )
-            return AgentDecision("finish", final_answer="已取消预约。[业务1]")
+            return AgentDecision(
+                "finish",
+                final_answer="取消请求已提交，但仍需人工确认后才会生效。[业务1]",
+            )
 
     workflow = DeclarationQAWorkflow(agent=ScriptedAgent())
     session_id = "human-cancel-test"
@@ -606,7 +633,9 @@ def test_agent_executes_appointment_cancellation_after_human_confirmation():
     assert snapshot["tool_results"][0]["tool_name"] == "appointment_cancel"
     assert snapshot["tool_results"][0]["ok"] is True
     assert snapshot["tool_results"][0]["data"]["appointment"]["status"] == "cancelled"
-    assert snapshot["answer"] == "已取消预约。[业务1]"
+    assert snapshot["tool_results"][0]["data"]["human_confirmation"]["completed"] is True
+    assert "预约已成功取消，人工确认已完成，取消结果已经正式生效" in snapshot["answer"]
+    assert "仍需人工确认" not in snapshot["answer"]
 
 
 def test_agent_does_not_cancel_appointment_when_human_rejects():

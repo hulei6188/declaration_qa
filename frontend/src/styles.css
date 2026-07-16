@@ -711,7 +711,7 @@ select {
   border-radius: 8px;
 }
 
-/* Agent 工具执行轨迹 */
+/* 办理进度轨迹 */
 .tool-trace {
   width: min(660px, 100%);
   margin: 0 0 10px;
