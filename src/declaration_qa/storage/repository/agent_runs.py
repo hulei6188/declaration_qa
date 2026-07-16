@@ -427,7 +427,7 @@ def persist_agent_run(
         role="assistant",
         message_type="output",
         content=str(payload.get("answer") or ""),
-        content_json={"evidence_decision": payload.get("evidence_decision") or {}},
+        content_json={},
         visible=True,
         model=str(payload.get("agent_final_model") or ""),
         provider=str(payload.get("agent_answer_provider") or ""),
@@ -443,7 +443,6 @@ def persist_agent_run(
         meta={
             "retrieval_chain": payload.get("retrieval_chain") or "",
             "agent_iteration": _safe_int(payload.get("agent_iteration")),
-            "evidence_ok": bool(payload.get("evidence_ok")),
             "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
         },
         pii_level="personal" if any(_is_business_result(item) for item in results) else "none",
@@ -519,7 +518,6 @@ def _insert_run(connection, *, session_id: int, run_uid: str, payload: dict[str,
             "metadata": {
                 "route": payload.get("route") or "",
                 "intent": payload.get("intent") or "",
-                "required_evidence": (payload.get("evidence_decision") or {}).get("required_evidence") or [],
             },
         },
     ).mappings().one()

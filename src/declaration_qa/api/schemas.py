@@ -94,7 +94,6 @@ class ChatResponse(BaseModel):
     sources: list[SourcePayload] = Field(default_factory=list)
     business_snapshot: dict[str, Any] = Field(default_factory=dict)
     rag_status: dict[str, Any] = Field(default_factory=dict)
-    evidence_decision: dict[str, Any] = Field(default_factory=dict)
     answer_mode: str = ""
     agent_plan: dict[str, Any] = Field(default_factory=dict)
     agent_query_plan: dict[str, Any] = Field(default_factory=dict)

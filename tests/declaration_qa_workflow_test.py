@@ -71,7 +71,8 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
     ]
     assert response.business_snapshot["selected_application_id"] == 2002
     assert "申请详情" in response.answer
-    business_registry = response.evidence_decision["evidence_registry"]["business"]
+    audit = workflow.audit_store.get(response.audit_id)
+    business_registry = audit["evidence_registry"]["business"]
     assert business_registry[0]["evidence_id"] == "业务1"
     assert business_registry[0]["call_id"] == "list"
     assert business_registry[0]["tool_name"] == "ticket_list_query"
@@ -82,8 +83,6 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
         "tool_name": "ticket_detail_query",
         "business_key": {"application_id": [2002]},
     }
-    audit = workflow.audit_store.get(response.audit_id)
-    assert audit["evidence_registry"] == response.evidence_decision["evidence_registry"]
     serialized = response.model_dump()
     assert "need_ticket_selection" not in serialized
     assert "tickets" not in serialized

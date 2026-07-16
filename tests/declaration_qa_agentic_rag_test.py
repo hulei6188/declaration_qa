@@ -471,9 +471,7 @@ def test_agent_final_response_is_used_without_separate_answer_generation():
     audit = workflow.audit_store.get(response.audit_id)
 
     assert response.answer == "这是 Agent 根据知识工具证据生成的最终答案。[证据1]"
-    assert response.evidence_decision["ok"] is True
-    assert audit["evidence_ok"] is True
-    assert audit["evidence_decision"]["ok"] is True
+    assert audit["evidence_registry"]["knowledge"][0]["evidence_id"] == "证据1"
     assert response.agent_query_plan["requested_queries"][0] == {
         "text": "健康证申请材料",
         "strategy": "hybrid",
@@ -526,7 +524,7 @@ def test_historical_assistant_prefix_is_removed_from_final_answer():
     assert "历史助手回答" not in response.answer
 
 
-def test_empty_agent_answer_does_not_bypass_evidence_gate():
+def test_empty_agent_answer_uses_the_existing_empty_answer_fallback():
     workflow = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
         agent=ScriptedAgent(lambda state, definitions: AgentDecision("finish")),
@@ -537,10 +535,9 @@ def test_empty_agent_answer_does_not_bypass_evidence_gate():
 
     assert response.refused is True
     assert response.answer
-    assert response.evidence_decision.get("mode") != "direct"
 
 
-def test_agent_answer_after_tool_results_must_pass_the_evidence_gate():
+def test_agent_answer_after_tool_results_is_committed_without_evidence_validation():
     workflow = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
         agent=ScriptedAgent(
@@ -558,10 +555,10 @@ def test_agent_answer_after_tool_results_must_pass_the_evidence_gate():
     decided = workflow.agent_decide(state)
 
     assert decided["answer_mode"] == "tool_grounded"
-    assert workflow._agent_decision_route(decided) == "verify"
-    verified = workflow.verify_agent_answer(decided)
-    assert verified["evidence_ok"] is False
-    assert verified["evidence_decision"]["reason"] == "no_traceable_knowledge_evidence"
+    assert workflow._agent_decision_route(decided) == "commit"
+    committed = workflow.commit_agent_answer(decided)
+    assert committed["answer"] == "没有证据也直接回答。"
+    assert committed["refused"] is False
 
 
 def test_single_agent_finishes_a_compound_question_without_worker_decomposition():
@@ -666,7 +663,7 @@ def test_follow_up_runs_a_new_search_without_reusing_previous_chunks():
     assert first.refused is False
     assert second.refused is False
     assert len(rag.calls) == first_call_count + 1
-    assert second.evidence_decision["evidence_registry"]["knowledge"][0].get("origin") != "recent_tool_context"
+    assert second.sources
     restored = workflow._initial_state(
         ChatRequest(query="第三轮", user_id=1, session_id="memory-knowledge")
     )
@@ -698,7 +695,7 @@ def test_each_follow_up_searches_again_before_rolling_summary():
     fourth = workflow.invoke(ChatRequest(query="第四轮追问", user_id=1, session_id=session_id))
 
     assert len(rag.calls) == 4
-    assert fourth.evidence_decision["evidence_registry"]["knowledge"][0].get("origin") != "recent_tool_context"
+    assert fourth.sources
     assert not any(
         item.get("role") == "tool"
         and item.get("content", {}).get("memory_trust") == "reference_only"
@@ -808,6 +805,5 @@ def test_business_follow_ups_always_query_again():
     assert first.refused is False
     assert historical.refused is False
     assert historical.tool_results[0]["call_id"] == "queue-2"
-    assert historical.evidence_decision["evidence_registry"]["business"][0].get("origin") != "historical_snapshot"
     assert len(calls) == 3
     assert current.tool_results[0]["call_id"] == "queue-3"

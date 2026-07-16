@@ -182,7 +182,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
             sources=final_state.get("retrieved_sources") or [],
             business_snapshot=final_state.get("business_snapshot") or {},
             rag_status=final_state.get("rag_status") or {},
-            evidence_decision=final_state.get("evidence_decision") or {},
             answer_mode=str(final_state.get("answer_mode") or ""),
             agent_plan=final_state.get("agent_plan") or {},
             agent_query_plan=final_state.get("agent_query_plan") or {},
@@ -305,10 +304,8 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "retrieval_filter": {},
             "retrieved_sources": [],
             "rag_status": {},
-            "evidence_ok": False,
             "evidence_registry": {"knowledge": [], "business": []},
             "active_evidence_registry": {"knowledge": [], "business": []},
-            "evidence_decision": {},
             "refuse_reason": None,
             "answer": "",
             "refused": False,
@@ -365,7 +362,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
-        builder.add_node("verify_agent_answer", self.verify_agent_answer)
         builder.add_node("refuse_or_human", self.refuse_or_human)
         builder.add_node("commit_agent_answer", self.commit_agent_answer)
         builder.add_node("answer_postprocess", self.answer_postprocess)
@@ -382,15 +378,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             self._agent_decision_route,
             {
                 "tools": "agent_execute_tools",
-                "verify": "verify_agent_answer",
-                "refuse": "refuse_or_human",
-            },
-        )
-        builder.add_conditional_edges(
-            "verify_agent_answer",
-            lambda state: "ready" if state.get("evidence_ok") else "refuse",
-            {
-                "ready": "commit_agent_answer",
+                "commit": "commit_agent_answer",
                 "refuse": "refuse_or_human",
             },
         )
@@ -411,7 +399,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         if state.get("agent_next") == "tools":
             return "tools"
         if state.get("agent_final_answer"):
-            return "verify"
+            return "commit"
         return "refuse"
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
@@ -477,7 +465,6 @@ def chat_trace_output(state: dict[str, Any]) -> dict[str, Any]:
             "source_count": len(state.get("retrieved_sources") or []),
             "long_term_context": long_term_trace_metrics(state.get("long_term_context") or {}),
             "rag_status": state.get("rag_status") or {},
-            "evidence_decision": state.get("evidence_decision") or {},
             "suggested_actions": state.get("suggested_actions") or [],
         }
     )

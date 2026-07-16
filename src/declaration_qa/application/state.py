@@ -61,10 +61,8 @@ class DeclarationQAState(TypedDict, total=False):
     retrieval_filter: dict[str, Any]
     retrieved_sources: list[dict[str, Any]]
     rag_status: dict[str, Any]
-    evidence_ok: bool
     evidence_registry: dict[str, Any]
     active_evidence_registry: dict[str, Any]
-    evidence_decision: dict[str, Any]
     refuse_reason: str | None
     answer_generation_plan: dict[str, Any]
 

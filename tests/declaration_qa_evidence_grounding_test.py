@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from declaration_qa.application.evidence_grounding import (
-    isolate_untrusted_assistant_history,
-    validate_grounded_answer,
-)
 from declaration_qa.application.evidence_registry import build_evidence_registry, extract_business_key
 from declaration_qa.memory.evidence import project_historical_messages
 from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload
@@ -19,88 +15,6 @@ def knowledge_source(text: str) -> dict[str, object]:
         "evidence_text": text,
         "score": 0.9,
     }
-
-
-def test_legal_reference_can_use_a_cited_summary_without_an_exact_quote():
-    state = {
-        "query": "登记办法第八条是怎么规定的",
-        "retrieved_sources": [
-            knowledge_source("第八条 外国收养人来华办理收养登记，应当亲自来华办理。")
-        ],
-        "tool_results": [{"tool_name": "knowledge_search", "ok": True, "data": {}}],
-    }
-
-    decision = validate_grounded_answer(
-        state,
-        "《外国人在中华人民共和国收养子女登记办法》第八条规定了外国收养人来华办理登记的要求。[证据1]",
-    )
-
-    assert decision["ok"] is True
-
-
-def test_external_fact_without_an_inline_evidence_marker_is_not_sentence_checked():
-    state = {
-        "query": "健康证需要哪些材料",
-        "retrieved_sources": [knowledge_source("申请健康证需要身份证明和体检材料。")],
-        "tool_results": [{"tool_name": "knowledge_search", "ok": True, "data": {}}],
-    }
-
-    decision = validate_grounded_answer(state, "申请健康证需要身份证明和体检材料。")
-
-    assert decision["ok"] is True
-    assert decision["reason"] == ""
-
-
-def test_uncited_intro_and_advice_do_not_block_valid_cited_content():
-    state = {
-        "query": "健康证需要哪些材料",
-        "retrieved_sources": [knowledge_source("申请健康证需要身份证明和体检材料。")],
-        "tool_results": [{"tool_name": "knowledge_search", "ok": True, "data": {}}],
-    }
-
-    decision = validate_grounded_answer(
-        state,
-        "以下是申请材料：\n- 身份证明和体检材料。[证据1]\n如需帮助，可以继续告诉我。",
-    )
-
-    assert decision["ok"] is True
-    assert "uncited_fact_units" not in decision["checks"]
-
-
-def test_uncited_business_summary_and_advice_do_not_block_valid_cited_items():
-    state = {
-        "query": "我有哪些事项",
-        "retrieved_sources": [],
-        "tool_results": [
-            {
-                "tool_name": "ticket_list_query",
-                "call_id": "ticket-list-1",
-                "ok": True,
-                "data": {
-                    "items": [
-                        {"item_code": "ITEM-WATER", "item_name": "取水许可"}
-                    ]
-                },
-            }
-        ],
-    }
-
-    decision = validate_grounded_answer(
-        state,
-        "您当前共办理过1项政务事项：\n- 取水许可。[业务1]\n如需查看进度，请告诉我事项名称。",
-    )
-
-    assert decision["ok"] is True
-
-
-def test_external_question_without_trusted_evidence_is_rejected():
-    decision = validate_grounded_answer(
-        {"query": "融合协议是不是法定材料", "retrieved_sources": [], "tool_results": []},
-        "融合协议是法定材料。",
-    )
-
-    assert decision["ok"] is False
-    assert decision["reason"] == "no_trusted_evidence"
 
 
 def test_evidence_payloads_publish_stable_inline_identifiers():
@@ -174,16 +88,9 @@ def test_failed_business_result_does_not_consume_a_business_number():
     ]
 
     payload = format_tool_result_payload(tool_results)
-    decision = validate_grounded_answer(
-        {"query": "我的排队情况", "retrieved_sources": [], "tool_results": tool_results},
-        "当前前方等待人数为4人。[业务1]",
-    )
-
     assert '"evidence_id": "业务1"' in payload
     assert '"call_id": "call-success"' in payload
     assert "call-failed" not in payload
-    assert decision["ok"] is True
-    assert decision["evidence_registry"]["business"][0]["call_id"] == "call-success"
 
 
 @pytest.mark.parametrize(
@@ -238,7 +145,7 @@ def test_historical_assistant_text_is_marked_untrusted_and_tool_protocol_is_remo
         },
     ]
 
-    isolated = isolate_untrusted_assistant_history(messages)
+    isolated = project_historical_messages(messages)
 
     assert isolated[0]["content"] == "融合协议是什么"
     assert "这是法定文书" in isolated[1]["content"]
@@ -357,46 +264,3 @@ def test_knowledge_evidence_is_removed_even_before_rolling_summary():
     assert "knowledge-call-1" not in serialized
     assert "chunk-1" not in serialized
     assert "第一轮证据原文" not in serialized
-
-
-def test_business_citation_cannot_support_a_different_application_id():
-    decision = validate_grounded_answer(
-        {
-            "query": "我的申请状态",
-            "retrieved_sources": [],
-            "tool_results": [
-                {
-                    "tool_name": "ticket_detail_query",
-                    "call_id": "detail-15",
-                    "ok": True,
-                    "data": {"applications": [{"application_id": 15, "status": "accepted"}]},
-                }
-            ],
-        },
-        "application_id: 99 当前状态为已受理。[业务1]",
-    )
-
-    assert decision["ok"] is False
-    assert decision["reason"] == "business_key_mismatch"
-
-
-def test_historical_business_snapshot_does_not_require_time_context():
-    state = {
-        "query": "刚才排队情况是什么",
-        "retrieved_sources": [],
-        "tool_results": [
-            {
-                "tool_name": "queue_status_query",
-                "call_id": "queue-old",
-                "ok": True,
-                "memory_origin": "historical_snapshot",
-                "observed_at": "2026-07-16T09:08:00+08:00",
-                "data": {"appointment_id": 4101, "queue_status": {"waiting_count": 4}},
-            }
-        ],
-    }
-
-    decision = validate_grounded_answer(state, "前方等待人数为4人。[业务1]")
-
-    assert decision["ok"] is True
-    assert decision["reason"] == ""

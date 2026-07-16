@@ -35,7 +35,7 @@ class AuditRepository(EngineBackedRepository):
                     agent_plan, agent_query_plan, tool_results, agent_iteration, agent_answer_provider,
                     agent_selected_item_code, agent_selected_application_id,
                     retrieval_filter, retrieved_sources, rag_status,
-                    evidence_ok, evidence_decision, refused, refuse_reason, final_prompt, answer,
+                    refused, refuse_reason, final_prompt, answer,
                     events, langfuse_trace_id
                 )
                 VALUES (
@@ -44,7 +44,7 @@ class AuditRepository(EngineBackedRepository):
                     :agent_plan, :agent_query_plan, :tool_results, :agent_iteration, :agent_answer_provider,
                     :agent_selected_item_code, :agent_selected_application_id,
                     :retrieval_filter, :retrieved_sources, :rag_status,
-                    :evidence_ok, :evidence_decision, :refused, :refuse_reason, :final_prompt, :answer,
+                    :refused, :refuse_reason, :final_prompt, :answer,
                     :events, :langfuse_trace_id
                 )
                 ON CONFLICT (audit_uid) DO UPDATE SET answer = EXCLUDED.answer
@@ -58,7 +58,6 @@ class AuditRepository(EngineBackedRepository):
                 bindparam("retrieval_filter", type_=JSON),
                 bindparam("retrieved_sources", type_=JSON),
                 bindparam("rag_status", type_=JSON),
-                bindparam("evidence_decision", type_=JSON),
                 bindparam("events", type_=JSON),
             )
             connection.execute(
@@ -85,8 +84,6 @@ class AuditRepository(EngineBackedRepository):
                     "retrieval_filter": payload.get("retrieval_filter") or {},
                     "retrieved_sources": payload.get("retrieved_sources") or [],
                     "rag_status": payload.get("rag_status") or {},
-                    "evidence_ok": bool(payload.get("evidence_ok")),
-                    "evidence_decision": payload.get("evidence_decision") or {},
                     "refused": bool(payload.get("refused")),
                     "refuse_reason": str(payload.get("refuse_reason") or ""),
                     "final_prompt": str(payload.get("final_prompt") or ""),
