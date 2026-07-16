@@ -40,3 +40,4 @@ def register_session_routes(app):
         deleted = workflow.delete_session(user_id=int(effective_user_id), session_id=session_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Session not found")
+        return DeleteSessionResponse(session_id=session_id, deleted=True)

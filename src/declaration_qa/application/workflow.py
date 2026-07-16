@@ -265,6 +265,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "query_image_ocr_status": {},
             "long_term_context": {},
             "memory_context": dict(checkpoint_state.get("memory_context") or {}),
+            "conversation_memory": dict(checkpoint_state.get("conversation_memory") or {}),
+            "working_memory": {},
+            "session_evidence_refs": dict(
+                checkpoint_state.get("session_evidence_refs")
+                or {"knowledge": [], "business": []}
+            ),
+            "memory_recall_decision": {},
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},
@@ -303,6 +310,10 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "retrieval_filter": {},
             "retrieved_sources": [],
             "rag_status": {},
+            "evidence_ok": False,
+            "evidence_registry": {"knowledge": [], "business": []},
+            "active_evidence_registry": {"knowledge": [], "business": []},
+            "evidence_decision": {},
             "refuse_reason": None,
             "answer": "",
             "refused": False,
@@ -354,11 +365,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
+        builder.add_node("memory_recall", self.memory_recall)
         builder.add_node("agent_summarize", self.agent_summarize)
         builder.add_node("agent_refresh_input", self.agent_refresh_input)
         builder.add_node("agent_decide", self.agent_decide)
         builder.add_node("agent_execute_tools", self.agent_execute_tools)
         builder.add_node("agent_observe", self.agent_observe)
+        builder.add_node("verify_agent_answer", self.verify_agent_answer)
         builder.add_node("refuse_or_human", self.refuse_or_human)
         builder.add_node("commit_agent_answer", self.commit_agent_answer)
         builder.add_node("answer_postprocess", self.answer_postprocess)
@@ -368,13 +381,22 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_edge("query_preprocess", "agent_prepare")
-        builder.add_edge("agent_prepare", "agent_summarize")
+        builder.add_edge("agent_prepare", "memory_recall")
+        builder.add_edge("memory_recall", "agent_summarize")
         builder.add_edge("agent_summarize", "agent_decide")
         builder.add_conditional_edges(
             "agent_decide",
             self._agent_decision_route,
             {
                 "tools": "agent_execute_tools",
+                "verify": "verify_agent_answer",
+                "refuse": "refuse_or_human",
+            },
+        )
+        builder.add_conditional_edges(
+            "verify_agent_answer",
+            lambda state: "ready" if state.get("evidence_ok") else "refuse",
+            {
                 "ready": "commit_agent_answer",
                 "refuse": "refuse_or_human",
             },
@@ -396,7 +418,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         if state.get("agent_next") == "tools":
             return "tools"
         if state.get("agent_final_answer"):
-            return "ready"
+            return "verify"
         return "refuse"
 
 def chat_trace_input(request: ChatRequest) -> dict[str, Any]:

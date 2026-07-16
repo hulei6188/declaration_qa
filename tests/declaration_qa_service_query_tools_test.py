@@ -227,99 +227,60 @@ def test_private_service_query_tools_reject_other_users_records():
     assert registry.execute("consultation_record_query", {}, other_user).status == "not_found"
 
 
-def test_service_query_policy_requires_observed_owned_identifiers():
-    appointment_results = [
-        {
-            "tool_name": "appointment_list_query",
-            "ok": True,
-            "data": {"appointments": [{"appointment_id": 4101}]},
-        }
-    ]
-    application_results = [
-        {
-            "tool_name": "ticket_detail_query",
-            "ok": True,
-            "data": {"applications": [{"application_id": 1001}]},
-        }
-    ]
-    payment_results = [
-        *application_results,
-        {
-            "tool_name": "payment_order_query",
-            "ok": True,
-            "data": {
-                "application_id": 1001,
-                "payment_orders": [{"application_id": 1001, "payment_order_id": 5101}],
-            },
-        },
-    ]
-    slot_results = [
-        {
-            "tool_name": "appointment_slot_query",
-            "ok": True,
-            "data": {
-                "slots": [
-                    {"slot_id": 6102, "status": "full", "remaining_count": 0},
-                    {"slot_id": 6103, "status": "available", "remaining_count": 10},
-                ]
-            },
-        }
-    ]
-
-    assert "requires a successful" in agent_tool_call_denial_reason(
-        "queue_status_query", "我的排队情况", arguments={"appointment_id": 4101}, prior_results=[]
-    )
+def test_service_query_policy_has_no_order_dependent_intercepts():
     assert agent_tool_call_denial_reason(
-        "queue_status_query", "我的排队情况", arguments={"appointment_id": 4101}, prior_results=appointment_results
+        "queue_status_query", "我的排队情况", arguments={"appointment_id": 4101}
     ) == ""
-    assert "was not returned" in agent_tool_call_denial_reason(
-        "queue_status_query", "我的排队情况", arguments={"appointment_id": 4201}, prior_results=appointment_results
-    )
-    assert "requires a successful" in agent_tool_call_denial_reason(
-        "payment_order_query", "我的缴费订单", arguments={"application_id": 1001}, prior_results=[]
-    )
     assert agent_tool_call_denial_reason(
-        "payment_order_query", "我的缴费订单", arguments={"application_id": 1001}, prior_results=application_results
+        "payment_order_query", "我的缴费订单", arguments={"application_id": 1001}
     ) == ""
     assert agent_tool_call_denial_reason(
         "payment_receipt_query",
         "我的电子票据",
         arguments={"application_id": 1001, "payment_order_id": 5101},
-        prior_results=payment_results,
     ) == ""
-    assert "was not returned" in agent_tool_call_denial_reason(
-        "payment_receipt_query",
-        "我的电子票据",
-        arguments={"application_id": 1001, "payment_order_id": 9999},
-        prior_results=payment_results,
-    )
     assert "explicit user confirmation" in agent_tool_call_denial_reason(
         "appointment_book",
         "这个时段还有号吗",
         arguments={"slot_id": 6103, "confirmed": True},
-        prior_results=slot_results,
     )
     assert "confirmed=true" in agent_tool_call_denial_reason(
         "appointment_book",
         "请帮我预约这个时段",
         arguments={"slot_id": 6103},
-        prior_results=slot_results,
     )
     assert agent_tool_call_denial_reason(
         "appointment_book",
         "请帮我预约这个时段",
         arguments={"slot_id": 6103, "confirmed": True},
-        prior_results=slot_results,
     ) == ""
-    assert "was not returned as available" in agent_tool_call_denial_reason(
+    assert agent_tool_call_denial_reason(
         "appointment_book",
         "请帮我预约这个时段",
         arguments={"slot_id": 6102, "confirmed": True},
-        prior_results=slot_results,
+    ) == ""
+
+
+def test_agent_can_query_queue_directly_without_appointment_list():
+    class ScriptedAgent:
+        def decide(self, state, _definitions):
+            if not state.get("tool_results"):
+                return AgentDecision(
+                    "tools",
+                    [tool_call("queue", "queue_status_query", {"appointment_id": 4101})],
+                )
+            return AgentDecision("finish", final_answer="已查询排队状态。[业务1]")
+
+    response = DeclarationQAWorkflow(agent=ScriptedAgent()).invoke(
+        ChatRequest(query="查询预约4101的排队状态", user_id=1, region_code="340000")
     )
 
+    assert [result["tool_name"] for result in response.tool_results] == ["queue_status_query"]
+    assert response.tool_results[0]["ok"] is True
+    assert response.tool_results[0]["status"] == "success"
 
-def test_agent_queries_slot_before_booking_in_same_decision():
+
+def test_agent_executes_slot_query_and_booking_without_dependency_wave():
     class ScriptedAgent:
         def decide(self, state, _definitions):
             if not state.get("tool_results"):
@@ -334,7 +295,7 @@ def test_agent_queries_slot_before_booking_in_same_decision():
                         tool_call("book", "appointment_book", {"slot_id": 6103, "confirmed": True}),
                     ],
                 )
-            return AgentDecision("finish", final_answer="已预约成功。")
+            return AgentDecision("finish", final_answer="已预约成功。[业务2]")
 
     response = DeclarationQAWorkflow(agent=ScriptedAgent()).invoke(
         ChatRequest(query="请帮我预约7月16日11点的居住证办理时段", user_id=1, region_code="340000")
@@ -346,10 +307,10 @@ def test_agent_queries_slot_before_booking_in_same_decision():
     ]
     assert all(result["ok"] for result in response.tool_results)
     assert response.tool_results[1]["data"]["appointment"]["booking_status"] == "created"
-    assert response.answer == "已预约成功。"
+    assert response.answer == "已预约成功。[业务2]"
 
 
-def test_agent_executes_multi_level_business_dependencies_in_order():
+def test_agent_executes_business_calls_without_dependency_waves():
     class ScriptedAgent:
         def decide(self, state, _definitions):
             if not state.get("tool_results"):
@@ -370,7 +331,7 @@ def test_agent_executes_multi_level_business_dependencies_in_order():
                         ),
                     ],
                 )
-            return AgentDecision("finish", final_answer="已查询到缴费订单和电子票据。")
+            return AgentDecision("finish", final_answer="已查询到缴费订单和电子票据。[业务3][业务4]")
 
     response = DeclarationQAWorkflow(agent=ScriptedAgent()).invoke(
         ChatRequest(query="查询我的健康证缴费订单和电子票据", user_id=1, region_code="340000")
@@ -383,4 +344,4 @@ def test_agent_executes_multi_level_business_dependencies_in_order():
         "payment_receipt_query",
     ]
     assert all(result["ok"] for result in response.tool_results)
-    assert response.answer == "已查询到缴费订单和电子票据。"
+    assert response.answer == "已查询到缴费订单和电子票据。[业务3][业务4]"

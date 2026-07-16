@@ -47,6 +47,7 @@ def test_checkpointer_threads_are_isolated_by_user():
     )
 
     assert other_user["agent_messages"] == []
+    assert other_user["session_evidence_refs"] == {"knowledge": [], "business": []}
     workflow.close()
 
 
@@ -71,6 +72,7 @@ def test_session_deletion_removes_matching_checkpoint_thread():
     )
 
     assert restored["agent_messages"] == []
+    assert restored["session_evidence_refs"] == {"knowledge": [], "business": []}
     workflow.close()
 
 

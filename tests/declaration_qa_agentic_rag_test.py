@@ -54,6 +54,9 @@ class CapturingKnowledgeRag:
         )
         return RetrievalResult(self.result.sources, dict(filters), self.result.status)
 
+    def get_chunks_by_ids(self, chunk_ids):
+        return [source.chunk for source in self.result.sources if source.chunk.id in chunk_ids]
+
 
 class HistoricalEvidenceRag(CapturingKnowledgeRag):
     def __init__(self):
@@ -168,7 +171,7 @@ def test_single_agent_can_search_knowledge_after_observing_ticket_results():
                 "tools",
                 [tool_call("knowledge", "knowledge_search", knowledge_arguments("居住证补正材料要求"))],
             )
-        return AgentDecision("finish", final_answer="已结合申请事实和公开政策回答。")
+        return AgentDecision("finish", final_answer="已结合申请事实和公开政策回答。[业务1][证据1]")
 
     response = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide)).invoke(
         ChatRequest(query="我的居住证申请怎么补正", user_id=1)
@@ -179,7 +182,7 @@ def test_single_agent_can_search_knowledge_after_observing_ticket_results():
         "knowledge_search",
     ]
     assert response.answer_mode == "tool_grounded"
-    assert response.answer == "已结合申请事实和公开政策回答。"
+    assert response.answer == "已结合申请事实和公开政策回答。[业务1][证据1]"
 
 
 def test_single_agent_replays_assistant_and_tool_messages_by_call_id():
@@ -189,7 +192,7 @@ def test_single_agent_replays_assistant_and_tool_messages_by_call_id():
         captured_states.append(list(state.get("agent_messages") or []))
         if not state.get("tool_results"):
             return AgentDecision("tools", [tool_call("list-call", "ticket_list_query")])
-        return AgentDecision("finish", final_answer="已查询申请列表。")
+        return AgentDecision("finish", final_answer="已查询申请列表。[业务1]")
 
     response = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
@@ -202,7 +205,21 @@ def test_single_agent_replays_assistant_and_tool_messages_by_call_id():
     tool = next(item for item in replay if item.get("role") == "tool")
     assert assistant["tool_calls"][0]["id"] == "list-call"
     assert tool["tool_call_id"] == "list-call"
-    assert response.answer == "已查询申请列表。"
+    assert response.answer == "已查询申请列表。[业务1]"
+
+
+def test_agent_prepare_preserves_checkpoint_summary_context():
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(lambda state, definitions: AgentDecision("finish", final_answer="直接回答")),
+    )
+    state = workflow._initial_state(ChatRequest(query="继续", user_id=1))
+    state["normalized_query"] = "继续"
+    state["memory_context"] = {"summary_marker": "kept"}
+
+    prepared = workflow.agent_prepare(state)
+
+    assert prepared["memory_context"]["summary_marker"] == "kept"
 
 
 def test_chat_request_has_no_bound_ticket_fields():
@@ -256,33 +273,24 @@ def test_ticket_detail_is_scoped_to_trusted_user_context():
     assert result.data["applications"] == []
 
 
-def test_tool_policy_enforces_business_and_knowledge_isolation():
+def test_tool_policy_allows_direct_business_and_knowledge_queries():
     assert agent_tool_call_allowed("ticket_list_query", "健康证需要哪些材料") is True
     assert agent_tool_call_allowed("knowledge_search", "我的居住证申请进度") is True
     assert agent_tool_call_allowed("knowledge_search", "我的居住证申请被退回，怎么补正") is True
-    assert "requires a successful" in agent_tool_call_denial_reason(
+    assert agent_tool_call_denial_reason(
         "ticket_detail_query",
         "我的居住证申请进度",
         arguments={"item_code": "ITEM-RESIDENCE-PERMIT"},
-        prior_results=[],
-    )
-    assert "was not returned" in agent_tool_call_denial_reason(
+    ) == ""
+    assert agent_tool_call_denial_reason(
         "ticket_detail_query",
         "我的居住证申请进度",
         arguments={"item_code": "ITEM-OTHER"},
-        prior_results=[
-            {
-                "tool_name": "ticket_list_query",
-                "ok": True,
-                "data": {"items": [{"item_code": "ITEM-RESIDENCE-PERMIT"}]},
-            }
-        ],
-    )
+    ) == ""
     assert agent_tool_call_denial_reason(
         "knowledge_search",
         "我的居住证申请被退回，怎么补正",
         arguments={"queries": [{"text": "居住证补正材料", "strategy": "hybrid"}]},
-        prior_results=[{"tool_name": "ticket_list_query", "ok": True, "status": "success", "data": {}}],
     ) == ""
 
 
@@ -302,7 +310,7 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
                     )
                 ],
             )
-        return AgentDecision("finish", final_answer="该申请因缺少有效居住证明材料被退回。")
+        return AgentDecision("finish", final_answer="该申请因缺少有效居住证明材料被退回。[业务2]")
 
     workflow = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
@@ -332,7 +340,7 @@ def test_agent_can_answer_application_list_without_forcing_a_detail_selection():
             return AgentDecision("tools", [tool_call("list", "ticket_list_query")])
         return AgentDecision(
             "finish",
-            final_answer="你有健康证办理和居住证办理申请记录。",
+            final_answer="你有健康证办理和居住证办理申请记录。[业务1]",
         )
 
     workflow = DeclarationQAWorkflow(
@@ -358,7 +366,7 @@ def test_agent_knowledge_question_uses_only_knowledge_tool_and_frozen_query():
                 "tools",
                 [tool_call("knowledge", "knowledge_search", knowledge_arguments("健康证需要哪些材料"))],
             )
-        return AgentDecision("finish", final_answer="申请健康证需要身份证明和体检材料。")
+        return AgentDecision("finish", final_answer="申请健康证需要身份证明和体检材料。[证据1]")
 
     workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
 
@@ -409,7 +417,7 @@ def test_mixed_ticket_and_guidance_question_keeps_business_result_out_of_rag_que
                     )
                 ],
             )
-        return AgentDecision("finish", final_answer="请根据退回原因补交有效居住证明材料。")
+        return AgentDecision("finish", final_answer="请根据退回原因补交有效居住证明材料。[业务2][证据1]")
 
     workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
 
@@ -453,15 +461,19 @@ def test_agent_final_response_is_used_without_separate_answer_generation():
             return AgentDecision(
                 "finish",
                 provider="fake_agent",
-                final_answer="这是 Agent 根据知识工具证据生成的最终答案。",
+                final_answer="这是 Agent 根据知识工具证据生成的最终答案。[证据1]",
                 final_prompt="agent prompt",
             )
 
     workflow = DeclarationQAWorkflow(rag_engine=CapturingKnowledgeRag(), agent=FinalAnswerAgent())
 
     response = workflow.invoke(ChatRequest(query="健康证需要哪些材料", user_id=1))
+    audit = workflow.audit_store.get(response.audit_id)
 
-    assert response.answer == "这是 Agent 根据知识工具证据生成的最终答案。"
+    assert response.answer == "这是 Agent 根据知识工具证据生成的最终答案。[证据1]"
+    assert response.evidence_decision["ok"] is True
+    assert audit["evidence_ok"] is True
+    assert audit["evidence_decision"]["ok"] is True
     assert response.agent_query_plan["requested_queries"][0] == {
         "text": "健康证申请材料",
         "strategy": "hybrid",
@@ -511,7 +523,7 @@ def test_empty_agent_answer_does_not_bypass_evidence_gate():
     assert response.evidence_decision.get("mode") != "direct"
 
 
-def test_agent_can_finish_after_observing_tool_results_without_a_separate_gate():
+def test_agent_answer_after_tool_results_must_pass_the_evidence_gate():
     workflow = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
         agent=ScriptedAgent(
@@ -529,7 +541,10 @@ def test_agent_can_finish_after_observing_tool_results_without_a_separate_gate()
     decided = workflow.agent_decide(state)
 
     assert decided["answer_mode"] == "tool_grounded"
-    assert workflow._agent_decision_route(decided) == "ready"
+    assert workflow._agent_decision_route(decided) == "verify"
+    verified = workflow.verify_agent_answer(decided)
+    assert verified["evidence_ok"] is False
+    assert verified["evidence_decision"]["reason"] == "no_traceable_knowledge_evidence"
 
 
 def test_single_agent_finishes_a_compound_question_without_worker_decomposition():
@@ -596,7 +611,7 @@ def test_knowledge_search_uses_only_current_search_sources():
                 "tools",
                 [tool_call("knowledge", "knowledge_search", knowledge_arguments("华侨回国定居审批"))],
             )
-        return AgentDecision("finish", final_answer="已根据本轮证据回答。")
+        return AgentDecision("finish", final_answer="已根据本轮证据回答。[证据1]")
 
     workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
     initial = workflow._initial_state(
@@ -609,3 +624,141 @@ def test_knowledge_search_uses_only_current_search_sources():
 
     assert {source["chunk_id"] for source in result["retrieved_sources"]} == {"chunk-materials"}
     assert result["rag_status"]["historical_merge_mode"] == "current_search_only"
+
+
+def test_follow_up_rehydrates_previous_chunk_without_new_vector_search():
+    rag = CapturingKnowledgeRag()
+
+    def decide(state, definitions):
+        if not state.get("retrieved_sources"):
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments("健康证申请材料"))],
+            )
+        return AgentDecision("finish", final_answer="第二项是体检材料。[证据1]")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
+    first = workflow.invoke(
+        ChatRequest(query="健康证需要哪些材料", user_id=1, session_id="memory-knowledge")
+    )
+    first_call_count = len(rag.calls)
+    second = workflow.invoke(
+        ChatRequest(query="第二项呢", user_id=1, session_id="memory-knowledge")
+    )
+
+    assert first.refused is False
+    assert second.refused is False
+    assert len(rag.calls) == first_call_count
+    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
+    assert recall["activated_knowledge_refs"] == ["chunk-materials"]
+    assert second.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "rehydrated_history"
+
+
+def test_policy_version_change_rejects_historical_chunk_and_runs_new_search():
+    rag = CapturingKnowledgeRag()
+
+    def decide(state, definitions):
+        has_current_search = any(
+            result.get("tool_name") == "knowledge_search"
+            for result in state.get("tool_results") or []
+            if isinstance(result, dict)
+        )
+        if not has_current_search:
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments("健康证申请材料"))],
+            )
+        return AgentDecision("finish", final_answer="已根据本轮检索结果回答。[证据1]")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
+    workflow.invoke(
+        ChatRequest(
+            query="健康证需要哪些材料",
+            user_id=1,
+            session_id="memory-policy-version",
+            policy_version="2025",
+        )
+    )
+    first_call_count = len(rag.calls)
+    second = workflow.invoke(
+        ChatRequest(
+            query="第二项呢",
+            user_id=1,
+            session_id="memory-policy-version",
+            policy_version="2026",
+        )
+    )
+
+    assert len(rag.calls) == first_call_count + 1
+    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
+    assert recall["activated_knowledge_refs"] == []
+    assert recall["rejected_refs"][0]["reason"] == "policy_version_mismatch"
+
+
+def test_topic_shift_does_not_activate_unrelated_historical_chunk():
+    rag = CapturingKnowledgeRag()
+
+    def decide(state, definitions):
+        has_current_search = any(
+            result.get("tool_name") == "knowledge_search"
+            for result in state.get("tool_results") or []
+            if isinstance(result, dict)
+        )
+        if not has_current_search:
+            query = str(state.get("query") or "")
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments(query))],
+            )
+        return AgentDecision("finish", final_answer="已根据本轮证据回答。[证据1]")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
+    workflow.invoke(
+        ChatRequest(query="健康证需要哪些材料", user_id=1, session_id="memory-topic-shift")
+    )
+    second = workflow.invoke(
+        ChatRequest(query="居住证怎么办理", user_id=1, session_id="memory-topic-shift")
+    )
+
+    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
+    assert recall["selected_knowledge_refs"] == []
+    assert len(rag.calls) == 2
+
+
+def test_business_memory_only_replays_for_explicit_historical_question():
+    calls = []
+
+    def decide(state, definitions):
+        if not state.get("tool_results"):
+            call_id = f"queue-{len(calls) + 1}"
+            calls.append(call_id)
+            return AgentDecision(
+                "tools",
+                [tool_call(call_id, "queue_status_query", {"appointment_id": 4101})],
+            )
+        result = state["tool_results"][0]
+        if result.get("memory_origin") == "historical_snapshot":
+            return AgentDecision("finish", final_answer="刚才查询时间的排队结果按当时快照展示。[业务1]")
+        return AgentDecision("finish", final_answer="当前排队结果已查询。[业务1]")
+
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        business_adapter=InMemoryBusinessDataAdapter(),
+        agent=ScriptedAgent(decide),
+    )
+    first = workflow.invoke(
+        ChatRequest(query="我的排队情况", user_id=1, session_id="memory-business")
+    )
+    historical = workflow.invoke(
+        ChatRequest(query="刚才显示的排队情况是什么", user_id=1, session_id="memory-business")
+    )
+    current = workflow.invoke(
+        ChatRequest(query="现在排队情况是什么", user_id=1, session_id="memory-business")
+    )
+
+    assert first.refused is False
+    assert historical.refused is False
+    assert historical.tool_results[0]["memory_origin"] == "historical_snapshot"
+    assert historical.evidence_decision["evidence_registry"]["business"][0]["origin"] == "historical_snapshot"
+    assert len(calls) == 2
+    assert current.tool_results[0]["call_id"] == "queue-2"

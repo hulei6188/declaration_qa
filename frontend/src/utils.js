@@ -326,7 +326,6 @@ export function reduceToolTrace(current, event, data = {}) {
         ok: null,
         latencyMs: null,
         parallel: false,
-        dependency: '',
       };
       if (existingIndex >= 0) trace.tools[existingIndex] = { ...trace.tools[existingIndex], ...tool };
       else trace.tools.push(tool);
@@ -348,7 +347,6 @@ export function reduceToolTrace(current, event, data = {}) {
       ok: Boolean(data.ok),
       latencyMs: numberOrNull(data.latency_ms),
       parallel: Boolean(data.parallel),
-      dependency: String(data.dependency || ''),
     };
     if (index >= 0) {
       trace.tools[index] = {
@@ -411,7 +409,6 @@ export function traceFromAgentRun(run) {
       ok: Boolean(call.ok),
       latencyMs: numberOrNull(call.latency_ms),
       parallel: Boolean(call.metadata?.parallel),
-      dependency: String(call.metadata?.dependency || ''),
     };
   });
   return {

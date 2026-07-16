@@ -215,7 +215,6 @@ class LangGraphMemoryRuntime:
             {
                 "messages": [
                     HumanMessage(content=str(query)),
-                    AIMessage(content=str(answer)),
                 ]
             },
             memory_config(user_id),

@@ -6,14 +6,48 @@ import re
 from uuid import uuid4
 
 from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT
+from declaration_qa.application.evidence_grounding import validate_grounded_answer
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.helpers.actions import suggested_actions
 from declaration_qa.application.helpers.events import add_event
+from declaration_qa.memory.evidence import finalize_session_evidence_refs
 from declaration_qa.rag.prompting import application_history_answer, ticket_applications
 
 
 class ResponseNodes:
     """拒答、回答生成、后处理和审计节点。"""
+
+    def verify_agent_answer(self, state: DeclarationQAState) -> DeclarationQAState:
+        """在提交前对最终回答执行确定性证据闸门。"""
+        next_state = dict(state)
+        answer = str(next_state.get("agent_final_answer") or "").strip()
+        decision = validate_grounded_answer(next_state, answer)
+        next_state["evidence_registry"] = decision.get("evidence_registry") or {"knowledge": [], "business": []}
+        next_state["evidence_decision"] = decision
+        next_state["evidence_ok"] = bool(decision.get("ok"))
+        if not next_state["evidence_ok"]:
+            next_state["refused"] = True
+            reason = str(decision.get("reason") or "answer_not_grounded")
+            next_state["refuse_reason"] = (
+                "evidence_not_found"
+                if reason in {
+                    "no_trusted_evidence",
+                    "no_traceable_knowledge_evidence",
+                    "no_successful_business_evidence",
+                }
+                else "answer_not_grounded"
+            )
+        add_event(
+            next_state,
+            "answer_evidence_verified",
+            {
+                "ok": next_state["evidence_ok"],
+                "reason": decision.get("reason") or "",
+                "mode": decision.get("mode") or "",
+            },
+        )
+        return next_state
+
     def refuse_or_human(self, state: DeclarationQAState) -> DeclarationQAState:
         """在证据不足时生成拒答和人工建议。"""
         next_state = dict(state)
@@ -32,6 +66,10 @@ class ResponseNodes:
             answer = "业务查询服务暂时不可用，请稍后重试。"
         elif reason == "evidence_coverage_incomplete":
             answer = "已进行多轮检索，但公开证据仍未完整覆盖当前问题的全部方面，建议补充更具体的事项名称或联系办理部门确认。"
+        elif reason == "evidence_not_found":
+            answer = "当前没有查询到足以支撑结论的可信证据，无法作出确定回答。建议补充具体事项或联系办理部门核实。"
+        elif reason == "answer_not_grounded":
+            answer = "已检索到相关材料，但生成内容未通过逐条证据核验，因此本次不输出未经证实的结论。建议查看证据来源或联系办理部门核实。"
         else:
             answer = "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
         next_state["answer"] = answer
@@ -122,8 +160,9 @@ class ResponseNodes:
             "retrieval_queries": next_state.get("retrieval_queries") or [],
             "retrieved_sources": next_state.get("retrieved_sources") or [],
             "rag_status": next_state.get("rag_status"),
-            "evidence_ok": bool(next_state.get("agent_final_answer")),
-            "evidence_decision": {},
+            "evidence_ok": bool(next_state.get("evidence_ok")),
+            "evidence_registry": next_state.get("evidence_registry") or {"knowledge": [], "business": []},
+            "evidence_decision": next_state.get("evidence_decision") or {},
             "refused": next_state.get("refused"),
             "refuse_reason": next_state.get("refuse_reason"),
             "answer": next_state.get("answer"),
@@ -131,10 +170,18 @@ class ResponseNodes:
             "events": next_state.get("events") or [],
             "langfuse_trace_id": next_state.get("langfuse_trace_id") or "",
             "long_term_context": next_state.get("long_term_context") or {},
+            "conversation_memory": next_state.get("conversation_memory") or {},
+            "working_memory": next_state.get("working_memory") or {},
+            "memory_recall_decision": next_state.get("memory_recall_decision") or {},
+            "session_evidence_refs": next_state.get("session_evidence_refs") or {"knowledge": [], "business": []},
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
         next_state["audit_id"] = audit_id
+        next_state["session_evidence_refs"] = finalize_session_evidence_refs(
+            next_state.get("session_evidence_refs") or {},
+            audit_id=audit_id,
+        )
         memory_status = self.memory_runtime.schedule_extraction(
             user_id=int(next_state.get("user_id") or 0),
             query=str(next_state.get("query") or ""),

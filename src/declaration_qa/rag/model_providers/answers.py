@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import base64
+import json
 import mimetypes
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from declaration_qa.application.evidence_registry import build_evidence_registry
 from declaration_qa.observability.langfuse import invoke_with_langfuse, stream_with_langfuse
 from declaration_qa.memory.context import format_long_term_context
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
@@ -73,6 +75,11 @@ class OpenAIAnswerGenerator:
             intent=state.get("intent") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
             long_term_context=format_long_term_context(state),
+            evidence_registry=json.dumps(
+                build_evidence_registry(sources, state.get("tool_results") or []),
+                ensure_ascii=False,
+                default=str,
+            ),
             tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,
         )

@@ -16,6 +16,10 @@ class DeclarationQAState(TypedDict, total=False):
     query_image_ocr_status: dict[str, Any]
     long_term_context: dict[str, Any]
     memory_context: dict[str, Any]
+    conversation_memory: dict[str, Any]
+    working_memory: dict[str, Any]
+    session_evidence_refs: dict[str, list[dict[str, Any]]]
+    memory_recall_decision: dict[str, Any]
 
     agent_iteration: int
     agent_next: str
@@ -59,6 +63,10 @@ class DeclarationQAState(TypedDict, total=False):
     retrieval_filter: dict[str, Any]
     retrieved_sources: list[dict[str, Any]]
     rag_status: dict[str, Any]
+    evidence_ok: bool
+    evidence_registry: dict[str, Any]
+    active_evidence_registry: dict[str, Any]
+    evidence_decision: dict[str, Any]
     refuse_reason: str | None
     answer_generation_plan: dict[str, Any]
 

@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from declaration_qa.application.agent import accumulated_knowledge_queries, choose_application_id
+from declaration_qa.application.evidence_registry import build_evidence_registry
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import ToolExecutionContext, ToolExecutionResult
 from declaration_qa.application.tools.knowledge import KnowledgeSearchInput
@@ -18,6 +19,15 @@ from declaration_qa.application.helpers.events import add_event
 from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.observability.performance import log_performance, performance_stage
+from declaration_qa.memory.evidence import (
+    build_conversation_memory,
+    build_working_memory,
+    project_historical_messages,
+    recall_historical_business_results,
+    rehydrate_knowledge_sources,
+    select_knowledge_refs,
+    update_session_evidence_refs,
+)
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
 from declaration_qa.rag.router import ROUTE_KNOWLEDGE_RETRIEVAL
@@ -43,7 +53,7 @@ class AgentRuntimeNodes:
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
-        messages = list(next_state.get("agent_messages") or [])
+        messages = project_historical_messages(list(next_state.get("agent_messages") or []))
         messages.append(
             {
                 "id": uuid4().hex,
@@ -52,6 +62,13 @@ class AgentRuntimeNodes:
             }
         )
         next_state["agent_messages"] = messages
+        next_state["conversation_memory"] = build_conversation_memory(
+            next_state.get("session_evidence_refs") or {},
+            next_state.get("memory_context") or {},
+        )
+        next_state["working_memory"] = {}
+        next_state["memory_recall_decision"] = {}
+        next_state["active_evidence_registry"] = {"knowledge": [], "business": []}
         next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
@@ -69,6 +86,78 @@ class AgentRuntimeNodes:
         add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_planner": "agent_tool_schema"})
         return next_state
 
+    def memory_recall(self, state: DeclarationQAState) -> DeclarationQAState:
+        """选择并激活与本轮问题相关的历史知识或业务快照。"""
+        next_state = dict(state)
+        started_clock = perf_counter()
+        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
+        refs = dict(next_state.get("session_evidence_refs") or {})
+        selected_knowledge = select_knowledge_refs(query, refs)
+        try:
+            knowledge_sources, rejected_knowledge = rehydrate_knowledge_sources(
+                self.rag_engine,
+                selected_knowledge,
+                next_state,
+            )
+        except Exception as exc:
+            knowledge_sources = []
+            rejected_knowledge = [
+                {
+                    "chunk_id": str(item.get("chunk_id") or ""),
+                    "reason": f"rehydrate_error:{type(exc).__name__}",
+                }
+                for item in selected_knowledge
+            ]
+        business_results, rejected_business = recall_historical_business_results(
+            query=query,
+            refs=refs,
+            audit_store=self.audit_store,
+            user_id=int(next_state.get("user_id") or 0),
+            session_id=str(next_state.get("session_id") or ""),
+        )
+        next_state["retrieved_sources"] = knowledge_sources
+        next_state["tool_results"] = business_results
+        if knowledge_sources:
+            next_state["rag_status"] = {
+                "memory_recall": True,
+                "historical_merge_mode": "rehydrated_history",
+                "final_source_count": len(knowledge_sources),
+            }
+        conversation_memory = build_conversation_memory(refs, next_state.get("memory_context") or {})
+        rejected = [*rejected_knowledge, *rejected_business]
+        next_state["conversation_memory"] = conversation_memory
+        next_state["working_memory"] = build_working_memory(
+            query=query,
+            conversation_memory=conversation_memory,
+            knowledge_sources=knowledge_sources,
+            business_results=business_results,
+            rejected=rejected,
+        )
+        next_state["active_evidence_registry"] = build_evidence_registry(
+            knowledge_sources,
+            business_results,
+        )
+        decision = {
+            "selected_knowledge_refs": [str(item.get("chunk_id") or "") for item in selected_knowledge],
+            "activated_knowledge_refs": [str(item.get("chunk_id") or "") for item in knowledge_sources],
+            "activated_business_calls": [str(item.get("call_id") or "") for item in business_results],
+            "rejected_refs": rejected,
+            "knowledge_action": "rehydrate" if knowledge_sources else "agent_decides",
+            "business_action": "historical_snapshot" if business_results else "refresh_if_needed",
+            "latency_ms": max(0, round((perf_counter() - started_clock) * 1000)),
+        }
+        next_state["memory_recall_decision"] = decision
+        log_performance(
+            "agent.memory_recall",
+            started_clock,
+            selected_knowledge_count=len(selected_knowledge),
+            activated_knowledge_count=len(knowledge_sources),
+            activated_business_count=len(business_results),
+            rejected_count=len(rejected),
+        )
+        add_event(next_state, "memory_recalled", decision)
+        return next_state
+
     def agent_summarize(self, state: DeclarationQAState) -> DeclarationQAState:
         """根据滚动摘要和最近的完整消息构建模型输入。"""
         next_state = dict(state)
@@ -78,6 +167,10 @@ class AgentRuntimeNodes:
         )
         next_state["agent_input_messages"] = summarized
         next_state["memory_context"] = memory_context
+        next_state["conversation_memory"] = build_conversation_memory(
+            next_state.get("session_evidence_refs") or {},
+            memory_context,
+        )
         running_summary = memory_context.get("running_summary")
         add_event(
             next_state,
@@ -194,42 +287,28 @@ class AgentRuntimeNodes:
         return next_state
 
     def agent_execute_tools(self, state: DeclarationQAState) -> DeclarationQAState:
-        """并发执行独立工具，并按可信列表和详情结果分波执行依赖工具。"""
+        """并发执行当前 Agent 规划的工具调用。"""
         next_state = dict(state)
         results = list(next_state.get("tool_results") or [])
         signatures = list(next_state.get("agent_call_signatures") or [])
-        remaining = list(next_state.get("agent_pending_tool_calls") or [])
-        while remaining:
-            pending_names = {str(call.get("name") or "") for call in remaining}
-            observed_names = successful_tool_names(results)
-            wave = []
-            deferred = []
-            for call in remaining:
-                dependency = tool_dependency_name(str(call.get("name") or ""))
-                if dependency and dependency in pending_names and dependency not in observed_names:
-                    deferred.append(call)
-                else:
-                    wave.append(call)
-            if not wave:
-                wave, deferred = remaining, []
-            for call, payload, signature in self._execute_tool_wave(wave, next_state, results):
-                results.append(payload)
-                append_tool_message(next_state, call, payload)
-                if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
-                    signatures.append(signature)
-                event_data = {
+        calls = list(next_state.get("agent_pending_tool_calls") or [])
+        for call, payload, signature in self._execute_tool_wave(calls, next_state):
+            results.append(payload)
+            append_tool_message(next_state, call, payload)
+            if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
+                signatures.append(signature)
+            add_event(
+                next_state,
+                "tool_executed",
+                {
                     "tool_name": call.get("name") or "",
                     "call_id": payload["call_id"],
                     "ok": payload["ok"],
                     "status": payload["status"],
                     "latency_ms": payload.get("latency_ms"),
-                    "parallel": len(wave) > 1,
-                }
-                dependency = tool_dependency_name(str(call.get("name") or ""))
-                if dependency:
-                    event_data["dependency"] = dependency
-                add_event(next_state, "tool_executed", event_data)
-            remaining = deferred
+                    "parallel": len(calls) > 1,
+                },
+            )
         next_state["tool_results"] = results
         next_state["agent_call_signatures"] = signatures
         next_state["agent_pending_tool_calls"] = []
@@ -239,18 +318,16 @@ class AgentRuntimeNodes:
         self,
         calls: list[dict[str, Any]],
         state: DeclarationQAState,
-        prior_results: list[dict[str, Any]],
     ) -> list[tuple[dict[str, Any], dict[str, Any], str]]:
         """并发执行一组彼此独立的工具调用，并保持 Agent 给出的顺序。"""
         if not calls:
             return []
-        snapshot = list(prior_results)
         if len(calls) == 1:
-            payload, signature = self._execute_agent_tool_call(calls[0], state, snapshot)
+            payload, signature = self._execute_agent_tool_call(calls[0], state)
             return [(calls[0], payload, signature)]
         with ThreadPoolExecutor(max_workers=min(4, len(calls)), thread_name_prefix="declaration-qa-tool") as executor:
             futures = [
-                executor.submit(copy_context().run, self._execute_agent_tool_call, call, state, snapshot)
+                executor.submit(copy_context().run, self._execute_agent_tool_call, call, state)
                 for call in calls
             ]
             outputs = [future.result() for future in futures]
@@ -260,7 +337,6 @@ class AgentRuntimeNodes:
         self,
         call: dict[str, Any],
         state: DeclarationQAState,
-        prior_results: list[dict[str, Any]],
     ) -> tuple[dict[str, Any], str]:
         """执行单个已规划工具调用。"""
         started_at = datetime.now(timezone.utc)
@@ -282,7 +358,6 @@ class AgentRuntimeNodes:
             name,
             str(state.get("normalized_query") or state.get("query") or ""),
             arguments=arguments,
-            prior_results=prior_results,
         )
         if denial_reason:
             result = ToolExecutionResult(
@@ -319,6 +394,19 @@ class AgentRuntimeNodes:
     def agent_observe(self, state: DeclarationQAState) -> DeclarationQAState:
         """把知识证据和业务工具结果写入彼此隔离的状态槽。"""
         next_state = dict(state)
+        has_current_knowledge_search = any(
+            isinstance(result, dict)
+            and result.get("tool_name") == "knowledge_search"
+            and result.get("ok")
+            and result.get("memory_origin") != "historical_snapshot"
+            for result in (next_state.get("tool_results") or [])
+        )
+        if has_current_knowledge_search:
+            next_state["retrieved_sources"] = [
+                source
+                for source in (next_state.get("retrieved_sources") or [])
+                if not isinstance(source, dict) or source.get("memory_origin") != "rehydrated_history"
+            ]
         for result in next_state.get("tool_results") or []:
             if not isinstance(result, dict) or not result.get("ok"):
                 continue
@@ -353,6 +441,46 @@ class AgentRuntimeNodes:
                     "applications": applications,
                 }
                 next_state["answer_mode"] = "tool_grounded"
+        current_sources = [
+            item
+            for item in (next_state.get("retrieved_sources") or [])
+            if isinstance(item, dict) and item.get("memory_origin") != "rehydrated_history"
+        ]
+        current_results = [
+            item
+            for item in (next_state.get("tool_results") or [])
+            if isinstance(item, dict) and item.get("memory_origin") != "historical_snapshot"
+        ]
+        next_state["session_evidence_refs"] = update_session_evidence_refs(
+            next_state.get("session_evidence_refs") or {},
+            sources=current_sources,
+            tool_results=current_results,
+            query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
+        )
+        next_state["active_evidence_registry"] = build_evidence_registry(
+            next_state.get("retrieved_sources") or [],
+            next_state.get("tool_results") or [],
+        )
+        working_memory = dict(next_state.get("working_memory") or {})
+        working_memory.update(
+            {
+                "active_knowledge_chunk_ids": [
+                    str(item.get("chunk_id") or "")
+                    for item in (next_state.get("retrieved_sources") or [])
+                    if isinstance(item, dict)
+                ],
+                "active_business_call_ids": [
+                    str(item.get("call_id") or "")
+                    for item in (next_state.get("tool_results") or [])
+                    if isinstance(item, dict) and item.get("tool_name") != "knowledge_search" and item.get("ok")
+                ],
+                "attempted_call_signatures": list(next_state.get("agent_call_signatures") or []),
+                "sufficiency": "evidence_available"
+                if next_state.get("retrieved_sources") or next_state.get("tool_results")
+                else "insufficient",
+            }
+        )
+        next_state["working_memory"] = working_memory
         add_event(
             next_state,
             "agent_observation",
@@ -534,108 +662,16 @@ def agent_tool_call_denial_reason(
     query: str,
     *,
     arguments: dict[str, Any] | None = None,
-    prior_results: list[dict[str, Any]] | None = None,
 ) -> str:
     """返回模型外策略拒绝原因；空字符串表示允许执行。"""
     if tool_name == "knowledge_search":
-        return ""
-    if tool_name in {"ticket_list_query", "ticket_detail_query"}:
-        if tool_name == "ticket_detail_query" and prior_results is not None:
-            listed_codes = listed_item_codes(prior_results)
-            if not listed_codes:
-                return "ticket_detail_query requires a successful ticket_list_query observation"
-            requested_code = str((arguments or {}).get("item_code") or "").strip()
-            if requested_code not in listed_codes:
-                return "item_code was not returned by ticket_list_query for the authenticated user"
-        return ""
-    if tool_name in {"appointment_list_query", "appointment_slot_query", "consultation_record_query"}:
         return ""
     if tool_name == "appointment_book":
         if (arguments or {}).get("confirmed") is not True:
             return "appointment_book requires confirmed=true"
         if not booking_intent_confirmed(query):
             return "appointment_book requires explicit user confirmation in the current query"
-        slot_ids = observed_bookable_slot_ids(prior_results or [])
-        if not slot_ids:
-            return "appointment_book requires a successful appointment_slot_query observation"
-        requested_id = positive_int((arguments or {}).get("slot_id"))
-        if requested_id not in slot_ids:
-            return "slot_id was not returned as available by appointment_slot_query"
-        return ""
-    if tool_name == "queue_status_query":
-        appointment_ids = listed_appointment_ids(prior_results or [])
-        if not appointment_ids:
-            return "queue_status_query requires a successful appointment_list_query observation"
-        requested_id = positive_int((arguments or {}).get("appointment_id"))
-        if requested_id not in appointment_ids:
-            return "appointment_id was not returned by appointment_list_query for the authenticated user"
-        return ""
-    application_tools = {
-        "payment_order_query",
-        "payment_receipt_query",
-        "submission_receipt_query",
-        "result_certificate_query",
-        "delivery_status_query",
-    }
-    if tool_name in application_tools:
-        application_ids = observed_application_ids(prior_results or [])
-        if not application_ids:
-            return f"{tool_name} requires a successful ticket_detail_query observation"
-        requested_id = positive_int((arguments or {}).get("application_id"))
-        if requested_id not in application_ids:
-            return "application_id was not returned by ticket_detail_query for the authenticated user"
-        if tool_name == "payment_receipt_query":
-            observed_orders = observed_payment_orders(prior_results or [])
-            if requested_id not in observed_orders:
-                return "payment_receipt_query requires a successful payment_order_query observation"
-            payment_order_id = (arguments or {}).get("payment_order_id")
-            if payment_order_id is not None and positive_int(payment_order_id) not in observed_orders[requested_id]:
-                return "payment_order_id was not returned by payment_order_query for the authenticated user"
-        return ""
     return ""
-
-
-def listed_item_codes(results: list[dict[str, Any]]) -> set[str]:
-    """读取当前 Agent 已成功观察到的用户事项编码。"""
-    codes: set[str] = set()
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") != "ticket_list_query" or not result.get("ok"):
-            continue
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
-        for item in data.get("items") or []:
-            if isinstance(item, dict) and str(item.get("item_code") or "").strip():
-                codes.add(str(item["item_code"]).strip())
-    return codes
-
-
-def listed_appointment_ids(results: list[dict[str, Any]]) -> set[int]:
-    """读取当前用户预约列表中出现的预约主键。"""
-    ids = set()
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") != "appointment_list_query" or not result.get("ok"):
-            continue
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
-        for item in data.get("appointments") or []:
-            if isinstance(item, dict) and int(item.get("appointment_id") or 0) > 0:
-                ids.add(int(item["appointment_id"]))
-    return ids
-
-
-def observed_bookable_slot_ids(results: list[dict[str, Any]]) -> set[int]:
-    """读取号源查询中仍可预约且有余量的号源主键。"""
-    ids = set()
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") != "appointment_slot_query" or not result.get("ok"):
-            continue
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
-        for item in data.get("slots") or []:
-            if not isinstance(item, dict):
-                continue
-            slot_id = positive_int(item.get("slot_id"))
-            remaining_count = positive_int(item.get("remaining_count"))
-            if slot_id and str(item.get("status") or "") == "available" and remaining_count > 0:
-                ids.add(slot_id)
-    return ids
 
 
 def booking_intent_confirmed(query: str) -> bool:
@@ -658,64 +694,6 @@ def booking_intent_confirmed(query: str) -> bool:
     return any(term in normalized for term in confirmations)
 
 
-def observed_application_ids(results: list[dict[str, Any]]) -> set[int]:
-    """读取工单详情工具已证明归属当前用户的申请主键。"""
-    ids = set()
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") != "ticket_detail_query" or not result.get("ok"):
-            continue
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
-        for item in data.get("applications") or []:
-            if isinstance(item, dict) and int(item.get("application_id") or 0) > 0:
-                ids.add(int(item["application_id"]))
-    return ids
-
-
-def observed_payment_orders(results: list[dict[str, Any]]) -> dict[int, set[int]]:
-    """按申请主键整理缴费订单工具已返回的订单主键。"""
-    output: dict[int, set[int]] = {}
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") != "payment_order_query" or not result.get("ok"):
-            continue
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
-        for item in data.get("payment_orders") or []:
-            if not isinstance(item, dict):
-                continue
-            application_id = int(item.get("application_id") or data.get("application_id") or 0)
-            payment_order_id = int(item.get("payment_order_id") or 0)
-            if application_id > 0 and payment_order_id > 0:
-                output.setdefault(application_id, set()).add(payment_order_id)
-    return output
-
-
-def successful_tool_names(results: list[dict[str, Any]]) -> set[str]:
-    return {
-        str(result.get("tool_name") or "")
-        for result in results
-        if isinstance(result, dict) and result.get("ok")
-    }
-
-
-def tool_dependency_name(tool_name: str) -> str:
-    """返回业务工具在同一批调用中的直接可信依赖。"""
-    return {
-        "ticket_detail_query": "ticket_list_query",
-        "appointment_book": "appointment_slot_query",
-        "queue_status_query": "appointment_list_query",
-        "payment_order_query": "ticket_detail_query",
-        "payment_receipt_query": "payment_order_query",
-        "submission_receipt_query": "ticket_detail_query",
-        "result_certificate_query": "ticket_detail_query",
-        "delivery_status_query": "ticket_detail_query",
-    }.get(tool_name, "")
-
-
-def positive_int(value: Any) -> int:
-    try:
-        parsed = int(value or 0)
-    except (TypeError, ValueError):
-        return 0
-    return parsed if parsed > 0 else 0
 
 
 def append_tool_message(
@@ -724,7 +702,7 @@ def append_tool_message(
     payload: dict[str, Any],
 ) -> None:
     """按 tool_call_id 保存可重放的工具观察，知识正文由证据槽单独提供。"""
-    observation = dict(payload)
+    observation = compact_tool_observation(payload)
     messages = list(state.get("agent_messages") or [])
     messages.append(
         {
@@ -736,6 +714,25 @@ def append_tool_message(
         }
     )
     state["agent_messages"] = messages
+
+
+def compact_tool_observation(payload: dict[str, Any]) -> dict[str, Any]:
+    """知识正文只进入编号证据槽，工具消息仅保留检索状态和来源标识。"""
+    observation = dict(payload)
+    if observation.get("tool_name") != "knowledge_search":
+        return observation
+    data = dict(observation.get("data") or {})
+    sources = [item for item in (data.pop("sources", []) or []) if isinstance(item, dict)]
+    data["source_refs"] = [
+        {
+            "chunk_id": item.get("chunk_id") or "",
+            "doc_id": item.get("doc_id") or item.get("document_id") or "",
+            "title": item.get("title") or "",
+        }
+        for item in sources
+    ]
+    observation["data"] = data
+    return observation
 
 
 def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

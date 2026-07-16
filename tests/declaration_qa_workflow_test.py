@@ -37,7 +37,7 @@ class TicketScriptAgent:
                     }
                 ],
             )
-        return AgentDecision("finish", final_answer="该申请当前状态和完整历史已查询，请查看申请详情。")
+        return AgentDecision("finish", final_answer="该申请当前状态和完整历史已查询，请查看申请详情。[业务2]")
 
 
 def test_chat_routes_have_no_ticket_selection_endpoint():
@@ -71,6 +71,19 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
     ]
     assert response.business_snapshot["selected_application_id"] == 2002
     assert "申请详情" in response.answer
+    business_registry = response.evidence_decision["evidence_registry"]["business"]
+    assert business_registry[0]["evidence_id"] == "业务1"
+    assert business_registry[0]["call_id"] == "list"
+    assert business_registry[0]["tool_name"] == "ticket_list_query"
+    assert "ITEM-RESIDENCE-PERMIT" in business_registry[0]["business_key"]["item_code"]
+    assert business_registry[1] == {
+        "evidence_id": "业务2",
+        "call_id": "detail",
+        "tool_name": "ticket_detail_query",
+        "business_key": {"application_id": [2002]},
+    }
+    audit = workflow.audit_store.get(response.audit_id)
+    assert audit["evidence_registry"] == response.evidence_decision["evidence_registry"]
     serialized = response.model_dump()
     assert "need_ticket_selection" not in serialized
     assert "tickets" not in serialized
@@ -103,7 +116,7 @@ def test_ticket_list_only_finishes_without_a_gate():
                     "tools",
                     [{"id": "list", "name": "ticket_list_query", "arguments": {}}],
                 )
-            return AgentDecision("finish", final_answer="已查询到你的申请事项。")
+            return AgentDecision("finish", final_answer="已查询到你的申请事项。[业务1]")
 
     workflow = DeclarationQAWorkflow(
         rag_engine=build_seed_rag_engine(),

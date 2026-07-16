@@ -7,6 +7,11 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from declaration_qa.application.evidence_registry import (
+    build_evidence_registry,
+    registered_business_results,
+    registered_knowledge_sources,
+)
 from declaration_qa.memory.context import format_long_term_context
 
 try:
@@ -33,6 +38,7 @@ ANSWER_PROMPT = PromptTemplate.from_template(
 问题：{query}
 链路：{retrieval_chain}
 长期上下文记忆（仅用于理解历史咨询主题，不含实时个人工单事实；如与检索证据冲突，以本轮检索证据为准）：{long_term_context}
+证据编号映射：{evidence_registry}
 业务工具结果（只用于个人申请事实，不能作为公开政策依据）：{tool_payload}
 知识检索证据（只用于公开政策、材料、流程和规范，不能作为实时工单事实）：{source_payload}
 
@@ -57,6 +63,11 @@ class DeterministicAnswerGenerator:
             query=state.get("query") or "",
             retrieval_chain=state.get("retrieval_chain") or "",
             long_term_context=format_long_term_context(state),
+            evidence_registry=json.dumps(
+                build_evidence_registry(sources, state.get("tool_results") or []),
+                ensure_ascii=False,
+                default=str,
+            ),
             tool_payload=format_tool_result_payload(state.get("tool_results") or []),
             source_payload=source_text,
         )
@@ -80,8 +91,9 @@ def ticket_list_answer(state: dict[str, Any]) -> str:
         break
     if not items:
         return "当前未查询到可查看的申请记录。"
+    marker = business_evidence_marker(state, "ticket_list_query")
     lines = [
-        f"- {item.get('item_name') or item.get('item_code')}：{int(item.get('application_count') or 0)} 次申请"
+        f"- {item.get('item_name') or item.get('item_code')}：{int(item.get('application_count') or 0)} 次申请 {marker}".rstrip()
         for item in items
     ]
     return "当前账号下查询到以下申请事项：\n" + "\n".join(lines)
@@ -97,6 +109,7 @@ def application_history_answer(
     if not applications:
         return "当前未查询到该事项的申请状态历史。"
     sections = []
+    marker = business_evidence_marker(state, "ticket_detail_query")
     for application in applications:
         application_id = int(application.get("application_id") or 0)
         submitted_at = format_business_time(application.get("submitted_at"))
@@ -109,7 +122,7 @@ def application_history_answer(
             header_fields.append(f"当前状态：{current_status}")
         if completed_at:
             header_fields.append(f"办结时间：{completed_at}")
-        header = "；".join(header_fields)
+        header = ("；".join(header_fields) + f" {marker}").rstrip()
         history = [event for event in application.get("status_history") or [] if isinstance(event, dict)]
         lines = []
         for event in history:
@@ -129,7 +142,7 @@ def application_history_answer(
             if material_name or material_code:
                 material = material_name or material_code
                 detail_fields.append(f"关联材料：{material}")
-            lines.append("- " + "；".join(field for field in detail_fields if field))
+            lines.append(("- " + "；".join(field for field in detail_fields if field) + f" {marker}").rstrip())
         sections.append(header + "\n" + ("\n".join(lines) if lines else "- 暂无状态流水"))
     return "该事项下的申请状态历史如下：\n\n" + "\n\n".join(sections)
 
@@ -167,15 +180,12 @@ def format_business_time(value: Any) -> str:
 
 
 def format_tool_result_payload(results: list[dict[str, Any]]) -> str:
-    """格式化业务工具结果，不混入知识证据。"""
+    """仅格式化已绑定调用标识和业务主键的成功业务结果。"""
     safe_results = []
-    for result in results:
-        if not isinstance(result, dict) or result.get("tool_name") == "knowledge_search":
-            continue
+    for entry, result in registered_business_results(results):
         safe_results.append(
             {
-                "tool_name": result.get("tool_name"),
-                "ok": bool(result.get("ok")),
+                **entry,
                 "status": result.get("status"),
                 "data": result.get("data") if isinstance(result.get("data"), dict) else {},
             }
@@ -207,19 +217,35 @@ def has_successful_tool_result(state: dict[str, Any], tool_name: str) -> bool:
 
 def knowledge_answer(state: dict[str, Any], sources: list[dict[str, Any]]) -> str:
     """生成知识检索类问题的确定性回答。"""
-    if not sources:
+    registered = registered_knowledge_sources(sources)
+    if not registered:
         return "暂未查询到与当前地区和业务类型完全匹配的办理依据，建议查看办事指南或联系人工客服确认。"
-    title = sources[0].get("title") or "办理指南"
-    snippet = source_evidence_text(sources[0])
-    return f"根据《{title}》，{snippet} 请以页面展示的材料清单和提交入口为准。"
+    _entry, source = registered[0]
+    title = source.get("title") or "办理指南"
+    snippet = source_evidence_text(source)
+    return f"根据《{title}》，{snippet} [证据1] 请以页面展示的材料清单和提交入口为准。"
 
 
 def format_source_payload(sources: list[dict[str, Any]]) -> str:
-    """用完整证据文本格式化回答生成输入。"""
+    """用绑定块标识的稳定编号格式化回答生成输入。"""
     return "\n".join(
-        f"- {item.get('title')}: {source_evidence_text(item)}"
-        for item in sources
+        (
+            f"[{entry['evidence_id']}]\n"
+            f"块标识：{entry['chunk_id']}\n"
+            f"标题：{source.get('title') or '未命名来源'}\n"
+            f"文档标识：{source.get('doc_id') or source.get('document_id') or ''}\n"
+            f"原文：{source_evidence_text(source)}"
+        )
+        for entry, source in registered_knowledge_sources(sources)
     )
+
+
+def business_evidence_marker(state: dict[str, Any], tool_name: str) -> str:
+    """返回指定成功业务工具在最终回答中的稳定证据编号。"""
+    for entry, result in registered_business_results(state.get("tool_results") or []):
+        if result.get("tool_name") == tool_name:
+            return f"[{entry['evidence_id']}]"
+    return ""
 
 
 def source_evidence_text(source: dict[str, Any]) -> str:

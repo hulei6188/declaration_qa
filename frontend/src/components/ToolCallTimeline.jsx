@@ -86,7 +86,6 @@ function ToolStep({ tool }) {
         <div className="tool-step-meta">
           {tool.iteration > 0 && <span>第 {tool.iteration} 轮</span>}
           {tool.parallel && <span>并行执行</span>}
-          {tool.dependency && <span>依赖上一项结果</span>}
           {tool.latencyMs !== null && tool.latencyMs !== undefined && <span>{formatLatency(tool.latencyMs)}</span>}
           {tool.sourceCount > 0 && <span>{tool.sourceCount} 条证据</span>}
           {tool.failureReason && <span>{failureReasonLabel(tool.failureReason)}</span>}

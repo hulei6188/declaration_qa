@@ -35,12 +35,12 @@ class AppointmentBookInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    slot_id: int = Field(ge=1, description="必须来自本轮 appointment_slot_query 的可用号源")
+    slot_id: int = Field(ge=1, description="需要预约的有效号源主键")
     confirmed: Literal[True] = Field(description="仅在用户明确确认预约后传 true")
 
 
 class QueueStatusQueryInput(BaseModel):
-    """预约主键必须先由 appointment_list_query 返回。"""
+    """使用预约主键查询当前用户的排队状态。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -48,7 +48,7 @@ class QueueStatusQueryInput(BaseModel):
 
 
 class ApplicationScopedQueryInput(BaseModel):
-    """申请主键必须先由 ticket_detail_query 返回。"""
+    """使用申请主键查询当前用户的业务数据。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -56,7 +56,7 @@ class ApplicationScopedQueryInput(BaseModel):
 
 
 class PaymentReceiptQueryInput(ApplicationScopedQueryInput):
-    """缴费订单主键必须先由 payment_order_query 返回。"""
+    """可以按缴费订单主键进一步限定电子票据。"""
 
     payment_order_id: int | None = Field(default=None, ge=1)
 
@@ -74,7 +74,6 @@ class AppointmentListQueryTool:
     name = "appointment_list_query"
     description = (
         "查询当前登录用户的预约记录，返回 appointment_id、事项、服务大厅、预约时段和状态。"
-        "查询实时排队状态前必须先调用本工具。"
     )
     input_model = AppointmentListQueryInput
 
@@ -116,7 +115,7 @@ class AppointmentSlotQueryTool:
 class AppointmentBookTool:
     name = "appointment_book"
     description = (
-        "为当前登录用户预约 appointment_slot_query 刚返回的可用 slot_id。"
+        "为当前登录用户预约指定的有效 slot_id。"
         "这是写操作，仅当用户明确确认具体时段后调用；事项、大厅、日期和时间由服务端号源派生。"
     )
     input_model = AppointmentBookInput
@@ -158,7 +157,7 @@ class QueueStatusQueryTool:
     name = "queue_status_query"
     description = (
         "查询当前登录用户指定预约的签到、排队人数、预计等待时间、叫号窗口和预约状态。"
-        "appointment_id 必须来自 appointment_list_query。"
+        "服务端会按当前登录用户校验 appointment_id。"
     )
     input_model = QueueStatusQueryInput
 
@@ -178,7 +177,7 @@ class PaymentOrderQueryTool:
     name = "payment_order_query"
     description = (
         "查询当前登录用户指定申请的缴费项目、金额、支付状态、支付期限和支付时间。"
-        "application_id 必须来自 ticket_detail_query。"
+        "服务端会按当前登录用户校验 application_id。"
     )
     input_model = ApplicationScopedQueryInput
 
@@ -195,7 +194,7 @@ class PaymentReceiptQueryTool:
     name = "payment_receipt_query"
     description = (
         "查询当前登录用户指定申请的电子缴费票据和下载状态。"
-        "必须先调用 payment_order_query，payment_order_id 只能使用其返回值。"
+        "可以使用 payment_order_id 进一步限定具体订单。"
     )
     input_model = PaymentReceiptQueryInput
 
@@ -216,7 +215,7 @@ class SubmissionReceiptQueryTool:
     name = "submission_receipt_query"
     description = (
         "查询当前登录用户指定申请的提交回执、受理回执、签发时间和下载状态。"
-        "application_id 必须来自 ticket_detail_query。"
+        "服务端会按当前登录用户校验 application_id。"
     )
     input_model = ApplicationScopedQueryInput
 
@@ -233,7 +232,7 @@ class ResultCertificateQueryTool:
     name = "result_certificate_query"
     description = (
         "查询当前登录用户指定申请的办结结果、电子批文或电子证照是否生成及下载状态。"
-        "application_id 必须来自 ticket_detail_query。"
+        "服务端会按当前登录用户校验 application_id。"
     )
     input_model = ApplicationScopedQueryInput
 
@@ -250,7 +249,7 @@ class DeliveryStatusQueryTool:
     name = "delivery_status_query"
     description = (
         "查询当前登录用户指定申请的邮寄、自取、物流单号和送达状态。"
-        "application_id 必须来自 ticket_detail_query。"
+        "服务端会按当前登录用户校验 application_id。"
     )
     input_model = ApplicationScopedQueryInput
 
