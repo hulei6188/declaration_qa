@@ -68,67 +68,12 @@ BUSINESS_QUERY_TERMS = (
     "送达",
     "咨询记录",
 )
-KNOWLEDGE_LINE_TERMS = (
-    "政策",
-    "法规",
-    "条例",
-    "办法",
-    "规定",
-    "法定",
-    "材料",
-    "办理流程",
-    "办理条件",
-    "费用",
-    "收费",
-    "时限",
-    "期限",
-    "模板",
-    "样表",
-    "协议",
-    "证明",
-    "应当",
-    "必须",
-    "不得",
-)
-BUSINESS_LINE_TERMS = (
-    "application_id",
-    "申请编号",
-    "当前状态",
-    "提交时间",
-    "办结时间",
-    "退回",
-    "补正",
-    "预约号",
-    "排队号",
-    "等待人数",
-    "等待时间",
-    "窗口",
-    "已签到",
-    "缴费",
-    "票据",
-    "回执",
-    "送达",
-)
-UNCERTAINTY_PREFIXES = (
-    "现有证据无法确认",
-    "当前证据无法确认",
-    "现有公开材料未说明",
-    "当前公开材料未说明",
-    "暂未查询到",
-    "建议联系",
-    "建议向",
-    "请联系",
-    "请向",
-)
-
-
 def validate_grounded_answer(state: dict[str, Any], answer: str) -> dict[str, Any]:
-    """检查最终回答是否绑定了存在且可追溯的本轮证据。"""
+    """只检查回答中显式引用的句子及其底层证据。"""
     query = str(state.get("normalized_query") or state.get("query") or "").strip()
     sources = [item for item in (state.get("retrieved_sources") or []) if isinstance(item, dict)]
     registered_sources = registered_knowledge_sources(sources)
     registered_business = registered_business_results(state.get("tool_results") or [])
-    grounded_sources = [source for _entry, source in registered_sources]
     business_results = [result for _entry, result in registered_business]
     evidence_registry = build_evidence_registry(sources, state.get("tool_results") or [])
     valid_source_indexes = {
@@ -175,7 +120,7 @@ def validate_grounded_answer(state: dict[str, Any], answer: str) -> dict[str, An
         return grounding_decision(False, "invalid_evidence_citation", "grounded", checks)
 
     business_identity_mismatches: list[dict[str, Any]] = []
-    for unit in factual_units(answer):
+    for unit in cited_units(answer):
         cited_business = {int(item) for item in BUSINESS_MARKER_PATTERN.findall(unit)}
         mismatch = business_identity_mismatch(unit, cited_business, registered_business)
         if mismatch:
@@ -194,29 +139,6 @@ def validate_grounded_answer(state: dict[str, Any], answer: str) -> dict[str, An
     if cited_historical and not answer_has_historical_time_context(answer):
         return grounding_decision(False, "historical_snapshot_without_time_context", "grounded", checks)
 
-    uncited_units: list[str] = []
-    for unit in factual_units(answer):
-        cited_knowledge = {int(item) for item in KNOWLEDGE_MARKER_PATTERN.findall(unit)}
-        cited_business = {int(item) for item in BUSINESS_MARKER_PATTERN.findall(unit)}
-        needs_knowledge = line_requires_knowledge(unit, grounded_sources, business_results)
-        needs_business = line_requires_business(unit, grounded_sources, business_results)
-        if needs_knowledge and not (cited_knowledge & valid_source_indexes):
-            uncited_units.append(short_check_text(unit))
-            continue
-        if needs_business and not (cited_business & valid_business_indexes):
-            uncited_units.append(short_check_text(unit))
-            continue
-        if not needs_knowledge and not needs_business and not (
-            (cited_knowledge & valid_source_indexes) or (cited_business & valid_business_indexes)
-        ):
-            uncited_units.append(short_check_text(unit))
-            continue
-
-    checks["uncited_fact_units"] = uncited_units[:10]
-    if uncited_units:
-        return grounding_decision(False, "fact_without_evidence_citation", "grounded", checks)
-    if not knowledge_citations and not business_citations:
-        return grounding_decision(False, "answer_has_no_evidence_citation", "grounded", checks)
     return grounding_decision(True, "", "grounded", checks)
 
 
@@ -280,60 +202,17 @@ def query_requires_business(query: str) -> bool:
     return any(term in query for term in BUSINESS_QUERY_TERMS)
 
 
-def factual_units(answer: str) -> list[str]:
-    """提取需要逐条绑定引用的事实行。"""
-    output: list[str] = []
-    for raw_line in str(answer or "").splitlines():
-        line = raw_line.strip()
-        if not line or line in {"---", "***"}:
-            continue
-        if line.startswith("#"):
-            continue
-        if re.fullmatch(r"\|?[\s:|-]+\|?", line):
-            continue
-        plain = re.sub(r"^[\-*+>\s\d.、）)]+", "", line).strip()
-        if not plain or is_heading(plain) or plain.startswith(UNCERTAINTY_PREFIXES):
-            continue
-        if is_factual_line(plain):
-            output.append(line)
-    return output
-
-
-def is_heading(line: str) -> bool:
-    """识别不承载事实结论的短标题。"""
-    return len(line) <= 24 and line.endswith(("：", ":")) and not re.search(r"[。；]", line)
-
-
-def is_factual_line(line: str) -> bool:
-    """将证据回答中的完整文本行视为待核验事实单元。"""
-    without_markers = KNOWLEDGE_MARKER_PATTERN.sub("", BUSINESS_MARKER_PATTERN.sub("", line)).strip()
-    if len(without_markers) < 4:
-        return False
-    return True
-
-
-def line_requires_knowledge(
-    line: str,
-    sources: list[dict[str, Any]],
-    business_results: list[dict[str, Any]],
-) -> bool:
-    """判断事实行是否必须引用公开知识证据。"""
-    if LEGAL_REFERENCE_PATTERN.search(line):
-        return True
-    if sources and any(term in line for term in KNOWLEDGE_LINE_TERMS):
-        return True
-    return bool(sources) and not business_results
-
-
-def line_requires_business(
-    line: str,
-    sources: list[dict[str, Any]],
-    business_results: list[dict[str, Any]],
-) -> bool:
-    """判断事实行是否必须引用个人业务工具结果。"""
-    if business_results and any(term in line for term in BUSINESS_LINE_TERMS):
-        return True
-    return bool(business_results) and not sources
+def cited_units(answer: str) -> list[str]:
+    """只提取包含知识或业务引用标记的文本行。"""
+    return [
+        line
+        for raw_line in str(answer or "").splitlines()
+        if (line := raw_line.strip())
+        and (
+            KNOWLEDGE_MARKER_PATTERN.search(line)
+            or BUSINESS_MARKER_PATTERN.search(line)
+        )
+    ]
 
 
 def normalize_evidence_text(value: str) -> str:

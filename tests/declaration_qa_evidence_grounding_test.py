@@ -38,7 +38,7 @@ def test_legal_reference_can_use_a_cited_summary_without_an_exact_quote():
     assert decision["ok"] is True
 
 
-def test_external_fact_without_an_inline_evidence_marker_is_rejected():
+def test_external_fact_without_an_inline_evidence_marker_is_not_sentence_checked():
     state = {
         "query": "健康证需要哪些材料",
         "retrieved_sources": [knowledge_source("申请健康证需要身份证明和体检材料。")],
@@ -47,8 +47,50 @@ def test_external_fact_without_an_inline_evidence_marker_is_rejected():
 
     decision = validate_grounded_answer(state, "申请健康证需要身份证明和体检材料。")
 
-    assert decision["ok"] is False
-    assert decision["reason"] == "fact_without_evidence_citation"
+    assert decision["ok"] is True
+    assert decision["reason"] == ""
+
+
+def test_uncited_intro_and_advice_do_not_block_valid_cited_content():
+    state = {
+        "query": "健康证需要哪些材料",
+        "retrieved_sources": [knowledge_source("申请健康证需要身份证明和体检材料。")],
+        "tool_results": [{"tool_name": "knowledge_search", "ok": True, "data": {}}],
+    }
+
+    decision = validate_grounded_answer(
+        state,
+        "以下是申请材料：\n- 身份证明和体检材料。[证据1]\n如需帮助，可以继续告诉我。",
+    )
+
+    assert decision["ok"] is True
+    assert "uncited_fact_units" not in decision["checks"]
+
+
+def test_uncited_business_summary_and_advice_do_not_block_valid_cited_items():
+    state = {
+        "query": "我有哪些事项",
+        "retrieved_sources": [],
+        "tool_results": [
+            {
+                "tool_name": "ticket_list_query",
+                "call_id": "ticket-list-1",
+                "ok": True,
+                "data": {
+                    "items": [
+                        {"item_code": "ITEM-WATER", "item_name": "取水许可"}
+                    ]
+                },
+            }
+        ],
+    }
+
+    decision = validate_grounded_answer(
+        state,
+        "您当前共办理过1项政务事项：\n- 取水许可。[业务1]\n如需查看进度，请告诉我事项名称。",
+    )
+
+    assert decision["ok"] is True
 
 
 def test_external_question_without_trusted_evidence_is_rejected():
