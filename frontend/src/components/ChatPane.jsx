@@ -124,7 +124,7 @@ export default function ChatPane({
                     remarkPlugins={[remarkGfm]}
                     components={markdownComponents}
                   >
-                    {m.content}
+                    {hideInlineCitationMarkers(m.content)}
                   </ReactMarkdown>
                 </div>
               ) : (
@@ -233,6 +233,10 @@ function findLastAssistantIndex(messages) {
     if (messages[index]?.role === 'assistant') return index;
   }
   return -1;
+}
+
+function hideInlineCitationMarkers(content) {
+  return String(content || '').replace(/\[(?:证据|业务)\s*\d+\]/g, '');
 }
 
 function formatBytes(value) {
