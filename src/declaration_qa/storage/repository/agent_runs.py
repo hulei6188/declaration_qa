@@ -834,6 +834,7 @@ BUSINESS_TOOL_NAMES = {
     "appointment_hall_query",
     "appointment_slot_query",
     "appointment_book",
+    "appointment_cancel",
     "queue_status_query",
     "payment_order_query",
     "payment_receipt_query",

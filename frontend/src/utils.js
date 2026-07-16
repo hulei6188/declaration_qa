@@ -156,6 +156,14 @@ export async function startChatStream(body) {
   });
 }
 
+export async function resumeHumanConfirmationStream(body) {
+  return fetch(`${API_BASE}/api/declaration-qa/chat/confirm/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 // 会话
 export function fetchSessions(userId) {
   return requestJson(`/api/declaration-qa/sessions?user_id=${encodeURIComponent(userId || 1)}`);
@@ -343,7 +351,7 @@ export function reduceToolTrace(current, event, data = {}) {
       }
     }
     const completed = {
-      status: data.ok ? 'completed' : 'failed',
+      status: data.ok ? 'completed' : (data.status === 'human_rejected' ? 'rejected' : 'failed'),
       ok: Boolean(data.ok),
       latencyMs: numberOrNull(data.latency_ms),
       parallel: Boolean(data.parallel),
@@ -364,6 +372,24 @@ export function reduceToolTrace(current, event, data = {}) {
         iteration: 0,
       });
     }
+  } else if (event === 'human_confirmation_required') {
+    trace.status = 'paused';
+    trace.phase = 'awaiting_confirmation';
+    const callIds = new Set((data.actions || []).map((item) => String(item.call_id || '')));
+    trace.tools = trace.tools.map((item) => (
+      callIds.has(String(item.callId || ''))
+        ? { ...item, status: 'awaiting_confirmation', ok: null }
+        : item
+    ));
+  } else if (event === 'human_confirmation_resolved') {
+    trace.status = 'running';
+    trace.phase = 'executing';
+    const callIds = new Set((data.call_ids || []).map(String));
+    trace.tools = trace.tools.map((item) => (
+      callIds.has(String(item.callId || ''))
+        ? { ...item, status: data.approved ? 'running' : 'rejected', ok: data.approved ? null : false }
+        : item
+    ));
   } else if (event === 'agent_observation') {
     trace.phase = 'checking';
     trace.observation = {

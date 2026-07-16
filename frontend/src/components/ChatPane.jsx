@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ImagePlus, Moon, PanelLeftOpen, Send, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { Check, ImagePlus, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
@@ -8,6 +8,7 @@ import ToolCallTimeline from './ToolCallTimeline.jsx';
 export default function ChatPane({
   messages, streaming, sendState, onSend, ctx, setCtx, audit, feedbackResult, onFeedback,
   onLoadToolTrace,
+  onResolveConfirmation,
   theme = 'light', onToggleTheme,
   sidebarCollapsed = false, onToggleSidebar,
 }) {
@@ -18,6 +19,9 @@ export default function ChatPane({
   const messagesEnd = useRef(null);
   const previousCount = useRef(messages.length);
   const imageInputRef = useRef(null);
+  const confirmationPending = messages.some((message) =>
+    ['pending', 'submitting'].includes(message.confirmation?.status)
+  );
 
   useEffect(() => {
     const hasNewMessage = messages.length > previousCount.current;
@@ -38,7 +42,7 @@ export default function ChatPane({
   function handleSubmit(e) {
     e.preventDefault();
     const q = input.trim();
-    if ((!q && !imageDraft) || streaming) return;
+    if ((!q && !imageDraft) || streaming || confirmationPending) return;
     setAutoFollow(true);
     onSend(q, q, undefined, undefined, imageDraft ? { ...imageDraft, text_present: Boolean(q) } : null);
     setInput('');
@@ -134,6 +138,13 @@ export default function ChatPane({
             {m.role === 'assistant' && m.sources?.length > 0 && (
               <SourceEvidenceList sources={m.sources} />
             )}
+            {m.role === 'assistant' && m.confirmation && (
+              <HumanConfirmationCard
+                confirmation={m.confirmation}
+                disabled={streaming}
+                onResolve={(approved) => onResolveConfirmation?.(i, m.confirmation, approved)}
+              />
+            )}
             {m.attachments?.length > 0 && (
               <div className="message-attachments">
                 {m.attachments.map((item, index) => (
@@ -183,8 +194,8 @@ export default function ChatPane({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入问题"
-            disabled={streaming}
+            placeholder={confirmationPending ? '请先处理上方人工确认' : '输入问题'}
+            disabled={streaming || confirmationPending}
           />
           <div className="composer-actions">
             <span>{sendState}</span>
@@ -200,19 +211,63 @@ export default function ChatPane({
                 type="button"
                 className="icon-button"
                 onClick={() => imageInputRef.current?.click()}
-                disabled={streaming}
+                disabled={streaming || confirmationPending}
                 title="上传图片提问"
                 aria-label="上传图片提问"
               >
                 <ImagePlus size={16} />
               </button>
-              <button className="primary send-button" type="submit" disabled={streaming || (!input.trim() && !imageDraft)} title="发送" aria-label="发送">
+              <button className="primary send-button" type="submit" disabled={streaming || confirmationPending || (!input.trim() && !imageDraft)} title="发送" aria-label="发送">
                 <Send size={16} />
               </button>
             </div>
           </div>
         </div>
       </form>
+    </section>
+  );
+}
+
+function HumanConfirmationCard({ confirmation, disabled, onResolve }) {
+  const pending = confirmation.status === 'pending';
+  const submitting = confirmation.status === 'submitting';
+  const resolvedLabel = confirmation.status === 'approved'
+    ? '已确认并执行'
+    : confirmation.status === 'rejected'
+      ? '已拒绝执行'
+      : confirmation.status === 'failed'
+        ? '处理失败'
+        : '';
+  return (
+    <section className={`human-confirmation status-${confirmation.status || 'pending'}`}>
+      <div className="human-confirmation-head">
+        <ShieldCheck size={18} />
+        <div>
+          <strong>{confirmation.title || '请确认操作'}</strong>
+          <span>{confirmation.warning || '确认后系统才会执行。'}</span>
+        </div>
+      </div>
+      <div className="human-confirmation-actions-list">
+        {(confirmation.actions || []).map((action) => (
+          <div key={action.call_id || action.subject} className="human-confirmation-action">
+            <strong>{action.subject || action.label}</strong>
+            {(action.details || []).map((detail) => <span key={detail}>{detail}</span>)}
+          </div>
+        ))}
+      </div>
+      {confirmation.error && <div className="human-confirmation-error">{confirmation.error}</div>}
+      {(pending || submitting) ? (
+        <div className="human-confirmation-buttons">
+          <button type="button" className="confirmation-reject" disabled={disabled || submitting} onClick={() => onResolve(false)}>
+            <X size={14} />取消
+          </button>
+          <button type="button" className="primary confirmation-approve" disabled={disabled || submitting} onClick={() => onResolve(true)}>
+            <Check size={14} />{submitting ? '处理中…' : '确认执行'}
+          </button>
+        </div>
+      ) : (
+        <div className="human-confirmation-result">{resolvedLabel}</div>
+      )}
     </section>
   );
 }

@@ -16,20 +16,27 @@ class AppointmentBookingError(ValueError):
         self.code = code
 
 
+class AppointmentCancellationError(ValueError):
+    """预约取消失败，并携带可供工具返回的稳定业务状态。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 class BusinessDataAdapter(Protocol):
     """办件业务数据访问适配器协议。"""
     def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
         """按事项汇总当前用户的全部申请。"""
         ...
 
-    def get_applications_by_item(
+    def get_applications_by_items(
         self,
         *,
         user_id: int,
-        item_code: str,
-        application_id: int | None = None,
+        item_codes: list[str],
     ) -> list[dict[str, Any]]:
-        """返回同一事项下的申请及每次申请的完整状态历史。"""
+        """批量返回多个事项下的申请及完整状态历史。"""
         ...
 
     def list_appointments(
@@ -64,34 +71,54 @@ class BusinessDataAdapter(Protocol):
         """使用可信用户身份预约指定号源。"""
         ...
 
+    def cancel_appointment(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        appointment_id: int,
+    ) -> dict[str, Any]:
+        """取消当前用户尚未签到的预约。"""
+        ...
+
     def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
         """查询当前用户指定预约的排队状态。"""
         ...
 
-    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询指定申请的缴费订单。"""
-        ...
-
-    def get_payment_receipts(
+    def get_payment_orders_by_applications(
         self,
         *,
         user_id: int,
-        application_id: int,
-        payment_order_id: int | None = None,
+        application_ids: list[int],
     ) -> list[dict[str, Any]]:
-        """查询指定申请的缴费票据。"""
+        """批量查询多个申请的缴费订单。"""
         ...
 
-    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询指定申请的提交和受理回执。"""
+    def get_payment_receipts_by_targets(
+        self,
+        *,
+        user_id: int,
+        targets: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """批量查询申请及其可选缴费订单对应的票据。"""
         ...
 
-    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询指定申请的办结结果和电子证照。"""
+    def get_submission_receipts_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询申请的提交和受理回执。"""
         ...
 
-    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询指定申请的结果送达状态。"""
+    def get_result_certificates_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询申请的办结结果和电子证照。"""
+        ...
+
+    def get_delivery_statuses_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询申请的结果送达状态。"""
         ...
 
     def list_consultation_records(
@@ -773,23 +800,20 @@ class InMemoryBusinessDataAdapter:
             group["updated_at"] = max(str(group.get("updated_at") or ""), str(item.get("updated_at") or ""))
         return sorted(groups.values(), key=lambda row: str(row.get("updated_at") or ""), reverse=True)
 
-    def get_applications_by_item(
+    def get_applications_by_items(
         self,
         *,
         user_id: int,
-        item_code: str,
-        application_id: int | None = None,
+        item_codes: list[str],
     ) -> list[dict[str, Any]]:
-        """返回事项下全部申请和有序状态流水。"""
-        output = []
-        for item in self._applications.values():
-            if int(item.get("user_id") or 0) != int(user_id):
-                continue
-            if str(item.get("item_code") or "") != str(item_code or ""):
-                continue
-            if application_id is not None and int(item.get("application_id") or 0) != int(application_id):
-                continue
-            output.append(application_detail(item))
+        """在一次内存扫描中返回多个事项的全部申请。"""
+        code_set = {str(item or "").strip() for item in item_codes if str(item or "").strip()}
+        output = [
+            application_detail(item)
+            for item in self._applications.values()
+            if int(item.get("user_id") or 0) == int(user_id)
+            and str(item.get("item_code") or "") in code_set
+        ]
         return sorted(output, key=lambda row: str(row.get("updated_at") or ""), reverse=True)
 
     def list_appointments(
@@ -934,35 +958,126 @@ class InMemoryBusinessDataAdapter:
                 slot["status"] = "full"
             return public_appointment(appointment, booking_status="created")
 
+    def cancel_appointment(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        appointment_id: int,
+    ) -> dict[str, Any]:
+        """原子取消内存预约并归还对应号源。"""
+        with self._appointment_lock:
+            appointment = next(
+                (
+                    item
+                    for item in self._appointments
+                    if int(item.get("user_id") or 0) == int(user_id)
+                    and int(item.get("appointment_id") or 0) == int(appointment_id)
+                    and (not region_code or region_code_matches(item.get("region_code"), region_code))
+                ),
+                None,
+            )
+            if appointment is None:
+                raise AppointmentCancellationError("appointment_not_found", "未找到当前用户的预约记录")
+
+            status = str(appointment.get("status") or "")
+            if status == "cancelled":
+                return public_appointment(appointment, cancellation_status="already_cancelled")
+            if status != "booked":
+                raise AppointmentCancellationError(
+                    "cancellation_not_allowed",
+                    "该预约已签到、进入排队或已经办结，当前状态不允许取消",
+                )
+
+            now = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds")
+            appointment["status"] = "cancelled"
+            appointment["cancelled_at"] = now
+            appointment["updated_at"] = now
+            slot = next(
+                (
+                    item
+                    for item in self._appointment_slots
+                    if int(item.get("slot_id") or 0) == int(appointment.get("slot_id") or 0)
+                ),
+                None,
+            )
+            if slot is not None:
+                slot["reserved_count"] = max(0, int(slot.get("reserved_count") or 0) - 1)
+                if str(slot.get("status") or "") == "full":
+                    slot["status"] = "available"
+                slot["updated_at"] = now
+            return public_appointment(appointment, cancellation_status="cancelled")
+
     def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
         for item in self._appointments:
             if int(item.get("user_id") or 0) == int(user_id) and int(item.get("appointment_id") or 0) == int(appointment_id):
                 return {key: value for key, value in item.items() if key != "user_id"}
         return None
 
-    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return private_application_rows(self._payment_orders, user_id=user_id, application_id=application_id)
-
-    def get_payment_receipts(
+    def get_payment_orders_by_applications(
         self,
         *,
         user_id: int,
-        application_id: int,
-        payment_order_id: int | None = None,
+        application_ids: list[int],
     ) -> list[dict[str, Any]]:
-        rows = private_application_rows(self._payment_receipts, user_id=user_id, application_id=application_id)
-        if payment_order_id is not None:
-            rows = [row for row in rows if int(row.get("payment_order_id") or 0) == int(payment_order_id)]
-        return rows
+        """在一次内存扫描中返回多个申请的缴费订单。"""
+        id_set = {int(item) for item in application_ids if int(item) > 0}
+        return [
+            {key: value for key, value in item.items() if key != "user_id"}
+            for item in self._payment_orders
+            if int(item.get("user_id") or 0) == int(user_id)
+            and int(item.get("application_id") or 0) in id_set
+        ]
 
-    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return private_application_rows(self._submission_receipts, user_id=user_id, application_id=application_id)
+    def get_payment_receipts_by_targets(
+        self,
+        *,
+        user_id: int,
+        targets: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        all_order_applications = {
+            int(target.get("application_id") or 0)
+            for target in targets
+            if target.get("payment_order_id") is None
+        }
+        target_pairs = {
+            (int(target.get("application_id") or 0), int(target.get("payment_order_id") or 0))
+            for target in targets
+            if target.get("payment_order_id") is not None
+        }
+        return [
+            {key: value for key, value in item.items() if key != "user_id"}
+            for item in self._payment_receipts
+            if int(item.get("user_id") or 0) == int(user_id)
+            and (
+                int(item.get("application_id") or 0) in all_order_applications
+                or (
+                    int(item.get("application_id") or 0),
+                    int(item.get("payment_order_id") or 0),
+                ) in target_pairs
+            )
+        ]
 
-    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return private_application_rows(self._result_certificates, user_id=user_id, application_id=application_id)
+    def get_submission_receipts_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return private_application_rows_by_ids(
+            self._submission_receipts, user_id=user_id, application_ids=application_ids
+        )
 
-    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return private_application_rows(self._deliveries, user_id=user_id, application_id=application_id)
+    def get_result_certificates_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return private_application_rows_by_ids(
+            self._result_certificates, user_id=user_id, application_ids=application_ids
+        )
+
+    def get_delivery_statuses_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return private_application_rows_by_ids(
+            self._deliveries, user_id=user_id, application_ids=application_ids
+        )
 
     def list_consultation_records(
         self,
@@ -983,11 +1098,21 @@ class InMemoryBusinessDataAdapter:
         return sorted(output, key=lambda row: str(row.get("created_at") or ""), reverse=True)
 
 
-def public_appointment(item: dict[str, Any], *, booking_status: str) -> dict[str, Any]:
+def public_appointment(
+    item: dict[str, Any],
+    *,
+    booking_status: str | None = None,
+    cancellation_status: str | None = None,
+) -> dict[str, Any]:
     """移除可信身份和幂等字段后返回预约结果。"""
+    status_fields = {}
+    if booking_status:
+        status_fields["booking_status"] = booking_status
+    if cancellation_status:
+        status_fields["cancellation_status"] = cancellation_status
     return {
         key: value
-        for key, value in {**item, "booking_status": booking_status}.items()
+        for key, value in {**item, **status_fields}.items()
         if key not in {"user_id", "idempotency_key"}
     }
 
@@ -1025,18 +1150,19 @@ def ticket_title(item: dict[str, Any]) -> str:
     return names.get(str(item.get("biz_type") or ""), str(item.get("biz_type") or "政务服务事项"))
 
 
-def private_application_rows(
+def private_application_rows_by_ids(
     rows: list[dict[str, Any]],
     *,
     user_id: int,
-    application_id: int,
+    application_ids: list[int],
 ) -> list[dict[str, Any]]:
-    """按可信用户和申请主键过滤内存业务数据。"""
+    """按可信用户和一组申请主键过滤内存业务数据。"""
+    id_set = {int(item) for item in application_ids if int(item) > 0}
     output = []
     for item in rows:
         if int(item.get("user_id") or 0) != int(user_id):
             continue
-        if int(item.get("application_id") or 0) != int(application_id):
+        if int(item.get("application_id") or 0) not in id_set:
             continue
         output.append({key: value for key, value in item.items() if key != "user_id"})
     return output

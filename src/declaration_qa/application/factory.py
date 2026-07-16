@@ -33,6 +33,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         settings,
         timeout_seconds=settings.agent_timeout_seconds,
         model_name=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_api_base,
     )
     multimodal_model_name = settings.agent_model or settings.llm_model
     multimodal_agent_model = (
@@ -42,6 +44,8 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             settings,
             timeout_seconds=settings.agent_timeout_seconds,
             model_name=multimodal_model_name,
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_api_base,
         )
     )
     cache_store = (

@@ -12,6 +12,7 @@ BUSINESS_PRIMARY_KEY_FIELDS: dict[str, tuple[str, ...]] = {
     "appointment_hall_query": ("hall_code",),
     "appointment_slot_query": ("slot_id",),
     "appointment_book": ("appointment_id",),
+    "appointment_cancel": ("appointment_id",),
     "queue_status_query": ("appointment_id",),
     "payment_order_query": ("payment_order_id",),
     "payment_receipt_query": ("payment_receipt_id",),

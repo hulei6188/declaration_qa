@@ -9,6 +9,7 @@ from declaration_qa.application.tools.registry import (
 )
 from declaration_qa.application.tools.service_queries import (
     AppointmentBookTool,
+    AppointmentCancelTool,
     AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
@@ -25,6 +26,7 @@ from declaration_qa.application.tools.ticket import TicketDetailQueryTool, Ticke
 __all__ = [
     "AgentTool",
     "AppointmentBookTool",
+    "AppointmentCancelTool",
     "AppointmentHallQueryTool",
     "AppointmentListQueryTool",
     "AppointmentSlotQueryTool",

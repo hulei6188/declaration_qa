@@ -54,7 +54,9 @@ class DeclarationQASettings(BaseSettings):
     max_accumulated_sources: int = Field(default=48, alias="DECLARATION_QA_MAX_ACCUMULATED_SOURCES")
 
     llm_provider: str = Field(default="deterministic", alias="DECLARATION_QA_LLM_PROVIDER")
-    llm_model: str = Field(default="qwen-plus", alias="DECLARATION_QA_LLM_MODEL")
+    llm_model: str = Field(default="deepseek-v4-flash", alias="DECLARATION_QA_LLM_MODEL")
+    llm_api_key: str = Field(default="", alias="DECLARATION_QA_LLM_API_KEY")
+    llm_api_base: str = Field(default="https://api.deepseek.com", alias="DECLARATION_QA_LLM_API_BASE")
     openai_api_key: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_KEY")
     openai_api_base: str = Field(default="", alias="DECLARATION_QA_OPENAI_API_BASE")
     external_request_timeout_seconds: float = Field(default=10.0, alias="DECLARATION_QA_EXTERNAL_REQUEST_TIMEOUT_SECONDS")

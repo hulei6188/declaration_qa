@@ -10,6 +10,8 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
+from langgraph.types import interrupt
+
 from declaration_qa.application.agent import accumulated_knowledge_queries, choose_application_id
 from declaration_qa.application.evidence_registry import build_evidence_registry
 from declaration_qa.application.state import DeclarationQAState
@@ -223,12 +225,39 @@ class AgentRuntimeNodes:
         return next_state
 
     def agent_execute_tools(self, state: DeclarationQAState) -> DeclarationQAState:
-        """并发执行当前 Agent 规划的工具调用。"""
+        """经人工确认后并发执行当前 Agent 规划的工具调用。"""
         next_state = dict(state)
         results = list(next_state.get("tool_results") or [])
         signatures = list(next_state.get("agent_call_signatures") or [])
         calls = list(next_state.get("agent_pending_tool_calls") or [])
-        for call, payload, signature in self._execute_tool_wave(calls, next_state):
+        protected_calls = [call for call in calls if requires_human_confirmation(str(call.get("name") or ""))]
+        approved_call_ids: set[str] = set()
+        if protected_calls:
+            confirmation = interrupt(build_human_confirmation_payload(protected_calls, next_state))
+            approved = bool((confirmation or {}).get("approved")) if isinstance(confirmation, dict) else False
+            approved_call_ids = {
+                str(call.get("id") or call.get("name") or "")
+                for call in protected_calls
+            } if approved else set()
+            next_state["human_confirmation"] = {
+                "approved": approved,
+                "actions": build_human_confirmation_actions(protected_calls, next_state),
+            }
+            add_event(
+                next_state,
+                "human_confirmation_resolved",
+                {
+                    "approved": approved,
+                    "call_ids": [str(call.get("id") or call.get("name") or "") for call in protected_calls],
+                },
+            )
+
+        execution_outputs = self._execute_tool_wave(
+            calls,
+            next_state,
+            approved_call_ids=approved_call_ids,
+        )
+        for call, payload, signature in execution_outputs:
             results.append(payload)
             append_tool_message(next_state, call, payload)
             if payload.get("status") not in {"policy_denied", "invalid_arguments"}:
@@ -254,25 +283,57 @@ class AgentRuntimeNodes:
         self,
         calls: list[dict[str, Any]],
         state: DeclarationQAState,
+        *,
+        approved_call_ids: set[str] | None = None,
     ) -> list[tuple[dict[str, Any], dict[str, Any], str]]:
         """并发执行一组彼此独立的工具调用，并保持 Agent 给出的顺序。"""
         if not calls:
             return []
-        if len(calls) == 1:
-            payload, signature = self._execute_agent_tool_call(calls[0], state)
-            return [(calls[0], payload, signature)]
-        with ThreadPoolExecutor(max_workers=min(4, len(calls)), thread_name_prefix="declaration-qa-tool") as executor:
-            futures = [
-                executor.submit(copy_context().run, self._execute_agent_tool_call, call, state)
-                for call in calls
-            ]
-            outputs = [future.result() for future in futures]
-        return [(call, payload, signature) for call, (payload, signature) in zip(calls, outputs)]
+        approved_ids = approved_call_ids or set()
+        executable_calls = []
+        rejected_outputs: dict[str, tuple[dict[str, Any], str]] = {}
+        for call in calls:
+            call_id = str(call.get("id") or call.get("name") or "")
+            if requires_human_confirmation(str(call.get("name") or "")) and call_id not in approved_ids:
+                rejected_outputs[call_id] = human_rejected_tool_result(call)
+            else:
+                executable_calls.append(call)
+        executed_outputs: dict[str, tuple[dict[str, Any], str]] = {}
+        if executable_calls:
+            if len(executable_calls) == 1:
+                call = executable_calls[0]
+                call_id = str(call.get("id") or call.get("name") or "")
+                executed_outputs[call_id] = self._execute_agent_tool_call(
+                    call,
+                    state,
+                    human_approved=call_id in approved_ids,
+                )
+            else:
+                with ThreadPoolExecutor(max_workers=min(4, len(executable_calls)), thread_name_prefix="declaration-qa-tool") as executor:
+                    futures = [
+                        executor.submit(
+                            copy_context().run,
+                            self._execute_agent_tool_call,
+                            call,
+                            state,
+                            human_approved=(str(call.get("id") or call.get("name") or "") in approved_ids),
+                        )
+                        for call in executable_calls
+                    ]
+                    for call, future in zip(executable_calls, futures):
+                        executed_outputs[str(call.get("id") or call.get("name") or "")] = future.result()
+        outputs = {**rejected_outputs, **executed_outputs}
+        return [
+            (call, *outputs[str(call.get("id") or call.get("name") or "")])
+            for call in calls
+        ]
 
     def _execute_agent_tool_call(
         self,
         call: dict[str, Any],
         state: DeclarationQAState,
+        *,
+        human_approved: bool = False,
     ) -> tuple[dict[str, Any], str]:
         """执行单个已规划工具调用。"""
         started_at = datetime.now(timezone.utc)
@@ -290,7 +351,7 @@ class AgentRuntimeNodes:
                 "tool_call_origin": str(call.get("origin") or "agent"),
             },
         )
-        denial_reason = agent_tool_call_denial_reason(
+        denial_reason = "" if human_approved else agent_tool_call_denial_reason(
             name,
             str(state.get("normalized_query") or state.get("query") or ""),
             arguments=arguments,
@@ -352,14 +413,26 @@ class AgentRuntimeNodes:
                 }
             elif result.get("tool_name") == "ticket_detail_query":
                 applications = list(data.get("applications") or [])
-                next_state["agent_selected_item_code"] = str(data.get("item_code") or "")
-                next_state["agent_selected_application_id"] = choose_application_id(
+                selected_application_id = choose_application_id(
                     str(next_state.get("normalized_query") or next_state.get("query") or ""),
                     applications,
                 )
+                selected_application = next(
+                    (
+                        item
+                        for item in applications
+                        if isinstance(item, dict)
+                        and int(item.get("application_id") or 0) == int(selected_application_id or 0)
+                    ),
+                    {},
+                )
+                selected_item_code = str(selected_application.get("item_code") or "")
+                next_state["agent_selected_item_code"] = selected_item_code
+                next_state["agent_selected_application_id"] = selected_application_id
                 next_state["business_snapshot"] = {
                     "source": "ticket_detail_query",
-                    "item_code": data.get("item_code") or "",
+                    "item_code": selected_item_code,
+                    "item_codes": list(data.get("item_codes") or []),
                     "selected_application_id": next_state.get("agent_selected_application_id"),
                     "applications": applications,
                 }
@@ -490,7 +563,8 @@ def tool_call_signature(name: str, arguments: dict[str, Any]) -> str:
 def unique_new_tool_calls(calls: list[dict[str, Any]], *, existing_signatures: set[str]) -> list[dict[str, Any]]:
     output = []
     seen = set(existing_signatures)
-    for call in coalesce_knowledge_search_calls(calls):
+    normalized_calls = coalesce_batch_business_calls(coalesce_knowledge_search_calls(calls))
+    for call in normalized_calls:
         name = str(call.get("name") or "").strip()
         arguments = dict(call.get("arguments") or {})
         signature = tool_call_signature(name, arguments)
@@ -548,6 +622,185 @@ def coalesce_knowledge_search_calls(calls: list[dict[str, Any]]) -> list[dict[st
     return output
 
 
+def coalesce_batch_business_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把申请详情和缴费订单的多次单条调用合并为批量调用。"""
+    output = coalesce_ticket_detail_calls(calls)
+    output = coalesce_payment_order_calls(output)
+    output = coalesce_payment_receipt_calls(output)
+    for tool_name in (
+        "submission_receipt_query",
+        "result_certificate_query",
+        "delivery_status_query",
+    ):
+        output = coalesce_application_batch_calls(output, tool_name=tool_name)
+    return output
+
+
+def coalesce_ticket_detail_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """合并同一轮内模型生成的多个批量申请详情调用。"""
+    ticket_calls = [call for call in calls if str(call.get("name") or "").strip() == "ticket_detail_query"]
+    if any(not isinstance(dict(call.get("arguments") or {}).get("item_codes"), list) for call in ticket_calls):
+        return calls
+    output: list[dict[str, Any]] = []
+    merged_call: dict[str, Any] | None = None
+    merged_index = -1
+    item_codes: list[str] = []
+    seen_codes: set[str] = set()
+    detail_types: set[str] = set()
+    for call in calls:
+        if str(call.get("name") or "").strip() != "ticket_detail_query":
+            output.append(call)
+            continue
+        if merged_call is None:
+            merged_call = dict(call)
+            merged_index = len(output)
+            output.append(merged_call)
+        arguments = dict(call.get("arguments") or {})
+        raw_item_codes = arguments.get("item_codes") or []
+        candidates = list(raw_item_codes) if isinstance(raw_item_codes, list) else [raw_item_codes]
+        for candidate in candidates:
+            value = str(candidate or "").strip()
+            if value and value not in seen_codes and len(item_codes) < 50:
+                seen_codes.add(value)
+                item_codes.append(value)
+        detail_types.add(str(arguments.get("detail_type") or "full"))
+    if merged_call is not None:
+        if item_codes:
+            detail_type = next(iter(detail_types)) if len(detail_types) == 1 else "full"
+            output[merged_index] = {
+                **merged_call,
+                "arguments": {"item_codes": item_codes, "detail_type": detail_type},
+            }
+        else:
+            output.pop(merged_index)
+    return output
+
+
+def coalesce_payment_order_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """合并同一轮内模型生成的多个批量缴费订单调用。"""
+    payment_calls = [call for call in calls if str(call.get("name") or "").strip() == "payment_order_query"]
+    if any(not isinstance(dict(call.get("arguments") or {}).get("application_ids"), list) for call in payment_calls):
+        return calls
+    output: list[dict[str, Any]] = []
+    merged_call: dict[str, Any] | None = None
+    merged_index = -1
+    application_ids: list[int] = []
+    seen_ids: set[int] = set()
+    for call in calls:
+        if str(call.get("name") or "").strip() != "payment_order_query":
+            output.append(call)
+            continue
+        if merged_call is None:
+            merged_call = dict(call)
+            merged_index = len(output)
+            output.append(merged_call)
+        arguments = dict(call.get("arguments") or {})
+        raw_application_ids = arguments.get("application_ids") or []
+        candidates = list(raw_application_ids) if isinstance(raw_application_ids, list) else [raw_application_ids]
+        for candidate in candidates:
+            try:
+                value = int(candidate)
+            except (TypeError, ValueError):
+                continue
+            if value > 0 and value not in seen_ids and len(application_ids) < 100:
+                seen_ids.add(value)
+                application_ids.append(value)
+    if merged_call is not None:
+        if application_ids:
+            output[merged_index] = {
+                **merged_call,
+                "arguments": {"application_ids": application_ids},
+            }
+        else:
+            output.pop(merged_index)
+    return output
+
+
+def coalesce_payment_receipt_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """合并同一轮内模型生成的多个电子票据批量调用。"""
+    receipt_calls = [call for call in calls if str(call.get("name") or "").strip() == "payment_receipt_query"]
+    if any(not isinstance(dict(call.get("arguments") or {}).get("targets"), list) for call in receipt_calls):
+        return calls
+    output: list[dict[str, Any]] = []
+    merged_call: dict[str, Any] | None = None
+    merged_index = -1
+    targets: list[dict[str, int | None]] = []
+    seen_targets: set[tuple[int, int | None]] = set()
+    for call in calls:
+        if str(call.get("name") or "").strip() != "payment_receipt_query":
+            output.append(call)
+            continue
+        if merged_call is None:
+            merged_call = dict(call)
+            merged_index = len(output)
+            output.append(merged_call)
+        for target in dict(call.get("arguments") or {}).get("targets") or []:
+            if not isinstance(target, dict):
+                continue
+            try:
+                application_id = int(target.get("application_id") or 0)
+                payment_order_id = (
+                    int(target["payment_order_id"])
+                    if target.get("payment_order_id") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                continue
+            signature = (application_id, payment_order_id)
+            if application_id > 0 and signature not in seen_targets and len(targets) < 100:
+                seen_targets.add(signature)
+                targets.append(
+                    {
+                        "application_id": application_id,
+                        "payment_order_id": payment_order_id,
+                    }
+                )
+    if merged_call is not None:
+        if targets:
+            output[merged_index] = {**merged_call, "arguments": {"targets": targets}}
+        else:
+            output.pop(merged_index)
+    return output
+
+
+def coalesce_application_batch_calls(
+    calls: list[dict[str, Any]],
+    *,
+    tool_name: str,
+) -> list[dict[str, Any]]:
+    """合并同一轮内指定工具的多个 application_ids 批量调用。"""
+    matched_calls = [call for call in calls if str(call.get("name") or "").strip() == tool_name]
+    if any(not isinstance(dict(call.get("arguments") or {}).get("application_ids"), list) for call in matched_calls):
+        return calls
+    output: list[dict[str, Any]] = []
+    merged_call: dict[str, Any] | None = None
+    merged_index = -1
+    application_ids: list[int] = []
+    seen_ids: set[int] = set()
+    for call in calls:
+        if str(call.get("name") or "").strip() != tool_name:
+            output.append(call)
+            continue
+        if merged_call is None:
+            merged_call = dict(call)
+            merged_index = len(output)
+            output.append(merged_call)
+        for candidate in dict(call.get("arguments") or {}).get("application_ids") or []:
+            try:
+                value = int(candidate)
+            except (TypeError, ValueError):
+                continue
+            if value > 0 and value not in seen_ids and len(application_ids) < 100:
+                seen_ids.add(value)
+                application_ids.append(value)
+    if merged_call is not None:
+        if application_ids:
+            output[merged_index] = {**merged_call, "arguments": {"application_ids": application_ids}}
+        else:
+            output.pop(merged_index)
+    return output
+
+
 def agent_failure_reason(results: list[dict[str, Any]]) -> str:
     statuses = [str(item.get("status") or "") for item in results if isinstance(item, dict)]
     if "not_found" in statuses:
@@ -571,34 +824,143 @@ def agent_tool_call_denial_reason(
     arguments: dict[str, Any] | None = None,
 ) -> str:
     """返回模型外策略拒绝原因；空字符串表示允许执行。"""
-    if tool_name == "knowledge_search":
-        return ""
-    if tool_name == "appointment_book":
-        if (arguments or {}).get("confirmed") is not True:
-            return "appointment_book requires confirmed=true"
-        if not booking_intent_confirmed(query):
-            return "appointment_book requires explicit user confirmation in the current query"
     return ""
 
 
-def booking_intent_confirmed(query: str) -> bool:
-    """判断当前用户表达是否明确授权执行预约写操作。"""
-    normalized = str(query or "").strip().lower()
-    confirmations = {
-        "确认预约",
-        "确定预约",
-        "帮我预约",
-        "请预约",
-        "我要预约",
-        "立即预约",
-        "现在预约",
-        "预约这个",
-        "就约这个",
-        "给我预约",
-        "confirm booking",
-        "book it",
+HUMAN_CONFIRMATION_TOOL_NAMES = {"appointment_book", "appointment_cancel"}
+
+
+def requires_human_confirmation(tool_name: str) -> bool:
+    """判断工具是否必须在执行前经过人工确认。"""
+    return str(tool_name or "") in HUMAN_CONFIRMATION_TOOL_NAMES
+
+
+def build_human_confirmation_payload(
+    calls: list[dict[str, Any]],
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    """构造可由前端直接展示的人工确认载荷。"""
+    actions = build_human_confirmation_actions(calls, state)
+    tool_names = {str(action.get("tool_name") or "") for action in actions}
+    if tool_names == {"appointment_cancel"}:
+        title = f"确认取消 {len(actions)} 条预约" if len(actions) > 1 else "确认取消预约"
+        warning = "确认后将取消所选预约并释放对应号源。"
+    elif tool_names == {"appointment_book"}:
+        title = f"确认提交 {len(actions)} 条预约" if len(actions) > 1 else "确认提交预约"
+        warning = "确认后将占用对应号源并创建预约记录。"
+    else:
+        title = "确认执行预约操作"
+        warning = "请核对以下操作，确认后系统才会执行。"
+    return {
+        "type": "tool_confirmation",
+        "title": title,
+        "warning": warning,
+        "actions": actions,
     }
-    return any(term in normalized for term in confirmations)
+
+
+def build_human_confirmation_actions(
+    calls: list[dict[str, Any]],
+    state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """把写工具参数关联到本轮可信查询结果，生成确认明细。"""
+    actions: list[dict[str, Any]] = []
+    for call in calls:
+        tool_name = str(call.get("name") or "")
+        arguments = dict(call.get("arguments") or {})
+        call_id = str(call.get("id") or tool_name)
+        if tool_name == "appointment_cancel":
+            appointment_id = int(arguments.get("appointment_id") or 0)
+            record = find_business_record(
+                state.get("tool_results") or [],
+                tool_name="appointment_list_query",
+                collection="appointments",
+                key="appointment_id",
+                value=appointment_id,
+            )
+            actions.append(
+                {
+                    "call_id": call_id,
+                    "tool_name": tool_name,
+                    "label": "取消预约",
+                    "subject": str(record.get("item_name") or f"预约 {appointment_id}"),
+                    "details": appointment_record_details(record),
+                    "arguments": {"appointment_id": appointment_id},
+                }
+            )
+            continue
+        slot_id = int(arguments.get("slot_id") or 0)
+        record = find_business_record(
+            state.get("tool_results") or [],
+            tool_name="appointment_slot_query",
+            collection="slots",
+            key="slot_id",
+            value=slot_id,
+        )
+        actions.append(
+            {
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "label": "提交预约",
+                "subject": str(record.get("item_name") or f"预约号源 {slot_id}"),
+                "details": appointment_record_details(record),
+                "arguments": {"slot_id": slot_id},
+            }
+        )
+    return actions
+
+
+def find_business_record(
+    results: list[dict[str, Any]],
+    *,
+    tool_name: str,
+    collection: str,
+    key: str,
+    value: int,
+) -> dict[str, Any]:
+    """从本轮可信工具结果中查找人工确认所需的业务实体。"""
+    for result in reversed(results):
+        if str(result.get("tool_name") or "") != tool_name or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for record in data.get(collection) or []:
+            if isinstance(record, dict) and int(record.get(key) or 0) == int(value):
+                return dict(record)
+    return {}
+
+
+def appointment_record_details(record: dict[str, Any]) -> list[str]:
+    """提取适合人工核对的预约时间和办理地点。"""
+    date = str(record.get("service_date") or "").strip()
+    start = str(record.get("start_time") or "").strip()
+    end = str(record.get("end_time") or "").strip()
+    time_text = " ".join(part for part in [date, f"{start}-{end}" if start or end else ""] if part)
+    hall = str(record.get("hall_name") or "").strip()
+    address = str(record.get("hall_address") or "").strip()
+    return [part for part in [time_text, hall, address] if part]
+
+
+def human_rejected_tool_result(call: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """构造用户拒绝人工确认后的稳定工具结果。"""
+    now = datetime.now(timezone.utc).isoformat()
+    name = str(call.get("name") or "")
+    arguments = dict(call.get("arguments") or {})
+    call_id = str(call.get("id") or name)
+    return (
+        {
+            "tool_name": name,
+            "call_id": call_id,
+            "ok": False,
+            "status": "human_rejected",
+            "data": {"source_type": "human_confirmation"},
+            "error": "用户未批准该写操作",
+            "arguments": audit_tool_arguments(name, arguments),
+            "started_at": now,
+            "completed_at": now,
+            "latency_ms": 0,
+        },
+        tool_call_signature(name, arguments),
+    )
 
 
 

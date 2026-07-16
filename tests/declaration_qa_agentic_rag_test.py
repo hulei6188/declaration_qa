@@ -128,14 +128,14 @@ def test_tool_registry_exposes_item_scoped_ticket_tools_without_user_id_argument
     assert "ticket_id" not in definitions["ticket_detail_query"]["parameters"].get("properties", {})
     detail_definition = definitions["ticket_detail_query"]
     assert "ticket_list_query" in detail_definition["description"]
-    assert "ticket_list_query" in detail_definition["parameters"]["properties"]["item_code"]["description"]
-    assert "历史对话" in detail_definition["parameters"]["properties"]["item_code"]["description"]
+    assert "ticket_list_query" in detail_definition["parameters"]["properties"]["item_codes"]["description"]
+    assert "历史对话" in detail_definition["parameters"]["properties"]["item_codes"]["description"]
 
     context = ToolExecutionContext(user_id=1, region_code="340000")
     listing = registry.execute("ticket_list_query", {}, context, call_id="list-1")
     detail = registry.execute(
         "ticket_detail_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "detail_type": "rejection"},
+        {"item_codes": ["ITEM-RESIDENCE-PERMIT"], "detail_type": "rejection"},
         context,
         call_id="detail-1",
     )
@@ -254,7 +254,7 @@ def test_ticket_detail_returns_every_application_and_every_status_change_for_ite
     )
     adapter._applications["A1900"] = previous
 
-    applications = adapter.get_applications_by_item(user_id=1, item_code="ITEM-RESIDENCE-PERMIT")
+    applications = adapter.get_applications_by_items(user_id=1, item_codes=["ITEM-RESIDENCE-PERMIT"])
 
     assert {item["application_id"] for item in applications} == {1900, 2002}
     assert [event["sequence_no"] for event in next(item for item in applications if item["application_id"] == 1900)["status_history"]] == [1, 2, 3]
@@ -268,7 +268,7 @@ def test_ticket_detail_is_scoped_to_trusted_user_context():
 
     result = registry.execute(
         "ticket_detail_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT"},
+        {"item_codes": ["ITEM-RESIDENCE-PERMIT"]},
         ToolExecutionContext(user_id=999, region_code="340000"),
     )
 
@@ -284,12 +284,12 @@ def test_tool_policy_allows_direct_business_and_knowledge_queries():
     assert agent_tool_call_denial_reason(
         "ticket_detail_query",
         "我的居住证申请进度",
-        arguments={"item_code": "ITEM-RESIDENCE-PERMIT"},
+        arguments={"item_codes": ["ITEM-RESIDENCE-PERMIT"]},
     ) == ""
     assert agent_tool_call_denial_reason(
         "ticket_detail_query",
         "我的居住证申请进度",
-        arguments={"item_code": "ITEM-OTHER"},
+        arguments={"item_codes": ["ITEM-OTHER"]},
     ) == ""
     assert agent_tool_call_denial_reason(
         "knowledge_search",
@@ -310,7 +310,7 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
                     tool_call(
                         "detail",
                         "ticket_detail_query",
-                        {"item_code": "ITEM-RESIDENCE-PERMIT", "detail_type": "rejection"},
+                        {"item_codes": ["ITEM-RESIDENCE-PERMIT"], "detail_type": "rejection"},
                     )
                 ],
             )
@@ -417,7 +417,7 @@ def test_mixed_ticket_and_guidance_question_keeps_business_result_out_of_rag_que
                     tool_call(
                         "detail",
                         "ticket_detail_query",
-                        {"item_code": "ITEM-RESIDENCE-PERMIT", "detail_type": "rejection"},
+                        {"item_codes": ["ITEM-RESIDENCE-PERMIT"], "detail_type": "rejection"},
                     )
                 ],
             )

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from datetime import date
 from hashlib import sha256
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from declaration_qa.application.tools.registry import ToolExecutionContext, ToolExecutionResult
-from declaration_qa.core.business import AppointmentBookingError, BusinessDataAdapter
+from declaration_qa.core.business import (
+    AppointmentBookingError,
+    AppointmentCancellationError,
+    BusinessDataAdapter,
+)
 
 
 class AppointmentListQueryInput(BaseModel):
@@ -71,7 +75,28 @@ class AppointmentBookInput(BaseModel):
             "不得猜测、编造或使用历史对话中的 slot_id"
         ),
     )
-    confirmed: Literal[True] = Field(description="仅在用户明确确认预约后传 true")
+    confirmed: bool = Field(
+        default=False,
+        description="兼容字段；是否执行由服务端人工确认界面决定，模型不能自行确认",
+    )
+
+
+class AppointmentCancelInput(BaseModel):
+    """使用预约列表返回的 appointment_id 取消预约。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    appointment_id: int = Field(
+        ge=1,
+        description=(
+            "待取消预约的业务主键；应先调用 appointment_list_query 确认目标预约，"
+            "不得猜测、编造或直接使用历史对话中的 appointment_id"
+        ),
+    )
+    confirmed: bool = Field(
+        default=False,
+        description="兼容字段；是否执行由服务端人工确认界面决定，模型不能自行确认",
+    )
 
 
 class QueueStatusQueryInput(BaseModel):
@@ -88,22 +113,31 @@ class QueueStatusQueryInput(BaseModel):
     )
 
 
-class ApplicationScopedQueryInput(BaseModel):
-    """使用本轮申请详情返回的 application_id 查询业务数据。"""
+class ApplicationBatchQueryInput(BaseModel):
+    """使用本轮申请详情返回的 application_ids 批量查询业务数据。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    application_ids: list[Annotated[int, Field(ge=1)]] = Field(
+        min_length=1,
+        max_length=100,
+        description=(
+            "申请主键数组；必须直接取自本轮先行调用 ticket_detail_query 成功返回的 "
+            "data.applications[].application_id。多个申请必须放入同一个数组，不得拆成多个工具调用，"
+            "也不得猜测、编造或使用历史对话中的 application_id"
+        ),
+    )
+
+
+class PaymentReceiptTarget(BaseModel):
+    """一组申请与可选缴费订单的关联查询目标。"""
 
     model_config = ConfigDict(extra="forbid")
 
     application_id: int = Field(
         ge=1,
-        description=(
-            "必须直接取自本轮先行调用 ticket_detail_query 成功返回的 "
-            "data.applications[].application_id；不得猜测、编造或使用历史对话中的 application_id"
-        ),
+        description="必须取自本轮 ticket_detail_query 返回的 application_id",
     )
-
-
-class PaymentReceiptQueryInput(ApplicationScopedQueryInput):
-    """可以按缴费订单主键进一步限定电子票据。"""
 
     payment_order_id: int | None = Field(
         default=None,
@@ -111,6 +145,21 @@ class PaymentReceiptQueryInput(ApplicationScopedQueryInput):
         description=(
             "可选；必须直接取自本轮先行调用 payment_order_query 成功返回的 "
             "data.payment_orders[].payment_order_id，不得猜测、编造或使用历史对话中的 payment_order_id"
+        ),
+    )
+
+
+class PaymentReceiptBatchQueryInput(BaseModel):
+    """批量查询电子票据，并保持申请与缴费订单的对应关系。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    targets: list[PaymentReceiptTarget] = Field(
+        min_length=1,
+        max_length=100,
+        description=(
+            "批量查询目标；多个申请或缴费订单必须放入同一个 targets 数组，"
+            "不得拆成多个工具调用"
         ),
     )
 
@@ -210,7 +259,7 @@ class AppointmentBookTool:
         "为当前登录用户预约指定号源。这是写操作，调用前必须先在本轮调用 "
         "appointment_slot_query，并仅使用该工具成功返回的 data.slots[].slot_id；"
         "不得猜测、编造或复用历史对话中的 slot_id。"
-        "仅当用户明确确认该具体时段后调用；事项、大厅、日期和时间由服务端号源派生。"
+        "工具执行前服务端会暂停并请求用户在界面中人工确认；事项、大厅、日期和时间由服务端号源派生。"
     )
     input_model = AppointmentBookInput
 
@@ -247,6 +296,47 @@ class AppointmentBookTool:
         )
 
 
+class AppointmentCancelTool:
+    name = "appointment_cancel"
+    description = (
+        "取消当前登录用户尚未签到的预约。这是写操作；应先调用 appointment_list_query 确认"
+        "目标预约及 appointment_id。工具执行前服务端会暂停并请求用户在界面中人工确认。"
+        "工具会校验预约归属；重复取消不会重复归还号源。"
+    )
+    input_model = AppointmentCancelInput
+
+    def __init__(self, adapter: BusinessDataAdapter) -> None:
+        self.adapter = adapter
+
+    def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
+        request = AppointmentCancelInput.model_validate(arguments)
+        try:
+            appointment = self.adapter.cancel_appointment(
+                user_id=context.user_id,
+                region_code=context.region_code or None,
+                appointment_id=request.appointment_id,
+            )
+        except AppointmentCancellationError as exc:
+            return ToolExecutionResult(
+                tool_name=self.name,
+                call_id=self.name,
+                ok=False,
+                status=exc.code,
+                data={
+                    "appointment_id": request.appointment_id,
+                    "source_type": "business_tool",
+                },
+                error=str(exc),
+            )
+        return ToolExecutionResult(
+            tool_name=self.name,
+            call_id=self.name,
+            ok=True,
+            status="success",
+            data={"appointment": appointment, "source_type": "business_tool"},
+        )
+
+
 class QueueStatusQueryTool:
     name = "queue_status_query"
     description = (
@@ -272,97 +362,110 @@ class QueueStatusQueryTool:
 class PaymentOrderQueryTool:
     name = "payment_order_query"
     description = (
-        "查询当前登录用户指定申请的缴费项目、金额、支付状态、支付期限和支付时间。调用前必须"
+        "批量查询当前登录用户多个申请的缴费项目、金额、支付状态、支付期限和支付时间。调用前必须"
         "先在本轮调用 ticket_detail_query，并仅使用其成功返回的 "
-        "data.applications[].application_id；不得猜测、编造或复用历史对话中的 application_id。"
+        "data.applications[].application_id。多个申请必须放入 application_ids 一次调用，"
+        "不得拆分调用，也不得猜测、编造或复用历史对话中的 application_id。"
         "返回的 data.payment_orders[].payment_order_id 可供 payment_receipt_query 使用。"
     )
-    input_model = ApplicationScopedQueryInput
+    input_model = ApplicationBatchQueryInput
 
     def __init__(self, adapter: BusinessDataAdapter) -> None:
         self.adapter = adapter
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
-        request = ApplicationScopedQueryInput.model_validate(arguments)
-        orders = self.adapter.get_payment_orders(user_id=context.user_id, application_id=request.application_id)
-        return business_result(self.name, "payment_orders", orders, application_id=request.application_id)
+        request = ApplicationBatchQueryInput.model_validate(arguments)
+        orders = self.adapter.get_payment_orders_by_applications(
+            user_id=context.user_id,
+            application_ids=request.application_ids,
+        )
+        return business_result(self.name, "payment_orders", orders, application_ids=request.application_ids)
 
 
 class PaymentReceiptQueryTool:
     name = "payment_receipt_query"
     description = (
-        "查询当前登录用户指定申请的电子缴费票据和下载状态。调用前必须先在本轮调用 "
-        "ticket_detail_query 获取 data.applications[].application_id。仅需限定具体缴费订单时，先调用 "
+        "批量查询当前登录用户多个申请的电子缴费票据和下载状态。调用前必须先在本轮调用 "
+        "ticket_detail_query 获取 data.applications[].application_id。需要限定具体缴费订单时，先调用 "
         "payment_order_query，并使用其成功返回的 data.payment_orders[].payment_order_id；"
-        "不得猜测、编造或复用历史对话中的任何业务主键。"
+        "多个目标必须放入 targets 一次查询，不得拆分调用，也不得猜测、编造或复用历史对话中的业务主键。"
     )
-    input_model = PaymentReceiptQueryInput
+    input_model = PaymentReceiptBatchQueryInput
 
     def __init__(self, adapter: BusinessDataAdapter) -> None:
         self.adapter = adapter
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
-        request = PaymentReceiptQueryInput.model_validate(arguments)
-        receipts = self.adapter.get_payment_receipts(
+        request = PaymentReceiptBatchQueryInput.model_validate(arguments)
+        targets = [target.model_dump() for target in request.targets]
+        receipts = self.adapter.get_payment_receipts_by_targets(
             user_id=context.user_id,
-            application_id=request.application_id,
-            payment_order_id=request.payment_order_id,
+            targets=targets,
         )
-        return business_result(self.name, "payment_receipts", receipts, application_id=request.application_id)
+        return business_result(self.name, "payment_receipts", receipts, targets=targets)
 
 
 class SubmissionReceiptQueryTool:
     name = "submission_receipt_query"
     description = (
-        "查询当前登录用户指定申请的提交回执、受理回执、签发时间和下载状态。调用前必须先在"
+        "批量查询当前登录用户多个申请的提交回执、受理回执、签发时间和下载状态。调用前必须先在"
         "本轮调用 ticket_detail_query，并仅使用其成功返回的 data.applications[].application_id；"
-        "不得猜测、编造或复用历史对话中的 application_id。"
+        "多个申请必须放入 application_ids 一次查询，不得拆分调用或复用历史业务主键。"
     )
-    input_model = ApplicationScopedQueryInput
+    input_model = ApplicationBatchQueryInput
 
     def __init__(self, adapter: BusinessDataAdapter) -> None:
         self.adapter = adapter
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
-        request = ApplicationScopedQueryInput.model_validate(arguments)
-        receipts = self.adapter.get_submission_receipts(user_id=context.user_id, application_id=request.application_id)
-        return business_result(self.name, "submission_receipts", receipts, application_id=request.application_id)
+        request = ApplicationBatchQueryInput.model_validate(arguments)
+        receipts = self.adapter.get_submission_receipts_by_applications(
+            user_id=context.user_id,
+            application_ids=request.application_ids,
+        )
+        return business_result(self.name, "submission_receipts", receipts, application_ids=request.application_ids)
 
 
 class ResultCertificateQueryTool:
     name = "result_certificate_query"
     description = (
-        "查询当前登录用户指定申请的办结结果、电子批文或电子证照是否生成及下载状态。调用前"
+        "批量查询当前登录用户多个申请的办结结果、电子批文或电子证照是否生成及下载状态。调用前"
         "必须先在本轮调用 ticket_detail_query，并仅使用其成功返回的 "
-        "data.applications[].application_id；不得猜测、编造或复用历史对话中的 application_id。"
+        "data.applications[].application_id；多个申请必须放入 application_ids 一次查询，不得拆分调用。"
     )
-    input_model = ApplicationScopedQueryInput
+    input_model = ApplicationBatchQueryInput
 
     def __init__(self, adapter: BusinessDataAdapter) -> None:
         self.adapter = adapter
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
-        request = ApplicationScopedQueryInput.model_validate(arguments)
-        certificates = self.adapter.get_result_certificates(user_id=context.user_id, application_id=request.application_id)
-        return business_result(self.name, "certificates", certificates, application_id=request.application_id)
+        request = ApplicationBatchQueryInput.model_validate(arguments)
+        certificates = self.adapter.get_result_certificates_by_applications(
+            user_id=context.user_id,
+            application_ids=request.application_ids,
+        )
+        return business_result(self.name, "certificates", certificates, application_ids=request.application_ids)
 
 
 class DeliveryStatusQueryTool:
     name = "delivery_status_query"
     description = (
-        "查询当前登录用户指定申请的邮寄、自取、物流单号和送达状态。调用前必须先在本轮调用 "
+        "批量查询当前登录用户多个申请的邮寄、自取、物流单号和送达状态。调用前必须先在本轮调用 "
         "ticket_detail_query，并仅使用其成功返回的 data.applications[].application_id；"
-        "不得猜测、编造或复用历史对话中的 application_id。"
+        "多个申请必须放入 application_ids 一次查询，不得拆分调用或复用历史业务主键。"
     )
-    input_model = ApplicationScopedQueryInput
+    input_model = ApplicationBatchQueryInput
 
     def __init__(self, adapter: BusinessDataAdapter) -> None:
         self.adapter = adapter
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
-        request = ApplicationScopedQueryInput.model_validate(arguments)
-        deliveries = self.adapter.get_delivery_statuses(user_id=context.user_id, application_id=request.application_id)
-        return business_result(self.name, "deliveries", deliveries, application_id=request.application_id)
+        request = ApplicationBatchQueryInput.model_validate(arguments)
+        deliveries = self.adapter.get_delivery_statuses_by_applications(
+            user_id=context.user_id,
+            application_ids=request.application_ids,
+        )
+        return business_result(self.name, "deliveries", deliveries, application_ids=request.application_ids)
 
 
 class ConsultationRecordQueryTool:

@@ -319,12 +319,15 @@ cd ..
 Copy-Item .env.example .env
 ```
 
-至少需要根据使用模式配置模型 API Key。远程 DashScope 模式示例：
+至少需要根据使用模式配置模型 API Key。纯文本使用 DeepSeek、图片输入使用 DashScope 的示例：
 
 ```env
-DECLARATION_QA_LLM_PROVIDER=dashscope
+DECLARATION_QA_LLM_PROVIDER=deepseek
+DECLARATION_QA_LLM_API_BASE=https://api.deepseek.com
+DECLARATION_QA_LLM_API_KEY=replace-with-your-deepseek-api-key
+DECLARATION_QA_LLM_MODEL=deepseek-v4-flash
 DECLARATION_QA_OPENAI_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
-DECLARATION_QA_OPENAI_API_KEY=replace-with-your-api-key
+DECLARATION_QA_OPENAI_API_KEY=replace-with-your-dashscope-api-key
 DECLARATION_QA_AGENT_MODEL=qwen3-vl-plus
 
 DECLARATION_QA_EMBEDDING_PROVIDER=qwen3-vl-embedding
@@ -339,7 +342,7 @@ DECLARATION_QA_TEXT_RERANK_MODEL=qwen3-rerank
 
 纯文本查询使用 `DECLARATION_QA_TEXT_RERANK_MODEL`，图片查询才使用多模态 `DECLARATION_QA_RERANK_MODEL`；两条路径共用原有候选数量和 `top_n` 配置。
 
-Agent 在用户本轮未上传图片时使用 `DECLARATION_QA_LLM_MODEL`，只有存在用户查询图片时才使用 `DECLARATION_QA_AGENT_MODEL`。后台记忆摘要同样使用文本模型。Embedding 模型保持统一，避免查询向量和已有索引的向量空间不一致。
+Agent 在用户本轮未上传图片时使用 `DECLARATION_QA_LLM_MODEL` 及其独立的 `DECLARATION_QA_LLM_API_BASE`、`DECLARATION_QA_LLM_API_KEY`；只有存在用户查询图片时才使用 `DECLARATION_QA_AGENT_MODEL` 和原有的 `DECLARATION_QA_OPENAI_API_*`。后台记忆摘要同样使用文本模型。Embedding 模型保持统一，避免查询向量和已有索引的向量空间不一致。
 
 不要提交包含真实密钥的 `.env`。
 
@@ -466,10 +469,13 @@ DECLARATION_QA_INDEX_QUEUE_NAME=declaration-qa-index
 
 | 环境变量 | 说明 |
 | --- | --- |
-| `DECLARATION_QA_LLM_PROVIDER` | `dashscope`、`openai` 或本地确定性模式 |
-| `DECLARATION_QA_OPENAI_API_BASE` | OpenAI Compatible API Base |
-| `DECLARATION_QA_OPENAI_API_KEY` | Chat 和部分 Embedding 使用的 Key |
-| `DECLARATION_QA_AGENT_MODEL` | Agent Tool Calling 模型 |
+| `DECLARATION_QA_LLM_PROVIDER` | `deepseek`、`dashscope`、`openai` 或本地确定性模式 |
+| `DECLARATION_QA_LLM_API_BASE` | 纯文本 Agent 的 OpenAI Compatible API Base |
+| `DECLARATION_QA_LLM_API_KEY` | 纯文本 Agent 使用的 Key |
+| `DECLARATION_QA_LLM_MODEL` | 无图片输入时使用的文本 Agent 模型 |
+| `DECLARATION_QA_OPENAI_API_BASE` | VL Agent 和部分 Embedding 使用的 OpenAI Compatible API Base |
+| `DECLARATION_QA_OPENAI_API_KEY` | VL Agent 和部分 Embedding 使用的 Key |
+| `DECLARATION_QA_AGENT_MODEL` | 有图片输入时使用的 VL Agent 模型 |
 | `DECLARATION_QA_AGENT_MAX_ITERATIONS` | 最大 Agent 迭代轮数 |
 | `DECLARATION_QA_EMBEDDING_PROVIDER` | `qwen3-vl-embedding`、`openai` 或 `hashing` |
 | `DECLARATION_QA_EMBEDDING_DIMENSIONS` | 向量维度，必须与 Milvus collection 一致 |

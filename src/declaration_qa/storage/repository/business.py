@@ -9,7 +9,11 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 
-from declaration_qa.core.business import AppointmentBookingError, region_code_variants
+from declaration_qa.core.business import (
+    AppointmentBookingError,
+    AppointmentCancellationError,
+    region_code_variants,
+)
 from declaration_qa.storage.repository.base import EngineBackedRepository
 
 
@@ -75,14 +79,18 @@ class BusinessRepository(EngineBackedRepository):
             for row in rows
         ]
 
-    def get_applications_by_item(
+    def get_applications_by_items(
         self,
         *,
         user_id: int,
-        item_code: str,
-        application_id: int | None = None,
+        item_codes: list[str],
     ) -> list[dict[str, Any]]:
         """查询同一事项的全部申请，并附带每次申请的完整状态流水。"""
+        normalized_item_codes = list(dict.fromkeys(
+            str(item or "").strip() for item in item_codes if str(item or "").strip()
+        ))
+        if not normalized_item_codes:
+            return []
         with self.engine.begin() as connection:
             applications = connection.execute(
                 text(
@@ -110,18 +118,13 @@ class BusinessRepository(EngineBackedRepository):
                         ON r.apply_id = a.id AND r.is_current = TRUE
                     WHERE a.user_id = :user_id
                       AND a.deleted_at IS NULL
-                      AND COALESCE(NULLIF(a.item_code, ''), a.payload->>'item_code', '') = :item_code
-                      AND (
-                          CAST(:application_id AS BIGINT) IS NULL
-                          OR a.id = CAST(:application_id AS BIGINT)
-                      )
+                      AND COALESCE(NULLIF(a.item_code, ''), a.payload->>'item_code', '') = ANY(:item_codes)
                     ORDER BY GREATEST(a.updated_at, COALESCE(s.updated_at, a.updated_at)) DESC, a.id DESC
                     """
                 ),
                 {
                     "user_id": int(user_id),
-                    "item_code": str(item_code or "").strip(),
-                    "application_id": int(application_id) if application_id is not None else None,
+                    "item_codes": normalized_item_codes,
                 },
             ).mappings().all()
             application_ids = [int(row["application_id"]) for row in applications]
@@ -420,6 +423,79 @@ class BusinessRepository(EngineBackedRepository):
             )
         return {**business_row(appointment), "booking_status": "created"}
 
+    def cancel_appointment(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        appointment_id: int,
+    ) -> dict[str, Any]:
+        """锁定预约并取消，确保重复请求不会重复归还号源。"""
+        region_codes = region_code_variants(region_code)
+        with self.engine.begin() as connection:
+            appointment = connection.execute(
+                text(f"""
+                    SELECT {BOOKING_APPOINTMENT_COLUMNS}
+                    FROM declaration_qa.business_appointments a
+                    WHERE a.id = :appointment_id
+                      AND a.user_id = :user_id
+                      AND (:use_region_filter = FALSE OR a.region_code = ANY(:region_codes))
+                    FOR UPDATE
+                """),
+                {
+                    "appointment_id": int(appointment_id),
+                    "user_id": int(user_id),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
+                },
+            ).mappings().first()
+            if not appointment:
+                raise AppointmentCancellationError("appointment_not_found", "未找到当前用户的预约记录")
+
+            status = str(appointment.get("status") or "")
+            if status == "cancelled":
+                return {**business_row(appointment), "cancellation_status": "already_cancelled"}
+            if status != "booked":
+                raise AppointmentCancellationError(
+                    "cancellation_not_allowed",
+                    "该预约已签到、进入排队或已经办结，当前状态不允许取消",
+                )
+
+            cancelled = connection.execute(
+                text(
+                    """
+                    UPDATE declaration_qa.business_appointments
+                    SET status = 'cancelled',
+                        payload = payload || jsonb_build_object(
+                            'cancelled_by', 'appointment_cancel',
+                            'cancelled_at', CURRENT_TIMESTAMP
+                        ),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :appointment_id
+                    RETURNING
+                        id AS appointment_id, slot_id, item_code, item_name, region_code,
+                        hall_code, hall_name, hall_address, service_date, start_time, end_time,
+                        status, created_at, updated_at
+                    """
+                ),
+                {"appointment_id": int(appointment_id)},
+            ).mappings().one()
+            slot_id = appointment.get("slot_id")
+            if slot_id is not None:
+                connection.execute(
+                    text(
+                        """
+                        UPDATE declaration_qa.business_appointment_slots
+                        SET reserved_count = GREATEST(reserved_count - 1, 0),
+                            status = CASE WHEN status = 'full' THEN 'available' ELSE status END,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :slot_id
+                        """
+                    ),
+                    {"slot_id": int(slot_id)},
+                )
+        return {**business_row(cancelled), "cancellation_status": "cancelled"}
+
     def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
         """按可信用户查询单条预约的排队状态。"""
         with self.engine.begin() as connection:
@@ -452,12 +528,20 @@ class BusinessRepository(EngineBackedRepository):
             ).mappings().first()
         return business_row(row) if row else None
 
-    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询当前用户指定申请的缴费订单。"""
-        return self._application_rows(
-            user_id=user_id,
-            application_id=application_id,
-            statement="""
+    def get_payment_orders_by_applications(
+        self,
+        *,
+        user_id: int,
+        application_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """使用一条 SQL 批量查询当前用户多个申请的缴费订单。"""
+        normalized_ids = list(dict.fromkeys(int(item) for item in application_ids if int(item) > 0))
+        if not normalized_ids:
+            return []
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    """
                 SELECT
                     p.id AS payment_order_id,
                     p.apply_id AS application_id,
@@ -473,19 +557,30 @@ class BusinessRepository(EngineBackedRepository):
                     p.updated_at
                 FROM declaration_qa.business_payment_orders p
                 JOIN declaration_qa.business_applications a ON a.id = p.apply_id
-                WHERE p.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
-                ORDER BY p.created_at DESC, p.id DESC
-            """,
-        )
+                WHERE p.apply_id = ANY(:application_ids)
+                  AND a.user_id = :user_id
+                  AND a.deleted_at IS NULL
+                ORDER BY p.apply_id, p.created_at DESC, p.id DESC
+                    """
+                ),
+                {"user_id": int(user_id), "application_ids": normalized_ids},
+            ).mappings().all()
+        return [business_row(row) for row in rows]
 
-    def get_payment_receipts(
+    def get_payment_receipts_by_targets(
         self,
         *,
         user_id: int,
-        application_id: int,
-        payment_order_id: int | None = None,
+        targets: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """查询当前用户指定申请的缴费票据。"""
+        """使用一条 SQL 批量查询申请及可选缴费订单对应的票据。"""
+        application_ids = list(dict.fromkeys(
+            int(target.get("application_id") or 0)
+            for target in targets
+            if int(target.get("application_id") or 0) > 0
+        ))
+        if not application_ids:
+            return []
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(
@@ -505,26 +600,43 @@ class BusinessRepository(EngineBackedRepository):
                     FROM declaration_qa.business_payment_receipts r
                     JOIN declaration_qa.business_payment_orders p ON p.id = r.payment_order_id
                     JOIN declaration_qa.business_applications a ON a.id = p.apply_id
-                    WHERE p.apply_id = :application_id
+                    WHERE p.apply_id = ANY(:application_ids)
                       AND a.user_id = :user_id
                       AND a.deleted_at IS NULL
-                      AND (CAST(:payment_order_id AS BIGINT) IS NULL OR r.payment_order_id = CAST(:payment_order_id AS BIGINT))
-                    ORDER BY r.issued_at DESC, r.id DESC
+                    ORDER BY p.apply_id, r.issued_at DESC, r.id DESC
                     """
                 ),
                 {
                     "user_id": int(user_id),
-                    "application_id": int(application_id),
-                    "payment_order_id": int(payment_order_id) if payment_order_id is not None else None,
+                    "application_ids": application_ids,
                 },
             ).mappings().all()
-        return [business_row(row) for row in rows]
+        all_order_applications = {
+            int(target.get("application_id") or 0)
+            for target in targets
+            if target.get("payment_order_id") is None
+        }
+        target_pairs = {
+            (int(target.get("application_id") or 0), int(target.get("payment_order_id") or 0))
+            for target in targets
+            if target.get("payment_order_id") is not None
+        }
+        return [
+            payload
+            for row in rows
+            if (
+                (payload := business_row(row))["application_id"] in all_order_applications
+                or (payload["application_id"], payload["payment_order_id"]) in target_pairs
+            )
+        ]
 
-    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询当前用户指定申请的提交和受理回执。"""
-        return self._application_rows(
+    def get_submission_receipts_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询当前用户多个申请的提交和受理回执。"""
+        return self._application_rows_by_ids(
             user_id=user_id,
-            application_id=application_id,
+            application_ids=application_ids,
             statement="""
                 SELECT
                     r.id AS submission_receipt_id,
@@ -537,16 +649,18 @@ class BusinessRepository(EngineBackedRepository):
                     r.download_status
                 FROM declaration_qa.business_submission_receipts r
                 JOIN declaration_qa.business_applications a ON a.id = r.apply_id
-                WHERE r.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
-                ORDER BY r.issued_at DESC, r.id DESC
+                WHERE r.apply_id = ANY(:application_ids) AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY r.apply_id, r.issued_at DESC, r.id DESC
             """,
         )
 
-    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询当前用户指定申请的办结结果。"""
-        return self._application_rows(
+    def get_result_certificates_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询当前用户多个申请的办结结果。"""
+        return self._application_rows_by_ids(
             user_id=user_id,
-            application_id=application_id,
+            application_ids=application_ids,
             statement="""
                 SELECT
                     r.id AS result_certificate_id,
@@ -561,16 +675,18 @@ class BusinessRepository(EngineBackedRepository):
                     r.download_status
                 FROM declaration_qa.business_result_certificates r
                 JOIN declaration_qa.business_applications a ON a.id = r.apply_id
-                WHERE r.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
-                ORDER BY r.issued_at DESC, r.id DESC
+                WHERE r.apply_id = ANY(:application_ids) AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY r.apply_id, r.issued_at DESC, r.id DESC
             """,
         )
 
-    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        """查询当前用户指定申请的结果送达状态。"""
-        return self._application_rows(
+    def get_delivery_statuses_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        """批量查询当前用户多个申请的结果送达状态。"""
+        return self._application_rows_by_ids(
             user_id=user_id,
-            application_id=application_id,
+            application_ids=application_ids,
             statement="""
                 SELECT
                     d.id AS delivery_id,
@@ -585,8 +701,8 @@ class BusinessRepository(EngineBackedRepository):
                     d.updated_at
                 FROM declaration_qa.business_deliveries d
                 JOIN declaration_qa.business_applications a ON a.id = d.apply_id
-                WHERE d.apply_id = :application_id AND a.user_id = :user_id AND a.deleted_at IS NULL
-                ORDER BY d.created_at DESC, d.id DESC
+                WHERE d.apply_id = ANY(:application_ids) AND a.user_id = :user_id AND a.deleted_at IS NULL
+                ORDER BY d.apply_id, d.created_at DESC, d.id DESC
             """,
         )
 
@@ -628,17 +744,20 @@ class BusinessRepository(EngineBackedRepository):
             ).mappings().all()
         return [business_row(row) for row in rows]
 
-    def _application_rows(
+    def _application_rows_by_ids(
         self,
         *,
         user_id: int,
-        application_id: int,
+        application_ids: list[int],
         statement: str,
     ) -> list[dict[str, Any]]:
+        normalized_ids = list(dict.fromkeys(int(item) for item in application_ids if int(item) > 0))
+        if not normalized_ids:
+            return []
         with self.engine.begin() as connection:
             rows = connection.execute(
                 text(statement),
-                {"user_id": int(user_id), "application_id": int(application_id)},
+                {"user_id": int(user_id), "application_ids": normalized_ids},
             ).mappings().all()
         return [business_row(row) for row in rows]
 

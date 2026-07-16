@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from declaration_qa.core.config import DeclarationQASettings
 from declaration_qa.core.domain import KnowledgeChunk, RetrievedSource
-from declaration_qa.rag.model_providers.factories import build_reranker
+from declaration_qa.rag.model_providers.factories import build_agent_model, build_reranker
 from declaration_qa.rag.model_providers.rerankers.dashscope_reranker import DashScopeReranker, safe_rerank_text
 from declaration_qa.rag.model_providers.streaming import stream_chat_model_content
 
@@ -19,6 +19,53 @@ def test_stream_chat_model_content_yields_langchain_chunk_text():
     ]
 
     assert list(stream_chat_model_content(chunks)) == ["申报", "进度", "查询"]
+
+
+def test_build_agent_model_uses_independent_deepseek_connection(monkeypatch):
+    captured = {}
+    model = object()
+
+    def fake_create_chat_openai(**kwargs):
+        captured.update(kwargs)
+        return model
+
+    monkeypatch.setattr(
+        "declaration_qa.rag.model_providers.factories.create_chat_openai",
+        fake_create_chat_openai,
+    )
+    settings = DeclarationQASettings(
+        _env_file=None,
+        DECLARATION_QA_LLM_PROVIDER="deepseek",
+        DECLARATION_QA_OPENAI_API_KEY="dashscope-key",
+        DECLARATION_QA_OPENAI_API_BASE="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+    result = build_agent_model(
+        settings,
+        model_name="deepseek-v4-flash",
+        api_key="deepseek-key",
+        base_url="https://api.deepseek.com",
+    )
+
+    assert result is model
+    assert captured["model"] == "deepseek-v4-flash"
+    assert captured["api_key"] == "deepseek-key"
+    assert captured["base_url"] == "https://api.deepseek.com"
+
+
+def test_empty_text_key_does_not_fall_back_to_dashscope_key():
+    settings = DeclarationQASettings(
+        _env_file=None,
+        DECLARATION_QA_LLM_PROVIDER="deepseek",
+        DECLARATION_QA_OPENAI_API_KEY="dashscope-key",
+    )
+
+    assert build_agent_model(
+        settings,
+        model_name="deepseek-v4-flash",
+        api_key="",
+        base_url="https://api.deepseek.com",
+    ) is None
 
 
 def test_dashscope_vl_rerank_text_respects_document_limit():

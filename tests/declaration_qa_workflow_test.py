@@ -31,7 +31,7 @@ class TicketScriptAgent:
                         "id": "detail",
                         "name": "ticket_detail_query",
                         "arguments": {
-                            "item_code": self.item_code,
+                            "item_codes": [self.item_code],
                             "detail_type": self.detail_type,
                         },
                     }
@@ -45,6 +45,7 @@ def test_chat_routes_have_no_ticket_selection_endpoint():
 
     assert '"/api/declaration-qa/chat"' in routes
     assert '"/api/declaration-qa/chat/stream"' in routes
+    assert '"/api/declaration-qa/chat/confirm/stream"' in routes
     assert "/tickets" not in routes
 
 

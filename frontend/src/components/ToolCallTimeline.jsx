@@ -14,6 +14,18 @@ const TOOL_LABELS = {
   knowledge_search: '检索政策知识',
   ticket_list_query: '查询申请事项',
   ticket_detail_query: '查询申请详情',
+  appointment_list_query: '查询预约记录',
+  appointment_hall_query: '查询预约大厅',
+  appointment_slot_query: '查询预约号源',
+  payment_order_query: '查询缴费订单',
+  payment_receipt_query: '查询电子票据',
+  submission_receipt_query: '查询申请回执',
+  result_certificate_query: '查询办结结果',
+  delivery_status_query: '查询送达状态',
+  queue_status_query: '查询排队状态',
+  consultation_record_query: '查询咨询记录',
+  appointment_book: '提交预约',
+  appointment_cancel: '取消预约',
 };
 
 export default function ToolCallTimeline({ trace, runId, onLoad }) {
@@ -105,7 +117,17 @@ function argumentDetails(toolName, args = {}) {
   }
   const details = [];
   if (args.item_code) details.push(`事项编码：${args.item_code}`);
+  if (Array.isArray(args.item_codes)) details.push(`事项编码：${args.item_codes.join('、')}`);
   if (args.application_id !== undefined && args.application_id !== null) details.push(`申请 ID：${args.application_id}`);
+  if (Array.isArray(args.application_ids)) details.push(`申请 ID：${args.application_ids.join('、')}`);
+  if (Array.isArray(args.targets)) {
+    const targets = args.targets.map((target) => (
+      target?.payment_order_id
+        ? `申请 ${target.application_id} / 缴费订单 ${target.payment_order_id}`
+        : `申请 ${target?.application_id}`
+    ));
+    if (targets.length > 0) details.push(`查询目标：${targets.join('；')}`);
+  }
   if (args.query) details.push(String(args.query));
   return details;
 }
@@ -119,12 +141,16 @@ function toolIcon(name) {
 
 function statusIcon(status) {
   if (status === 'completed') return <CheckCircle2 size={13} />;
+  if (status === 'awaiting_confirmation') return <Activity size={13} />;
+  if (status === 'rejected') return <XCircle size={13} />;
   if (status === 'failed') return <XCircle size={13} />;
   return <LoaderCircle className="is-spinning" size={13} />;
 }
 
 function statusLabel(status) {
   if (status === 'completed') return '已完成';
+  if (status === 'awaiting_confirmation') return '等待确认';
+  if (status === 'rejected') return '已拒绝';
   if (status === 'failed') return '失败';
   return '执行中';
 }
@@ -132,6 +158,7 @@ function statusLabel(status) {
 function traceTitle(trace, count) {
   if (trace.status === 'loading') return '正在读取执行过程';
   if (trace.status === 'failed') return '工具执行未完成';
+  if (trace.status === 'paused' || trace.phase === 'awaiting_confirmation') return '等待人工确认';
   if (trace.status === 'running') {
     if (trace.phase === 'answering') return '证据已就绪，正在生成回答';
     if (trace.phase === 'checking') return '正在检查工具结果';

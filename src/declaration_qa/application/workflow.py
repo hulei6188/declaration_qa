@@ -7,8 +7,9 @@ from typing import Any
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 
-from declaration_qa.api.schemas import ChatRequest, ChatResponse
+from declaration_qa.api.schemas import ChatRequest, ChatResponse, HumanConfirmationRequest
 from declaration_qa.application.agent import ToolCallingAgent
 from declaration_qa.application.helpers.retrieval_sources import select_answer_sources
 from declaration_qa.application.helpers.streaming import (
@@ -24,6 +25,7 @@ from declaration_qa.application.nodes import ApplicationNodes
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import (
     AppointmentBookTool,
+    AppointmentCancelTool,
     AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
@@ -129,6 +131,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             AppointmentHallQueryTool(self.business_adapter),
             AppointmentSlotQueryTool(self.business_adapter),
             AppointmentBookTool(self.business_adapter),
+            AppointmentCancelTool(self.business_adapter),
             QueueStatusQueryTool(self.business_adapter),
             PaymentOrderQueryTool(self.business_adapter),
             PaymentReceiptQueryTool(self.business_adapter),
@@ -145,6 +148,10 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def invoke(self, request: ChatRequest) -> ChatResponse:
         """同步执行问答工作流并返回最终响应。"""
         initial_state = self._initial_state(request)
+        config = self._graph_config(
+            user_id=int(initial_state["user_id"]),
+            session_id=str(initial_state["session_id"]),
+        )
         with performance_request(
             "workflow.invoke",
             session_id=str(initial_state.get("session_id") or ""),
@@ -160,25 +167,26 @@ class DeclarationQAWorkflow(ApplicationNodes):
             tags=["declaration-qa", "chat"],
             trace_name="declaration_qa.chat",
         ) as span:
-            final_state = self.graph.invoke(
-                initial_state,
-                config=self._graph_config(
-                    user_id=int(initial_state["user_id"]),
-                    session_id=str(initial_state["session_id"]),
-                ),
-            )
+            pending_confirmation = self._current_human_confirmation(config)
+            if pending_confirmation:
+                final_state = {
+                    **initial_state,
+                    "answer": "请先处理当前待确认的预约操作。",
+                }
+            else:
+                final_state = self.graph.invoke(initial_state, config=config)
             span.update(output=chat_trace_output(final_state), metadata=chat_trace_metadata(final_state))
             span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(final_state))
         return ChatResponse(
             session_id=str(final_state["session_id"]),
-            audit_id=str(final_state["audit_id"]),
-            run_id=str(final_state["audit_id"]),
+            audit_id=str(final_state.get("audit_id") or ""),
+            run_id=str(final_state.get("audit_id") or ""),
             intent=str(final_state.get("intent") or "unknown"),
             route=str(final_state.get("route") or ""),
             sub_intent=str(final_state.get("sub_intent") or ""),
             route_decision=final_state.get("route_decision") or {},
             retrieval_chain=str(final_state.get("retrieval_chain") or ""),
-            answer=str(final_state.get("answer") or ""),
+            answer=str(final_state.get("answer") or ("操作正在等待人工确认。" if not final_state.get("audit_id") else "")),
             refused=bool(final_state.get("refused")),
             refuse_reason=final_state.get("refuse_reason"),
             sources=final_state.get("retrieved_sources") or [],
@@ -188,6 +196,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             agent_plan=final_state.get("agent_plan") or {},
             agent_query_plan=final_state.get("agent_query_plan") or {},
             tool_results=final_state.get("tool_results") or [],
+            human_confirmation=self._current_human_confirmation(config),
             suggested_actions=final_state.get("suggested_actions") or [],
             events=final_state.get("events") or [],
         )
@@ -212,42 +221,144 @@ class DeclarationQAWorkflow(ApplicationNodes):
         ) as span:
             yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
 
-            emitted_event_count = 0
-            streamed_answer = False
             config = self._graph_config(
                 user_id=int(state["user_id"]),
                 session_id=str(state["session_id"]),
                 stream=True,
             )
-            for chunk in self.graph.stream(state, config=config, stream_mode=["updates", "custom"]):
-                mode, payload = graph_stream_part(chunk)
-                if mode == "custom":
-                    event = normalize_stream_event(payload)
-                    if event:
-                        if event["event"] == "token":
-                            streamed_answer = True
-                        yield event
-                    continue
-                if mode != "updates" or not isinstance(payload, dict):
-                    continue
-                for node_name, node_state in payload.items():
-                    if not isinstance(node_state, dict):
-                        continue
-                    state.update(node_state)
-                    events = state.get("events") or []
-                    for event in events[emitted_event_count:]:
-                        yield {"event": event.get("event") or node_name, "data": event.get("data") or {}}
-                    emitted_event_count = len(events)
-                    if should_emit_sources(node_name, state):
-                        yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
-                    if node_name == "refuse_or_human":
-                        yield from token_events(str(state.get("answer") or ""))
-                    elif node_name == "commit_agent_answer" and not streamed_answer:
-                        yield from token_events(str(state.get("answer") or ""))
+            pending_confirmation = self._current_human_confirmation(config)
+            if pending_confirmation:
+                yield {"event": "human_confirmation_required", "data": pending_confirmation}
+                yield {
+                    "event": "run_paused",
+                    "data": {
+                        "session_id": str(state.get("session_id") or ""),
+                        "reason": "human_confirmation_required",
+                    },
+                }
+                return
+            interrupted = yield from self._stream_graph_events(
+                state,
+                state=state,
+                config=config,
+                emitted_event_count=0,
+            )
 
             span.update(output=chat_trace_output(state), metadata=chat_trace_metadata(state))
             span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(state))
+            if interrupted:
+                return
             yield done_event(state)
+
+    def resume_stream(self, request: HumanConfirmationRequest) -> Iterable[dict[str, Any]]:
+        """使用可信人工决定恢复暂停的预约写操作。"""
+        config = self._graph_config(
+            user_id=int(request.user_id),
+            session_id=str(request.session_id),
+            stream=True,
+        )
+        snapshot = self.graph.get_state(config)
+        matched_interrupt = None
+        for task in snapshot.tasks or ():
+            for pending in task.interrupts or ():
+                if str(pending.id) == str(request.interrupt_id):
+                    matched_interrupt = pending
+                    break
+        if matched_interrupt is None:
+            raise ValueError("人工确认已失效、已处理或不属于当前会话")
+
+        state: DeclarationQAState = dict(snapshot.values or {})
+        if int(state.get("user_id") or 0) != int(request.user_id):
+            raise ValueError("人工确认不属于当前用户")
+        yield {
+            "event": "run_resumed",
+            "data": {
+                "session_id": request.session_id,
+                "interrupt_id": request.interrupt_id,
+                "approved": request.approved,
+            },
+        }
+        interrupted = yield from self._stream_graph_events(
+            Command(
+                resume={
+                    "approved": bool(request.approved),
+                    "interrupt_id": str(request.interrupt_id),
+                }
+            ),
+            state=state,
+            config=config,
+            emitted_event_count=len(state.get("events") or []),
+        )
+        if interrupted:
+            return
+        yield done_event(state)
+
+    def _current_human_confirmation(self, config: dict[str, Any]) -> dict[str, Any]:
+        """读取当前线程尚未处理的人工确认。"""
+        snapshot = self.graph.get_state(config)
+        for task in snapshot.tasks or ():
+            for pending in task.interrupts or ():
+                value = dict(pending.value or {}) if isinstance(pending.value, dict) else {}
+                return {
+                    **value,
+                    "interrupt_id": str(pending.id),
+                    "session_id": str((snapshot.values or {}).get("session_id") or ""),
+                }
+        return {}
+
+    def _stream_graph_events(
+        self,
+        graph_input: DeclarationQAState | Command,
+        *,
+        state: DeclarationQAState,
+        config: dict[str, Any],
+        emitted_event_count: int,
+    ) -> Iterable[dict[str, Any]]:
+        """统一处理首次运行和人工确认恢复后的 LangGraph 事件。"""
+        streamed_answer = False
+        for chunk in self.graph.stream(graph_input, config=config, stream_mode=["updates", "custom"]):
+            mode, payload = graph_stream_part(chunk)
+            if mode == "custom":
+                event = normalize_stream_event(payload)
+                if event:
+                    if event["event"] == "token":
+                        streamed_answer = True
+                    yield event
+                continue
+            if mode != "updates" or not isinstance(payload, dict):
+                continue
+            for node_name, node_state in payload.items():
+                if node_name == "__interrupt__":
+                    for pending in node_state or ():
+                        value = dict(pending.value or {}) if isinstance(pending.value, dict) else {}
+                        confirmation = {
+                            **value,
+                            "interrupt_id": str(pending.id),
+                            "session_id": str(state.get("session_id") or ""),
+                        }
+                        yield {"event": "human_confirmation_required", "data": confirmation}
+                    yield {
+                        "event": "run_paused",
+                        "data": {
+                            "session_id": str(state.get("session_id") or ""),
+                            "reason": "human_confirmation_required",
+                        },
+                    }
+                    return True
+                if not isinstance(node_state, dict):
+                    continue
+                state.update(node_state)
+                events = state.get("events") or []
+                for event in events[emitted_event_count:]:
+                    yield {"event": event.get("event") or node_name, "data": event.get("data") or {}}
+                emitted_event_count = len(events)
+                if should_emit_sources(node_name, state):
+                    yield {"event": "sources", "data": {"items": state.get("retrieved_sources") or []}}
+                if node_name == "refuse_or_human":
+                    yield from token_events(str(state.get("answer") or ""))
+                elif node_name == "commit_agent_answer" and not streamed_answer:
+                    yield from token_events(str(state.get("answer") or ""))
+        return False
 
     def _initial_state(self, request: ChatRequest) -> DeclarationQAState:
         """根据请求构造工作流初始状态。"""
@@ -273,6 +384,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "agent_plan": {},
             "agent_query_plan": {},
             "agent_pending_tool_calls": [],
+            "human_confirmation": {},
             "agent_call_signatures": [],
             "agent_messages": list(checkpoint_state.get("agent_messages") or []),
             "agent_input_messages": [],

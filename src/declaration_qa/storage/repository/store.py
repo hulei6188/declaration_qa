@@ -50,18 +50,16 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """按事项汇总当前用户的申请。"""
         return self.business.list_ticket_items(user_id=user_id, region_code=region_code)
 
-    def get_applications_by_item(
+    def get_applications_by_items(
         self,
         *,
         user_id: int,
-        item_code: str,
-        application_id: int | None = None,
+        item_codes: list[str],
     ) -> list[dict[str, Any]]:
-        """返回事项下全部申请和完整状态历史。"""
-        return self.business.get_applications_by_item(
+        """批量返回多个事项下的申请和完整状态历史。"""
+        return self.business.get_applications_by_items(
             user_id=user_id,
-            item_code=item_code,
-            application_id=application_id,
+            item_codes=item_codes,
         )
 
     def list_appointments(
@@ -103,33 +101,64 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
             idempotency_key=idempotency_key,
         )
 
-    def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
-        return self.business.get_queue_status(user_id=user_id, appointment_id=appointment_id)
-
-    def get_payment_orders(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return self.business.get_payment_orders(user_id=user_id, application_id=application_id)
-
-    def get_payment_receipts(
+    def cancel_appointment(
         self,
         *,
         user_id: int,
-        application_id: int,
-        payment_order_id: int | None = None,
-    ) -> list[dict[str, Any]]:
-        return self.business.get_payment_receipts(
+        region_code: str | None,
+        appointment_id: int,
+    ) -> dict[str, Any]:
+        return self.business.cancel_appointment(
             user_id=user_id,
-            application_id=application_id,
-            payment_order_id=payment_order_id,
+            region_code=region_code,
+            appointment_id=appointment_id,
         )
 
-    def get_submission_receipts(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return self.business.get_submission_receipts(user_id=user_id, application_id=application_id)
+    def get_queue_status(self, *, user_id: int, appointment_id: int) -> dict[str, Any] | None:
+        return self.business.get_queue_status(user_id=user_id, appointment_id=appointment_id)
 
-    def get_result_certificates(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return self.business.get_result_certificates(user_id=user_id, application_id=application_id)
+    def get_payment_orders_by_applications(
+        self,
+        *,
+        user_id: int,
+        application_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        return self.business.get_payment_orders_by_applications(
+            user_id=user_id,
+            application_ids=application_ids,
+        )
 
-    def get_delivery_statuses(self, *, user_id: int, application_id: int) -> list[dict[str, Any]]:
-        return self.business.get_delivery_statuses(user_id=user_id, application_id=application_id)
+    def get_payment_receipts_by_targets(
+        self,
+        *,
+        user_id: int,
+        targets: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        return self.business.get_payment_receipts_by_targets(
+            user_id=user_id,
+            targets=targets,
+        )
+
+    def get_submission_receipts_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return self.business.get_submission_receipts_by_applications(
+            user_id=user_id, application_ids=application_ids
+        )
+
+    def get_result_certificates_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return self.business.get_result_certificates_by_applications(
+            user_id=user_id, application_ids=application_ids
+        )
+
+    def get_delivery_statuses_by_applications(
+        self, *, user_id: int, application_ids: list[int]
+    ) -> list[dict[str, Any]]:
+        return self.business.get_delivery_statuses_by_applications(
+            user_id=user_id, application_ids=application_ids
+        )
 
     def list_consultation_records(
         self,

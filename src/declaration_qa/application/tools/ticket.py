@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,23 +16,16 @@ class TicketListQueryInput(BaseModel):
 
 
 class TicketDetailQueryInput(BaseModel):
-    """使用本轮事项列表返回的 item_code 查询申请详情。"""
+    """使用本轮事项列表返回的 item_codes 批量查询申请详情。"""
     model_config = ConfigDict(extra="forbid")
 
-    item_code: str = Field(
+    item_codes: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(
         min_length=1,
-        max_length=160,
+        max_length=50,
         description=(
-            "必须直接取自本轮先行调用 ticket_list_query 成功返回的 data.items[].item_code；"
-            "不得猜测、编造或使用历史对话中的 item_code"
-        ),
-    )
-    application_id: int | None = Field(
-        default=None,
-        ge=1,
-        description=(
-            "可选；必须直接取自本轮 ticket_detail_query 已返回的 data.applications[].application_id，"
-            "否则省略以查询该事项下的全部申请"
+            "事项编码数组；必须直接取自本轮先行调用 ticket_list_query 成功返回的 "
+            "data.items[].item_code。需要查询多个事项时放入同一个数组，不得拆成多个工具调用，"
+            "也不得猜测、编造或使用历史对话中的 item_code"
         ),
     )
     detail_type: Literal["full", "status", "rejection"] = "full"
@@ -68,13 +61,14 @@ class TicketListQueryTool:
 
 
 class TicketDetailQueryTool:
-    """按可信 user_id 和 Agent 选择的 item_code 查询申请详情。"""
+    """按可信 user_id 和 Agent 选择的 item_codes 批量查询申请详情。"""
 
     name = "ticket_detail_query"
     description = (
-        "按 item_code 查询当前登录用户在该事项下的全部申请。调用前必须先在本轮调用 "
+        "按 item_codes 批量查询当前登录用户在多个事项下的全部申请。调用前必须先在本轮调用 "
         "ticket_list_query，并仅使用其成功返回的 data.items[].item_code；不得猜测、编造或复用"
-        "历史对话中的 item_code。每条申请包含 application_id、当前状态以及按时间排序的完整 "
+        "历史对话中的 item_code。多个事项必须放入一次调用，不得为每个事项分别调用。"
+        "每条申请包含 application_id、当前状态以及按时间排序的完整 "
         "status_history；返回的 data.applications[].application_id 可供缴费、回执、结果和送达工具使用。"
     )
     input_model = TicketDetailQueryInput
@@ -84,10 +78,9 @@ class TicketDetailQueryTool:
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
         request = TicketDetailQueryInput.model_validate(arguments)
-        applications = self.adapter.get_applications_by_item(
+        applications = self.adapter.get_applications_by_items(
             user_id=context.user_id,
-            item_code=request.item_code,
-            application_id=request.application_id,
+            item_codes=request.item_codes,
         )
         applications = [filter_application_detail(item, request.detail_type) for item in applications]
         return ToolExecutionResult(
@@ -96,7 +89,7 @@ class TicketDetailQueryTool:
             ok=bool(applications),
             status="success" if applications else "not_found",
             data={
-                "item_code": request.item_code,
+                "item_codes": request.item_codes,
                 "detail_type": request.detail_type,
                 "applications": applications,
                 "source_type": "business_tool",

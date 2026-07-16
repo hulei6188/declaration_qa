@@ -101,6 +101,7 @@ def test_failed_business_result_does_not_consume_a_business_number():
         ("appointment_list_query", "appointment_id", 4101),
         ("appointment_slot_query", "slot_id", 6101),
         ("appointment_book", "appointment_id", 4102),
+        ("appointment_cancel", "appointment_id", 4102),
         ("queue_status_query", "appointment_id", 4101),
         ("payment_order_query", "payment_order_id", 5101),
         ("payment_receipt_query", "payment_receipt_id", 5201),

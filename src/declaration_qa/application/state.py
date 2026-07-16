@@ -24,6 +24,7 @@ class DeclarationQAState(TypedDict, total=False):
     agent_plan: dict[str, Any]
     agent_query_plan: dict[str, Any]
     agent_pending_tool_calls: list[dict[str, Any]]
+    human_confirmation: dict[str, Any]
     agent_call_signatures: list[str]
     agent_messages: list[dict[str, Any]]
     agent_input_messages: list[Any]

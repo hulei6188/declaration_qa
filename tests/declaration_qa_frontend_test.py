@@ -25,6 +25,26 @@ def test_frontend_uses_agentic_chat_without_ticket_binding_or_picker():
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
 
     assert "/chat/stream" in utils
+    assert "/chat/confirm/stream" in utils
+    assert "human_confirmation_required" in combined
+    assert "请先处理上方人工确认" in combined
+    for label in [
+        "查询申请事项",
+        "查询申请详情",
+        "查询预约记录",
+        "查询预约大厅",
+        "查询预约号源",
+        "查询排队状态",
+        "查询缴费订单",
+        "查询电子票据",
+        "查询申请回执",
+        "查询办结结果",
+        "查询送达状态",
+        "查询咨询记录",
+        "提交预约",
+        "取消预约",
+    ]:
+        assert label in combined
     assert "/knowledge/documents" in utils
     assert "/sessions" in utils
     assert "/feedback" in utils

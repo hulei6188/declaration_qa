@@ -57,12 +57,16 @@ def build_agent_model(
     *,
     timeout_seconds: float | None = None,
     model_name: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ):
     """创建支持原生 Tool Calling 的 Agent 模型；本地模式返回 None。"""
-    if settings.llm_provider.strip().lower() not in {"openai", "dashscope"} or not settings.openai_api_key:
+    resolved_api_key = settings.openai_api_key if api_key is None else str(api_key or "").strip()
+    resolved_base_url = settings.openai_api_base if base_url is None else str(base_url or "").strip()
+    if settings.llm_provider.strip().lower() not in {"openai", "dashscope", "deepseek"} or not resolved_api_key:
         return None
     kwargs: dict[str, Any] = {
-        "api_key": settings.openai_api_key,
+        "api_key": resolved_api_key,
         "model": model_name or settings.agent_model or settings.llm_model,
         "temperature": 0.0,
         "timeout": (
@@ -72,6 +76,6 @@ def build_agent_model(
         ),
         "max_retries": 1,
     }
-    if settings.openai_api_base:
-        kwargs["base_url"] = settings.openai_api_base
+    if resolved_base_url:
+        kwargs["base_url"] = resolved_base_url
     return create_chat_openai(**kwargs)

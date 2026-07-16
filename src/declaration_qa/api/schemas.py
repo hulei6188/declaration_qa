@@ -98,8 +98,18 @@ class ChatResponse(BaseModel):
     agent_plan: dict[str, Any] = Field(default_factory=dict)
     agent_query_plan: dict[str, Any] = Field(default_factory=dict)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    human_confirmation: dict[str, Any] = Field(default_factory=dict)
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class HumanConfirmationRequest(BaseModel):
+    """恢复暂停写操作所需的人工确认。"""
+
+    session_id: str = Field(min_length=1, max_length=80)
+    interrupt_id: str = Field(min_length=1, max_length=120)
+    user_id: int = Field(default=1, ge=1)
+    approved: bool
 
 
 class KnowledgeDocumentRequest(BaseModel):

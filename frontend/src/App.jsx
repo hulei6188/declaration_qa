@@ -5,6 +5,7 @@ import {
   DEFAULT_CONTEXT,
   buildChatRequest,
   startChatStream,
+  resumeHumanConfirmationStream,
   readSSE,
   fetchSessions,
   fetchSession,
@@ -102,10 +103,14 @@ export default function App() {
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
       for await (const { event, data } of readSSE(response.body)) {
-        if (['agent_decision', 'tool_executed', 'agent_observation', 'answer_generated', 'done', 'error'].includes(event)) {
+        if (['agent_decision', 'tool_executed', 'human_confirmation_required', 'human_confirmation_resolved', 'agent_observation', 'answer_generated', 'done', 'error'].includes(event)) {
           setMessages((prev) => updateLastAssistantTrace(prev, event, data));
         }
-        if (event === 'token') {
+        if (event === 'human_confirmation_required') {
+          setMessages((prev) => updateLastAssistantConfirmation(prev, data));
+        } else if (event === 'run_paused') {
+          setSessionId(data.session_id || sessionId);
+        } else if (event === 'token') {
           assistantRef.current += (data.content || '');
           setMessages((prev) => {
             const next = [...prev];
@@ -139,6 +144,73 @@ export default function App() {
         };
         return next;
       });
+      addTimeline('error', { message: e.message });
+    } finally {
+      setStreaming(false);
+      setSendState('等待输入');
+    }
+  }
+
+  async function resolveHumanConfirmation(messageIndex, confirmation, approved) {
+    if (!confirmation?.interrupt_id || streaming) return;
+    setStreaming(true);
+    setSendState(approved ? '正在执行已确认操作…' : '正在取消操作…');
+    setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
+      ...message,
+      confirmation: { ...message.confirmation, status: 'submitting', decision: approved ? 'approved' : 'rejected' },
+    })));
+    let resumedText = '';
+    try {
+      const response = await resumeHumanConfirmationStream({
+        session_id: confirmation.session_id || sessionId,
+        interrupt_id: confirmation.interrupt_id,
+        user_id: Number(ctx.userId || 1),
+        approved: Boolean(approved),
+      });
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+      for await (const { event, data } of readSSE(response.body)) {
+        if (['tool_executed', 'human_confirmation_required', 'human_confirmation_resolved', 'agent_observation', 'answer_generated', 'done', 'error'].includes(event)) {
+          setMessages((prev) => updateMessageTraceAt(prev, messageIndex, event, data));
+        }
+        if (event === 'human_confirmation_required') {
+          setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
+            ...message,
+            confirmation: { ...data, status: 'pending' },
+          })));
+        } else if (event === 'run_paused') {
+          setSessionId(data.session_id || sessionId);
+        } else if (event === 'human_confirmation_resolved') {
+          setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
+            ...message,
+            confirmation: {
+              ...message.confirmation,
+              status: data.approved ? 'approved' : 'rejected',
+              decision: data.approved ? 'approved' : 'rejected',
+            },
+          })));
+        } else if (event === 'token') {
+          resumedText += data.content || '';
+          setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({ ...message, content: resumedText })));
+        } else if (event === 'sources') {
+          setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({ ...message, sources: data.items || [] })));
+        } else if (event === 'done') {
+          setSessionId(data.session_id || sessionId);
+          setAudit({
+            intent: [data.route, data.intent].filter(Boolean).join(' / ') || '-',
+            auditId: data.audit_id || '-',
+            refused: data.refused ? (data.refuse_reason || '是') : '否',
+          });
+          loadSessions();
+        } else if (event === 'error') {
+          throw new Error(data.message || data.error || '人工确认处理失败');
+        }
+        addTimeline(event, data);
+      }
+    } catch (e) {
+      setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
+        ...message,
+        confirmation: { ...message.confirmation, status: 'failed', error: e.message },
+      })));
       addTimeline('error', { message: e.message });
     } finally {
       setStreaming(false);
@@ -511,6 +583,7 @@ export default function App() {
           feedbackResult={feedbackResult}
           onFeedback={doFeedback}
           onLoadToolTrace={loadToolTrace}
+          onResolveConfirmation={resolveHumanConfirmation}
           theme={theme}
           onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
           sidebarCollapsed={sidebarCollapsed}
@@ -556,6 +629,23 @@ function updateLastAssistantTrace(messages, event, data) {
     break;
   }
   return next;
+}
+
+function updateLastAssistantConfirmation(messages, confirmation) {
+  const next = [...messages];
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    if (next[index]?.role !== 'assistant') continue;
+    next[index] = { ...next[index], confirmation: { ...confirmation, status: 'pending' } };
+    break;
+  }
+  return next;
+}
+
+function updateMessageTraceAt(messages, index, event, data) {
+  return updateMessageAt(messages, index, (message) => ({
+    ...message,
+    toolTrace: reduceToolTrace(message.toolTrace, event, data),
+  }));
 }
 
 function updateMessageAt(messages, index, updater) {
