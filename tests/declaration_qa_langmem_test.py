@@ -8,6 +8,7 @@ from declaration_qa.application.agent import AgentDecision
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 from declaration_qa.memory.runtime import (
     LangGraphMemoryRuntime,
+    MEMORY_POLICY_VERSION,
     build_memory_resources,
     message_dicts_to_langchain,
     psycopg_connection_url,
@@ -47,7 +48,7 @@ def test_checkpointer_threads_are_isolated_by_user():
     )
 
     assert other_user["agent_messages"] == []
-    assert other_user["session_evidence_refs"] == {"knowledge": [], "business": []}
+    assert "session_evidence_refs" not in other_user
     workflow.close()
 
 
@@ -72,7 +73,7 @@ def test_session_deletion_removes_matching_checkpoint_thread():
     )
 
     assert restored["agent_messages"] == []
-    assert restored["session_evidence_refs"] == {"knowledge": [], "business": []}
+    assert "session_evidence_refs" not in restored
     workflow.close()
 
 
@@ -158,8 +159,25 @@ def test_prepare_input_does_not_trigger_summary_after_tool_execution():
         {},
     )
 
-    assert context == {}
+    assert context == {"memory_policy_version": MEMORY_POLICY_VERSION}
     assert [message.id for message in prepared] == ["u1", "a1"]
+    runtime.close()
+
+
+def test_old_running_summary_is_reset_when_memory_policy_changes():
+    runtime = build_test_memory_runtime()
+
+    _prepared, context = runtime.prepare_input(
+        [{"id": "u1", "role": "user", "content": "新问题"}],
+        {
+            "running_summary": {
+                "summary": "旧摘要包含 chunk_id、call_id 和业务状态",
+                "last_summarized_message_id": "old-message",
+            }
+        },
+    )
+
+    assert context == {"memory_policy_version": MEMORY_POLICY_VERSION}
     runtime.close()
 
 

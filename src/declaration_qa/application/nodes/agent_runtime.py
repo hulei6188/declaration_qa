@@ -20,13 +20,11 @@ from declaration_qa.application.helpers.retrieval_sources import merge_accumulat
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.observability.performance import log_performance, performance_stage
 from declaration_qa.memory.evidence import (
+    RECENT_EVIDENCE_USER_TURNS,
     build_conversation_memory,
-    build_working_memory,
+    is_retrospective_query,
     project_historical_messages,
-    recall_historical_business_results,
-    rehydrate_knowledge_sources,
-    select_knowledge_refs,
-    update_session_evidence_refs,
+    recent_tool_context,
 )
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
@@ -53,7 +51,12 @@ class AgentRuntimeNodes:
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
-        messages = project_historical_messages(list(next_state.get("agent_messages") or []))
+        messages = project_historical_messages(
+            list(next_state.get("agent_messages") or []),
+            keep_recent_user_turns=max(0, RECENT_EVIDENCE_USER_TURNS - 1),
+            memory_context=dict(next_state.get("memory_context") or {}),
+        )
+        recent_sources, recent_business_results = recent_tool_context(messages)
         messages.append(
             {
                 "id": uuid4().hex,
@@ -62,13 +65,32 @@ class AgentRuntimeNodes:
             }
         )
         next_state["agent_messages"] = messages
+        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
+        active_business_results = recent_business_results if is_retrospective_query(query) else []
+        next_state["retrieved_sources"] = recent_sources
+        next_state["tool_results"] = active_business_results
         next_state["conversation_memory"] = build_conversation_memory(
-            next_state.get("session_evidence_refs") or {},
             next_state.get("memory_context") or {},
         )
-        next_state["working_memory"] = {}
-        next_state["memory_recall_decision"] = {}
-        next_state["active_evidence_registry"] = {"knowledge": [], "business": []}
+        next_state["working_memory"] = {
+            "active_knowledge_chunk_ids": [
+                str(item.get("chunk_id") or "") for item in recent_sources
+            ],
+            "active_business_call_ids": [
+                str(item.get("call_id") or "") for item in active_business_results
+            ],
+            "memory_policy": "knowledge_until_summary_business_recent_three",
+            "sufficiency": "agent_decides",
+        }
+        next_state["active_evidence_registry"] = build_evidence_registry(
+            recent_sources,
+            active_business_results,
+        )
+        if recent_sources:
+            next_state["rag_status"] = {
+                "recent_tool_context": True,
+                "final_source_count": len(recent_sources),
+            }
         next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
@@ -78,84 +100,11 @@ class AgentRuntimeNodes:
         next_state["agent_final_model"] = ""
         next_state["agent_final_token_usage"] = {}
         next_state["agent_final_latency_ms"] = None
-        next_state["tool_results"] = []
         next_state["agent_selected_item_code"] = ""
         next_state["agent_selected_application_id"] = None
         next_state["route"] = "agentic_rag"
         next_state["retrieval_chain"] = "agentic_rag"
         add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_planner": "agent_tool_schema"})
-        return next_state
-
-    def memory_recall(self, state: DeclarationQAState) -> DeclarationQAState:
-        """选择并激活与本轮问题相关的历史知识或业务快照。"""
-        next_state = dict(state)
-        started_clock = perf_counter()
-        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        refs = dict(next_state.get("session_evidence_refs") or {})
-        selected_knowledge = select_knowledge_refs(query, refs)
-        try:
-            knowledge_sources, rejected_knowledge = rehydrate_knowledge_sources(
-                self.rag_engine,
-                selected_knowledge,
-                next_state,
-            )
-        except Exception as exc:
-            knowledge_sources = []
-            rejected_knowledge = [
-                {
-                    "chunk_id": str(item.get("chunk_id") or ""),
-                    "reason": f"rehydrate_error:{type(exc).__name__}",
-                }
-                for item in selected_knowledge
-            ]
-        business_results, rejected_business = recall_historical_business_results(
-            query=query,
-            refs=refs,
-            audit_store=self.audit_store,
-            user_id=int(next_state.get("user_id") or 0),
-            session_id=str(next_state.get("session_id") or ""),
-        )
-        next_state["retrieved_sources"] = knowledge_sources
-        next_state["tool_results"] = business_results
-        if knowledge_sources:
-            next_state["rag_status"] = {
-                "memory_recall": True,
-                "historical_merge_mode": "rehydrated_history",
-                "final_source_count": len(knowledge_sources),
-            }
-        conversation_memory = build_conversation_memory(refs, next_state.get("memory_context") or {})
-        rejected = [*rejected_knowledge, *rejected_business]
-        next_state["conversation_memory"] = conversation_memory
-        next_state["working_memory"] = build_working_memory(
-            query=query,
-            conversation_memory=conversation_memory,
-            knowledge_sources=knowledge_sources,
-            business_results=business_results,
-            rejected=rejected,
-        )
-        next_state["active_evidence_registry"] = build_evidence_registry(
-            knowledge_sources,
-            business_results,
-        )
-        decision = {
-            "selected_knowledge_refs": [str(item.get("chunk_id") or "") for item in selected_knowledge],
-            "activated_knowledge_refs": [str(item.get("chunk_id") or "") for item in knowledge_sources],
-            "activated_business_calls": [str(item.get("call_id") or "") for item in business_results],
-            "rejected_refs": rejected,
-            "knowledge_action": "rehydrate" if knowledge_sources else "agent_decides",
-            "business_action": "historical_snapshot" if business_results else "refresh_if_needed",
-            "latency_ms": max(0, round((perf_counter() - started_clock) * 1000)),
-        }
-        next_state["memory_recall_decision"] = decision
-        log_performance(
-            "agent.memory_recall",
-            started_clock,
-            selected_knowledge_count=len(selected_knowledge),
-            activated_knowledge_count=len(knowledge_sources),
-            activated_business_count=len(business_results),
-            rejected_count=len(rejected),
-        )
-        add_event(next_state, "memory_recalled", decision)
         return next_state
 
     def agent_summarize(self, state: DeclarationQAState) -> DeclarationQAState:
@@ -167,10 +116,7 @@ class AgentRuntimeNodes:
         )
         next_state["agent_input_messages"] = summarized
         next_state["memory_context"] = memory_context
-        next_state["conversation_memory"] = build_conversation_memory(
-            next_state.get("session_evidence_refs") or {},
-            memory_context,
-        )
+        next_state["conversation_memory"] = build_conversation_memory(memory_context)
         running_summary = memory_context.get("running_summary")
         add_event(
             next_state,
@@ -394,28 +340,29 @@ class AgentRuntimeNodes:
     def agent_observe(self, state: DeclarationQAState) -> DeclarationQAState:
         """把知识证据和业务工具结果写入彼此隔离的状态槽。"""
         next_state = dict(state)
-        has_current_knowledge_search = any(
-            isinstance(result, dict)
-            and result.get("tool_name") == "knowledge_search"
-            and result.get("ok")
-            and result.get("memory_origin") != "historical_snapshot"
-            for result in (next_state.get("tool_results") or [])
-        )
-        if has_current_knowledge_search:
-            next_state["retrieved_sources"] = [
-                source
-                for source in (next_state.get("retrieved_sources") or [])
-                if not isinstance(source, dict) or source.get("memory_origin") != "rehydrated_history"
-            ]
         for result in next_state.get("tool_results") or []:
             if not isinstance(result, dict) or not result.get("ok"):
                 continue
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
             if result.get("tool_name") == "knowledge_search":
-                next_state["retrieved_sources"] = merge_accumulated_source_payloads(
-                    [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],
+                recent_sources = [
+                    item
+                    for item in (next_state.get("retrieved_sources") or [])
+                    if isinstance(item, dict) and item.get("memory_origin") == "recent_tool_context"
+                ]
+                current_sources = [
+                    item
+                    for item in (next_state.get("retrieved_sources") or [])
+                    if isinstance(item, dict) and item.get("memory_origin") != "recent_tool_context"
+                ]
+                merged_current_sources = merge_accumulated_source_payloads(
+                    [*current_sources, *(data.get("sources") or [])],
                     min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
                     max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
+                )
+                next_state["retrieved_sources"] = merge_sources_by_chunk_id(
+                    recent_sources,
+                    merged_current_sources,
                 )
                 next_state["rag_status"] = dict(data.get("rag_status") or {})
                 next_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
@@ -441,22 +388,6 @@ class AgentRuntimeNodes:
                     "applications": applications,
                 }
                 next_state["answer_mode"] = "tool_grounded"
-        current_sources = [
-            item
-            for item in (next_state.get("retrieved_sources") or [])
-            if isinstance(item, dict) and item.get("memory_origin") != "rehydrated_history"
-        ]
-        current_results = [
-            item
-            for item in (next_state.get("tool_results") or [])
-            if isinstance(item, dict) and item.get("memory_origin") != "historical_snapshot"
-        ]
-        next_state["session_evidence_refs"] = update_session_evidence_refs(
-            next_state.get("session_evidence_refs") or {},
-            sources=current_sources,
-            tool_results=current_results,
-            query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
-        )
         next_state["active_evidence_registry"] = build_evidence_registry(
             next_state.get("retrieved_sources") or [],
             next_state.get("tool_results") or [],
@@ -701,8 +632,7 @@ def append_tool_message(
     call: dict[str, Any],
     payload: dict[str, Any],
 ) -> None:
-    """按 tool_call_id 保存可重放的工具观察，知识正文由证据槽单独提供。"""
-    observation = compact_tool_observation(payload)
+    """按工具类型及其生命周期保存可重放的完整工具观察。"""
     messages = list(state.get("agent_messages") or [])
     messages.append(
         {
@@ -710,29 +640,30 @@ def append_tool_message(
             "role": "tool",
             "tool_call_id": str(call.get("id") or payload.get("call_id") or call.get("name") or ""),
             "name": str(call.get("name") or payload.get("tool_name") or ""),
-            "content": observation,
+            "content": dict(payload),
         }
     )
     state["agent_messages"] = messages
 
 
-def compact_tool_observation(payload: dict[str, Any]) -> dict[str, Any]:
-    """知识正文只进入编号证据槽，工具消息仅保留检索状态和来源标识。"""
-    observation = dict(payload)
-    if observation.get("tool_name") != "knowledge_search":
-        return observation
-    data = dict(observation.get("data") or {})
-    sources = [item for item in (data.pop("sources", []) or []) if isinstance(item, dict)]
-    data["source_refs"] = [
-        {
-            "chunk_id": item.get("chunk_id") or "",
-            "doc_id": item.get("doc_id") or item.get("document_id") or "",
-            "title": item.get("title") or "",
-        }
-        for item in sources
-    ]
-    observation["data"] = data
-    return observation
+def merge_sources_by_chunk_id(
+    recent_sources: list[dict[str, Any]],
+    current_sources: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """保留未被摘要的历史正文，并让本轮同块结果覆盖历史副本。"""
+    output: list[dict[str, Any]] = []
+    positions: dict[str, int] = {}
+    for source in [*recent_sources, *current_sources]:
+        if not isinstance(source, dict):
+            continue
+        chunk_id = str(source.get("chunk_id") or "")
+        if chunk_id and chunk_id in positions:
+            output[positions[chunk_id]] = source
+            continue
+        if chunk_id:
+            positions[chunk_id] = len(output)
+        output.append(source)
+    return output
 
 
 def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

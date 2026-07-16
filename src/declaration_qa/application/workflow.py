@@ -267,11 +267,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
             "memory_context": dict(checkpoint_state.get("memory_context") or {}),
             "conversation_memory": dict(checkpoint_state.get("conversation_memory") or {}),
             "working_memory": {},
-            "session_evidence_refs": dict(
-                checkpoint_state.get("session_evidence_refs")
-                or {"knowledge": [], "business": []}
-            ),
-            "memory_recall_decision": {},
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},
@@ -365,7 +360,6 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
         builder.add_node("agent_prepare", self.agent_prepare)
-        builder.add_node("memory_recall", self.memory_recall)
         builder.add_node("agent_summarize", self.agent_summarize)
         builder.add_node("agent_refresh_input", self.agent_refresh_input)
         builder.add_node("agent_decide", self.agent_decide)
@@ -381,8 +375,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
         builder.add_edge("query_preprocess", "agent_prepare")
-        builder.add_edge("agent_prepare", "memory_recall")
-        builder.add_edge("memory_recall", "agent_summarize")
+        builder.add_edge("agent_prepare", "agent_summarize")
         builder.add_edge("agent_summarize", "agent_decide")
         builder.add_conditional_edges(
             "agent_decide",

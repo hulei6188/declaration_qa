@@ -18,8 +18,6 @@ class DeclarationQAState(TypedDict, total=False):
     memory_context: dict[str, Any]
     conversation_memory: dict[str, Any]
     working_memory: dict[str, Any]
-    session_evidence_refs: dict[str, list[dict[str, Any]]]
-    memory_recall_decision: dict[str, Any]
 
     agent_iteration: int
     agent_next: str

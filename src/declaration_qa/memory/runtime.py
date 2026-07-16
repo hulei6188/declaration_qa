@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.messages.utils import count_tokens_approximately
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -27,6 +28,34 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_RECENT_USER_TURNS = 3
 NO_SUMMARY_TRIGGER_TOKENS = 2**63 - 1
+MEMORY_POLICY_VERSION = "knowledge-until-summary-business-three-v2"
+
+SUMMARY_INITIAL_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        MessagesPlaceholder(variable_name="messages", optional=True),
+        (
+            "human",
+            "仅总结较早对话中的用户咨询主题、指代关系和仍未解决的问题。"
+            "不得保留或复述知识证据正文、政策结论、工具结果、业务状态、个人业务数据、"
+            "证据编号、chunk_id、doc_id、call_id、业务主键或模型回答中的事实。"
+            "摘要只用于理解会话走向，不得作为事实依据。",
+        ),
+    ]
+)
+
+SUMMARY_EXISTING_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        MessagesPlaceholder(variable_name="messages", optional=True),
+        (
+            "human",
+            "已有会话摘要：{existing_summary}\n\n"
+            "请根据新增消息更新摘要，只保留用户咨询主题、指代关系和仍未解决的问题。"
+            "删除知识证据正文、政策结论、工具结果、业务状态、个人业务数据、证据编号、"
+            "chunk_id、doc_id、call_id、业务主键以及模型回答中的事实。"
+            "摘要只用于理解会话走向，不得作为事实依据。",
+        ),
+    ]
+)
 
 LONG_TERM_MEMORY_INSTRUCTIONS = """只提取能够改善后续对话、由用户明确表达且长期稳定的记忆。
 
@@ -112,7 +141,7 @@ class LangGraphMemoryRuntime:
     ) -> tuple[list[BaseMessage], dict[str, Any]]:
         """摘要较早历史，并完整保留最近三个用户轮次。"""
         converted = message_dicts_to_langchain(messages)
-        current_context = dict(context or {})
+        current_context = self.normalize_context(context)
         if self._summary_model is None:
             return converted, current_context
 
@@ -158,7 +187,7 @@ class LangGraphMemoryRuntime:
     ) -> tuple[list[BaseMessage], dict[str, Any]]:
         """应用已有摘要并保留新消息，但不触发新的摘要。"""
         converted = message_dicts_to_langchain(messages)
-        current_context = dict(context or {})
+        current_context = self.normalize_context(context)
         if self._summary_model is None:
             return converted, current_context
         return self._prepare_messages(
@@ -182,6 +211,8 @@ class LangGraphMemoryRuntime:
             max_tokens=self._summary_max_tokens,
             max_tokens_before_summary=max(1, int(trigger_tokens)),
             max_summary_tokens=self._summary_output_tokens,
+            initial_summary_prompt=SUMMARY_INITIAL_PROMPT,
+            existing_summary_prompt=SUMMARY_EXISTING_PROMPT,
             input_messages_key="messages",
             output_messages_key="summarized_messages",
         )
@@ -192,6 +223,13 @@ class LangGraphMemoryRuntime:
             list(result.get("summarized_messages") or messages),
             dict(result.get("context") or context),
         )
+
+    def normalize_context(self, context: dict[str, Any] | None) -> dict[str, Any]:
+        """迁移旧摘要策略，防止历史证据引用继续进入活动上下文。"""
+        current = dict(context or {})
+        if str(current.get("memory_policy_version") or "") != MEMORY_POLICY_VERSION:
+            return {"memory_policy_version": MEMORY_POLICY_VERSION}
+        return current
 
     def retrieve(self, *, user_id: int, query: str) -> dict[str, Any]:
         """按用户命名空间检索与当前问题相关的长期记忆。"""

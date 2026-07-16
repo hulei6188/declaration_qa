@@ -626,7 +626,7 @@ def test_knowledge_search_uses_only_current_search_sources():
     assert result["rag_status"]["historical_merge_mode"] == "current_search_only"
 
 
-def test_follow_up_rehydrates_previous_chunk_without_new_vector_search():
+def test_follow_up_uses_previous_full_chunk_without_new_vector_search():
     rag = CapturingKnowledgeRag()
 
     def decide(state, definitions):
@@ -649,12 +649,48 @@ def test_follow_up_rehydrates_previous_chunk_without_new_vector_search():
     assert first.refused is False
     assert second.refused is False
     assert len(rag.calls) == first_call_count
-    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
-    assert recall["activated_knowledge_refs"] == ["chunk-materials"]
-    assert second.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "rehydrated_history"
+    assert second.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "recent_tool_context"
+    restored = workflow._initial_state(
+        ChatRequest(query="第三轮", user_id=1, session_id="memory-knowledge")
+    )
+    tool_messages = [item for item in restored["agent_messages"] if item.get("role") == "tool"]
+    assert tool_messages[0]["content"]["data"]["sources"][0]["evidence_text"] == "申请健康证需要身份证明和体检材料。"
 
 
-def test_policy_version_change_rejects_historical_chunk_and_runs_new_search():
+def test_full_knowledge_evidence_remains_available_before_rolling_summary():
+    rag = CapturingKnowledgeRag()
+
+    def decide(state, definitions):
+        if not state.get("retrieved_sources"):
+            return AgentDecision(
+                "tools",
+                [tool_call("knowledge", "knowledge_search", knowledge_arguments("健康证申请材料"))],
+            )
+        return AgentDecision("finish", final_answer="根据窗口内完整证据回答。[证据1]")
+
+    workflow = DeclarationQAWorkflow(rag_engine=rag, agent=ScriptedAgent(decide))
+    session_id = "memory-three-turn-window"
+
+    workflow.invoke(ChatRequest(query="第一轮检索", user_id=1, session_id=session_id))
+    workflow.invoke(ChatRequest(query="第二轮追问", user_id=1, session_id=session_id))
+    workflow.invoke(ChatRequest(query="第三轮追问", user_id=1, session_id=session_id))
+    assert len(rag.calls) == 1
+
+    fourth = workflow.invoke(ChatRequest(query="第四轮追问", user_id=1, session_id=session_id))
+
+    assert len(rag.calls) == 1
+    assert fourth.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "recent_tool_context"
+    assert not any(
+        item.get("role") == "tool"
+        and item.get("content", {}).get("memory_trust") == "reference_only"
+        for item in workflow._initial_state(
+            ChatRequest(query="检查", user_id=1, session_id=session_id)
+        )["agent_messages"]
+    )
+    assert fourth.refused is False
+
+
+def test_policy_version_change_runs_new_search_instead_of_reference_recall():
     rag = CapturingKnowledgeRag()
 
     def decide(state, definitions):
@@ -690,12 +726,10 @@ def test_policy_version_change_rejects_historical_chunk_and_runs_new_search():
     )
 
     assert len(rag.calls) == first_call_count + 1
-    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
-    assert recall["activated_knowledge_refs"] == []
-    assert recall["rejected_refs"][0]["reason"] == "policy_version_mismatch"
+    assert not any(event["event"] == "memory_recalled" for event in second.events)
 
 
-def test_topic_shift_does_not_activate_unrelated_historical_chunk():
+def test_topic_shift_can_search_again_without_reference_recall():
     rag = CapturingKnowledgeRag()
 
     def decide(state, definitions):
@@ -720,9 +754,8 @@ def test_topic_shift_does_not_activate_unrelated_historical_chunk():
         ChatRequest(query="居住证怎么办理", user_id=1, session_id="memory-topic-shift")
     )
 
-    recall = next(event["data"] for event in second.events if event["event"] == "memory_recalled")
-    assert recall["selected_knowledge_refs"] == []
     assert len(rag.calls) == 2
+    assert not any(event["event"] == "memory_recalled" for event in second.events)
 
 
 def test_business_memory_only_replays_for_explicit_historical_question():

@@ -10,7 +10,6 @@ from declaration_qa.application.evidence_grounding import validate_grounded_answ
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.helpers.actions import suggested_actions
 from declaration_qa.application.helpers.events import add_event
-from declaration_qa.memory.evidence import finalize_session_evidence_refs
 from declaration_qa.rag.prompting import application_history_answer, ticket_applications
 
 
@@ -172,16 +171,10 @@ class ResponseNodes:
             "long_term_context": next_state.get("long_term_context") or {},
             "conversation_memory": next_state.get("conversation_memory") or {},
             "working_memory": next_state.get("working_memory") or {},
-            "memory_recall_decision": next_state.get("memory_recall_decision") or {},
-            "session_evidence_refs": next_state.get("session_evidence_refs") or {"knowledge": [], "business": []},
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
         next_state["audit_id"] = audit_id
-        next_state["session_evidence_refs"] = finalize_session_evidence_refs(
-            next_state.get("session_evidence_refs") or {},
-            audit_id=audit_id,
-        )
         memory_status = self.memory_runtime.schedule_extraction(
             user_id=int(next_state.get("user_id") or 0),
             query=str(next_state.get("query") or ""),
