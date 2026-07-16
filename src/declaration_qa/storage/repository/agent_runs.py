@@ -831,6 +831,7 @@ BUSINESS_TOOL_NAMES = {
     "ticket_list_query",
     "ticket_detail_query",
     "appointment_list_query",
+    "appointment_hall_query",
     "appointment_slot_query",
     "appointment_book",
     "queue_status_query",

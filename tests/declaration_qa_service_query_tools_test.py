@@ -5,6 +5,7 @@ from declaration_qa.application.agent import AgentDecision
 from declaration_qa.application.nodes.agent_runtime import agent_tool_call_denial_reason
 from declaration_qa.application.tools import (
     AppointmentBookTool,
+    AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
     ConsultationRecordQueryTool,
@@ -26,6 +27,7 @@ def service_query_registry(adapter=None):
     registry = ToolRegistry()
     for tool in [
         AppointmentListQueryTool(adapter),
+        AppointmentHallQueryTool(adapter),
         AppointmentSlotQueryTool(adapter),
         AppointmentBookTool(adapter),
         QueueStatusQueryTool(adapter),
@@ -96,7 +98,11 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
 
     slots = registry.execute(
         "appointment_slot_query",
-        {"item_code": "11340000002985923L200011900100001", "service_date": "2026-07-20"},
+        {
+            "item_code": "11340000002985923L200011900100001",
+            "hall_code": "AH-ZW-GCJS",
+            "service_date": "2026-07-20",
+        },
         user,
     )
     appointments = registry.execute("appointment_list_query", {"status": "all"}, user)
@@ -118,6 +124,7 @@ def test_service_query_tool_schemas_never_accept_user_identity():
 
     assert set(definitions) == {
         "appointment_list_query",
+        "appointment_hall_query",
         "appointment_slot_query",
         "appointment_book",
         "queue_status_query",
@@ -132,6 +139,39 @@ def test_service_query_tool_schemas_never_accept_user_identity():
         properties = definition["parameters"].get("properties", {})
         assert "user_id" not in properties
         assert "region_code" not in properties
+    slot_schema = definitions["appointment_slot_query"]["parameters"]
+    assert "hall_code" in slot_schema["required"]
+    assert "appointment_hall_query" in slot_schema["properties"]["hall_code"]["description"]
+
+
+def test_dependent_tool_schemas_require_current_turn_source_results():
+    definitions = {
+        item["function"]["name"]: item["function"]
+        for item in service_query_registry().definitions()
+    }
+
+    dependencies = {
+        "appointment_hall_query": ("knowledge_search", "item_code"),
+        "appointment_slot_query": ("appointment_hall_query", "hall_code"),
+        "appointment_book": ("appointment_slot_query", "slot_id"),
+        "queue_status_query": ("appointment_list_query", "appointment_id"),
+        "payment_order_query": ("ticket_detail_query", "application_id"),
+        "submission_receipt_query": ("ticket_detail_query", "application_id"),
+        "result_certificate_query": ("ticket_detail_query", "application_id"),
+        "delivery_status_query": ("ticket_detail_query", "application_id"),
+    }
+    for tool_name, (prerequisite, parameter) in dependencies.items():
+        definition = definitions[tool_name]
+        parameter_description = definition["parameters"]["properties"][parameter]["description"]
+        assert prerequisite in definition["description"]
+        assert prerequisite in parameter_description
+        assert "历史对话" in parameter_description
+
+    receipt = definitions["payment_receipt_query"]
+    assert "ticket_detail_query" in receipt["description"]
+    assert "payment_order_query" in receipt["description"]
+    assert "ticket_detail_query" in receipt["parameters"]["properties"]["application_id"]["description"]
+    assert "payment_order_query" in receipt["parameters"]["properties"]["payment_order_id"]["description"]
 
 
 def test_service_query_tools_return_realistic_user_scoped_records():
@@ -139,9 +179,14 @@ def test_service_query_tools_return_realistic_user_scoped_records():
     user = ToolExecutionContext(user_id=1, region_code="340000")
 
     appointments = registry.execute("appointment_list_query", {}, user)
+    halls = registry.execute(
+        "appointment_hall_query",
+        {"item_code": "ITEM-RESIDENCE-PERMIT"},
+        user,
+    )
     slots = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
         user,
     )
     queue = registry.execute("queue_status_query", {"appointment_id": 4101}, user)
@@ -157,6 +202,13 @@ def test_service_query_tools_return_realistic_user_scoped_records():
     consultations = registry.execute("consultation_record_query", {}, user)
 
     assert appointments.data["appointments"][0]["appointment_id"] == 4101
+    assert halls.data["halls"] == [
+        {
+            "hall_code": "AH-ZW-01",
+            "hall_name": "安徽省政务服务中心",
+            "hall_address": "马鞍山路509号",
+        }
+    ]
     assert "people_ahead" not in appointments.data["appointments"][0]
     assert slots.data["slots"][0]["remaining_count"] == 6
     assert queue.data["queue_status"]["people_ahead"] == 4
@@ -174,14 +226,14 @@ def test_appointment_book_is_idempotent_and_only_decrements_once():
 
     before = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
         user,
     )
     first = registry.execute("appointment_book", {"slot_id": 6103, "confirmed": True}, user)
     replay = registry.execute("appointment_book", {"slot_id": 6103, "confirmed": True}, user)
     after = registry.execute(
         "appointment_slot_query",
-        {"item_code": "ITEM-RESIDENCE-PERMIT", "service_date": "2026-07-16"},
+        {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01", "service_date": "2026-07-16"},
         user,
     )
 
@@ -290,7 +342,11 @@ def test_agent_executes_slot_query_and_booking_without_dependency_wave():
                         tool_call(
                             "slots",
                             "appointment_slot_query",
-                            {"item_code": "ITEM-RESIDENCE-PERMIT", "service_date": "2026-07-16"},
+                            {
+                                "item_code": "ITEM-RESIDENCE-PERMIT",
+                                "hall_code": "AH-ZW-01",
+                                "service_date": "2026-07-16",
+                            },
                         ),
                         tool_call("book", "appointment_book", {"slot_id": 6103, "confirmed": True}),
                     ],

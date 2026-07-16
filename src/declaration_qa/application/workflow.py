@@ -24,6 +24,7 @@ from declaration_qa.application.nodes import ApplicationNodes
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import (
     AppointmentBookTool,
+    AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
     ConsultationRecordQueryTool,
@@ -125,6 +126,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
             self.tool_registry.register(KnowledgeSearchTool(self.execute_knowledge_search))
         business_query_tools = [
             AppointmentListQueryTool(self.business_adapter),
+            AppointmentHallQueryTool(self.business_adapter),
             AppointmentSlotQueryTool(self.business_adapter),
             AppointmentBookTool(self.business_adapter),
             QueueStatusQueryTool(self.business_adapter),

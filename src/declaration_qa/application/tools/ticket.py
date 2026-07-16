@@ -16,11 +16,25 @@ class TicketListQueryInput(BaseModel):
 
 
 class TicketDetailQueryInput(BaseModel):
-    """按事项查询多次申请，可进一步限定 application 主键。"""
+    """使用本轮事项列表返回的 item_code 查询申请详情。"""
     model_config = ConfigDict(extra="forbid")
 
-    item_code: str = Field(min_length=1, max_length=160)
-    application_id: int | None = Field(default=None, ge=1)
+    item_code: str = Field(
+        min_length=1,
+        max_length=160,
+        description=(
+            "必须直接取自本轮先行调用 ticket_list_query 成功返回的 data.items[].item_code；"
+            "不得猜测、编造或使用历史对话中的 item_code"
+        ),
+    )
+    application_id: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "可选；必须直接取自本轮 ticket_detail_query 已返回的 data.applications[].application_id，"
+            "否则省略以查询该事项下的全部申请"
+        ),
+    )
     detail_type: Literal["full", "status", "rejection"] = "full"
 
 
@@ -30,7 +44,8 @@ class TicketListQueryTool:
     name = "ticket_list_query"
     description = (
         "查询当前登录用户办理过的政务事项列表，返回 item_code、事项名称和申请数量。"
-        "用户询问个人申请进度、退回原因或历史申请且尚未确定 item_code 时调用。"
+        "用户询问个人申请进度、退回原因或历史申请时先调用本工具；后续 ticket_detail_query "
+        "必须使用本工具本轮成功返回的 data.items[].item_code。"
     )
     input_model = TicketListQueryInput
 
@@ -57,8 +72,10 @@ class TicketDetailQueryTool:
 
     name = "ticket_detail_query"
     description = (
-        "按 item_code 查询当前登录用户在该事项下的全部申请；每条申请包含 application_id、当前状态"
-        "以及按时间排序的完整 status_history。可用 application_id 进一步限定某次申请。"
+        "按 item_code 查询当前登录用户在该事项下的全部申请。调用前必须先在本轮调用 "
+        "ticket_list_query，并仅使用其成功返回的 data.items[].item_code；不得猜测、编造或复用"
+        "历史对话中的 item_code。每条申请包含 application_id、当前状态以及按时间排序的完整 "
+        "status_history；返回的 data.applications[].application_id 可供缴费、回执、结果和送达工具使用。"
     )
     input_model = TicketDetailQueryInput
 
