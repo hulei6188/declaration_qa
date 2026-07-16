@@ -257,9 +257,11 @@ class AppointmentBookTool:
     name = "appointment_book"
     description = (
         "为当前登录用户预约指定号源。这是写操作，调用前必须先在本轮调用 "
-        "appointment_slot_query，并仅使用该工具成功返回的 data.slots[].slot_id；"
+        "appointment_slot_query，等待查询结果返回后再单独发起本工具调用，不得与号源查询同批调用；"
+        "仅使用该工具成功返回的 data.slots[].slot_id；"
         "不得猜测、编造或复用历史对话中的 slot_id。"
-        "工具执行前服务端会暂停并请求用户在界面中人工确认；事项、大厅、日期和时间由服务端号源派生。"
+        "工具执行前服务端会暂停并请求用户在界面中选择大厅、时段并人工确认；"
+        "事项、大厅、日期和时间由服务端号源派生。"
     )
     input_model = AppointmentBookInput
 

@@ -235,6 +235,16 @@ class AgentRuntimeNodes:
         if protected_calls:
             confirmation = interrupt(build_human_confirmation_payload(protected_calls, next_state))
             approved = bool((confirmation or {}).get("approved")) if isinstance(confirmation, dict) else False
+            if approved:
+                calls = apply_human_confirmation_selections(
+                    calls,
+                    next_state,
+                    (confirmation or {}).get("selected_slot_ids") or {},
+                )
+                protected_calls = [
+                    call for call in calls
+                    if requires_human_confirmation(str(call.get("name") or ""))
+                ]
             approved_call_ids = {
                 str(call.get("id") or call.get("name") or "")
                 for call in protected_calls
@@ -905,9 +915,107 @@ def build_human_confirmation_actions(
                 "subject": str(record.get("item_name") or f"预约号源 {slot_id}"),
                 "details": appointment_record_details(record),
                 "arguments": {"slot_id": slot_id},
+                "slot_options": appointment_slot_options(state.get("tool_results") or [], record),
             }
         )
     return actions
+
+
+def appointment_slot_options(
+    results: list[dict[str, Any]],
+    selected_record: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """提取本轮同一事项下仍可预约的大厅和时段供人工选择。"""
+    item_code = str(selected_record.get("item_code") or "").strip()
+    options: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for result in results:
+        if str(result.get("tool_name") or "") != "appointment_slot_query" or not result.get("ok"):
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        for record in data.get("slots") or []:
+            if not isinstance(record, dict):
+                continue
+            slot_id = int(record.get("slot_id") or 0)
+            if slot_id <= 0 or slot_id in seen:
+                continue
+            if item_code and str(record.get("item_code") or "") != item_code:
+                continue
+            if str(record.get("status") or "") != "available":
+                continue
+            if int(record.get("remaining_count") or 0) <= 0:
+                continue
+            seen.add(slot_id)
+            options.append(
+                {
+                    "slot_id": slot_id,
+                    "hall_code": str(record.get("hall_code") or ""),
+                    "hall_name": str(record.get("hall_name") or ""),
+                    "hall_address": str(record.get("hall_address") or ""),
+                    "service_date": str(record.get("service_date") or ""),
+                    "start_time": str(record.get("start_time") or ""),
+                    "end_time": str(record.get("end_time") or ""),
+                    "remaining_count": int(record.get("remaining_count") or 0),
+                }
+            )
+    return sorted(
+        options,
+        key=lambda item: (
+            item["hall_name"],
+            item["service_date"],
+            item["start_time"],
+            item["slot_id"],
+        ),
+    )
+
+
+def apply_human_confirmation_selections(
+    calls: list[dict[str, Any]],
+    state: dict[str, Any],
+    selected_slot_ids: dict[str, int] | None,
+) -> list[dict[str, Any]]:
+    """校验人工选择并替换预约写调用中的号源主键。"""
+    selections = {str(key): int(value) for key, value in (selected_slot_ids or {}).items()}
+    book_call_ids = {
+        str(call.get("id") or call.get("name") or "")
+        for call in calls
+        if str(call.get("name") or "") == "appointment_book"
+    }
+    unknown = set(selections) - book_call_ids
+    if unknown:
+        raise ValueError("预约选项已失效，请重新查询可预约大厅和时段")
+
+    updated: list[dict[str, Any]] = []
+    for call in calls:
+        if str(call.get("name") or "") != "appointment_book":
+            updated.append(dict(call))
+            continue
+        call_id = str(call.get("id") or call.get("name") or "")
+        arguments = dict(call.get("arguments") or {})
+        original_slot_id = int(arguments.get("slot_id") or 0)
+        selected_slot_id = int(selections.get(call_id) or original_slot_id)
+        original = find_business_record(
+            state.get("tool_results") or [],
+            tool_name="appointment_slot_query",
+            collection="slots",
+            key="slot_id",
+            value=original_slot_id,
+        )
+        selected = find_business_record(
+            state.get("tool_results") or [],
+            tool_name="appointment_slot_query",
+            collection="slots",
+            key="slot_id",
+            value=selected_slot_id,
+        )
+        if not selected:
+            raise ValueError("所选预约时段不属于本轮查询结果，请重新查询")
+        if original and str(original.get("item_code") or "") != str(selected.get("item_code") or ""):
+            raise ValueError("所选预约时段与当前事项不一致，请重新选择")
+        if str(selected.get("status") or "") != "available" or int(selected.get("remaining_count") or 0) <= 0:
+            raise ValueError("所选预约时段已无剩余号源，请重新查询")
+        updated.append({**call, "arguments": {**arguments, "slot_id": selected_slot_id}})
+    return updated
 
 
 def find_business_record(

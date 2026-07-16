@@ -1891,6 +1891,11 @@ select {
 .human-confirmation-action span { color: var(--text-secondary); font-size: 13px; }
 .human-confirmation-actions-list { display: grid; gap: 8px; margin: 14px 0; }
 .human-confirmation-action { display: grid; gap: 3px; padding: 10px 12px; border-radius: 8px; background: var(--surface); }
+.appointment-selection-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+.appointment-selection-grid label { display: grid; gap: 5px; }
+.appointment-selection-grid label > span { color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+.appointment-selection-grid select { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-elevated); color: var(--text-primary); }
+.appointment-selection-address { grid-column: 1 / -1; }
 .human-confirmation-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .human-confirmation-buttons button { display: inline-flex; align-items: center; gap: 5px; padding: 8px 13px; }
 .confirmation-reject { border-color: var(--border-strong); }

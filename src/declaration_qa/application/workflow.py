@@ -22,6 +22,7 @@ from declaration_qa.application.helpers.streaming import (
     token_events,
 )
 from declaration_qa.application.nodes import ApplicationNodes
+from declaration_qa.application.nodes.agent_runtime import apply_human_confirmation_selections
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.tools import (
     AppointmentBookTool,
@@ -270,6 +271,12 @@ class DeclarationQAWorkflow(ApplicationNodes):
         state: DeclarationQAState = dict(snapshot.values or {})
         if int(state.get("user_id") or 0) != int(request.user_id):
             raise ValueError("人工确认不属于当前用户")
+        if request.approved:
+            apply_human_confirmation_selections(
+                list(state.get("agent_pending_tool_calls") or []),
+                state,
+                request.selected_slot_ids,
+            )
         yield {
             "event": "run_resumed",
             "data": {
@@ -283,6 +290,7 @@ class DeclarationQAWorkflow(ApplicationNodes):
                 resume={
                     "approved": bool(request.approved),
                     "interrupt_id": str(request.interrupt_id),
+                    "selected_slot_ids": dict(request.selected_slot_ids),
                 }
             ),
             state=state,

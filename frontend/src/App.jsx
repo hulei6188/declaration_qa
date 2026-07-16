@@ -151,7 +151,7 @@ export default function App() {
     }
   }
 
-  async function resolveHumanConfirmation(messageIndex, confirmation, approved) {
+  async function resolveHumanConfirmation(messageIndex, confirmation, approved, selectedSlotIds = {}) {
     if (!confirmation?.interrupt_id || streaming) return;
     setStreaming(true);
     setSendState(approved ? '正在执行已确认操作…' : '正在取消操作…');
@@ -166,6 +166,7 @@ export default function App() {
         interrupt_id: confirmation.interrupt_id,
         user_id: Number(ctx.userId || 1),
         approved: Boolean(approved),
+        selected_slot_ids: approved ? selectedSlotIds : {},
       });
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
       for await (const { event, data } of readSSE(response.body)) {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -110,6 +110,7 @@ class HumanConfirmationRequest(BaseModel):
     interrupt_id: str = Field(min_length=1, max_length=120)
     user_id: int = Field(default=1, ge=1)
     approved: bool
+    selected_slot_ids: dict[str, Annotated[int, Field(ge=1)]] = Field(default_factory=dict)
 
 
 class KnowledgeDocumentRequest(BaseModel):

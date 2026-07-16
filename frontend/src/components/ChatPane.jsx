@@ -142,7 +142,12 @@ export default function ChatPane({
               <HumanConfirmationCard
                 confirmation={m.confirmation}
                 disabled={streaming}
-                onResolve={(approved) => onResolveConfirmation?.(i, m.confirmation, approved)}
+                onResolve={(approved, selectedSlotIds) => onResolveConfirmation?.(
+                  i,
+                  m.confirmation,
+                  approved,
+                  selectedSlotIds,
+                )}
               />
             )}
             {m.attachments?.length > 0 && (
@@ -229,6 +234,10 @@ export default function ChatPane({
 }
 
 function HumanConfirmationCard({ confirmation, disabled, onResolve }) {
+  const [selectedSlotIds, setSelectedSlotIds] = useState(() => initialSlotSelections(confirmation));
+  useEffect(() => {
+    setSelectedSlotIds(initialSlotSelections(confirmation));
+  }, [confirmation.interrupt_id]);
   const pending = confirmation.status === 'pending';
   const submitting = confirmation.status === 'submitting';
   const resolvedLabel = confirmation.status === 'approved'
@@ -248,20 +257,67 @@ function HumanConfirmationCard({ confirmation, disabled, onResolve }) {
         </div>
       </div>
       <div className="human-confirmation-actions-list">
-        {(confirmation.actions || []).map((action) => (
-          <div key={action.call_id || action.subject} className="human-confirmation-action">
-            <strong>{action.subject || action.label}</strong>
-            {(action.details || []).map((detail) => <span key={detail}>{detail}</span>)}
-          </div>
-        ))}
+        {(confirmation.actions || []).map((action) => {
+          const options = action.slot_options || [];
+          const selectedSlotId = Number(selectedSlotIds[action.call_id] || action.arguments?.slot_id || 0);
+          const selectedOption = options.find((option) => Number(option.slot_id) === selectedSlotId) || options[0];
+          const halls = uniqueSlotHalls(options);
+          const hallOptions = options.filter((option) => option.hall_code === selectedOption?.hall_code);
+          return (
+            <div key={action.call_id || action.subject} className="human-confirmation-action">
+              <strong>{action.subject || action.label}</strong>
+              {options.length > 0 ? (
+                <div className="appointment-selection-grid">
+                  <label>
+                    <span>预约大厅</span>
+                    <select
+                      value={selectedOption?.hall_code || ''}
+                      disabled={disabled || submitting}
+                      onChange={(event) => {
+                        const firstSlot = options.find((option) => option.hall_code === event.target.value);
+                        if (firstSlot) {
+                          setSelectedSlotIds((current) => ({ ...current, [action.call_id]: Number(firstSlot.slot_id) }));
+                        }
+                      }}
+                    >
+                      {halls.map((hall) => (
+                        <option key={hall.hall_code} value={hall.hall_code}>{hall.hall_name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>预约日期和时段</span>
+                    <select
+                      value={selectedOption?.slot_id || ''}
+                      disabled={disabled || submitting}
+                      onChange={(event) => setSelectedSlotIds((current) => ({
+                        ...current,
+                        [action.call_id]: Number(event.target.value),
+                      }))}
+                    >
+                      {hallOptions.map((option) => (
+                        <option key={option.slot_id} value={option.slot_id}>
+                          {slotOptionLabel(option)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedOption?.hall_address && <span className="appointment-selection-address">{selectedOption.hall_address}</span>}
+                </div>
+              ) : (
+                (action.details || []).map((detail) => <span key={detail}>{detail}</span>)
+              )}
+            </div>
+          );
+        })}
       </div>
       {confirmation.error && <div className="human-confirmation-error">{confirmation.error}</div>}
       {(pending || submitting) ? (
         <div className="human-confirmation-buttons">
-          <button type="button" className="confirmation-reject" disabled={disabled || submitting} onClick={() => onResolve(false)}>
+          <button type="button" className="confirmation-reject" disabled={disabled || submitting} onClick={() => onResolve(false, {})}>
             <X size={14} />取消
           </button>
-          <button type="button" className="primary confirmation-approve" disabled={disabled || submitting} onClick={() => onResolve(true)}>
+          <button type="button" className="primary confirmation-approve" disabled={disabled || submitting} onClick={() => onResolve(true, selectedSlotIds)}>
             <Check size={14} />{submitting ? '处理中…' : '确认执行'}
           </button>
         </div>
@@ -270,6 +326,32 @@ function HumanConfirmationCard({ confirmation, disabled, onResolve }) {
       )}
     </section>
   );
+}
+
+function initialSlotSelections(confirmation) {
+  return Object.fromEntries(
+    (confirmation.actions || [])
+      .filter((action) => action.tool_name === 'appointment_book' && action.arguments?.slot_id)
+      .map((action) => [action.call_id, Number(action.arguments.slot_id)]),
+  );
+}
+
+function uniqueSlotHalls(options) {
+  const halls = new Map();
+  for (const option of options) {
+    if (!halls.has(option.hall_code)) {
+      halls.set(option.hall_code, {
+        hall_code: option.hall_code,
+        hall_name: option.hall_name || option.hall_code,
+      });
+    }
+  }
+  return [...halls.values()];
+}
+
+function slotOptionLabel(option) {
+  const time = [option.start_time, option.end_time].filter(Boolean).join('–');
+  return `${option.service_date || ''} ${time}（剩余 ${Number(option.remaining_count || 0)} 个）`.trim();
 }
 
 const markdownComponents = {

@@ -99,6 +99,12 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
     registry = service_query_registry()
     user = ToolExecutionContext(user_id=1, region_code="340000")
 
+    halls = registry.execute(
+        "appointment_hall_query",
+        {"item_code": "11340000002985923L200011900100001"},
+        user,
+    )
+
     slots = registry.execute(
         "appointment_slot_query",
         {
@@ -110,6 +116,11 @@ def test_document_derived_mock_slots_and_appointments_are_queryable():
     )
     appointments = registry.execute("appointment_list_query", {"status": "all"}, user)
 
+    assert {hall["hall_code"] for hall in halls.data["halls"]} == {
+        "AH-ZW-GCJS",
+        "AH-SLT-SLZW",
+        "AH-HF-SWZW",
+    }
     assert [slot["remaining_count"] for slot in slots.data["slots"]] == [7, 0, 10]
     assert all(slot["source_manifest_id"] == "item_28_official_ahzwfw" for slot in slots.data["slots"])
     assert any(
@@ -484,7 +495,7 @@ def test_agent_can_query_queue_directly_without_appointment_list():
     assert response.tool_results[0]["status"] == "success"
 
 
-def test_agent_executes_slot_query_and_booking_without_dependency_wave():
+def test_agent_allows_human_to_select_queried_slot_before_booking():
     class ScriptedAgent:
         def decide(self, state, _definitions):
             if not state.get("tool_results"):
@@ -499,9 +510,13 @@ def test_agent_executes_slot_query_and_booking_without_dependency_wave():
                                 "hall_code": "AH-ZW-01",
                                 "service_date": "2026-07-16",
                             },
-                        ),
-                        tool_call("book", "appointment_book", {"slot_id": 6103, "confirmed": True}),
+                        )
                     ],
+                )
+            if not any(result["tool_name"] == "appointment_book" for result in state.get("tool_results") or []):
+                return AgentDecision(
+                    "tools",
+                    [tool_call("book", "appointment_book", {"slot_id": 6101, "confirmed": True})],
                 )
             return AgentDecision("finish", final_answer="已预约成功。[业务2]")
 
@@ -518,11 +533,14 @@ def test_agent_executes_slot_query_and_booking_without_dependency_wave():
     confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
 
     assert confirmation["actions"][0]["tool_name"] == "appointment_book"
+    assert confirmation["actions"][0]["arguments"] == {"slot_id": 6101}
+    assert [option["slot_id"] for option in confirmation["actions"][0]["slot_options"]] == [6101, 6103]
     resumed = list(workflow.resume_stream(HumanConfirmationRequest(
         session_id=session_id,
         interrupt_id=confirmation["interrupt_id"],
         user_id=1,
         approved=True,
+        selected_slot_ids={"book": 6103},
     )))
     snapshot = workflow._checkpoint_state(user_id=1, session_id=session_id)
 
@@ -532,6 +550,7 @@ def test_agent_executes_slot_query_and_booking_without_dependency_wave():
         "appointment_book",
     ]
     assert all(result["ok"] for result in snapshot["tool_results"])
+    assert snapshot["tool_results"][1]["data"]["appointment"]["slot_id"] == 6103
     assert snapshot["tool_results"][1]["data"]["appointment"]["booking_status"] == "created"
     assert snapshot["answer"] == "已预约成功。[业务2]"
 

@@ -28,6 +28,9 @@ def test_frontend_uses_agentic_chat_without_ticket_binding_or_picker():
     assert "/chat/confirm/stream" in utils
     assert "human_confirmation_required" in combined
     assert "请先处理上方人工确认" in combined
+    assert "预约大厅" in combined
+    assert "预约日期和时段" in combined
+    assert "selected_slot_ids" in combined
     for label in [
         "查询申请事项",
         "查询申请详情",
