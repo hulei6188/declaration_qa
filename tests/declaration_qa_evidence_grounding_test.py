@@ -7,7 +7,7 @@ from declaration_qa.application.evidence_grounding import (
     validate_grounded_answer,
 )
 from declaration_qa.application.evidence_registry import build_evidence_registry, extract_business_key
-from declaration_qa.memory.evidence import project_historical_messages, recent_tool_context
+from declaration_qa.memory.evidence import project_historical_messages
 from declaration_qa.rag.prompting import format_source_payload, format_tool_result_payload
 
 
@@ -207,7 +207,7 @@ def test_each_business_tool_uses_its_declared_primary_key(tool_name: str, field:
     assert extract_business_key(tool_name, {"records": [{field: value}]}) == {field: [value]}
 
 
-def test_historical_assistant_text_is_marked_untrusted_and_tool_protocol_is_preserved():
+def test_historical_assistant_text_is_marked_untrusted_and_tool_protocol_is_removed():
     messages = [
         {"id": "user-1", "role": "user", "content": "融合协议是什么"},
         {"id": "assistant-1", "role": "assistant", "content": "这是法定文书。"},
@@ -243,12 +243,12 @@ def test_historical_assistant_text_is_marked_untrusted_and_tool_protocol_is_pres
     assert isolated[0]["content"] == "融合协议是什么"
     assert "这是法定文书" in isolated[1]["content"]
     assert "仅用于理解指代，不得作为事实证据" in isolated[1]["content"]
-    assert isolated[2]["content"] == ""
-    assert isolated[2]["tool_calls"][0]["id"] == "call-1"
-    assert isolated[3]["content"]["data"]["sources"][0]["evidence_text"] == "登记机关办理收养登记。"
+    assert len(isolated) == 2
+    assert all(item.get("role") != "tool" for item in isolated)
+    assert all(not item.get("tool_calls") for item in isolated)
 
 
-def test_knowledge_evidence_survives_three_turns_while_business_results_do_not():
+def test_historical_knowledge_and_business_tools_are_removed_for_new_turn():
     messages = []
     for turn in range(1, 5):
         knowledge_call_id = f"knowledge-call-{turn}"
@@ -307,19 +307,16 @@ def test_knowledge_evidence_survives_three_turns_while_business_results_do_not()
     projected = project_historical_messages(messages, keep_recent_user_turns=3)
     serialized = str(projected)
 
-    assert "knowledge-call-1" in serialized
-    assert "chunk-1" in serialized
-    assert "第1轮证据原文" in serialized
-    assert "business-call-1" not in serialized
+    for turn in range(1, 5):
+        assert f"knowledge-call-{turn}" not in serialized
+        assert f"business-call-{turn}" not in serialized
+        assert f"第{turn}轮证据原文" not in serialized
     assert "第1轮业务结论" not in serialized
     for turn in range(2, 5):
-        assert f"knowledge-call-{turn}" in serialized
-        assert f"business-call-{turn}" in serialized
-        assert f"第{turn}轮证据原文" in serialized
         assert f"第{turn}轮业务结论" in serialized
 
 
-def test_knowledge_evidence_is_removed_after_rolling_summary_covers_it():
+def test_knowledge_evidence_is_removed_even_before_rolling_summary():
     messages = [
         {"id": "user-1", "role": "user", "content": "第一轮问题"},
         {
@@ -353,93 +350,13 @@ def test_knowledge_evidence_is_removed_after_rolling_summary_covers_it():
     projected = project_historical_messages(
         messages,
         keep_recent_user_turns=0,
-        memory_context={
-            "running_summary": {
-                "summarized_message_ids": {
-                    "user-1",
-                    "assistant-tool-1",
-                    "knowledge-tool-1",
-                    "answer-1",
-                },
-                "last_summarized_message_id": "answer-1",
-            }
-        },
+        memory_context={},
     )
 
     serialized = str(projected)
     assert "knowledge-call-1" not in serialized
     assert "chunk-1" not in serialized
     assert "第一轮证据原文" not in serialized
-
-
-def test_recent_tool_context_uses_full_text_and_never_uses_reference_only_records():
-    messages = [
-        {
-            "role": "tool",
-            "tool_call_id": "knowledge-full",
-            "name": "knowledge_search",
-            "content": {
-                "tool_name": "knowledge_search",
-                "call_id": "knowledge-full",
-                "ok": True,
-                "data": {
-                    "sources": [
-                        {
-                            "chunk_id": "chunk-full",
-                            "title": "完整证据",
-                            "evidence_text": "应当交验身份证明原件。",
-                        }
-                    ]
-                },
-            },
-        },
-        {
-            "role": "tool",
-            "tool_call_id": "knowledge-reference",
-            "name": "knowledge_search",
-            "content": {
-                "tool_name": "knowledge_search",
-                "call_id": "knowledge-reference",
-                "ok": True,
-                "memory_trust": "reference_only",
-                "data": {"source_refs": [{"chunk_id": "chunk-reference"}]},
-            },
-        },
-        {
-            "role": "tool",
-            "tool_call_id": "queue-full",
-            "name": "queue_status_query",
-            "content": {
-                "tool_name": "queue_status_query",
-                "call_id": "queue-full",
-                "ok": True,
-                "completed_at": "2026-07-16T09:08:00+08:00",
-                "data": {"appointment_id": 1, "queue_status": {"waiting_count": 4}},
-            },
-        },
-    ]
-
-    projected = project_historical_messages(
-        [
-            {"role": "user", "content": "上一轮"},
-            {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {"id": "knowledge-full", "name": "knowledge_search", "args": {}},
-                    {"id": "knowledge-reference", "name": "knowledge_search", "args": {}},
-                    {"id": "queue-full", "name": "queue_status_query", "args": {}},
-                ],
-            },
-            *messages,
-        ]
-    )
-    knowledge, business = recent_tool_context(projected)
-
-    assert [item["chunk_id"] for item in knowledge] == ["chunk-full"]
-    assert knowledge[0]["evidence_text"] == "应当交验身份证明原件。"
-    assert [item["call_id"] for item in business] == ["queue-full"]
-    assert business[0]["data"]["queue_status"]["waiting_count"] == 4
 
 
 def test_business_citation_cannot_support_a_different_application_id():

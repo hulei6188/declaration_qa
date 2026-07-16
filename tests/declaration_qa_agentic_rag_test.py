@@ -509,6 +509,23 @@ def test_agent_without_tool_call_can_finish_directly_without_finalizer_override(
     assert agent.finalize_calls == 0
 
 
+def test_historical_assistant_prefix_is_removed_from_final_answer():
+    workflow = DeclarationQAWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(
+            lambda state, definitions: AgentDecision(
+                "finish",
+                final_answer="【历史助手回答，仅用于理解指代，不得作为事实证据】这是最终回答。",
+            )
+        ),
+    )
+
+    response = workflow.invoke(ChatRequest(query="解释一下", user_id=1))
+
+    assert response.answer == "这是最终回答。"
+    assert "历史助手回答" not in response.answer
+
+
 def test_empty_agent_answer_does_not_bypass_evidence_gate():
     workflow = DeclarationQAWorkflow(
         rag_engine=CapturingKnowledgeRag(),
@@ -626,7 +643,7 @@ def test_knowledge_search_uses_only_current_search_sources():
     assert result["rag_status"]["historical_merge_mode"] == "current_search_only"
 
 
-def test_follow_up_uses_previous_full_chunk_without_new_vector_search():
+def test_follow_up_runs_a_new_search_without_reusing_previous_chunks():
     rag = CapturingKnowledgeRag()
 
     def decide(state, definitions):
@@ -648,16 +665,18 @@ def test_follow_up_uses_previous_full_chunk_without_new_vector_search():
 
     assert first.refused is False
     assert second.refused is False
-    assert len(rag.calls) == first_call_count
-    assert second.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "recent_tool_context"
+    assert len(rag.calls) == first_call_count + 1
+    assert second.evidence_decision["evidence_registry"]["knowledge"][0].get("origin") != "recent_tool_context"
     restored = workflow._initial_state(
         ChatRequest(query="第三轮", user_id=1, session_id="memory-knowledge")
     )
-    tool_messages = [item for item in restored["agent_messages"] if item.get("role") == "tool"]
-    assert tool_messages[0]["content"]["data"]["sources"][0]["evidence_text"] == "申请健康证需要身份证明和体检材料。"
+    prepared = workflow.agent_prepare(restored)
+    assert not [item for item in prepared["agent_messages"] if item.get("role") == "tool"]
+    assert prepared["retrieved_sources"] == []
+    assert prepared["tool_results"] == []
 
 
-def test_full_knowledge_evidence_remains_available_before_rolling_summary():
+def test_each_follow_up_searches_again_before_rolling_summary():
     rag = CapturingKnowledgeRag()
 
     def decide(state, definitions):
@@ -674,12 +693,12 @@ def test_full_knowledge_evidence_remains_available_before_rolling_summary():
     workflow.invoke(ChatRequest(query="第一轮检索", user_id=1, session_id=session_id))
     workflow.invoke(ChatRequest(query="第二轮追问", user_id=1, session_id=session_id))
     workflow.invoke(ChatRequest(query="第三轮追问", user_id=1, session_id=session_id))
-    assert len(rag.calls) == 1
+    assert len(rag.calls) == 3
 
     fourth = workflow.invoke(ChatRequest(query="第四轮追问", user_id=1, session_id=session_id))
 
-    assert len(rag.calls) == 1
-    assert fourth.evidence_decision["evidence_registry"]["knowledge"][0]["origin"] == "recent_tool_context"
+    assert len(rag.calls) == 4
+    assert fourth.evidence_decision["evidence_registry"]["knowledge"][0].get("origin") != "recent_tool_context"
     assert not any(
         item.get("role") == "tool"
         and item.get("content", {}).get("memory_trust") == "reference_only"
@@ -758,7 +777,7 @@ def test_topic_shift_can_search_again_without_reference_recall():
     assert not any(event["event"] == "memory_recalled" for event in second.events)
 
 
-def test_business_memory_only_replays_for_explicit_historical_question():
+def test_business_follow_ups_always_query_again():
     calls = []
 
     def decide(state, definitions):
@@ -769,9 +788,6 @@ def test_business_memory_only_replays_for_explicit_historical_question():
                 "tools",
                 [tool_call(call_id, "queue_status_query", {"appointment_id": 4101})],
             )
-        result = state["tool_results"][0]
-        if result.get("memory_origin") == "historical_snapshot":
-            return AgentDecision("finish", final_answer="刚才查询时间的排队结果按当时快照展示。[业务1]")
         return AgentDecision("finish", final_answer="当前排队结果已查询。[业务1]")
 
     workflow = DeclarationQAWorkflow(
@@ -791,7 +807,7 @@ def test_business_memory_only_replays_for_explicit_historical_question():
 
     assert first.refused is False
     assert historical.refused is False
-    assert historical.tool_results[0]["memory_origin"] == "historical_snapshot"
-    assert historical.evidence_decision["evidence_registry"]["business"][0]["origin"] == "historical_snapshot"
-    assert len(calls) == 2
-    assert current.tool_results[0]["call_id"] == "queue-2"
+    assert historical.tool_results[0]["call_id"] == "queue-2"
+    assert historical.evidence_decision["evidence_registry"]["business"][0].get("origin") != "historical_snapshot"
+    assert len(calls) == 3
+    assert current.tool_results[0]["call_id"] == "queue-3"

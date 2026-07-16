@@ -20,11 +20,9 @@ from declaration_qa.application.helpers.retrieval_sources import merge_accumulat
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.observability.performance import log_performance, performance_stage
 from declaration_qa.memory.evidence import (
-    RECENT_EVIDENCE_USER_TURNS,
+    RECENT_CONVERSATION_USER_TURNS,
     build_conversation_memory,
-    is_retrospective_query,
     project_historical_messages,
-    recent_tool_context,
 )
 from declaration_qa.rag.engine.text import normalize_text
 from declaration_qa.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
@@ -53,10 +51,9 @@ class AgentRuntimeNodes:
         next_state["agent_call_signatures"] = []
         messages = project_historical_messages(
             list(next_state.get("agent_messages") or []),
-            keep_recent_user_turns=max(0, RECENT_EVIDENCE_USER_TURNS - 1),
+            keep_recent_user_turns=max(0, RECENT_CONVERSATION_USER_TURNS - 1),
             memory_context=dict(next_state.get("memory_context") or {}),
         )
-        recent_sources, recent_business_results = recent_tool_context(messages)
         messages.append(
             {
                 "id": uuid4().hex,
@@ -65,32 +62,25 @@ class AgentRuntimeNodes:
             }
         )
         next_state["agent_messages"] = messages
-        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
-        active_business_results = recent_business_results if is_retrospective_query(query) else []
-        next_state["retrieved_sources"] = recent_sources
-        next_state["tool_results"] = active_business_results
+        next_state["retrieved_sources"] = []
+        next_state["tool_results"] = []
         next_state["conversation_memory"] = build_conversation_memory(
             next_state.get("memory_context") or {},
         )
         next_state["working_memory"] = {
             "active_knowledge_chunk_ids": [
-                str(item.get("chunk_id") or "") for item in recent_sources
+                str(item.get("chunk_id") or "") for item in next_state["retrieved_sources"]
             ],
             "active_business_call_ids": [
-                str(item.get("call_id") or "") for item in active_business_results
+                str(item.get("call_id") or "") for item in next_state["tool_results"]
             ],
-            "memory_policy": "knowledge_until_summary_business_recent_three",
+            "memory_policy": "current_turn_evidence_only",
             "sufficiency": "agent_decides",
         }
         next_state["active_evidence_registry"] = build_evidence_registry(
-            recent_sources,
-            active_business_results,
+            next_state["retrieved_sources"],
+            next_state["tool_results"],
         )
-        if recent_sources:
-            next_state["rag_status"] = {
-                "recent_tool_context": True,
-                "final_source_count": len(recent_sources),
-            }
         next_state["answer_mode"] = ""
         next_state["agent_plan"] = {}
         next_state["agent_query_plan"] = {}
@@ -345,24 +335,10 @@ class AgentRuntimeNodes:
                 continue
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
             if result.get("tool_name") == "knowledge_search":
-                recent_sources = [
-                    item
-                    for item in (next_state.get("retrieved_sources") or [])
-                    if isinstance(item, dict) and item.get("memory_origin") == "recent_tool_context"
-                ]
-                current_sources = [
-                    item
-                    for item in (next_state.get("retrieved_sources") or [])
-                    if isinstance(item, dict) and item.get("memory_origin") != "recent_tool_context"
-                ]
-                merged_current_sources = merge_accumulated_source_payloads(
-                    [*current_sources, *(data.get("sources") or [])],
+                next_state["retrieved_sources"] = merge_accumulated_source_payloads(
+                    [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],
                     min_per_query=int(getattr(self, "min_sources_per_query", 2) or 0),
                     max_sources=int(getattr(self, "max_accumulated_sources", 48) or 48),
-                )
-                next_state["retrieved_sources"] = merge_sources_by_chunk_id(
-                    recent_sources,
-                    merged_current_sources,
                 )
                 next_state["rag_status"] = dict(data.get("rag_status") or {})
                 next_state["retrieval_filter"] = dict(data.get("retrieval_filter") or {})
@@ -644,26 +620,6 @@ def append_tool_message(
         }
     )
     state["agent_messages"] = messages
-
-
-def merge_sources_by_chunk_id(
-    recent_sources: list[dict[str, Any]],
-    current_sources: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """保留未被摘要的历史正文，并让本轮同块结果覆盖历史副本。"""
-    output: list[dict[str, Any]] = []
-    positions: dict[str, int] = {}
-    for source in [*recent_sources, *current_sources]:
-        if not isinstance(source, dict):
-            continue
-        chunk_id = str(source.get("chunk_id") or "")
-        if chunk_id and chunk_id in positions:
-            output[positions[chunk_id]] = source
-            continue
-        if chunk_id:
-            positions[chunk_id] = len(output)
-        output.append(source)
-    return output
 
 
 def audit_tool_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

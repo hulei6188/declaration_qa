@@ -1,22 +1,38 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronDown, ExternalLink, FileText, Image } from 'lucide-react';
+import React, { useId, useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp, ExternalLink, FileText, Image } from 'lucide-react';
 import { API_BASE } from '../utils.js';
 
 const MAX_VISIBLE_SOURCES = 36;
+const COLLAPSED_SOURCE_COUNT = 6;
 
 export default function SourceEvidenceList({ sources = [] }) {
+  const listId = useId();
   const items = useMemo(() => normalizeSources(sources), [sources]);
   const [activeIndex, setActiveIndex] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   if (!items.length) return null;
 
   const activeSource = activeIndex === null ? null : items[activeIndex];
+  const hasOverflow = items.length > COLLAPSED_SOURCE_COUNT;
+  const visibleItems = expanded ? items : items.slice(0, COLLAPSED_SOURCE_COUNT);
+  const hiddenCount = items.length - COLLAPSED_SOURCE_COUNT;
+
+  const toggleExpanded = () => {
+    if (expanded && activeIndex !== null && activeIndex >= COLLAPSED_SOURCE_COUNT) {
+      setActiveIndex(null);
+    }
+    setExpanded((value) => !value);
+  };
 
   return (
     <div className="answer-sources" aria-label="证据来源">
-      <div className="answer-sources-title">证据来源</div>
-      <div className="answer-source-chips">
-        {items.map((source, index) => {
+      <div className="answer-sources-title">
+        <span>证据来源</span>
+        <span>{items.length}</span>
+      </div>
+      <div className="answer-source-chips" id={listId}>
+        {visibleItems.map((source, index) => {
           const image = sourceImage(source);
           const active = activeIndex === index;
           return (
@@ -34,6 +50,18 @@ export default function SourceEvidenceList({ sources = [] }) {
             </button>
           );
         })}
+        {hasOverflow && (
+          <button
+            type="button"
+            className="answer-source-toggle"
+            aria-expanded={expanded}
+            aria-controls={listId}
+            onClick={toggleExpanded}
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <span>{expanded ? '收起证据' : `展开其余 ${hiddenCount} 条`}</span>
+          </button>
+        )}
       </div>
       {activeSource && <SourceDetail source={activeSource} />}
     </div>

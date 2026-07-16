@@ -10,6 +10,7 @@ from declaration_qa.application.evidence_grounding import validate_grounded_answ
 from declaration_qa.application.state import DeclarationQAState
 from declaration_qa.application.helpers.actions import suggested_actions
 from declaration_qa.application.helpers.events import add_event
+from declaration_qa.memory.evidence import HISTORICAL_ASSISTANT_PREFIX
 from declaration_qa.rag.prompting import application_history_answer, ticket_applications
 
 
@@ -78,7 +79,7 @@ class ResponseNodes:
     def commit_agent_answer(self, state: DeclarationQAState) -> DeclarationQAState:
         """直接使用单 Agent 最后一轮无 Tool Call 的文本响应。"""
         next_state = dict(state)
-        answer = str(next_state.get("agent_final_answer") or "").strip()
+        answer = strip_historical_assistant_prefix(next_state.get("agent_final_answer"))
         prompt = str(next_state.get("agent_final_prompt") or "")
         provider = str(next_state.get("agent_answer_provider") or "")
         if not answer:
@@ -183,6 +184,14 @@ class ResponseNodes:
         add_event(next_state, "long_term_memory", memory_status)
         add_event(next_state, "audit_logged", {"audit_id": audit_id})
         return next_state
+
+
+def strip_historical_assistant_prefix(value: object) -> str:
+    """移除模型误抄到最终回答开头的历史消息信任标记。"""
+    answer = str(value or "").strip()
+    while answer.startswith(HISTORICAL_ASSISTANT_PREFIX):
+        answer = answer[len(HISTORICAL_ASSISTANT_PREFIX) :].lstrip()
+    return answer
 
 
 def agent_model_config(agent: object | None) -> dict[str, object]:

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_RECENT_USER_TURNS = 3
 NO_SUMMARY_TRIGGER_TOKENS = 2**63 - 1
-MEMORY_POLICY_VERSION = "knowledge-until-summary-business-three-v2"
+MEMORY_POLICY_VERSION = "current-turn-evidence-v3"
 
 SUMMARY_INITIAL_PROMPT = ChatPromptTemplate.from_messages(
     [

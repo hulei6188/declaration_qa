@@ -1007,10 +1007,28 @@ select {
 }
 
 .answer-sources-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text-tertiary);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
+}
+
+.answer-sources-title span:last-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .answer-source-chips {
@@ -1048,6 +1066,25 @@ select {
   white-space: nowrap;
   font-size: 12px;
   font-weight: 700;
+}
+
+.answer-source-toggle {
+  height: 30px;
+  padding: 0 9px;
+  gap: 5px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.answer-source-toggle:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent-hover);
 }
 
 .answer-source-detail {
