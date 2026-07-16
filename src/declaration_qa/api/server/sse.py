@@ -37,7 +37,7 @@ def threaded_sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
             yield sse_event(str(payload.get("event") or "event"), payload.get("data") or {})
             continue
         if kind == "error":
-            yield sse_event("error", {"message": str(payload) or type(payload).__name__})
+            yield sse_event("error", {"message": user_facing_error(payload)})
             break
         break
 
@@ -71,6 +71,13 @@ def sse_response(response: ChatResponse) -> Iterable[str]:
             "suggested_actions": [action.model_dump() for action in response.suggested_actions],
         },
     )
+
+
+def user_facing_error(error: Exception) -> str:
+    """把底层框架异常转换成适合前端展示的中文信息。"""
+    if type(error).__name__ == "GraphRecursionError":
+        return "Agent 执行步骤超过安全上限，请缩小查询范围后重试。"
+    return str(error) or type(error).__name__
 
 
 def sse_event(event: str, data: dict) -> str:

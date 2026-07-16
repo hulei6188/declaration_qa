@@ -436,9 +436,10 @@ class DeclarationQAWorkflow(ApplicationNodes):
         )
         return dict(snapshot.values or {})
 
-    @staticmethod
-    def _graph_config(*, user_id: int, session_id: str, stream: bool = False) -> dict[str, Any]:
+    def _graph_config(self, *, user_id: int, session_id: str, stream: bool = False) -> dict[str, Any]:
+        """构造线程配置，并为完整 Agent 轮次预留足够的图节点步数。"""
         return {
+            "recursion_limit": max(32, self.agent_max_iterations * 4 + 16),
             "configurable": {
                 "thread_id": f"user:{int(user_id)}:session:{session_id}",
                 "langgraph_user_id": str(int(user_id)),

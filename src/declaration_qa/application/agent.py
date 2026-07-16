@@ -61,8 +61,7 @@ class AgentDecision:
 
     action: str
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
-    intent: str = ("a"
-                   "gentic_rag")
+    intent: str = "agentic_rag"
     reason: str = ""
     provider: str = "rule"
     final_answer: str = ""

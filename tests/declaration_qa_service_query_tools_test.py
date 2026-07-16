@@ -660,3 +660,54 @@ def test_agent_executes_business_calls_without_dependency_waves():
     ]
     assert all(result["ok"] for result in response.tool_results)
     assert response.answer == "已查询到缴费订单和电子票据。[业务3][业务4]"
+
+
+def test_agent_completes_four_sequential_tool_rounds_before_graph_limit():
+    class ScriptedAgent:
+        def decide(self, state, _definitions):
+            completed = [result["tool_name"] for result in state.get("tool_results") or []]
+            if "ticket_list_query" not in completed:
+                return AgentDecision("tools", [tool_call("tickets", "ticket_list_query")])
+            if "ticket_detail_query" not in completed:
+                return AgentDecision(
+                    "tools",
+                    [
+                        tool_call(
+                            "detail",
+                            "ticket_detail_query",
+                            {"item_codes": ["ITEM-HEALTH-CERTIFICATE"]},
+                        )
+                    ],
+                )
+            if "payment_order_query" not in completed:
+                return AgentDecision(
+                    "tools",
+                    [tool_call("orders", "payment_order_query", {"application_ids": [1001]})],
+                )
+            if "payment_receipt_query" not in completed:
+                return AgentDecision(
+                    "tools",
+                    [
+                        tool_call(
+                            "receipt",
+                            "payment_receipt_query",
+                            {"targets": [{"application_id": 1001, "payment_order_id": 5101}]},
+                        )
+                    ],
+                )
+            return AgentDecision("finish", final_answer="已查询到电子票据。[业务4]")
+
+    workflow = DeclarationQAWorkflow(agent=ScriptedAgent())
+    response = workflow.invoke(
+        ChatRequest(query="现在有没有电子票据", user_id=1, region_code="340000")
+    )
+
+    assert workflow._graph_config(user_id=1, session_id="test")["recursion_limit"] >= 32
+    assert [result["tool_name"] for result in response.tool_results] == [
+        "ticket_list_query",
+        "ticket_detail_query",
+        "payment_order_query",
+        "payment_receipt_query",
+    ]
+    assert all(result["ok"] for result in response.tool_results)
+    assert response.answer == "已查询到电子票据。[业务4]"
