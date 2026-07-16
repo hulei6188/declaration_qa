@@ -129,16 +129,6 @@ def validate_grounded_answer(state: dict[str, Any], answer: str) -> dict[str, An
     if business_identity_mismatches:
         return grounding_decision(False, "business_key_mismatch", "grounded", checks)
 
-    historical_indexes = {
-        index
-        for index, (_entry, result) in enumerate(registered_business, start=1)
-        if str(result.get("memory_origin") or "") == "historical_snapshot"
-    }
-    cited_historical = historical_indexes & business_citations
-    checks["historical_business_citations"] = sorted(cited_historical)
-    if cited_historical and not answer_has_historical_time_context(answer):
-        return grounding_decision(False, "historical_snapshot_without_time_context", "grounded", checks)
-
     return grounding_decision(True, "", "grounded", checks)
 
 
@@ -178,14 +168,6 @@ def business_identity_mismatch(
                 "unit": short_check_text(unit),
             }
     return None
-
-
-def answer_has_historical_time_context(answer: str) -> bool:
-    """判断历史业务快照回答是否明确表达观察时点。"""
-    text = str(answer or "")
-    if any(term in text for term in ("截至", "查询时间", "观察时间", "当时", "上一轮", "刚才", "先前")):
-        return True
-    return bool(re.search(r"20\d{2}[-年/]\d{1,2}(?:[-月/]\d{1,2})?", text))
 
 
 def query_requires_knowledge(query: str) -> bool:

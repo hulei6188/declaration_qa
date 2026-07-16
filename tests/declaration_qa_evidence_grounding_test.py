@@ -463,7 +463,7 @@ def test_business_citation_cannot_support_a_different_application_id():
     assert decision["reason"] == "business_key_mismatch"
 
 
-def test_historical_business_snapshot_requires_time_context():
+def test_historical_business_snapshot_does_not_require_time_context():
     state = {
         "query": "刚才排队情况是什么",
         "retrieved_sources": [],
@@ -479,9 +479,7 @@ def test_historical_business_snapshot_requires_time_context():
         ],
     }
 
-    missing_time = validate_grounded_answer(state, "前方等待人数为4人。[业务1]")
-    with_time = validate_grounded_answer(state, "截至刚才查询时，前方等待人数为4人。[业务1]")
+    decision = validate_grounded_answer(state, "前方等待人数为4人。[业务1]")
 
-    assert missing_time["ok"] is False
-    assert missing_time["reason"] == "historical_snapshot_without_time_context"
-    assert with_time["ok"] is True
+    assert decision["ok"] is True
+    assert decision["reason"] == ""
