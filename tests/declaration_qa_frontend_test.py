@@ -92,3 +92,23 @@ def test_frontend_displays_empty_tool_results_without_failure_state():
     assert "status: toolTraceStatus(call.ok, call.status)" in utils
     assert "if (status === 'empty') return '无记录'" in timeline
     assert ".status-empty .tool-step-icon" in styles
+
+
+def test_sidebar_collapse_uses_progressive_motion_with_reduced_motion_fallback():
+    styles = (FRONTEND_ROOT / "src" / "styles.css").read_text(encoding="utf-8")
+
+    assert "transition: grid-template-columns .28s" in styles
+    assert ".workspace.sidebar-collapsed .context-pane.app-sidebar" in styles
+    assert "transform: translateX(-100%)" in styles
+    assert "@media (prefers-reduced-motion: reduce)" in styles
+
+
+def test_composer_only_shows_real_streaming_phases():
+    app = (FRONTEND_ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
+    chat = (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").read_text(encoding="utf-8")
+
+    assert "等待输入" not in app + chat
+    assert "streamPhaseLabel" in app
+    assert "正在连接服务" in app
+    assert "正在生成回答" in app
+    assert "sendState &&" in chat

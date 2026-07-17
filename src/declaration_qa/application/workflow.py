@@ -176,6 +176,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
                 }
             else:
                 final_state = self.graph.invoke(initial_state, config=config)
+            pending_after_run = self._current_human_confirmation(config)
+            if pending_after_run:
+                observe_human_confirmation_requested(
+                    pending_after_run,
+                    final_state,
+                    source="workflow.invoke",
+                )
             span.update(output=chat_trace_output(final_state), metadata=chat_trace_metadata(final_state))
             span.set_trace_io(input=chat_trace_input(request), output=chat_trace_output(final_state))
         return ChatResponse(
@@ -229,6 +236,11 @@ class DeclarationQAWorkflow(ApplicationNodes):
             )
             pending_confirmation = self._current_human_confirmation(config)
             if pending_confirmation:
+                observe_human_confirmation_requested(
+                    pending_confirmation,
+                    state,
+                    source="workflow.stream.pending",
+                )
                 yield {"event": "human_confirmation_required", "data": pending_confirmation}
                 yield {
                     "event": "run_paused",
@@ -277,29 +289,57 @@ class DeclarationQAWorkflow(ApplicationNodes):
                 state,
                 request.selected_slot_ids,
             )
-        yield {
-            "event": "run_resumed",
-            "data": {
-                "session_id": request.session_id,
-                "interrupt_id": request.interrupt_id,
-                "approved": request.approved,
-            },
-        }
-        interrupted = yield from self._stream_graph_events(
-            Command(
-                resume={
-                    "approved": bool(request.approved),
-                    "interrupt_id": str(request.interrupt_id),
-                    "selected_slot_ids": dict(request.selected_slot_ids),
-                }
-            ),
-            state=state,
-            config=config,
-            emitted_event_count=len(state.get("events") or []),
-        )
-        if interrupted:
-            return
-        yield done_event(state)
+        trace_id = str(state.get("langfuse_trace_id") or "")
+        resume_input = human_confirmation_trace_input(request)
+        with performance_request(
+            "workflow.resume_stream",
+            session_id=str(request.session_id or ""),
+            trace_id=trace_id,
+            user_id=int(request.user_id or 0),
+        ), observation(
+            "workflow.resume_stream",
+            input=resume_input,
+            metadata={**chat_trace_metadata(state), "human_confirmation": resume_input},
+            trace_id=trace_id,
+            user_id=str(request.user_id or ""),
+            session_id=str(request.session_id or ""),
+            tags=["declaration-qa", "chat", "resume", "human-confirmation"],
+            trace_name="declaration_qa.chat",
+        ) as span:
+            observe_human_confirmation_resolved(request, state)
+            yield {
+                "event": "run_resumed",
+                "data": {
+                    "session_id": request.session_id,
+                    "interrupt_id": request.interrupt_id,
+                    "approved": request.approved,
+                },
+            }
+            interrupted = yield from self._stream_graph_events(
+                Command(
+                    resume={
+                        "approved": bool(request.approved),
+                        "interrupt_id": str(request.interrupt_id),
+                        "selected_slot_ids": dict(request.selected_slot_ids),
+                    }
+                ),
+                state=state,
+                config=config,
+                emitted_event_count=len(state.get("events") or []),
+            )
+            span.update(
+                output={
+                    **chat_trace_output(state),
+                    "human_confirmation": {
+                        "approved": bool(request.approved),
+                        "interrupt_id": str(request.interrupt_id),
+                    },
+                },
+                metadata=chat_trace_metadata(state),
+            )
+            if interrupted:
+                return
+            yield done_event(state)
 
     def _current_human_confirmation(self, config: dict[str, Any]) -> dict[str, Any]:
         """读取当前线程尚未处理的人工确认。"""
@@ -344,6 +384,11 @@ class DeclarationQAWorkflow(ApplicationNodes):
                             "interrupt_id": str(pending.id),
                             "session_id": str(state.get("session_id") or ""),
                         }
+                        observe_human_confirmation_requested(
+                            confirmation,
+                            state,
+                            source="workflow.stream",
+                        )
                         yield {"event": "human_confirmation_required", "data": confirmation}
                     yield {
                         "event": "run_paused",
@@ -548,6 +593,74 @@ def chat_trace_input(request: ChatRequest) -> dict[str, Any]:
             "metadata_filter": request.metadata_filter,
         }
     )
+
+
+def human_confirmation_trace_input(request: HumanConfirmationRequest) -> dict[str, Any]:
+    """构建不包含业务正文的人工确认观测输入。"""
+    return {
+        "session_id": str(request.session_id or ""),
+        "interrupt_id": str(request.interrupt_id or ""),
+        "approved": bool(request.approved),
+        "selected_slot_ids": {
+            str(call_id): int(slot_id)
+            for call_id, slot_id in (request.selected_slot_ids or {}).items()
+        },
+    }
+
+
+def observe_human_confirmation_requested(
+    confirmation: dict[str, Any],
+    state: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    """在当前聊天 Trace 中记录一次等待人工确认事件。"""
+    actions = list(confirmation.get("actions") or [])
+    trace_id = str(state.get("langfuse_trace_id") or "")
+    payload = {
+        "interrupt_id": str(confirmation.get("interrupt_id") or ""),
+        "action_count": len(actions),
+        "tools": [str(action.get("tool_name") or "") for action in actions],
+        "source": source,
+    }
+    with observation(
+        "agent.human_confirmation.requested",
+        as_type="span",
+        input=payload,
+        metadata={
+            **chat_trace_metadata(state),
+            "human_confirmation_status": "requested",
+            "interrupt_id": payload["interrupt_id"],
+        },
+        trace_id=trace_id,
+    ) as span:
+        span.update(output={"status": "awaiting_confirmation", **payload})
+
+
+def observe_human_confirmation_resolved(
+    request: HumanConfirmationRequest,
+    state: dict[str, Any],
+) -> None:
+    """在恢复执行前记录人工确认结果。"""
+    trace_id = str(state.get("langfuse_trace_id") or "")
+    payload = human_confirmation_trace_input(request)
+    with observation(
+        "agent.human_confirmation.resolved",
+        as_type="span",
+        input=payload,
+        metadata={
+            **chat_trace_metadata(state),
+            "human_confirmation_status": "approved" if request.approved else "rejected",
+            "interrupt_id": str(request.interrupt_id or ""),
+        },
+        trace_id=trace_id,
+    ) as span:
+        span.update(
+            output={
+                "status": "approved" if request.approved else "rejected",
+                "interrupt_id": str(request.interrupt_id or ""),
+            }
+        )
 
 
 def chat_trace_metadata(state: dict[str, Any]) -> dict[str, Any]:

@@ -21,6 +21,7 @@ from declaration_qa.application.helpers.events import add_event
 from declaration_qa.application.helpers.retrieval_sources import merge_accumulated_source_payloads
 from declaration_qa.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
 from declaration_qa.observability.performance import log_performance, performance_stage
+from declaration_qa.observability.langfuse import observation, record_error, safe_value
 from declaration_qa.memory.evidence import (
     RECENT_CONVERSATION_USER_TURNS,
     build_conversation_memory,
@@ -262,11 +263,41 @@ class AgentRuntimeNodes:
                 },
             )
 
-        execution_outputs = self._execute_tool_wave(
-            calls,
-            next_state,
-            approved_call_ids=approved_call_ids,
-        )
+        with observation(
+            "agent.tool_wave",
+            input={
+                "call_count": len(calls),
+                "tools": [str(call.get("name") or "") for call in calls],
+                "parallel": len(calls) > 1,
+            },
+            metadata={
+                "langfuse_trace_id": str(next_state.get("langfuse_trace_id") or ""),
+                "session_id": str(next_state.get("session_id") or ""),
+                "user_id": int(next_state.get("user_id") or 0),
+                "agent_iteration": int(next_state.get("agent_iteration") or 0),
+            },
+            trace_id=str(next_state.get("langfuse_trace_id") or ""),
+        ) as wave_span:
+            execution_outputs = self._execute_tool_wave(
+                calls,
+                next_state,
+                approved_call_ids=approved_call_ids,
+            )
+            wave_span.update(
+                output={
+                    "call_count": len(execution_outputs),
+                    "results": [
+                        {
+                            "tool_name": str(call.get("name") or ""),
+                            "call_id": str(payload.get("call_id") or ""),
+                            "ok": bool(payload.get("ok")),
+                            "status": str(payload.get("status") or ""),
+                            "latency_ms": int(payload.get("latency_ms") or 0),
+                        }
+                        for call, payload, _ in execution_outputs
+                    ],
+                }
+            )
         for call, payload, signature in execution_outputs:
             results.append(payload)
             append_tool_message(next_state, call, payload)
@@ -305,7 +336,7 @@ class AgentRuntimeNodes:
         for call in calls:
             call_id = str(call.get("id") or call.get("name") or "")
             if requires_human_confirmation(str(call.get("name") or "")) and call_id not in approved_ids:
-                rejected_outputs[call_id] = human_rejected_tool_result(call)
+                rejected_outputs[call_id] = self._observe_rejected_tool_call(call, state)
             else:
                 executable_calls.append(call)
         executed_outputs: dict[str, tuple[dict[str, Any], str]] = {}
@@ -362,52 +393,137 @@ class AgentRuntimeNodes:
                 "tool_call_id": str(call.get("id") or name),
             },
         )
-        denial_reason = "" if human_approved else agent_tool_call_denial_reason(
-            name,
-            str(state.get("normalized_query") or state.get("query") or ""),
-            arguments=arguments,
-        )
-        if denial_reason:
-            result = ToolExecutionResult(
-                tool_name=name,
-                call_id=str(call.get("id") or name),
-                ok=False,
-                status="policy_denied",
-                error=denial_reason,
-            )
-        else:
-            result = self.tool_registry.execute(
+        call_id = str(call.get("id") or name)
+        trace_id = str(state.get("langfuse_trace_id") or "")
+        with observation(
+            f"agent.tool.{name or 'unknown'}",
+            as_type="tool",
+            input={
+                "tool_name": name,
+                "call_id": call_id,
+                "arguments": audit_tool_arguments(name, arguments),
+            },
+            metadata={
+                "langfuse_trace_id": trace_id,
+                "session_id": str(state.get("session_id") or ""),
+                "user_id": int(state.get("user_id") or 0),
+                "agent_iteration": int(state.get("agent_iteration") or 0),
+                "tool_call_origin": str(call.get("origin") or "agent"),
+                "human_approved": human_approved,
+            },
+            trace_id=trace_id,
+        ) as tool_span:
+            denial_reason = "" if human_approved else agent_tool_call_denial_reason(
                 name,
-                arguments,
-                context,
-                call_id=str(call.get("id") or name),
+                str(state.get("normalized_query") or state.get("query") or ""),
+                arguments=arguments,
             )
-        result_payload = result.payload()
-        if human_approved and requires_human_confirmation(name):
-            result_payload["data"] = {
-                **(result_payload.get("data") or {}),
-                "human_confirmation": {
-                    "required": True,
-                    "approved": True,
-                    "completed": True,
-                },
+            if denial_reason:
+                result = ToolExecutionResult(
+                    tool_name=name,
+                    call_id=call_id,
+                    ok=False,
+                    status="policy_denied",
+                    error=denial_reason,
+                )
+            else:
+                result = self.tool_registry.execute(
+                    name,
+                    arguments,
+                    context,
+                    call_id=call_id,
+                )
+            result_payload = result.payload()
+            if human_approved and requires_human_confirmation(name):
+                result_payload["data"] = {
+                    **(result_payload.get("data") or {}),
+                    "human_confirmation": {
+                        "required": True,
+                        "approved": True,
+                        "completed": True,
+                    },
+                }
+            completed_at = datetime.now(timezone.utc)
+            payload = {
+                **result_payload,
+                "arguments": audit_tool_arguments(name, arguments),
+                "started_at": started_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
+                "latency_ms": max(0, round((perf_counter() - started_clock) * 1000)),
             }
-        completed_at = datetime.now(timezone.utc)
+            observation_output = safe_value(
+                {
+                    "tool_name": name,
+                    "call_id": call_id,
+                    "ok": result.ok,
+                    "status": result.status,
+                    "data": result_payload.get("data") or {},
+                    "error": result.error,
+                    "latency_ms": payload["latency_ms"],
+                }
+            )
+            if result.status in {"tool_not_found", "invalid_arguments", "policy_denied", "tool_error"}:
+                record_error(
+                    tool_span,
+                    stage=f"agent.tool.{name or 'unknown'}",
+                    reason=result.status,
+                    extra=observation_output,
+                )
+            else:
+                tool_span.update(
+                    output=observation_output,
+                    metadata={"tool_status": result.status, "tool_ok": result.ok},
+                )
         log_performance(
             "agent.tool_call",
             started_clock,
             tool_name=name,
-            call_id=str(call.get("id") or name),
+            call_id=call_id,
             tool_status=result.status,
             ok=result.ok,
         )
-        return {
-            **result_payload,
-            "arguments": audit_tool_arguments(name, arguments),
-            "started_at": started_at.isoformat(),
-            "completed_at": completed_at.isoformat(),
-            "latency_ms": max(0, round((perf_counter() - started_clock) * 1000)),
-        }, signature
+        return payload, signature
+
+    def _observe_rejected_tool_call(
+        self,
+        call: dict[str, Any],
+        state: DeclarationQAState,
+    ) -> tuple[dict[str, Any], str]:
+        """记录因人工拒绝而未执行的工具调用。"""
+        name = str(call.get("name") or "")
+        call_id = str(call.get("id") or name)
+        arguments = dict(call.get("arguments") or {})
+        payload, signature = human_rejected_tool_result(call)
+        trace_id = str(state.get("langfuse_trace_id") or "")
+        with observation(
+            f"agent.tool.{name or 'unknown'}",
+            as_type="tool",
+            input={
+                "tool_name": name,
+                "call_id": call_id,
+                "arguments": audit_tool_arguments(name, arguments),
+            },
+            metadata={
+                "langfuse_trace_id": trace_id,
+                "session_id": str(state.get("session_id") or ""),
+                "user_id": int(state.get("user_id") or 0),
+                "agent_iteration": int(state.get("agent_iteration") or 0),
+                "tool_call_origin": str(call.get("origin") or "agent"),
+                "human_approved": False,
+                "tool_status": "human_rejected",
+            },
+            trace_id=trace_id,
+        ) as tool_span:
+            tool_span.update(
+                output={
+                    "tool_name": name,
+                    "call_id": call_id,
+                    "ok": False,
+                    "status": "human_rejected",
+                    "latency_ms": 0,
+                }
+            )
+        return payload, signature
 
     def agent_observe(self, state: DeclarationQAState) -> DeclarationQAState:
         """把知识证据和业务工具结果写入彼此隔离的状态槽。"""

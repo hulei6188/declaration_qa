@@ -29,8 +29,6 @@ class ChatRequest(BaseModel):
     app_version: str = Field(default="", max_length=40)
     policy_version: str = Field(default="2025", max_length=80)
     biz_type: str | None = Field(default=None, max_length=80)
-    apply_id: str | None = Field(default=None, max_length=80)
-    apply_context: dict[str, Any] | None = None
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
     query_image: ChatImagePayload | None = None
 

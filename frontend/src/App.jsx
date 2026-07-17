@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar.jsx';
 import ChatPane from './components/ChatPane.jsx';
 import EvaluationPane from './components/EvaluationPane.jsx';
+import KnowledgeLibraryPane from './components/KnowledgeLibraryPane.jsx';
+import VersionManagementPane from './components/VersionManagementPane.jsx';
 import {
   DEFAULT_CONTEXT,
   buildChatRequest,
@@ -46,7 +48,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
-  const [sendState, setSendState] = useState('等待输入');
+  const [sendState, setSendState] = useState('');
   const assistantRef = useRef(null);
 
   // ---- 时间线与审计 ----
@@ -95,7 +97,7 @@ export default function App() {
     setMessages((prev) => [...prev, assistantMsg]);
     assistantRef.current = '';
     setStreaming(true);
-    setSendState('流式生成中…');
+    setSendState('正在连接服务…');
     setTimeline([]);
     setFeedbackResult('');
 
@@ -105,6 +107,8 @@ export default function App() {
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
       for await (const { event, data } of readSSE(response.body)) {
+        const phase = streamPhaseLabel(event, data);
+        if (phase !== null) setSendState(phase);
         if (['agent_decision', 'tool_executed', 'human_confirmation_required', 'human_confirmation_resolved', 'agent_observation', 'answer_generated', 'done', 'error'].includes(event)) {
           setMessages((prev) => updateLastAssistantTrace(prev, event, data));
         }
@@ -149,7 +153,7 @@ export default function App() {
       addTimeline('error', { message: e.message });
     } finally {
       setStreaming(false);
-      setSendState('等待输入');
+      setSendState('');
     }
   }
 
@@ -172,6 +176,8 @@ export default function App() {
       });
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
       for await (const { event, data } of readSSE(response.body)) {
+        const phase = streamPhaseLabel(event, data);
+        if (phase !== null) setSendState(phase);
         if (['tool_executed', 'human_confirmation_required', 'human_confirmation_resolved', 'agent_observation', 'answer_generated', 'done', 'error'].includes(event)) {
           setMessages((prev) => updateMessageTraceAt(prev, messageIndex, event, data));
         }
@@ -217,7 +223,7 @@ export default function App() {
       addTimeline('error', { message: e.message });
     } finally {
       setStreaming(false);
-      setSendState('等待输入');
+      setSendState('');
     }
   }
 
@@ -231,6 +237,25 @@ export default function App() {
       const list = await fetchSessions(ctx.userId);
       setSessions(list || []);
     } catch { /* 忽略 */ }
+  }
+
+  function clearChat() {
+    setSessionId(null);
+    setMessages([]);
+    setTimeline([]);
+    setAudit({ intent: '-', auditId: '-', refused: '-' });
+    setFeedbackResult('');
+    setSendState('');
+  }
+
+  function openView(view) {
+    setActiveView(view);
+    if (window.matchMedia?.('(max-width: 860px)').matches) setSidebarCollapsed(true);
+  }
+
+  function startNewChat() {
+    clearChat();
+    openView('chat');
   }
 
   async function loadSession(sid) {
@@ -250,6 +275,8 @@ export default function App() {
       setTimeline([]);
       setAudit({ intent: '-', auditId: '-', refused: '-' });
       setFeedbackResult('');
+      setActiveView('chat');
+      if (window.matchMedia?.('(max-width: 860px)').matches) setSidebarCollapsed(true);
 
       addTimeline('session_loaded', { session_id: session.session_id, message_count: session.message_count });
     } catch (e) {
@@ -554,27 +581,19 @@ export default function App() {
     <div className="app-shell" data-theme={theme}>
       <main className={`workspace${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <Sidebar
+          activeView={activeView}
           sessions={sessions}
-          documents={documents}
-          selectedDocId={selectedDocId}
-          uploadItems={uploadItems}
-          uploadResult={uploadResult}
-          uploadInFlight={uploadInFlight}
-          docManageResult={docManageResult}
+          sessionId={sessionId}
+          theme={theme}
+          onNewChat={startNewChat}
+          onViewChange={openView}
           onRefreshSessions={loadSessions}
           onLoadSession={loadSession}
           onDeleteSession={removeSession}
-          onUpload={doUpload}
-          onSelectDocument={selectDocument}
-          onRefreshDocuments={loadDocuments}
-          onSetDocumentStatus={doSetDocumentStatus}
-          onUpdateRollout={doUpdateRollout}
-          onCreateVersion={doCreateVersion}
-          onCompareVersion={doCompareVersion}
-          onRollback={doRollback}
+          onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
           onCollapse={() => setSidebarCollapsed(true)}
         />
-        {activeView === 'chat' ? <ChatPane
+        {activeView === 'chat' && <ChatPane
           messages={messages}
           streaming={streaming}
           sendState={sendState}
@@ -591,15 +610,57 @@ export default function App() {
           onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
-          onViewChange={setActiveView}
-        /> : <EvaluationPane
-          onViewChange={setActiveView}
+        />}
+        {activeView === 'library' && <KnowledgeLibraryPane
+          documents={documents}
+          selectedDocId={selectedDocId}
+          uploadItems={uploadItems}
+          uploadResult={uploadResult}
+          uploadInFlight={uploadInFlight}
+          onUpload={doUpload}
+          onSelectDocument={selectDocument}
+          onRefreshDocuments={loadDocuments}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        />}
+        {activeView === 'versions' && <VersionManagementPane
+          documents={documents}
+          selectedDocId={selectedDocId}
+          docManageResult={docManageResult}
+          onSelectDocument={selectDocument}
+          onRefreshDocuments={loadDocuments}
+          onSetDocumentStatus={doSetDocumentStatus}
+          onUpdateRollout={doUpdateRollout}
+          onCreateVersion={doCreateVersion}
+          onCompareVersion={doCompareVersion}
+          onRollback={doRollback}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        />}
+        {activeView === 'evaluation' && <EvaluationPane
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         />}
       </main>
     </div>
   );
+}
+
+function streamPhaseLabel(event, data = {}) {
+  if (event === 'run_started') return '正在启动任务…';
+  if (event === 'agent_decision') {
+    const hasTools = data.action === 'tools' || (data.tool_calls || []).length > 0;
+    return hasTools ? '正在准备查询…' : '正在组织回答…';
+  }
+  if (event === 'tool_executed') return data.ok === false ? '正在处理查询结果…' : '正在分析查询结果…';
+  if (event === 'agent_observation') return '正在分析查询结果…';
+  if (event === 'sources') return '正在整理证据…';
+  if (event === 'answer_generated' || event === 'token') return '正在生成回答…';
+  if (event === 'human_confirmation_required' || event === 'run_paused') return '等待人工确认…';
+  if (event === 'run_resumed') return '正在执行已确认操作…';
+  if (event === 'human_confirmation_resolved') return data.approved ? '正在执行已确认操作…' : '正在取消操作…';
+  if (event === 'done' || event === 'error') return '';
+  return null;
 }
 
 function initialTheme() {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Check, FlaskConical, ImagePlus, MessageSquare, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { Check, ImagePlus, Landmark, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
@@ -11,7 +11,6 @@ export default function ChatPane({
   onResolveConfirmation,
   theme = 'light', onToggleTheme,
   sidebarCollapsed = false, onToggleSidebar,
-  onViewChange,
 }) {
   const [input, setInput] = useState('');
   const [imageDraft, setImageDraft] = useState(null);
@@ -95,11 +94,7 @@ export default function ChatPane({
               <PanelLeftOpen size={16} />
             </button>
           )}
-          <h2>Gov Service Agent</h2>
-          <nav className="view-tabs" aria-label="工作区">
-            <button className="active"><MessageSquare size={14} />对话</button>
-            <button onClick={() => onViewChange?.('evaluation')}><FlaskConical size={14} />评测</button>
-          </nav>
+          <h2>政务智办</h2>
         </div>
         <div className="chat-actions">
           <button
@@ -116,6 +111,13 @@ export default function ChatPane({
 
       {/* 消息 */}
       <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>
+        {messages.length === 0 && (
+          <div className="chat-empty-state">
+            <span><Landmark size={24} /></span>
+            <h1>Gov Service Agent</h1>
+            <p>今天想办理什么政务事项？</p>
+          </div>
+        )}
         {messages.map((m, i) => (
           <article key={i} className={`message ${m.role}`}>
             {m.role === 'assistant' && (m.toolTrace || m.runId) && (
@@ -207,8 +209,8 @@ export default function ChatPane({
             placeholder={confirmationPending ? '请先处理上方人工确认' : '输入问题'}
             disabled={streaming || confirmationPending}
           />
-          <div className="composer-actions">
-            <span>{sendState}</span>
+          <div className={`composer-actions${sendState ? '' : ' is-idle'}`}>
+            {sendState && <span className="composer-status"><i />{sendState}</span>}
             <div className="composer-buttons">
               <input
                 ref={imageInputRef}

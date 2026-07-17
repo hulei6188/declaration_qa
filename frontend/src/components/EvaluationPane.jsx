@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, FlaskConical, MessageSquare, Play, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react';
+import { CheckCircle2, PanelLeftOpen, Play, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react';
 import {
   annotateEvalItem,
   fetchEvaluationCandidates,
@@ -15,7 +15,7 @@ import {
   sleep,
 } from '../utils.js';
 
-export default function EvaluationPane({ onViewChange, sidebarCollapsed, onToggleSidebar }) {
+export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
   const [tab, setTab] = useState('runs');
   const [datasets, setDatasets] = useState([]);
   const [datasetId, setDatasetId] = useState('');
@@ -117,12 +117,8 @@ export default function EvaluationPane({ onViewChange, sidebarCollapsed, onToggl
     <section className="evaluation-pane">
       <header className="chat-header evaluation-header">
         <div className="chat-heading">
-          {sidebarCollapsed && <button className="icon-button" onClick={onToggleSidebar} title="展开侧栏"><MessageSquare size={16} /></button>}
-          <h2>Gov Service Agent</h2>
-          <nav className="view-tabs" aria-label="工作区">
-            <button onClick={() => onViewChange('chat')}><MessageSquare size={14} />对话</button>
-            <button className="active"><FlaskConical size={14} />评测</button>
-          </nav>
+          {sidebarCollapsed && <button className="icon-button" onClick={onToggleSidebar} title="展开侧栏"><PanelLeftOpen size={16} /></button>}
+          <div><span className="page-kicker">质量控制</span><h2>评测中心</h2></div>
         </div>
         <button className="icon-button" onClick={() => { loadDatasets(); loadCandidates(); }} title="刷新评测数据"><RefreshCw size={15} /></button>
       </header>

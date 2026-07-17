@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from pathlib import Path
 
 from declaration_qa.api.schemas import ChatRequest, HumanConfirmationRequest
@@ -706,6 +707,145 @@ def test_agent_does_not_cancel_appointment_when_human_rejects():
         for item in workflow.business_adapter.list_appointments(user_id=1, region_code="340000", status="booked")
     }
     assert 4301 in booked_ids
+
+
+def test_langfuse_tool_and_human_confirmation_resume_share_trace(monkeypatch):
+    from declaration_qa.application import workflow as workflow_module
+    from declaration_qa.application.nodes import agent_runtime as agent_runtime_module
+
+    observations = []
+
+    class CapturedObservation:
+        def __init__(self, record):
+            self.record = record
+
+        def update(self, **payload):
+            self.record["updates"].append(payload)
+
+        def set_trace_io(self, **payload):
+            self.record["trace_io"].append(payload)
+
+    @contextmanager
+    def capture(name, **kwargs):
+        record = {"name": name, "kwargs": kwargs, "updates": [], "trace_io": []}
+        observations.append(record)
+        yield CapturedObservation(record)
+
+    monkeypatch.setattr(workflow_module, "create_trace_id", lambda _seed: "trace-hitl-1")
+    monkeypatch.setattr(workflow_module, "observation", capture)
+    monkeypatch.setattr(agent_runtime_module, "observation", capture)
+
+    class ScriptedAgent:
+        def decide(self, state, _definitions):
+            if not state.get("tool_results"):
+                return AgentDecision(
+                    "tools",
+                    [tool_call("cancel", "appointment_cancel", {"appointment_id": 4301})],
+                )
+            return AgentDecision("finish", final_answer="预约已取消。[业务1]")
+
+    workflow = DeclarationQAWorkflow(agent=ScriptedAgent())
+    session_id = "langfuse-hitl-success"
+    events = list(workflow.stream(ChatRequest(
+        query="取消取水许可预约",
+        user_id=1,
+        region_code="340000",
+        session_id=session_id,
+    )))
+    confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
+    resumed = list(workflow.resume_stream(HumanConfirmationRequest(
+        session_id=session_id,
+        interrupt_id=confirmation["interrupt_id"],
+        user_id=1,
+        approved=True,
+    )))
+
+    by_name = {item["name"]: item for item in observations}
+    assert any(item["event"] == "done" for item in resumed)
+    assert {
+        "workflow.stream",
+        "agent.human_confirmation.requested",
+        "workflow.resume_stream",
+        "agent.human_confirmation.resolved",
+        "agent.tool_wave",
+        "agent.tool.appointment_cancel",
+    }.issubset(by_name)
+    assert all(
+        by_name[name]["kwargs"]["trace_id"] == "trace-hitl-1"
+        for name in (
+            "workflow.stream",
+            "agent.human_confirmation.requested",
+            "workflow.resume_stream",
+            "agent.human_confirmation.resolved",
+            "agent.tool_wave",
+            "agent.tool.appointment_cancel",
+        )
+    )
+    assert by_name["agent.tool.appointment_cancel"]["kwargs"]["as_type"] == "tool"
+    assert any(
+        update.get("output", {}).get("status") == "success"
+        for update in by_name["agent.tool.appointment_cancel"]["updates"]
+    )
+
+
+def test_langfuse_records_human_rejected_tool_call(monkeypatch):
+    from declaration_qa.application import workflow as workflow_module
+    from declaration_qa.application.nodes import agent_runtime as agent_runtime_module
+
+    observations = []
+
+    class CapturedObservation:
+        def __init__(self, record):
+            self.record = record
+
+        def update(self, **payload):
+            self.record["updates"].append(payload)
+
+        def set_trace_io(self, **_payload):
+            return None
+
+    @contextmanager
+    def capture(name, **kwargs):
+        record = {"name": name, "kwargs": kwargs, "updates": []}
+        observations.append(record)
+        yield CapturedObservation(record)
+
+    monkeypatch.setattr(workflow_module, "create_trace_id", lambda _seed: "trace-hitl-reject")
+    monkeypatch.setattr(workflow_module, "observation", capture)
+    monkeypatch.setattr(agent_runtime_module, "observation", capture)
+
+    class ScriptedAgent:
+        def decide(self, state, _definitions):
+            if not state.get("tool_results"):
+                return AgentDecision(
+                    "tools",
+                    [tool_call("cancel", "appointment_cancel", {"appointment_id": 4301})],
+                )
+            return AgentDecision("finish", final_answer="已保留原预约。")
+
+    workflow = DeclarationQAWorkflow(agent=ScriptedAgent())
+    session_id = "langfuse-hitl-reject"
+    events = list(workflow.stream(ChatRequest(
+        query="取消取水许可预约",
+        user_id=1,
+        region_code="340000",
+        session_id=session_id,
+    )))
+    confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
+    list(workflow.resume_stream(HumanConfirmationRequest(
+        session_id=session_id,
+        interrupt_id=confirmation["interrupt_id"],
+        user_id=1,
+        approved=False,
+    )))
+
+    tool_observation = next(item for item in observations if item["name"] == "agent.tool.appointment_cancel")
+    assert tool_observation["kwargs"]["trace_id"] == "trace-hitl-reject"
+    assert tool_observation["kwargs"]["as_type"] == "tool"
+    assert any(
+        update.get("output", {}).get("status") == "human_rejected"
+        for update in tool_observation["updates"]
+    )
 
 
 def test_agent_executes_business_calls_without_dependency_waves():
