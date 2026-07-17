@@ -1,0 +1,40 @@
+Metadata-Version: 2.4
+Name: gov-service-agent
+Version: 0.1.0
+Summary: Agentic RAG service for government service guidance and workflows
+Requires-Python: >=3.10
+Requires-Dist: fastapi==0.115.6
+Requires-Dist: starlette==0.41.3
+Requires-Dist: uvicorn==0.34.0
+Requires-Dist: python-multipart==0.0.20
+Requires-Dist: pydantic==2.10.4
+Requires-Dist: pydantic-settings==2.14.1
+Requires-Dist: eval_type_backport==0.2.2
+Requires-Dist: SQLAlchemy==2.0.36
+Requires-Dist: psycopg[binary]==3.3.4
+Requires-Dist: python-jose[cryptography]==3.3.0
+Requires-Dist: pymilvus==2.6.15
+Requires-Dist: redis==5.2.1
+Requires-Dist: rq==2.1.0
+Requires-Dist: requests==2.34.2
+Requires-Dist: elasticsearch==8.19.2
+Requires-Dist: langchain==0.3.27
+Requires-Dist: langchain-core==0.3.80
+Requires-Dist: langchain-community==0.3.31
+Requires-Dist: langchain-openai==0.3.35
+Requires-Dist: langgraph==0.6.11
+Requires-Dist: langgraph-checkpoint-postgres==3.0.5
+Requires-Dist: langmem==0.0.30
+Requires-Dist: langchain-anthropic==0.3.3
+Requires-Dist: anthropic==0.46.0
+Requires-Dist: dashscope
+Requires-Dist: langfuse>=4.0.0
+Requires-Dist: pymupdf>=1.24
+Requires-Dist: pypdf<7.0.0,>=5.6.0
+Requires-Dist: python-calamine>=0.4.0
+Requires-Dist: marko<3,>=2.2
+Requires-Dist: chonkie<2,>=1.7
+Requires-Dist: ragas==0.3.9
+Provides-Extra: parsing
+Requires-Dist: mineru[pipeline]; extra == "parsing"
+Requires-Dist: llama-cloud-services>=0.6.0; extra == "parsing"

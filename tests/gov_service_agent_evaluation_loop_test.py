@@ -1,16 +1,16 @@
 import json
 from pathlib import Path
 
-from declaration_qa.api.schemas import EvaluationCaseRequest
-from declaration_qa.application.evals.comparison import compare_runs
-from declaration_qa.application.evals.evaluators import evaluate_answer, evaluate_retrieval
-from declaration_qa.application.evals.gate import evaluate_gate
-from declaration_qa.application.evals.fixtures import EvaluationFixtureManager
-from declaration_qa.application.evals.pii import sanitize_text
-from declaration_qa.application.evals.runner import EvaluationRunner
-from declaration_qa.application.evals.trajectory import evaluate_trajectory
-from declaration_qa.core.config import DeclarationQASettings
-from declaration_qa.core.runtime import production_readiness_errors
+from gov_service_agent.api.schemas import EvaluationCaseRequest
+from gov_service_agent.application.evals.comparison import compare_runs
+from gov_service_agent.application.evals.evaluators import evaluate_answer, evaluate_retrieval
+from gov_service_agent.application.evals.gate import evaluate_gate
+from gov_service_agent.application.evals.fixtures import EvaluationFixtureManager
+from gov_service_agent.application.evals.pii import sanitize_text
+from gov_service_agent.application.evals.runner import EvaluationRunner
+from gov_service_agent.application.evals.trajectory import evaluate_trajectory
+from gov_service_agent.core.config import GovServiceAgentSettings
+from gov_service_agent.core.runtime import production_readiness_errors
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,7 +126,7 @@ def test_evaluation_scores_are_written_to_each_langfuse_trace(monkeypatch):
     def capture(trace_id, **payload):
         captured.append((trace_id, payload))
 
-    monkeypatch.setattr("declaration_qa.application.evals.runner.score_trace", capture)
+    monkeypatch.setattr("gov_service_agent.application.evals.runner.score_trace", capture)
     runner = EvaluationRunner(
         workflow=type("Workflow", (), {"audit_store": object()})(),
         store=object(),
@@ -176,13 +176,13 @@ def test_agent_golden_v1_contains_valid_20_15_15_10_case_split():
 
 
 def test_production_requires_isolated_eval_database_queue_and_pii_salt():
-    settings = DeclarationQASettings(
-        DECLARATION_QA_ENV="production",
-        DECLARATION_QA_DATABASE_URL="postgresql+psycopg://prod",
-        DECLARATION_QA_EVAL_DATABASE_URL="postgresql+psycopg://prod",
-        DECLARATION_QA_EVAL_QUEUE_BACKEND="inline",
+    settings = GovServiceAgentSettings(
+        GOV_SERVICE_AGENT_ENV="production",
+        GOV_SERVICE_AGENT_DATABASE_URL="postgresql+psycopg://prod",
+        GOV_SERVICE_AGENT_EVAL_DATABASE_URL="postgresql+psycopg://prod",
+        GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND="inline",
     )
     errors = production_readiness_errors(settings)
-    assert "DECLARATION_QA_EVAL_DATABASE_URL must differ from DECLARATION_QA_DATABASE_URL in production" in errors
-    assert "DECLARATION_QA_EVAL_QUEUE_BACKEND=rq is required when evaluation is enabled in production" in errors
-    assert "DECLARATION_QA_EVAL_PII_SALT is required when evaluation is enabled in production" in errors
+    assert "GOV_SERVICE_AGENT_EVAL_DATABASE_URL must differ from GOV_SERVICE_AGENT_DATABASE_URL in production" in errors
+    assert "GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq is required when evaluation is enabled in production" in errors
+    assert "GOV_SERVICE_AGENT_EVAL_PII_SALT is required when evaluation is enabled in production" in errors

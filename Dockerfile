@@ -15,7 +15,7 @@ COPY src ./src
 COPY sql ./sql
 
 ENV PYTHONPATH=/app/src \
-    DECLARATION_QA_LEGACY_DOC_CONVERTER_COMMAND=/usr/bin/soffice
+    GOV_SERVICE_AGENT_LEGACY_DOC_CONVERTER_COMMAND=/usr/bin/soffice
 
 EXPOSE 8010
-CMD ["uvicorn", "declaration_qa.api.server.app:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["uvicorn", "gov_service_agent.api.server.app:app", "--host", "0.0.0.0", "--port", "8010"]

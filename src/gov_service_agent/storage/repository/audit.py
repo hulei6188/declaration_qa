@@ -1,0 +1,172 @@
+"""审计日志和反馈存储。"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy import JSON, bindparam, text
+
+from gov_service_agent.storage.repository.agent_runs import persist_agent_run
+from gov_service_agent.storage.repository.base import EngineBackedRepository
+
+
+class AuditRepository(EngineBackedRepository):
+    """审计日志和反馈写入仓储。"""
+    def append(self, payload: dict[str, Any]) -> str:
+        """追加一条审计记录并返回记录 ID。"""
+        audit_uid = str(payload.get("audit_id") or "")
+        if not audit_uid:
+            from uuid import uuid4
+
+            audit_uid = uuid4().hex
+        with self.engine.begin() as connection:
+            session_pk = self._ensure_session(connection, payload)
+            persisted_run = persist_agent_run(
+                connection,
+                session_id=session_pk,
+                run_uid=audit_uid,
+                payload=payload,
+            )
+            stmt = text(
+                """
+                INSERT INTO declaration_qa.audit_logs (
+                    audit_uid, session_id, agent_run_id, user_id, query, normalized_query, intent,
+                    retrieval_chain, region_code, biz_type, business_snapshot,
+                    agent_plan, agent_query_plan, tool_results, agent_iteration, agent_answer_provider,
+                    agent_selected_item_code, agent_selected_application_id,
+                    retrieval_filter, retrieved_sources, rag_status,
+                    refused, refuse_reason, final_prompt, answer,
+                    events, langfuse_trace_id
+                )
+                VALUES (
+                    :audit_uid, :session_id, :agent_run_id, :user_id, :query, :normalized_query, :intent,
+                    :retrieval_chain, :region_code, :biz_type, :business_snapshot,
+                    :agent_plan, :agent_query_plan, :tool_results, :agent_iteration, :agent_answer_provider,
+                    :agent_selected_item_code, :agent_selected_application_id,
+                    :retrieval_filter, :retrieved_sources, :rag_status,
+                    :refused, :refuse_reason, :final_prompt, :answer,
+                    :events, :langfuse_trace_id
+                )
+                ON CONFLICT (audit_uid) DO UPDATE SET answer = EXCLUDED.answer
+                RETURNING audit_uid
+                """
+            ).bindparams(
+                bindparam("business_snapshot", type_=JSON),
+                bindparam("agent_plan", type_=JSON),
+                bindparam("agent_query_plan", type_=JSON),
+                bindparam("tool_results", type_=JSON),
+                bindparam("retrieval_filter", type_=JSON),
+                bindparam("retrieved_sources", type_=JSON),
+                bindparam("rag_status", type_=JSON),
+                bindparam("events", type_=JSON),
+            )
+            connection.execute(
+                stmt,
+                {
+                    "audit_uid": audit_uid,
+                    "session_id": session_pk,
+                    "agent_run_id": persisted_run.run_id,
+                    "user_id": int(payload.get("user_id") or 0),
+                    "query": str(payload.get("query") or ""),
+                    "normalized_query": str(payload.get("normalized_query") or ""),
+                    "intent": str(payload.get("intent") or ""),
+                    "retrieval_chain": str(payload.get("retrieval_chain") or ""),
+                    "region_code": str(payload.get("region_code") or ""),
+                    "biz_type": payload.get("biz_type"),
+                    "business_snapshot": payload.get("business_snapshot") or {},
+                    "agent_plan": payload.get("agent_plan") or {},
+                    "agent_query_plan": payload.get("agent_query_plan") or {},
+                    "tool_results": payload.get("tool_results") or [],
+                    "agent_iteration": int(payload.get("agent_iteration") or 0),
+                    "agent_answer_provider": str(payload.get("agent_answer_provider") or ""),
+                    "agent_selected_item_code": str(payload.get("agent_selected_item_code") or ""),
+                    "agent_selected_application_id": payload.get("agent_selected_application_id"),
+                    "retrieval_filter": payload.get("retrieval_filter") or {},
+                    "retrieved_sources": payload.get("retrieved_sources") or [],
+                    "rag_status": payload.get("rag_status") or {},
+                    "refused": bool(payload.get("refused")),
+                    "refuse_reason": str(payload.get("refuse_reason") or ""),
+                    "final_prompt": str(payload.get("final_prompt") or ""),
+                    "answer": str(payload.get("answer") or ""),
+                    "events": payload.get("events") or [],
+                    "langfuse_trace_id": str(payload.get("langfuse_trace_id") or ""),
+                },
+            )
+        return audit_uid
+
+    def get(self, audit_id: str) -> dict[str, Any] | None:
+        """按 ID 查询记录并返回副本。"""
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text("SELECT * FROM declaration_qa.audit_logs WHERE audit_uid = :audit_uid"),
+                {"audit_uid": audit_id},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
+        """保存用户对问答结果的反馈。"""
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT a.id, a.user_id, a.agent_run_id,
+                           (
+                               SELECT m.id
+                               FROM declaration_qa.messages m
+                               WHERE m.agent_run_id = a.agent_run_id
+                                 AND m.message_type = 'output'
+                               ORDER BY m.sequence_no DESC
+                               LIMIT 1
+                           ) AS message_id
+                    FROM declaration_qa.audit_logs a
+                    WHERE a.audit_uid = :audit_uid
+                    """
+                ),
+                {"audit_uid": audit_id},
+            ).mappings().first()
+            if not row:
+                raise ValueError("Audit log not found")
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO declaration_qa.feedback (
+                        audit_log_id, agent_run_id, message_id, user_id, rating, comment
+                    )
+                    VALUES (
+                        :audit_log_id, :agent_run_id, :message_id, :user_id, :rating, :comment
+                    )
+                    """
+                ),
+                {
+                    "audit_log_id": row["id"],
+                    "agent_run_id": row["agent_run_id"],
+                    "message_id": row["message_id"],
+                    "user_id": row["user_id"],
+                    "rating": rating,
+                    "comment": comment,
+                },
+            )
+        return {"audit_id": audit_id, "rating": rating, "comment": comment}
+
+    def _ensure_session(self, connection, payload: dict[str, Any]) -> int:
+        """确保会话记录存在并返回会话 ID。"""
+        row = connection.execute(
+            text(
+                """
+                INSERT INTO declaration_qa.sessions (session_uid, user_id, region_code, biz_type)
+                VALUES (:session_uid, :user_id, :region_code, :biz_type)
+                ON CONFLICT (session_uid) DO UPDATE SET
+                    updated_at = CURRENT_TIMESTAMP,
+                    biz_type = COALESCE(EXCLUDED.biz_type, declaration_qa.sessions.biz_type)
+                RETURNING id
+                """
+            ),
+            {
+                "session_uid": str(payload.get("session_id") or ""),
+                "user_id": int(payload.get("user_id") or 0),
+                "region_code": str(payload.get("region_code") or "340000"),
+                "biz_type": payload.get("biz_type"),
+            },
+        ).mappings().first()
+        return int(row["id"])
+

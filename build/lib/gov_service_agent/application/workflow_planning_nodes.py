@@ -1,0 +1,370 @@
+"""政务服务智能体工作流的 QuestionResolver 和路由节点。"""
+
+from __future__ import annotations
+
+from contextvars import copy_context
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
+
+from gov_service_agent.application.state import GovServiceAgentState
+from gov_service_agent.application.workflow_helpers.collections import unique_strings, unique_tickets
+from gov_service_agent.application.workflow_helpers.events import add_event
+from gov_service_agent.application.workflow_helpers.intent import (
+    infer_biz_type,
+    is_unsafe_query,
+    mask_sensitive_text,
+    task_intent,
+)
+from gov_service_agent.application.workflow_helpers.planning import apply_planned_question
+from gov_service_agent.application.workflow_helpers.retrieval_sources import unique_sources
+from gov_service_agent.observability.langfuse import observation, safe_value
+from gov_service_agent.rag.engine.text import normalize_text
+from gov_service_agent.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, TICKET_AUGMENTED_CHAIN
+from gov_service_agent.rag.retrieval_plan import infer_retrieval_plan, normalize_retrieval_plan
+from gov_service_agent.rag.router import (
+    INTENT_REJECTION_REASON,
+    INTENT_TICKET_STATUS,
+    ROUTE_CLARIFICATION,
+    ROUTE_REFUSE,
+    ROUTE_TICKET_CONTEXT_RELATED,
+    ROUTE_TICKET_CONTEXT_UNRELATED,
+)
+
+
+class WorkflowPlanningNodes:
+    """上下文、问题解析和路由准备节点。"""
+    def context_build(self, state: GovServiceAgentState) -> GovServiceAgentState:
+        """构造基础请求上下文。"""
+        next_state = dict(state)
+        if not next_state.get("apply_context") and next_state.get("apply_id"):
+            next_state["apply_context"] = self.business_adapter.get_apply_context(
+                user_id=int(next_state["user_id"]),
+                apply_id=str(next_state["apply_id"]),
+            )
+        if next_state.get("apply_context"):
+            context_apply_id = str((next_state.get("apply_context") or {}).get("apply_id") or next_state.get("apply_id") or "")
+            if context_apply_id and not self.business_adapter.verify_apply_access(
+                user_id=int(next_state["user_id"]),
+                apply_id=context_apply_id,
+            ):
+                next_state["apply_context"] = None
+                next_state["refuse_reason"] = "apply_access_denied"
+                add_event(next_state, "apply_access_denied", {"apply_id": context_apply_id})
+        apply_context = next_state.get("apply_context") or {}
+        next_state["biz_type"] = next_state.get("biz_type") or apply_context.get("biz_type")
+        next_state["region_code"] = apply_context.get("region_code") or next_state.get("region_code") or "340000"
+        add_event(
+            next_state,
+            "context_built",
+            {
+                "has_apply_context": bool(next_state.get("apply_context")),
+                "recent_message_count": len(next_state.get("session_messages") or []),
+            },
+        )
+        return next_state
+
+    def query_preprocess(self, state: GovServiceAgentState) -> GovServiceAgentState:
+        """清理用户问题并写入状态。"""
+        next_state = dict(state)
+        query = normalize_text(mask_sensitive_text(next_state.get("query") or ""))
+        next_state["normalized_query"] = query
+        next_state["biz_type"] = next_state.get("biz_type") or infer_biz_type(query)
+        add_event(next_state, "query_preprocessed", {"normalized_query": query, "biz_type": next_state.get("biz_type")})
+        return next_state
+
+    def question_resolution(self, state: GovServiceAgentState) -> GovServiceAgentState:
+        """拆解多问题请求。"""
+        next_state = dict(state)
+        with observation(
+            "workflow.question_resolution",
+            input={"query": next_state.get("normalized_query") or next_state.get("query") or ""},
+            metadata=workflow_observation_metadata(next_state),
+        ) as span:
+            resolution = self.question_resolver.resolve(next_state)
+            questions = []
+            for index, item in enumerate(resolution.questions, start=1):
+                question = dict(item)
+                question["id"] = question.get("id") or f"q{index}"
+                question["retrieval_query"] = normalize_text(
+                    str(question.get("retrieval_query") or question.get("query") or question.get("original_query") or "")
+                )
+                question["retrieval_plan"] = normalize_retrieval_plan(question.get("retrieval_plan") or {})
+                questions.append(question)
+            next_state["question_resolution"] = {**resolution.payload(), "questions": questions}
+            next_state["multi_question"] = bool(resolution.is_multi_question and len(questions) > 1)
+            next_state["sub_tasks"] = questions if next_state["multi_question"] else []
+            if not next_state["multi_question"] and questions:
+                apply_planned_question(next_state, questions[0])
+            span.update(
+                output=safe_value(
+                    {
+                        "multi_question": next_state["multi_question"],
+                        "count": len(questions),
+                        "provider": resolution.provider,
+                        "reason": resolution.reason,
+                        "questions": questions,
+                    }
+                )
+            )
+        add_event(
+            next_state,
+            "question_resolution",
+            {
+                "multi_question": next_state["multi_question"],
+                "count": len(questions),
+                "provider": resolution.provider,
+                "reason": resolution.reason,
+                "expanded": any(bool(question.get("is_expanded")) for question in questions),
+            },
+        )
+        return next_state
+
+    def multi_question_collect(self, state: GovServiceAgentState) -> GovServiceAgentState:
+        """对每个子问题单独路由、查询业务数据和检索证据。"""
+        next_state = dict(state)
+        sub_tasks = []
+        all_sources = []
+        tickets = []
+        route_values = []
+        intent_values = []
+        rag_queries = []
+        need_ticket_selection = False
+        planned_questions = list(next_state.get("sub_tasks") or [])
+        if len(planned_questions) > 1 and self.max_sub_question_workers > 1:
+            task_results: list[dict[str, Any] | None] = [None] * len(planned_questions)
+            with ThreadPoolExecutor(max_workers=min(self.max_sub_question_workers, len(planned_questions))) as executor:
+                futures = {
+                    executor.submit(
+                        copy_context().run,
+                        self.collect_sub_question,
+                        self.state_for_sub_question(next_state, question),
+                        question,
+                        index,
+                    ): index - 1
+                    for index, question in enumerate(planned_questions, start=1)
+                }
+                for future in as_completed(futures):
+                    task_results[futures[future]] = future.result()
+            sub_tasks = [task for task in task_results if task is not None]
+            collection_mode = "parallel"
+        else:
+            collection_mode = "serial"
+            for index, question in enumerate(planned_questions, start=1):
+                task_state = self.state_for_sub_question(next_state, question)
+                task = self.collect_sub_question(task_state, question, index)
+                sub_tasks.append(task)
+
+        for task in sub_tasks:
+            all_sources.extend(task.get("sources") or [])
+            if task.get("need_ticket_selection"):
+                need_ticket_selection = True
+                tickets.extend(task.get("tickets") or [])
+            if task.get("route"):
+                route_values.append(task["route"])
+            if task.get("intent"):
+                intent_values.append(task["intent"])
+            if task.get("rag_query"):
+                rag_queries.append(str(task.get("rag_query") or ""))
+        next_state["need_ticket_selection"] = need_ticket_selection
+        ticket_selection_reason = next(
+            (
+                str(task.get("ticket_selection_reason") or "")
+                for task in sub_tasks
+                if task.get("need_ticket_selection") and task.get("ticket_selection_reason")
+            ),
+            "",
+        )
+        next_state["ticket_selection_reason"] = ticket_selection_reason or ("multiple_candidates" if need_ticket_selection else "")
+        next_state["tickets"] = unique_tickets(tickets)
+        next_state["sub_tasks"] = sub_tasks
+        next_state["retrieved_sources"] = [] if need_ticket_selection else unique_sources(all_sources)
+        next_state["route"] = "multi_question"
+        next_state["intent"] = "multi_question"
+        next_state["sub_intent"] = ",".join(unique_strings(intent_values))
+        next_state["retrieval_chain"] = "multi_question_grouped_evidence"
+        next_state["rag_query"] = "\n".join(unique_strings(rag_queries))
+        next_state["route_decision"] = {"route": "multi_question", "sub_routes": unique_strings(route_values)}
+        next_state["evidence_ok"] = False if need_ticket_selection else any(task.get("status") in {"ready", "answered"} for task in sub_tasks)
+        if need_ticket_selection:
+            next_state["refuse_reason"] = "ticket_selection_required"
+        next_state["evidence_decision"] = {
+            "ok": next_state["evidence_ok"],
+            "reason": (
+                "ticket_selection_required"
+                if need_ticket_selection
+                else ("" if next_state["evidence_ok"] else "no_sub_question_evidence")
+            ),
+            "sub_task_count": len(sub_tasks),
+            "ready_count": sum(1 for task in sub_tasks if task.get("status") in {"ready", "answered"}),
+        }
+        add_event(
+            next_state,
+            "multi_question_collected",
+            {
+                "count": len(sub_tasks),
+                "need_ticket_selection": need_ticket_selection,
+                "source_count": len(next_state["retrieved_sources"]),
+                "collection_mode": collection_mode,
+                "sub_question_runner": "langgraph",
+                "sub_question_parallelism": min(self.max_sub_question_workers, max(1, len(planned_questions))),
+            },
+        )
+        return next_state
+
+    def state_for_sub_question(self, state: GovServiceAgentState, question: dict[str, Any]) -> GovServiceAgentState:
+        """构造子问题状态，复用原始请求上下文。"""
+        query = normalize_text(str(question.get("original_query") or question.get("query") or ""))
+        retrieval_query = normalize_text(str(question.get("retrieval_query") or query))
+        inherited_apply_context = state.get("apply_context")
+        inherited_biz_type = (
+            (inherited_apply_context or {}).get("biz_type")
+            if inherited_apply_context
+            else infer_biz_type(retrieval_query) or infer_biz_type(query) or state.get("request_biz_type")
+        )
+        return {
+            **state,
+            "query": query,
+            "normalized_query": retrieval_query,
+            "retrieval_query": retrieval_query,
+            "requires_ticket_context": bool(question.get("requires_ticket_context")),
+            "biz_type": inherited_biz_type,
+            "retrieval_plan": normalize_retrieval_plan(question.get("retrieval_plan") or {}),
+            "multi_question": False,
+            "sub_tasks": [],
+            "question_resolution": {},
+            "intent": "unknown",
+            "sub_intent": "",
+            "route": "",
+            "route_decision": {},
+            "ticket_fact_type": question.get("ticket_fact_type") or "none",
+            "retrieval_chain": "",
+            "need_ticket_selection": False,
+            "ticket_selection_reason": "",
+            "tickets": [],
+            "ticket_context": None,
+            "retrieval_query": retrieval_query,
+            "rag_query": "",
+            "query_rewrite": {},
+            "retrieval_queries": [],
+            "business_status": None,
+            "reject_info": None,
+            "business_snapshot": None,
+            "material_mapping": None,
+            "retrieval_filter": {},
+            "retrieved_sources": [],
+            "rag_status": {},
+            "evidence_ok": False,
+            "evidence_decision": {},
+            "refuse_reason": None,
+            "answer": "",
+            "refused": False,
+            "suggested_actions": [],
+            "events": [],
+            "audit_payload": {},
+        }
+
+    def collect_sub_question(self, state: GovServiceAgentState, question: dict[str, Any], index: int) -> dict[str, Any]:
+        """收集单个子问题的路由、业务上下文和证据。"""
+        state = self.sub_question_graph.invoke(state)
+        status = "ready" if state.get("evidence_ok") and not state.get("refused") else "refused"
+        if state.get("need_ticket_selection"):
+            status = "need_ticket_selection"
+        return {
+            "id": question.get("id") or f"q{index}",
+            "original_query": question.get("original_query") or question.get("query") or "",
+            "query": state.get("query") or question.get("query") or "",
+            "retrieval_query": state.get("retrieval_query") or question.get("retrieval_query") or "",
+            "requires_ticket_context": bool(question.get("requires_ticket_context")),
+            "ticket_fact_type": state.get("ticket_fact_type") or question.get("ticket_fact_type") or "none",
+            "retrieval_plan": state.get("retrieval_plan") or question.get("retrieval_plan") or {},
+            "is_expanded": bool(question.get("is_expanded")),
+            "expansion_reason": question.get("expansion_reason") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "sub_intent": state.get("sub_intent") or "",
+            "route_decision": state.get("route_decision") or {},
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "status": status,
+            "need_ticket_selection": bool(state.get("need_ticket_selection")),
+            "ticket_selection_reason": state.get("ticket_selection_reason") or "",
+            "tickets": state.get("tickets") or [],
+            "ticket_context": state.get("ticket_context") or {},
+            "business_snapshot": state.get("business_snapshot") or {},
+            "retrieval_filter": state.get("retrieval_filter") or {},
+            "rag_query": state.get("rag_query") or state.get("normalized_query") or "",
+            "query_rewrite": state.get("query_rewrite") or {},
+            "retrieval_queries": state.get("retrieval_queries") or [],
+            "sources": state.get("retrieved_sources") or [],
+            "rag_status": state.get("rag_status") or {},
+            "evidence_decision": state.get("evidence_decision") or {},
+            "refused": bool(state.get("refused")),
+            "refuse_reason": state.get("refuse_reason"),
+            "answer": state.get("answer") or "",
+        }
+
+    def prepare_task(self, state: GovServiceAgentState) -> GovServiceAgentState:
+        """根据 QuestionResolver 任务字段准备展示字段和链路开关。"""
+        next_state = dict(state)
+        if next_state.get("refuse_reason"):
+            next_state["route"] = ROUTE_REFUSE
+            next_state["retrieval_chain"] = KNOWLEDGE_RETRIEVAL_CHAIN
+            add_event(next_state, "task_prepared", {"route": ROUTE_REFUSE, "reason": next_state.get("refuse_reason")})
+            return next_state
+        query = str(next_state.get("normalized_query") or next_state.get("query") or "")
+        ticket_fact_type = str(next_state.get("ticket_fact_type") or "none").strip() or "none"
+        raw_retrieval_plan = next_state.get("retrieval_plan") or {}
+        retrieval_plan = infer_retrieval_plan(
+            metadata_needs=raw_retrieval_plan.get("metadata_needs"),
+            ticket_fact_type=raw_retrieval_plan.get("ticket_fact_type") or ticket_fact_type,
+        )
+        if is_unsafe_query(query):
+            route = ROUTE_REFUSE
+            intent = "unsafe"
+            next_state["refuse_reason"] = "unsafe_or_out_of_scope"
+        elif len(query.strip()) < 3:
+            route = ROUTE_CLARIFICATION
+            intent = "clarification"
+            next_state["refuse_reason"] = "clarification_required"
+        else:
+            intent = task_intent(ticket_fact_type, bool(next_state.get("requires_ticket_context")), query)
+            route = ROUTE_TICKET_CONTEXT_RELATED if bool(next_state.get("requires_ticket_context")) else ROUTE_TICKET_CONTEXT_UNRELATED
+        route_decision = {
+            "route": route,
+            "intent": intent,
+            "sub_intent": intent,
+            "confidence": 1.0,
+            "requires_ticket_context": route == ROUTE_TICKET_CONTEXT_RELATED,
+            "ticket_fact_type": ticket_fact_type,
+            "retrieval_plan": retrieval_plan,
+            "can_answer_from_knowledge": route == ROUTE_TICKET_CONTEXT_UNRELATED or intent not in {INTENT_TICKET_STATUS, INTENT_REJECTION_REASON},
+            "reason": "question_resolver_task_fields",
+            "risk_level": "block" if route == ROUTE_REFUSE else "pass",
+            "entities": {"task_provider": "question_resolver", "router_provider": "question_resolver"},
+        }
+        next_state["route_decision"] = route_decision
+        next_state["route"] = route
+        next_state["intent"] = intent
+        next_state["sub_intent"] = intent
+        next_state["ticket_fact_type"] = ticket_fact_type
+        next_state["retrieval_plan"] = retrieval_plan
+        next_state["retrieval_chain"] = TICKET_AUGMENTED_CHAIN if route == ROUTE_TICKET_CONTEXT_RELATED else KNOWLEDGE_RETRIEVAL_CHAIN
+        add_event(next_state, "intent", route_decision)
+        add_event(next_state, "task_prepared", route_decision)
+        return next_state
+
+
+def workflow_observation_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """构建工作流节点观测的紧凑元数据。"""
+    return safe_value(
+        {
+            "langfuse_trace_id": state.get("langfuse_trace_id") or "",
+            "user_id": state.get("user_id"),
+            "session_id": state.get("session_id") or "",
+            "route": state.get("route") or "",
+            "intent": state.get("intent") or "",
+            "ticket_fact_type": state.get("ticket_fact_type") or "none",
+            "retrieval_chain": state.get("retrieval_chain") or "",
+            "multi_question": bool(state.get("multi_question")),
+            "retrieval_plan": state.get("retrieval_plan") or {},
+        }
+    )

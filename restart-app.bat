@@ -98,16 +98,16 @@ if errorlevel 1 (
     echo MinerU API is already listening on port 8011.
 )
 
-powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m declaration_qa.indexing.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
+powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m gov_service_agent.indexing.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
 if errorlevel 1 (
     start "Gov Service Agent Worker" cmd /k call "%~f0" worker
 ) else (
     echo Index worker is already running.
 )
 
-findstr /I /X "DECLARATION_QA_EVAL_QUEUE_BACKEND=rq" .env >nul 2>nul
+findstr /I /X "GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq" .env >nul 2>nul
 if not errorlevel 1 (
-    powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m declaration_qa.application.evals.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
+    powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m gov_service_agent.application.evals.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
     if errorlevel 1 (
         start "Gov Service Agent Evaluation Worker" cmd /k call "%~f0" eval-worker
     ) else (
@@ -160,7 +160,7 @@ exit /b 0
 :run_api
 title Gov Service Agent API
 echo Starting API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8010 ...
-"%PYTHON_EXE%" -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
+"%PYTHON_EXE%" -m uvicorn gov_service_agent.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
 exit /b %errorlevel%
 
 :run_mineru
@@ -173,7 +173,7 @@ exit /b %errorlevel%
 title Gov Service Agent Worker
 set "PYTHONPATH=%PROJECT_ROOT%src"
 echo Starting RQ index worker with conda environment "%CONDA_ENV%" ...
-"%PYTHON_EXE%" -m declaration_qa.indexing.worker
+"%PYTHON_EXE%" -m gov_service_agent.indexing.worker
 exit /b %errorlevel%
 
 :run_frontend
@@ -187,5 +187,5 @@ exit /b %errorlevel%
 title Gov Service Agent Evaluation Worker
 set "PYTHONPATH=%PROJECT_ROOT%src"
 echo Starting RQ evaluation worker with conda environment "%CONDA_ENV%" ...
-"%PYTHON_EXE%" -m declaration_qa.application.evals.worker
+"%PYTHON_EXE%" -m gov_service_agent.application.evals.worker
 exit /b %errorlevel%
