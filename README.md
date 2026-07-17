@@ -1,6 +1,6 @@
-# Declaration QA
+# Gov Service Agent
 
-Declaration QA 是一个面向政务申报场景的 Agentic RAG 系统。它将公开办事指南、申请材料、办理流程、政策依据、样表附件和个人工单数据组织成可追溯的问答能力，并提供知识上传、版本管理、异步索引、会话审计、反馈和评测接口。
+Gov Service Agent（政务智办）是一个面向政务服务场景的 Agentic RAG 系统。它将公开办事指南、申请材料、办理流程、政策依据、样表附件和个人工单数据组织成可追溯的问答与协办能力，并提供知识上传、版本管理、异步索引、会话审计、反馈和评测接口。
 
 项目当前采用单 Agent 原生 Tool Calling 架构。Agent 根据用户问题决定是否查询公开知识、个人工单或两者，并在同一消息链中观察工具结果后生成最终回答。公开知识与个人业务数据在工具层隔离，避免用知识库内容推断个人状态，或用个人工单替代公开政策依据。
 
@@ -554,6 +554,45 @@ Get-Content .\sql\postgresql\004_ragas_evaluation.sql -Raw |
   docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U agentbase -d agentbase
 ```
 
+### Agent 与 RAG 生产评测闭环
+
+生产评测使用独立 PostgreSQL 保存评测会话、工具写操作和业务 fixture，只读复用生产知识库、Milvus 与 Elasticsearch。主业务库保存版本化数据集、运行结果、通用评分和脱敏后的失败候选样本。
+
+每条回放用例会复用 Agent Run 中的 Langfuse `trace_id`，把规则、Ragas、独立模型裁判分数写为 `eval.<metric>`，并写入 `eval.case_passed`。Langfuse 用于轨迹观测、线上评分和实验对比；PostgreSQL 仍是评测结果与发布门禁的权威事实源，因此 Langfuse 暂时不可用不会改变门禁判定。
+
+```env
+DECLARATION_QA_EVALUATION_ENABLED=true
+DECLARATION_QA_EVAL_DATABASE_URL=postgresql+psycopg://eval_user:password@eval-db/gov_service_agent_eval
+DECLARATION_QA_EVAL_QUEUE_BACKEND=rq
+DECLARATION_QA_EVAL_QUEUE_NAME=gov-service-agent-evaluation
+DECLARATION_QA_EVAL_PII_SALT=replace-with-a-long-random-secret
+DECLARATION_QA_EVAL_JUDGE_ENABLED=true
+DECLARATION_QA_EVAL_JUDGE_MODEL=independent-judge-model
+```
+
+主业务库执行增量迁移，评测库执行完整建库脚本：
+
+```powershell
+Get-Content .\sql\postgresql\013_agent_evaluation.sql -Raw |
+  psql "$env:DECLARATION_QA_DATABASE_URL"
+Get-Content .\sql\postgresql\declaration_qa_postgresql_all.sql -Raw |
+  psql "$env:DECLARATION_QA_EVAL_DATABASE_URL"
+```
+
+启动独立评测 Worker：
+
+```powershell
+python -m declaration_qa.application.evals.worker
+```
+
+内置黄金集位于 `materials/evaluation/agent-golden-v1.json`，包含预约20条、办件15条、安全异常15条和多轮10条。前端“评测”工作区支持数据集运行、异步状态、门禁、逐例轨迹、人工标注以及线上失败候选的审核提升。
+
+```powershell
+python -m declaration_qa.application.evals.import_dataset materials/evaluation/agent-golden-v1.json
+```
+
+CI中配置 `EVAL_BASE_URL`、`EVAL_SMOKE_DATASET_ID`、`EVAL_FULL_DATASET_ID`、对应基线运行ID以及 `EVAL_INTERNAL_API_KEY`。PR运行20条冒烟集；定时和手工任务运行260条全量集并启用Ragas。
+
 ## 知识库使用
 
 ### 前端上传
@@ -692,7 +731,7 @@ data/declaration_qa/query_images/  用户问题图片
 ## 项目目录
 
 ```text
-declaration-qa/
+gov-service-agent/
 ├── frontend/                         React + Vite 前端
 │   └── src/
 │       ├── components/               聊天、工具过程、证据和知识管理组件

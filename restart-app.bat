@@ -20,6 +20,7 @@ if not defined PYTHON_EXE (
 if /i "%~1"=="api" goto run_api
 if /i "%~1"=="mineru" goto run_mineru
 if /i "%~1"=="worker" goto run_worker
+if /i "%~1"=="eval-worker" goto run_eval_worker
 if /i "%~1"=="frontend" goto run_frontend
 
 echo [1/4] Stopping existing application processes...
@@ -29,8 +30,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ports = @(8010, 8011, 5173);" ^
   "$processes = @(Get-CimInstance Win32_Process);" ^
   "$roots = @($processes | Where-Object {" ^
-  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|frontend)') -or" ^
-  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker|-m mineru\.cli\.fast_api') -or" ^
+  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|eval-worker|frontend)') -or" ^
+  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker|-m declaration_qa\.application\.evals\.worker|-m mineru\.cli\.fast_api') -or" ^
   "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'declaration_qa[\\/]frontend.*vite')" ^
   "});" ^
   "$queue = @($roots | ForEach-Object { [int]$_.ProcessId });" ^
@@ -85,7 +86,7 @@ if not exist ".env" (
 
 netstat -ano | findstr /R /C:":8010 .*LISTENING" >nul
 if errorlevel 1 (
-    start "Declaration QA API" cmd /k call "%~f0" api
+    start "Gov Service Agent API" cmd /k call "%~f0" api
 ) else (
     echo API is already listening on port 8010.
 )
@@ -99,9 +100,19 @@ if errorlevel 1 (
 
 powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m declaration_qa.indexing.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
 if errorlevel 1 (
-    start "Declaration QA Worker" cmd /k call "%~f0" worker
+    start "Gov Service Agent Worker" cmd /k call "%~f0" worker
 ) else (
     echo Index worker is already running.
+)
+
+findstr /I /X "DECLARATION_QA_EVAL_QUEUE_BACKEND=rq" .env >nul 2>nul
+if not errorlevel 1 (
+    powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m declaration_qa.application.evals.worker' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
+    if errorlevel 1 (
+        start "Gov Service Agent Evaluation Worker" cmd /k call "%~f0" eval-worker
+    ) else (
+        echo Evaluation worker is already running.
+    )
 )
 
 if not exist "frontend\node_modules" (
@@ -113,7 +124,7 @@ if not exist "frontend\node_modules" (
 
 netstat -ano | findstr /R /C:":5173 .*LISTENING" >nul
 if errorlevel 1 (
-    start "Declaration QA Frontend" cmd /k call "%~f0" frontend
+    start "Gov Service Agent Frontend" cmd /k call "%~f0" frontend
 ) else (
     echo Frontend is already listening on port 5173.
 )
@@ -147,7 +158,7 @@ start "" "http://127.0.0.1:5173"
 exit /b 0
 
 :run_api
-title Declaration QA API
+title Gov Service Agent API
 echo Starting API with conda environment "%CONDA_ENV%" at http://127.0.0.1:8010 ...
 "%PYTHON_EXE%" -m uvicorn declaration_qa.api.server.app:app --app-dir src --host 127.0.0.1 --port 8010 --reload
 exit /b %errorlevel%
@@ -159,15 +170,22 @@ echo Starting MinerU API with conda environment "%CONDA_ENV%" at http://127.0.0.
 exit /b %errorlevel%
 
 :run_worker
-title Declaration QA Worker
+title Gov Service Agent Worker
 set "PYTHONPATH=%PROJECT_ROOT%src"
 echo Starting RQ index worker with conda environment "%CONDA_ENV%" ...
 "%PYTHON_EXE%" -m declaration_qa.indexing.worker
 exit /b %errorlevel%
 
 :run_frontend
-title Declaration QA Frontend
+title Gov Service Agent Frontend
 cd /d "%PROJECT_ROOT%frontend"
 echo Starting frontend at http://127.0.0.1:5173 ...
 call npm run dev
+exit /b %errorlevel%
+
+:run_eval_worker
+title Gov Service Agent Evaluation Worker
+set "PYTHONPATH=%PROJECT_ROOT%src"
+echo Starting RQ evaluation worker with conda environment "%CONDA_ENV%" ...
+"%PYTHON_EXE%" -m declaration_qa.application.evals.worker
 exit /b %errorlevel%

@@ -76,6 +76,15 @@ def require_service_or_user(context: RequestContext, settings: DeclarationQASett
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user or service is required")
 
 
+def require_evaluation_admin(context: RequestContext, settings: DeclarationQASettings) -> None:
+    """生产环境仅允许内部服务或具备评测管理scope的用户操作评测资产。"""
+    if not settings.effective_auth_required:
+        return
+    if context.service or "evaluation:admin" in context.scopes:
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Evaluation administrator permission is required")
+
+
 def parse_int_header(value: str | None) -> int | None:
     """将请求头字符串安全转换为整数。"""
     return parse_int(value)

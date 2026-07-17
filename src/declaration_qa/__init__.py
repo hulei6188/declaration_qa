@@ -1,4 +1,4 @@
-"""独立的申报问答应用。
+"""Gov Service Agent 政务智办应用。
 
 此包有意不导入既有 AgentBase 运行时。
 启动命令：uvicorn declaration_qa.api.server.app:app --host 127.0.0.1 --port 8010

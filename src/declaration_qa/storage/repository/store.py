@@ -173,9 +173,12 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
             consultation_id=consultation_id,
         )
 
-    def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]]) -> dict[str, Any]:
+    def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]], **metadata) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""
-        return self.evaluation.create_eval_dataset(name=name, description=description, cases=cases)
+        return self.evaluation.create_eval_dataset(name=name, description=description, cases=cases, **metadata)
+
+    def publish_eval_dataset(self, dataset_id: str) -> dict[str, Any]:
+        return self.evaluation.publish_eval_dataset(dataset_id)
 
     def list_eval_datasets(self) -> list[dict[str, Any]]:
         """返回评测数据集列表及用例数量。"""
@@ -189,13 +192,19 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         """返回指定评测数据集的用例。"""
         return self.evaluation.list_eval_cases(dataset_id)
 
-    def create_eval_run(self, *, dataset_id: str, note: str, top_k: int) -> dict[str, Any]:
+    def create_eval_run(self, *, dataset_id: str, note: str, top_k: int, **metadata) -> dict[str, Any]:
         """创建评测运行记录。"""
-        return self.evaluation.create_eval_run(dataset_id=dataset_id, note=note, top_k=top_k)
+        return self.evaluation.create_eval_run(dataset_id=dataset_id, note=note, top_k=top_k, **metadata)
+
+    def mark_eval_run_running(self, run_id: str) -> None:
+        self.evaluation.mark_eval_run_running(run_id)
 
     def append_eval_run_item(self, *, run_id: str, item: dict[str, Any]) -> dict[str, Any]:
         """追加评测运行明细。"""
         return self.evaluation.append_eval_run_item(run_id=run_id, item=item)
+
+    def append_eval_scores(self, *, item_id: str, scores: list[dict[str, Any]]) -> None:
+        self.evaluation.append_eval_scores(item_id=item_id, scores=scores)
 
     def finish_eval_run(
         self,
@@ -204,6 +213,7 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
         status: str,
         metrics: dict[str, Any],
         error_message: str = "",
+        gate_result: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """完成评测运行。"""
         return self.evaluation.finish_eval_run(
@@ -211,15 +221,31 @@ class PostgresDeclarationQAStore(PostgresStoreBase):
             status=status,
             metrics=metrics,
             error_message=error_message,
+            gate_result=gate_result,
         )
 
     def get_eval_run(self, run_id: str) -> dict[str, Any] | None:
         """查询评测运行结果。"""
         return self.evaluation.get_eval_run(run_id)
 
+    def list_eval_runs(self, *, dataset_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        return self.evaluation.list_eval_runs(dataset_id=dataset_id, limit=limit)
+
     def annotate_eval_item(self, *, item_id: str, label: str, comment: str) -> dict[str, Any]:
         """标注评测运行明细。"""
         return self.evaluation.annotate_eval_item(item_id=item_id, label=label, comment=comment)
+
+    def create_eval_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+        return self.evaluation.create_eval_candidate(candidate)
+
+    def list_eval_candidates(self, *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        return self.evaluation.list_eval_candidates(status=status, limit=limit)
+
+    def review_eval_candidate(self, **payload) -> dict[str, Any]:
+        return self.evaluation.review_eval_candidate(**payload)
+
+    def promote_eval_candidate(self, **payload) -> dict[str, Any]:
+        return self.evaluation.promote_eval_candidate(**payload)
 
     def persist_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
         """持久化知识文档及其片段。"""

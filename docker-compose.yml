@@ -11,6 +11,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  postgres-eval:
+    image: pgvector/pgvector:0.8.5-pg16-trixie
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: agentbase_eval
+      POSTGRES_USER: agentbase
+      POSTGRES_PASSWORD: agentbase
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_eval_data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     ports:
@@ -51,5 +63,6 @@ services:
 
 volumes:
   postgres_data:
+  postgres_eval_data:
   milvus_data:
   elasticsearch_data:

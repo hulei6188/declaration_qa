@@ -17,6 +17,8 @@ class DeclarationQASettings(BaseSettings):
     allow_in_memory_fallbacks: bool = Field(default=True, alias="DECLARATION_QA_ALLOW_IN_MEMORY_FALLBACKS")
 
     database_url: str | None = Field(default=None, alias="DECLARATION_QA_DATABASE_URL")
+    evaluation_enabled: bool = Field(default=True, alias="DECLARATION_QA_EVALUATION_ENABLED")
+    evaluation_database_url: str | None = Field(default=None, alias="DECLARATION_QA_EVAL_DATABASE_URL")
 
     redis_url: str | None = Field(default=None, alias="DECLARATION_QA_REDIS_URL")
     redis_ttl_seconds: int = Field(default=600, alias="DECLARATION_QA_REDIS_TTL_SECONDS")
@@ -76,6 +78,15 @@ class DeclarationQASettings(BaseSettings):
     ragas_enabled: bool = Field(default=False, alias="DECLARATION_QA_RAGAS_ENABLED")
     ragas_timeout_seconds: int = Field(default=60, alias="DECLARATION_QA_RAGAS_TIMEOUT_SECONDS")
     ragas_max_retries: int = Field(default=1, alias="DECLARATION_QA_RAGAS_MAX_RETRIES")
+    evaluation_queue_backend: str = Field(default="inline", alias="DECLARATION_QA_EVAL_QUEUE_BACKEND")
+    evaluation_queue_name: str = Field(default="gov-service-agent-evaluation", alias="DECLARATION_QA_EVAL_QUEUE_NAME")
+    evaluation_job_timeout_seconds: int = Field(default=14400, alias="DECLARATION_QA_EVAL_JOB_TIMEOUT_SECONDS")
+    evaluation_judge_enabled: bool = Field(default=False, alias="DECLARATION_QA_EVAL_JUDGE_ENABLED")
+    evaluation_judge_model: str = Field(default="", alias="DECLARATION_QA_EVAL_JUDGE_MODEL")
+    evaluation_judge_api_base: str = Field(default="", alias="DECLARATION_QA_EVAL_JUDGE_API_BASE")
+    evaluation_judge_api_key: str = Field(default="", alias="DECLARATION_QA_EVAL_JUDGE_API_KEY")
+    evaluation_pii_salt: str = Field(default="", alias="DECLARATION_QA_EVAL_PII_SALT")
+    evaluation_candidate_scan_limit: int = Field(default=500, alias="DECLARATION_QA_EVAL_CANDIDATE_SCAN_LIMIT")
 
     auth_required: bool = Field(default=False, alias="DECLARATION_QA_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="DECLARATION_QA_JWT_SECRET")
@@ -150,6 +161,11 @@ class DeclarationQASettings(BaseSettings):
     def effective_database_url(self) -> str | None:
         """返回当前生效的数据库连接地址。"""
         return self.database_url
+
+    @property
+    def effective_evaluation_database_url(self) -> str | None:
+        """返回评测工作流专用数据库连接地址。"""
+        return self.evaluation_database_url
 
     @property
     def effective_redis_url(self) -> str | None:

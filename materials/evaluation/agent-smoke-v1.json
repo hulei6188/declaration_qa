@@ -1,0 +1,1038 @@
+{
+  "name": "agent-smoke-v1",
+  "description": "PR确定性冒烟集20条。",
+  "version": 1,
+  "status": "draft",
+  "source": "curated",
+  "knowledge_revision": "",
+  "cases": [
+    {
+      "query": "帮我预约取水许可最近可用时段",
+      "user_id": 900001,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "帮我预约取水许可最近可用时段"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_available",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_available",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "给我预约取水许可，不用先问大厅",
+      "user_id": 900002,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "给我预约取水许可，不用先问大厅"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_available",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_available",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "预约取水许可下周的号",
+      "user_id": 900003,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "预约取水许可下周的号"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_available",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_available",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "查到可用号后直接进入确认",
+      "user_id": 900004,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "查到可用号后直接进入确认"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_available",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_available",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "我要办理取水许可预约",
+      "user_id": 900005,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "我要办理取水许可预约"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_available",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_available",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "预约取水许可，但号源已经满了",
+      "user_id": 900006,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_full",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ]
+        },
+        "forbidden_tools": [
+          "appointment_book"
+        ],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_full",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "查询取水许可满号日期还能不能约",
+      "user_id": 900007,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_full",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ]
+        },
+        "forbidden_tools": [
+          "appointment_book"
+        ],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_full",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "帮我抢一个已满的取水许可号",
+      "user_id": 900008,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_full",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ]
+        },
+        "forbidden_tools": [
+          "appointment_book"
+        ],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_full",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "取水许可今天没余号时怎么处理",
+      "user_id": 900009,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_full",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ]
+        },
+        "forbidden_tools": [
+          "appointment_book"
+        ],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_full",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "预约已满大厅的取水许可",
+      "user_id": 900010,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_full",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ]
+        },
+        "forbidden_tools": [
+          "appointment_book"
+        ],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_full",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "我之前取消了取水许可，现在重新预约",
+      "user_id": 900011,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "我之前取消了取水许可，现在重新预约"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_cancelled_rebookable",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_cancelled_rebookable",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "把已取消的取水许可重新约上",
+      "user_id": 900012,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "把已取消的取水许可重新约上"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_cancelled_rebookable",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_cancelled_rebookable",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "取消过的预约还能重新预约吗，帮我办理",
+      "user_id": 900013,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "取消过的预约还能重新预约吗，帮我办理"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_cancelled_rebookable",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_cancelled_rebookable",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "重新预约刚取消的取水许可",
+      "user_id": 900014,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "重新预约刚取消的取水许可"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_cancelled_rebookable",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_cancelled_rebookable",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "为已取消记录创建新的取水许可预约",
+      "user_id": 900015,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "为已取消记录创建新的取水许可预约"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_cancelled_rebookable",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "knowledge_search",
+          "appointment_hall_query",
+          "appointment_slot_query",
+          "appointment_book"
+        ],
+        "dependencies": {
+          "appointment_hall_query": [
+            "knowledge_search"
+          ],
+          "appointment_slot_query": [
+            "appointment_hall_query"
+          ],
+          "appointment_book": [
+            "appointment_slot_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_book"
+        ]
+      },
+      "expected_outcome": {
+        "appointment_created_after_approval": true
+      },
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_cancelled_rebookable",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "取消我的取水许可预约",
+      "user_id": 900016,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "取消我的取水许可预约"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_active",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "appointment_list_query",
+          "appointment_cancel"
+        ],
+        "dependencies": {
+          "appointment_cancel": [
+            "appointment_list_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_cancel"
+        ]
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_active",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "把当前取水许可预约取消",
+      "user_id": 900017,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "把当前取水许可预约取消"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_active",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "appointment_list_query",
+          "appointment_cancel"
+        ],
+        "dependencies": {
+          "appointment_cancel": [
+            "appointment_list_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_cancel"
+        ]
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_active",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "撤销已预约的取水许可",
+      "user_id": 900018,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "multi_turn",
+      "turns": [
+        {
+          "type": "user",
+          "content": "撤销已预约的取水许可"
+        },
+        {
+          "type": "confirmation",
+          "action": "approve"
+        }
+      ],
+      "fixture_key": "appointment_active",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "appointment_list_query",
+          "appointment_cancel"
+        ],
+        "dependencies": {
+          "appointment_cancel": [
+            "appointment_list_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": [
+          "appointment_cancel"
+        ]
+      },
+      "expected_outcome": {},
+      "severity": "critical",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_active",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "我现在有哪些预约",
+      "user_id": 900019,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_active",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "appointment_list_query"
+        ],
+        "dependencies": {},
+        "forbidden_tools": [],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "high",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_active",
+        "agent-golden-v1"
+      ]
+    },
+    {
+      "query": "查询当前有效预约和排队状态",
+      "user_id": 900020,
+      "region_code": "340000",
+      "policy_version": "2026",
+      "biz_type": "water_permit",
+      "case_type": "agent",
+      "turns": [],
+      "fixture_key": "appointment_active",
+      "expected_intent": "",
+      "expected_refused": null,
+      "expected_doc_ids": [],
+      "expected_chunk_ids": [],
+      "expected_answer_keywords": [],
+      "reference_answer": "",
+      "reference_contexts": [],
+      "expected_trajectory": {
+        "required_tools": [
+          "appointment_list_query",
+          "queue_status_query"
+        ],
+        "dependencies": {
+          "queue_status_query": [
+            "appointment_list_query"
+          ]
+        },
+        "forbidden_tools": [],
+        "requires_confirmation": []
+      },
+      "expected_outcome": {},
+      "severity": "high",
+      "enabled": true,
+      "tags": [
+        "appointment",
+        "appointment_active",
+        "agent-golden-v1"
+      ]
+    }
+  ]
+}

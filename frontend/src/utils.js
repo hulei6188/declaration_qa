@@ -315,6 +315,51 @@ export function createToolTrace(status = 'running') {
   };
 }
 
+export function fetchEvaluationDatasets() {
+  return requestJson('/api/declaration-qa/evaluation/datasets');
+}
+
+export function fetchEvaluationRuns(datasetId) {
+  return requestJson(`/api/declaration-qa/evaluation/datasets/${encodeURIComponent(datasetId)}/runs`);
+}
+
+export function fetchEvaluationRun(runId) {
+  return requestJson(`/api/declaration-qa/evaluation/runs/${encodeURIComponent(runId)}`);
+}
+
+export function publishEvaluationDataset(datasetId) {
+  return requestJson(`/api/declaration-qa/evaluation/datasets/${encodeURIComponent(datasetId)}/publish`, { method: 'POST' });
+}
+
+export function fetchEvaluationGate(runId) {
+  return requestJson(`/api/declaration-qa/evaluation/runs/${encodeURIComponent(runId)}/gate`);
+}
+
+export function compareEvaluationRuns(runId, baselineRunId) {
+  return requestJson(`/api/declaration-qa/evaluation/runs/${encodeURIComponent(runId)}/compare/${encodeURIComponent(baselineRunId)}`);
+}
+
+export function fetchEvaluationCandidates(status = '') {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+  return requestJson(`/api/declaration-qa/evaluation/candidates${suffix}`);
+}
+
+export function mineEvaluationCandidates() {
+  return requestJson('/api/declaration-qa/evaluation/candidates/mine', { method: 'POST' });
+}
+
+export function reviewEvaluationCandidate(candidateId, payload) {
+  return requestJson(`/api/declaration-qa/evaluation/candidates/${encodeURIComponent(candidateId)}/review`, {
+    method: 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export function promoteEvaluationCandidate(candidateId, datasetId, expected) {
+  return requestJson(`/api/declaration-qa/evaluation/candidates/${encodeURIComponent(candidateId)}/promote`, {
+    method: 'POST', body: JSON.stringify({ dataset_id: datasetId, expected }),
+  });
+}
+
 export function toolTraceStatus(ok, status) {
   if (ok) return 'completed';
   if (status === 'not_found') return 'empty';

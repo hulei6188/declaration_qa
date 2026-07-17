@@ -419,7 +419,7 @@ class KnowledgeRepository(EngineBackedRepository):
             text(
                 """
                 INSERT INTO declaration_qa.knowledge_bases (name, description)
-                VALUES ('默认申报知识库', 'Declaration QA default knowledge base')
+                VALUES ('默认政务知识库', 'Gov Service Agent default knowledge base')
                 RETURNING id
                 """
             )

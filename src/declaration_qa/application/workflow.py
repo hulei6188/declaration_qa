@@ -458,6 +458,13 @@ class DeclarationQAWorkflow(ApplicationNodes):
     def close(self) -> None:
         """关闭后台记忆任务和 PostgreSQL 持久化资源。"""
         self.memory_runtime.close()
+        disposed: set[int] = set()
+        for store in getattr(self, "managed_stores", []):
+            engine = getattr(store, "engine", None)
+            if engine is None or id(engine) in disposed:
+                continue
+            disposed.add(id(engine))
+            engine.dispose()
 
     def delete_session(self, *, user_id: int, session_id: str) -> bool:
         """删除产品历史记录及其对应的 LangGraph 线程状态。"""

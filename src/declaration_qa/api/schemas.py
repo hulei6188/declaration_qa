@@ -29,6 +29,8 @@ class ChatRequest(BaseModel):
     app_version: str = Field(default="", max_length=40)
     policy_version: str = Field(default="2025", max_length=80)
     biz_type: str | None = Field(default=None, max_length=80)
+    apply_id: str | None = Field(default=None, max_length=80)
+    apply_context: dict[str, Any] | None = None
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
     query_image: ChatImagePayload | None = None
 
@@ -315,6 +317,8 @@ class EvaluationCaseRequest(BaseModel):
     region_code: str = Field(default="340000", min_length=2, max_length=12)
     policy_version: str = Field(default="2025", max_length=80)
     biz_type: str | None = Field(default=None, max_length=80)
+    apply_id: str | None = Field(default=None, max_length=80)
+    apply_context: dict[str, Any] | None = None
     expected_intent: str = Field(default="", max_length=40)
     expected_refused: bool | None = None
     expected_doc_ids: list[str] = Field(default_factory=list)
@@ -322,6 +326,14 @@ class EvaluationCaseRequest(BaseModel):
     reference_answer: str = Field(default="", max_length=20_000)
     reference_contexts: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    case_type: str = Field(default="rag", pattern="^(rag|agent|multi_turn|safety)$")
+    turns: list[dict[str, Any]] = Field(default_factory=list)
+    fixture_key: str = Field(default="", max_length=120)
+    expected_chunk_ids: list[str] = Field(default_factory=list)
+    expected_trajectory: dict[str, Any] = Field(default_factory=dict)
+    expected_outcome: dict[str, Any] = Field(default_factory=dict)
+    severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
+    enabled: bool = True
 
 
 class EvaluationDatasetRequest(BaseModel):
@@ -329,6 +341,11 @@ class EvaluationDatasetRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=1000)
     cases: list[EvaluationCaseRequest] = Field(default_factory=list)
+    version: int = Field(default=1, ge=1)
+    status: str = Field(default="draft", pattern="^(draft|published|archived)$")
+    source: str = Field(default="manual", max_length=40)
+    parent_dataset_id: str | None = Field(default=None, max_length=80)
+    knowledge_revision: str = Field(default="", max_length=160)
 
 
 class EvaluationCaseResponse(BaseModel):
@@ -336,6 +353,8 @@ class EvaluationCaseResponse(BaseModel):
     case_id: str
     dataset_id: str
     query: str
+    apply_id: str | None = None
+    apply_context: dict[str, Any] | None = None
     expected_intent: str = ""
     expected_refused: bool | None = None
     expected_doc_ids: list[str] = Field(default_factory=list)
@@ -343,6 +362,14 @@ class EvaluationCaseResponse(BaseModel):
     reference_answer: str = ""
     reference_contexts: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    case_type: str = "rag"
+    turns: list[dict[str, Any]] = Field(default_factory=list)
+    fixture_key: str = ""
+    expected_chunk_ids: list[str] = Field(default_factory=list)
+    expected_trajectory: dict[str, Any] = Field(default_factory=dict)
+    expected_outcome: dict[str, Any] = Field(default_factory=dict)
+    severity: str = "medium"
+    enabled: bool = True
     created_at: str = ""
 
 
@@ -352,6 +379,11 @@ class EvaluationDatasetResponse(BaseModel):
     name: str
     description: str = ""
     case_count: int = 0
+    version: int = 1
+    status: str = "draft"
+    source: str = "manual"
+    parent_dataset_id: str | None = None
+    knowledge_revision: str = ""
     created_at: str = ""
 
 
@@ -360,6 +392,10 @@ class EvaluationRunRequest(BaseModel):
     note: str = Field(default="", max_length=1000)
     top_k: int = Field(default=4, ge=1, le=20)
     use_ragas: bool | None = None
+    baseline_run_id: str | None = Field(default=None, max_length=80)
+    trigger_source: str = Field(default="manual", max_length=40)
+    git_commit: str = Field(default="", max_length=80)
+    force_inline: bool = False
 
 
 class EvaluationAnnotationRequest(BaseModel):
@@ -393,6 +429,17 @@ class EvaluationRunItemResponse(BaseModel):
     ragas_status: dict[str, Any] = Field(default_factory=dict)
     annotation_label: str = ""
     annotation_comment: str = ""
+    agent_run_uid: str = ""
+    actual_trajectory: dict[str, Any] = Field(default_factory=dict)
+    rule_scores: dict[str, Any] = Field(default_factory=dict)
+    judge_scores: dict[str, Any] = Field(default_factory=dict)
+    failure_reasons: list[str] = Field(default_factory=list)
+    passed: bool | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    latency_ms: int | None = None
+    estimated_cost: float | None = None
 
 
 class EvaluationRunResponse(BaseModel):
@@ -404,3 +451,58 @@ class EvaluationRunResponse(BaseModel):
     items: list[EvaluationRunItemResponse] = Field(default_factory=list)
     created_at: str = ""
     completed_at: str = ""
+    baseline_run_id: str | None = None
+    trigger_source: str = "manual"
+    runtime_snapshot: dict[str, Any] = Field(default_factory=dict)
+    gate_result: dict[str, Any] = Field(default_factory=dict)
+    git_commit: str = ""
+    error_message: str = ""
+
+
+class EvaluationCandidateReviewRequest(BaseModel):
+    """审核线上失败候选样本。"""
+    status: str = Field(pattern="^(triaged|labeled|rejected)$")
+    severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
+    labels: list[str] = Field(default_factory=list)
+    comment: str = Field(default="", max_length=2000)
+
+
+class EvaluationCandidatePromoteRequest(BaseModel):
+    """将已标注候选样本提升为黄金用例。"""
+    dataset_id: str = Field(min_length=1, max_length=80)
+    expected: EvaluationCaseRequest
+
+
+class EvaluationCandidateResponse(BaseModel):
+    candidate_id: str
+    audit_id: str = ""
+    agent_run_uid: str = ""
+    trace_id: str = ""
+    source: str
+    status: str
+    severity: str = "medium"
+    sanitized_query: str = ""
+    sanitized_answer: str = ""
+    detection_signals: dict[str, Any] = Field(default_factory=dict)
+    trajectory_snapshot: dict[str, Any] = Field(default_factory=dict)
+    labels: list[str] = Field(default_factory=list)
+    reviewer_comment: str = ""
+    promoted_case_id: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class EvaluationComparisonResponse(BaseModel):
+    baseline_run_id: str
+    candidate_run_id: str
+    metric_deltas: dict[str, Any] = Field(default_factory=dict)
+    regressions: list[dict[str, Any]] = Field(default_factory=list)
+    improvements: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class EvaluationGateResponse(BaseModel):
+    run_id: str
+    passed: bool
+    hard_failures: list[str] = Field(default_factory=list)
+    soft_failures: list[str] = Field(default_factory=list)
+    thresholds: dict[str, Any] = Field(default_factory=dict)

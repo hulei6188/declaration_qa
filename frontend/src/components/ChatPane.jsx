@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Check, ImagePlus, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { Check, FlaskConical, ImagePlus, MessageSquare, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
@@ -11,6 +11,7 @@ export default function ChatPane({
   onResolveConfirmation,
   theme = 'light', onToggleTheme,
   sidebarCollapsed = false, onToggleSidebar,
+  onViewChange,
 }) {
   const [input, setInput] = useState('');
   const [imageDraft, setImageDraft] = useState(null);
@@ -94,7 +95,11 @@ export default function ChatPane({
               <PanelLeftOpen size={16} />
             </button>
           )}
-          <h2>知识库</h2>
+          <h2>Gov Service Agent</h2>
+          <nav className="view-tabs" aria-label="工作区">
+            <button className="active"><MessageSquare size={14} />对话</button>
+            <button onClick={() => onViewChange?.('evaluation')}><FlaskConical size={14} />评测</button>
+          </nav>
         </div>
         <div className="chat-actions">
           <button

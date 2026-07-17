@@ -1,0 +1,38 @@
+name: Agent and RAG Evaluation
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  deterministic-evaluators:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q tests/gov_service_agent_evaluation_loop_test.py tests/declaration_qa_evaluation_schema_test.py
+
+  production-evaluation-gate:
+    if: ${{ vars.EVAL_BASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests==2.34.2
+      - name: Run production evaluation gate
+        env:
+          PYTHONPATH: src
+          GOV_SERVICE_AGENT_BASE_URL: ${{ vars.EVAL_BASE_URL }}
+          GOV_SERVICE_AGENT_EVAL_DATASET_ID: ${{ github.event_name == 'pull_request' && vars.EVAL_SMOKE_DATASET_ID || vars.EVAL_FULL_DATASET_ID }}
+          GOV_SERVICE_AGENT_BASELINE_RUN_ID: ${{ github.event_name == 'pull_request' && vars.EVAL_SMOKE_BASELINE_RUN_ID || vars.EVAL_FULL_BASELINE_RUN_ID }}
+          GOV_SERVICE_AGENT_API_KEY: ${{ secrets.EVAL_INTERNAL_API_KEY }}
+        run: >-
+          python -m declaration_qa.application.evals.ci_gate
+          ${{ github.event_name == 'pull_request' && '' || '--use-ragas' }}

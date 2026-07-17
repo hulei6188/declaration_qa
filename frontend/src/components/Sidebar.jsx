@@ -56,7 +56,7 @@ export default function Sidebar({
             sessions.slice(0, 8).map((s) => (
               <div key={s.session_id} className="session-item">
                 <button className="session-open" onClick={() => onLoadSession(s.session_id)} title="打开会话">
-                  <strong>{escapeHtml(s.title || '申报智能问答')}</strong>
+                  <strong>{escapeHtml(s.title || '政务智办')}</strong>
                   <code>{escapeHtml(s.biz_type || '-')} · {escapeHtml(s.region_code || '-')} · {s.message_count || 0} 条</code>
                 </button>
                 <button className="session-delete" onClick={() => onDeleteSession(s.session_id)} title="删除会话">

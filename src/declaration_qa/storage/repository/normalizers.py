@@ -17,7 +17,9 @@ def normalize_session_row(row) -> dict[str, Any]:
         "user_id": int(row["user_id"] or 0),
         "region_code": str(row["region_code"] or ""),
         "biz_type": row["biz_type"],
-        "title": str(row["title"] or "申报智能问答"),
+        "apply_id": row.get("apply_id"),
+        "apply_context": dict(row.get("apply_context") or {}) if row.get("apply_context") is not None else None,
+        "title": str(row["title"] or "政务智办"),
         "message_count": int(row.get("message_count") or 0) if hasattr(row, "get") else int(row["message_count"] or 0),
         "updated_at": str(row["updated_at"] or ""),
     }
@@ -66,6 +68,11 @@ def normalize_eval_dataset(row) -> dict[str, Any]:
         "name": str(row["name"] or ""),
         "description": str(row["description"] or ""),
         "case_count": int(row.get("case_count") or 0) if hasattr(row, "get") else 0,
+        "version": int(row.get("version") or 1),
+        "status": str(row.get("status") or "draft"),
+        "source": str(row.get("source") or "manual"),
+        "parent_dataset_id": str(row.get("parent_dataset_id") or "") or None,
+        "knowledge_revision": str(row.get("knowledge_revision") or ""),
         "created_at": str(row["created_at"] or ""),
     }
 
@@ -87,6 +94,14 @@ def normalize_eval_case(row) -> dict[str, Any]:
         "reference_answer": str(row.get("reference_answer") or ""),
         "reference_contexts": list(row.get("reference_contexts") or []),
         "tags": list(row["tags"] or []),
+        "case_type": str(row.get("case_type") or "rag"),
+        "turns": list(row.get("turns") or []),
+        "fixture_key": str(row.get("fixture_key") or ""),
+        "expected_chunk_ids": list(row.get("expected_chunk_ids") or []),
+        "expected_trajectory": dict(row.get("expected_trajectory") or {}),
+        "expected_outcome": dict(row.get("expected_outcome") or {}),
+        "severity": str(row.get("severity") or "medium"),
+        "enabled": bool(row.get("enabled", True)),
         "created_at": str(row["created_at"] or ""),
     }
 
@@ -101,6 +116,12 @@ def normalize_eval_run(row, *, items: list[dict[str, Any]]) -> dict[str, Any]:
         "items": items,
         "created_at": str(row["created_at"] or ""),
         "completed_at": str(row["completed_at"] or ""),
+        "baseline_run_id": str(row.get("baseline_run_id") or "") or None,
+        "trigger_source": str(row.get("trigger_source") or "manual"),
+        "runtime_snapshot": dict(row.get("runtime_snapshot") or {}),
+        "gate_result": dict(row.get("gate_result") or {}),
+        "git_commit": str(row.get("git_commit") or ""),
+        "error_message": str(row.get("error_message") or ""),
     }
 
 
@@ -130,6 +151,39 @@ def normalize_eval_run_item(row) -> dict[str, Any]:
         "ragas_status": dict(row.get("ragas_status") or {}),
         "annotation_label": str(row["annotation_label"] or ""),
         "annotation_comment": str(row["annotation_comment"] or ""),
+        "agent_run_uid": str(row.get("agent_run_uid") or ""),
+        "actual_trajectory": dict(row.get("actual_trajectory") or {}),
+        "rule_scores": dict(row.get("rule_scores") or {}),
+        "judge_scores": dict(row.get("judge_scores") or {}),
+        "failure_reasons": list(row.get("failure_reasons") or []),
+        "passed": row.get("passed"),
+        "input_tokens": row.get("input_tokens"),
+        "output_tokens": row.get("output_tokens"),
+        "total_tokens": row.get("total_tokens"),
+        "latency_ms": row.get("latency_ms"),
+        "estimated_cost": float(row["estimated_cost"]) if row.get("estimated_cost") is not None else None,
+    }
+
+
+def normalize_eval_candidate(row) -> dict[str, Any]:
+    """标准化线上失败候选样本。"""
+    return {
+        "candidate_id": str(row.get("candidate_id") or ""),
+        "audit_id": str(row.get("audit_uid") or ""),
+        "agent_run_uid": str(row.get("agent_run_uid") or ""),
+        "trace_id": str(row.get("trace_id") or ""),
+        "source": str(row.get("source") or ""),
+        "status": str(row.get("status") or "new"),
+        "severity": str(row.get("severity") or "medium"),
+        "sanitized_query": str(row.get("sanitized_query") or ""),
+        "sanitized_answer": str(row.get("sanitized_answer") or ""),
+        "detection_signals": dict(row.get("detection_signals") or {}),
+        "trajectory_snapshot": dict(row.get("trajectory_snapshot") or {}),
+        "labels": list(row.get("labels") or []),
+        "reviewer_comment": str(row.get("reviewer_comment") or ""),
+        "promoted_case_id": str(row.get("promoted_case_id") or "") or None,
+        "created_at": str(row.get("created_at") or ""),
+        "updated_at": str(row.get("updated_at") or ""),
     }
 
 

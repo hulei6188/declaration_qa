@@ -36,6 +36,22 @@ def production_readiness_errors(settings: DeclarationQASettings) -> list[str]:
         errors.append("DECLARATION_QA_RERANK_PROVIDER must use a real rerank provider in production")
     if settings.index_queue_backend.lower() != "rq":
         errors.append("DECLARATION_QA_INDEX_QUEUE_BACKEND=rq is required in production")
+    if settings.evaluation_enabled:
+        if not settings.effective_evaluation_database_url:
+            errors.append("DECLARATION_QA_EVAL_DATABASE_URL is required when evaluation is enabled in production")
+        elif settings.effective_evaluation_database_url == settings.effective_database_url:
+            errors.append("DECLARATION_QA_EVAL_DATABASE_URL must differ from DECLARATION_QA_DATABASE_URL in production")
+        if settings.evaluation_queue_backend.lower() != "rq":
+            errors.append("DECLARATION_QA_EVAL_QUEUE_BACKEND=rq is required when evaluation is enabled in production")
+        if not settings.evaluation_pii_salt:
+            errors.append("DECLARATION_QA_EVAL_PII_SALT is required when evaluation is enabled in production")
+        if settings.evaluation_judge_enabled:
+            if not settings.evaluation_judge_model:
+                errors.append("DECLARATION_QA_EVAL_JUDGE_MODEL is required when evaluation judge is enabled")
+            elif settings.evaluation_judge_model in {settings.llm_model, settings.agent_model}:
+                errors.append("DECLARATION_QA_EVAL_JUDGE_MODEL must differ from generation models")
+            if not settings.evaluation_judge_api_key:
+                errors.append("DECLARATION_QA_EVAL_JUDGE_API_KEY is required when evaluation judge is enabled")
     if settings.seed_knowledge:
         errors.append("DECLARATION_QA_SEED_KNOWLEDGE=false is required in production")
     return errors
@@ -45,4 +61,4 @@ def assert_production_ready(settings: DeclarationQASettings) -> None:
     """校验生产环境必需配置是否齐备。"""
     errors = production_readiness_errors(settings)
     if errors:
-        raise RuntimeError("Declaration QA production configuration is incomplete: " + "; ".join(errors))
+        raise RuntimeError("Gov Service Agent production configuration is incomplete: " + "; ".join(errors))

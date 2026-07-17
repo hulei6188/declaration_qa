@@ -18,9 +18,9 @@ from declaration_qa.api.server.routes.system import register_system_routes
 def create_app() -> FastAPI:
     """创建并配置 FastAPI 应用实例。"""
     app = FastAPI(
-        title="Declaration QA Workflow",
+        title="Gov Service Agent",
         version=__version__,
-        description="Isolated FastAPI + LangGraph declaration QA service.",
+        description="Agentic RAG service for government service guidance and workflows.",
     )
     app.add_middleware(
         CORSMiddleware,

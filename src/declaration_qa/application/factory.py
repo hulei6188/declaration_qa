@@ -23,10 +23,17 @@ from declaration_qa.search.vector.milvus import MilvusVectorIndex
 from declaration_qa.application.workflow import DeclarationQAWorkflow
 
 
-def create_workflow(settings: DeclarationQASettings | None = None) -> DeclarationQAWorkflow:
+def create_workflow(
+    settings: DeclarationQASettings | None = None,
+    *,
+    runtime_database_url: str | None = None,
+    knowledge_database_url: str | None = None,
+) -> DeclarationQAWorkflow:
     """按配置创建完整申报问答工作流。"""
     settings = settings or get_settings()
     assert_production_ready(settings)
+    runtime_database_url = runtime_database_url if runtime_database_url is not None else settings.effective_database_url
+    knowledge_database_url = knowledge_database_url if knowledge_database_url is not None else settings.effective_database_url
     embedding_provider = build_embedding_provider(settings)
     reranker = build_reranker(settings)
     text_agent_model = build_agent_model(
@@ -78,13 +85,18 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         else None
     )
     audit_store = (
-        PostgresDeclarationQAStore(settings.effective_database_url)
-        if settings.effective_database_url
+        PostgresDeclarationQAStore(runtime_database_url)
+        if runtime_database_url
         else InMemoryAuditStore()
+    )
+    knowledge_store = (
+        audit_store
+        if not knowledge_database_url or knowledge_database_url == runtime_database_url
+        else PostgresDeclarationQAStore(knowledge_database_url)
     )
     business_adapter = audit_store if isinstance(audit_store, PostgresDeclarationQAStore) else InMemoryBusinessDataAdapter()
     use_external_chunk_store = (
-        isinstance(audit_store, PostgresDeclarationQAStore)
+        isinstance(knowledge_store, PostgresDeclarationQAStore)
         and settings.vector_backend.strip().lower() == "milvus"
         and settings.keyword_backend.strip().lower() == "elasticsearch"
     )
@@ -95,7 +107,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             cache_store=cache_store,
             vector_index=vector_index,
             keyword_index=keyword_index,
-            chunk_store=audit_store,
+            chunk_store=knowledge_store,
             embedding_provider=embedding_provider,
             reranker=reranker,
             cache_ttl_seconds=settings.redis_ttl_seconds,
@@ -118,11 +130,11 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             rerank_top_n_per_query=settings.rerank_top_n_per_query,
             include_seed=bool(settings.seed_knowledge and not isinstance(audit_store, PostgresDeclarationQAStore)),
         )
-    if hasattr(audit_store, "list_indexed_knowledge"):
+    if hasattr(knowledge_store, "list_indexed_knowledge"):
         if use_external_chunk_store:
-            rag_engine.load_indexed_data(audit_store.list_documents(), [])
+            rag_engine.load_indexed_data(knowledge_store.list_documents(), [])
         else:
-            stored_documents, stored_chunks = audit_store.list_indexed_knowledge()
+            stored_documents, stored_chunks = knowledge_store.list_indexed_knowledge()
             if stored_chunks:
                 rag_engine.load_indexed_data(stored_documents, stored_chunks)
             elif stored_documents and settings.vector_backend != "milvus":
@@ -143,7 +155,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
 
     memory_runtime = LangGraphMemoryRuntime(
         resources=build_memory_resources(
-            database_url=settings.effective_database_url,
+            database_url=runtime_database_url,
             embedding_provider=embedding_provider,
         ),
         model=text_agent_model,
@@ -154,7 +166,7 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
         background_workers=settings.long_term_memory_workers,
     )
     try:
-        return DeclarationQAWorkflow(
+        created_workflow = DeclarationQAWorkflow(
             rag_engine=rag_engine,
             business_adapter=business_adapter,
             audit_store=audit_store,
@@ -180,9 +192,27 @@ def create_workflow(settings: DeclarationQASettings | None = None) -> Declaratio
             min_sources_per_query=settings.min_sources_per_query,
             max_accumulated_sources=settings.max_accumulated_sources,
         )
+        created_workflow.managed_stores = [
+            store for store in (audit_store, knowledge_store) if isinstance(store, PostgresDeclarationQAStore)
+        ]
+        return created_workflow
     except Exception:
         memory_runtime.close()
         raise
+
+
+def create_evaluation_workflow(settings: DeclarationQASettings | None = None) -> DeclarationQAWorkflow:
+    """创建写入独立评测库、只读复用生产知识库的工作流。"""
+    settings = settings or get_settings()
+    if not settings.effective_evaluation_database_url:
+        raise ValueError("DECLARATION_QA_EVAL_DATABASE_URL is required")
+    if settings.is_production and settings.effective_evaluation_database_url == settings.effective_database_url:
+        raise ValueError("evaluation database must differ from production database")
+    return create_workflow(
+        settings,
+        runtime_database_url=settings.effective_evaluation_database_url,
+        knowledge_database_url=settings.effective_database_url,
+    )
 
 
 def create_index_job_store(workflow: DeclarationQAWorkflow):

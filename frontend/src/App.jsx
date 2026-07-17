@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar.jsx';
 import ChatPane from './components/ChatPane.jsx';
+import EvaluationPane from './components/EvaluationPane.jsx';
 import {
   DEFAULT_CONTEXT,
   buildChatRequest,
@@ -36,6 +37,7 @@ import {
 export default function App() {
   const [theme, setTheme] = useState(initialTheme);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(initialSidebarCollapsed);
+  const [activeView, setActiveView] = useState('chat');
 
   // ---- 请求上下文 ----
   const [ctx, setCtx] = useState(DEFAULT_CONTEXT);
@@ -572,7 +574,7 @@ export default function App() {
           onRollback={doRollback}
           onCollapse={() => setSidebarCollapsed(true)}
         />
-        <ChatPane
+        {activeView === 'chat' ? <ChatPane
           messages={messages}
           streaming={streaming}
           sendState={sendState}
@@ -589,7 +591,12 @@ export default function App() {
           onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
-        />
+          onViewChange={setActiveView}
+        /> : <EvaluationPane
+          onViewChange={setActiveView}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        />}
       </main>
     </div>
   );

@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "declaration-qa"
+name = "gov-service-agent"
 version = "0.1.0"
-description = "Declaration QA workflow service"
+description = "Agentic RAG service for government service guidance and workflows"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi==0.115.6",

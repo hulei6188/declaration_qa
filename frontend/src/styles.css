@@ -841,6 +841,234 @@ select {
   color: #0f766e;
 }
 
+.view-tabs,
+.evaluation-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+}
+
+.view-tabs button,
+.evaluation-tabs button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.view-tabs button.active,
+.evaluation-tabs button.active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ============================================================
+   评测工作区
+   ============================================================ */
+.evaluation-pane {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.evaluation-toolbar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.evaluation-toolbar select {
+  width: min(520px, 60vw);
+  min-width: 220px;
+}
+
+.evaluation-actions,
+.candidate-actions,
+.evaluation-item-actions,
+.candidate-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.evaluation-actions button,
+.candidate-actions button,
+.evaluation-item-actions button,
+.candidate-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.evaluation-tabs {
+  justify-self: start;
+  margin: 10px 20px 0;
+}
+
+.evaluation-tabs span {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--chip-bg);
+  font-size: 11px;
+}
+
+.evaluation-content {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  border-top: 1px solid var(--border-light);
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.evaluation-run-list {
+  min-width: 0;
+  padding: 10px;
+  overflow: auto;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--border-light);
+}
+
+.evaluation-run-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.evaluation-run-list button.active { background: var(--button-active); }
+.evaluation-run-list button span { font-family: ui-monospace, monospace; font-size: 11px; }
+.evaluation-run-list button small { grid-column: 1 / -1; color: var(--text-muted); }
+
+.evaluation-detail,
+.candidate-workspace {
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 20px 32px;
+  overflow: auto;
+}
+
+.evaluation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.evaluation-summary > div {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-right: 1px solid var(--border-light);
+}
+
+.evaluation-summary span { color: var(--text-tertiary); font-size: 12px; }
+.evaluation-summary strong { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.evaluation-summary strong.pass { color: var(--success-text); }
+.evaluation-summary strong.fail { color: var(--danger-text); }
+
+.gate-failures,
+.failure-list {
+  padding: 9px 12px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  overflow-wrap: anywhere;
+}
+
+.evaluation-items { margin-top: 14px; border-top: 1px solid var(--border-light); }
+.evaluation-item { border-bottom: 1px solid var(--border-light); }
+.evaluation-item summary { min-height: 48px; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; cursor: pointer; }
+.evaluation-item summary::marker { display: none; }
+.evaluation-item summary span { color: var(--text-tertiary); font-size: 12px; }
+.evaluation-item.pass summary > svg { color: var(--success-text); }
+.evaluation-item.fail summary > svg { color: var(--danger-text); }
+.evaluation-item-body { display: grid; gap: 10px; padding: 0 28px 14px; }
+.trajectory-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.trajectory-row code { padding: 4px 7px; border-radius: 5px; background: var(--inline-code-bg); }
+
+.candidate-workspace { grid-column: 1 / -1; }
+.candidate-toolbar { justify-content: flex-end; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.candidate-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+.candidate-row p { margin-top: 4px; color: var(--text-secondary); }
+.candidate-facts { display: flex; gap: 5px; }
+.candidate-facts span { padding: 3px 6px; border-radius: 5px; background: var(--chip-bg); color: var(--text-tertiary); font-size: 11px; }
+.evaluation-status { min-height: 34px; padding: 6px 20px; border-top: 1px solid var(--border-light); color: var(--text-secondary); }
+
+@media (max-width: 900px) {
+  .evaluation-content { grid-template-columns: 1fr; }
+  .evaluation-run-list { max-height: 150px; border-right: 0; border-bottom: 1px solid var(--border-light); }
+  .evaluation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .candidate-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .evaluation-header .chat-heading { min-width: 0; }
+  .evaluation-header h2 { display: none; }
+  .evaluation-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+  .evaluation-toolbar select {
+    width: 100%;
+    min-width: 0;
+  }
+  .evaluation-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .evaluation-tabs { margin-inline: 12px; }
+  .evaluation-detail,
+  .candidate-workspace { padding: 12px 12px 24px; }
+  .evaluation-summary > div {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+  .evaluation-item summary {
+    grid-template-columns: 20px minmax(0, 1fr);
+    padding-block: 8px;
+  }
+  .evaluation-item summary strong { overflow-wrap: anywhere; }
+  .evaluation-item summary span { grid-column: 2; }
+  .evaluation-item-body { padding: 0 0 14px 28px; }
+  .candidate-facts,
+  .candidate-actions { flex-wrap: wrap; }
+  .evaluation-status { padding-inline: 12px; }
+}
+
 .status-empty .tool-step-icon {
   border-color: var(--border-strong);
   background: var(--surface-soft);
