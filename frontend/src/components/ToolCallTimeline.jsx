@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 const TOOL_LABELS = {
-  knowledge_search: '检索政策知识',
+  knowledge_search: '查询办事资料',
   ticket_list_query: '查询申请事项',
   ticket_detail_query: '查询申请详情',
   appointment_list_query: '查询预约记录',
@@ -53,25 +53,25 @@ export default function ToolCallTimeline({ trace, runId, onLoad }) {
   }
 
   return (
-    <section className={`tool-trace ${failed ? 'is-failed' : ''}`} aria-label="办理进度">
+    <section className={`tool-trace ${failed ? 'is-failed' : ''}`} aria-label="查询记录">
       <button type="button" className="tool-trace-toggle" onClick={toggle} aria-expanded={expanded}>
         <span className={`tool-trace-state ${running ? 'is-running' : ''}`}>
           {running ? <LoaderCircle size={15} /> : failed ? <XCircle size={15} /> : <Activity size={15} />}
         </span>
-        <span className="tool-trace-title">{traceTitle(activeTrace, tools.length)}</span>
+        <span className="tool-trace-title">{traceTitle(activeTrace, tools)}</span>
         {tools.length > 0 && <span className="tool-trace-count">{tools.length}</span>}
         <ChevronDown className={expanded ? 'is-expanded' : ''} size={15} />
       </button>
 
       {expanded && (
         <div className="tool-trace-body">
-          {activeTrace.status === 'loading' && <div className="tool-trace-empty">正在读取办理进度</div>}
+          {activeTrace.status === 'loading' && <div className="tool-trace-empty">正在读取查询记录</div>}
           {activeTrace.error && <div className="tool-trace-error">{activeTrace.error}</div>}
           {tools.map((tool, index) => (
             <ToolStep key={tool.callId || `${tool.toolName}-${index}`} tool={tool} />
           ))}
           {!running && !activeTrace.error && tools.length === 0 && activeTrace.loaded && (
-            <div className="tool-trace-empty">本次问题无需查询业务信息</div>
+            <div className="tool-trace-empty">本次问题无需查询外部信息</div>
           )}
         </div>
       )}
@@ -153,17 +153,44 @@ function statusLabel(status) {
   return '执行中';
 }
 
-function traceTitle(trace, count) {
-  if (trace.status === 'loading') return '正在读取办理进度';
-  if (trace.status === 'failed') return '处理未完成';
+function traceTitle(trace, tools = []) {
+  if (trace.status === 'loading') return '正在读取查询记录';
+  if (trace.status === 'failed') return '查询未完成';
   if (trace.status === 'paused' || trace.phase === 'awaiting_confirmation') return '等待您确认';
   if (trace.status === 'running') {
     if (trace.phase === 'answering') return '正在整理答复';
     if (trace.phase === 'checking') return '正在核对查询结果';
-    if (count > 0) return '正在查询办理信息';
+    if (tools.length > 0) return runningTraceTitle(tools);
     return '正在理解您的问题';
   }
-  return '查看办理进度';
+  return completedTraceTitle(tools);
+}
+
+function runningTraceTitle(tools) {
+  const categories = toolCategories(tools);
+  if (categories.size === 1 && categories.has('knowledge')) return '正在查询办事资料';
+  if (categories.has('write')) return '正在处理业务操作';
+  if (categories.size === 1 && categories.has('business')) return '正在查询业务信息';
+  return '正在查询相关信息';
+}
+
+function completedTraceTitle(tools) {
+  const categories = toolCategories(tools);
+  if (categories.size === 1 && categories.has('knowledge')) return '查看资料检索';
+  if (categories.has('write')) return '查看操作记录';
+  if (categories.size === 1 && categories.has('business')) return '查看业务查询';
+  return '查看查询记录';
+}
+
+function toolCategories(tools) {
+  const categories = new Set();
+  for (const tool of tools) {
+    const name = String(tool?.toolName || '');
+    if (name === 'knowledge_search') categories.add('knowledge');
+    else if (name === 'appointment_book' || name === 'appointment_cancel') categories.add('write');
+    else categories.add('business');
+  }
+  return categories;
 }
 
 function formatLatency(value) {

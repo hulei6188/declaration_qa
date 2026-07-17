@@ -9,6 +9,7 @@ env/
 
 .env
 .env.local
+.env.langfuse.local
 
 data/
 logs/
