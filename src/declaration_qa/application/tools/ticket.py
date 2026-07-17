@@ -16,16 +16,15 @@ class TicketListQueryInput(BaseModel):
 
 
 class TicketDetailQueryInput(BaseModel):
-    """使用本轮事项列表返回的 item_codes 批量查询申请详情。"""
+    """使用可信事项编码批量查询申请详情。"""
     model_config = ConfigDict(extra="forbid")
 
     item_codes: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(
         min_length=1,
         max_length=50,
         description=(
-            "事项编码数组；必须直接取自本轮先行调用 ticket_list_query 成功返回的 "
-            "data.items[].item_code。需要查询多个事项时放入同一个数组，不得拆成多个工具调用，"
-            "也不得猜测、编造或使用历史对话中的 item_code"
+            "事项编码数组；只能使用本轮可信业务结果中的真实 item_code，不得猜测、编造或使用"
+            "历史对话中的 item_code；多个事项编码放入同一个数组"
         ),
     )
     detail_type: Literal["full", "status", "rejection"] = "full"
@@ -37,8 +36,6 @@ class TicketListQueryTool:
     name = "ticket_list_query"
     description = (
         "查询当前登录用户办理过的政务事项列表，返回 item_code、事项名称和申请数量。"
-        "用户询问个人申请进度、退回原因或历史申请时先调用本工具；后续 ticket_detail_query "
-        "必须使用本工具本轮成功返回的 data.items[].item_code。"
     )
     input_model = TicketListQueryInput
 
@@ -65,11 +62,9 @@ class TicketDetailQueryTool:
 
     name = "ticket_detail_query"
     description = (
-        "按 item_codes 批量查询当前登录用户在多个事项下的全部申请。调用前必须先在本轮调用 "
-        "ticket_list_query，并仅使用其成功返回的 data.items[].item_code；不得猜测、编造或复用"
-        "历史对话中的 item_code。多个事项必须放入一次调用，不得为每个事项分别调用。"
+        "按 item_codes 批量查询当前登录用户在多个事项下的全部申请。"
         "每条申请包含 application_id、当前状态以及按时间排序的完整 "
-        "status_history；返回的 data.applications[].application_id 可供缴费、回执、结果和送达工具使用。"
+        "status_history。"
     )
     input_model = TicketDetailQueryInput
 

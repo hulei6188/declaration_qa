@@ -127,8 +127,8 @@ def test_tool_registry_exposes_item_scoped_ticket_tools_without_user_id_argument
     assert "user_id" not in definitions["ticket_detail_query"]["parameters"].get("properties", {})
     assert "ticket_id" not in definitions["ticket_detail_query"]["parameters"].get("properties", {})
     detail_definition = definitions["ticket_detail_query"]
-    assert "ticket_list_query" in detail_definition["description"]
-    assert "ticket_list_query" in detail_definition["parameters"]["properties"]["item_codes"]["description"]
+    assert "ticket_list_query" not in detail_definition["description"]
+    assert "ticket_list_query" not in detail_definition["parameters"]["properties"]["item_codes"]["description"]
     assert "历史对话" in detail_definition["parameters"]["properties"]["item_codes"]["description"]
 
     context = ToolExecutionContext(user_id=1, region_code="340000")

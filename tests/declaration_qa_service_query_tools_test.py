@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from declaration_qa.api.schemas import ChatRequest, HumanConfirmationRequest
-from declaration_qa.application.agent import AgentDecision
+from declaration_qa.application.agent import AGENT_SYSTEM_PROMPT, AgentDecision
 from declaration_qa.application.nodes.agent_runtime import agent_tool_call_denial_reason, unique_new_tool_calls
 from declaration_qa.application.tools import (
     AppointmentBookTool,
@@ -167,7 +167,7 @@ def test_service_query_tool_schemas_never_accept_user_identity():
     slot_schema = definitions["appointment_slot_query"]["parameters"]
     assert "hall_codes" in slot_schema["required"]
     assert "hall_code" not in slot_schema["properties"]
-    assert "appointment_hall_query" in slot_schema["properties"]["hall_codes"]["description"]
+    assert "数据库真实大厅编码" in slot_schema["properties"]["hall_codes"]["description"]
     legacy = registry.execute(
         "appointment_slot_query",
         {"item_code": "ITEM-RESIDENCE-PERMIT", "hall_code": "AH-ZW-01"},
@@ -176,39 +176,36 @@ def test_service_query_tool_schemas_never_accept_user_identity():
     assert legacy.status == "invalid_arguments"
 
 
-def test_dependent_tool_schemas_require_current_turn_source_results():
+def test_tool_order_lives_in_system_prompt_instead_of_tool_schemas():
     definitions = {
         item["function"]["name"]: item["function"]
         for item in service_query_registry().definitions()
     }
 
     dependencies = {
-        "appointment_hall_query": ("knowledge_search", "item_code"),
-        "appointment_slot_query": ("appointment_hall_query", "hall_codes"),
-        "appointment_book": ("appointment_slot_query", "slot_id"),
-        "appointment_cancel": ("appointment_list_query", "appointment_id"),
-        "queue_status_query": ("appointment_list_query", "appointment_id"),
-        "payment_order_query": ("ticket_detail_query", "application_ids"),
-        "submission_receipt_query": ("ticket_detail_query", "application_ids"),
-        "result_certificate_query": ("ticket_detail_query", "application_ids"),
-        "delivery_status_query": ("ticket_detail_query", "application_ids"),
+        "appointment_hall_query": "knowledge_search",
+        "appointment_slot_query": "appointment_hall_query",
+        "appointment_book": "appointment_slot_query",
+        "appointment_cancel": "appointment_list_query",
+        "queue_status_query": "appointment_list_query",
+        "payment_order_query": "ticket_detail_query",
+        "payment_receipt_query": "payment_order_query",
+        "submission_receipt_query": "ticket_detail_query",
+        "result_certificate_query": "ticket_detail_query",
+        "delivery_status_query": "ticket_detail_query",
     }
-    for tool_name, (prerequisite, parameter) in dependencies.items():
-        definition = definitions[tool_name]
-        parameter_description = definition["parameters"]["properties"][parameter]["description"]
-        assert prerequisite in definition["description"]
-        assert prerequisite in parameter_description
-        assert "历史对话" in parameter_description
+    assert "工具调用顺序和跨工具编排只以本系统提示词为准" in AGENT_SYSTEM_PROMPT
+    for tool_name, prerequisite in dependencies.items():
+        assert prerequisite in AGENT_SYSTEM_PROMPT
+        assert prerequisite not in definitions[tool_name]["description"]
+        assert prerequisite not in str(definitions[tool_name]["parameters"])
 
     receipt = definitions["payment_receipt_query"]
-    assert "ticket_detail_query" in receipt["description"]
-    assert "payment_order_query" in receipt["description"]
     assert "targets" in receipt["parameters"]["properties"]
 
     booking = definitions["appointment_book"]["description"]
-    assert "无需用户先在对话中指定" in booking
-    assert "不得只展示号源后要求用户再次选择" in booking
     assert "人工确认" in booking
+    assert "禁止只展示号源并要求用户再回复具体时段" in AGENT_SYSTEM_PROMPT
 
 
 def test_service_query_tools_return_realistic_user_scoped_records():

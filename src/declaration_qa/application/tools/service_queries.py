@@ -25,7 +25,7 @@ class AppointmentListQueryInput(BaseModel):
 
 
 class AppointmentSlotQueryInput(BaseModel):
-    """使用本轮知识检索返回的事项编码查询公开号源。"""
+    """使用可信事项和大厅编码查询公开号源。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -33,8 +33,7 @@ class AppointmentSlotQueryInput(BaseModel):
         min_length=1,
         max_length=160,
         description=(
-            "必须直接取自本轮先行调用 knowledge_search 成功返回的 data.sources[].item_code；"
-            "不得猜测、编造或使用历史对话中的 item_code"
+            "本轮可信公开信息中的真实事项编码；不得猜测、编造或使用历史对话中的 item_code"
         ),
     )
     service_date: date | None = None
@@ -42,15 +41,14 @@ class AppointmentSlotQueryInput(BaseModel):
         min_length=1,
         max_length=20,
         description=(
-            "必须直接取自本轮先行调用 appointment_hall_query 成功返回的 "
-            "data.halls[].hall_code；把所有待查询大厅编码放入同一个数组一次查询，"
-            "不得拆分调用、猜测、编造或使用历史对话中的 hall_code"
+            "本轮可信业务结果中的数据库真实大厅编码；把所有待查询 hall_code 放入同一个数组，"
+            "不得猜测、编造或使用历史对话中的 hall_code"
         ),
     )
 
 
 class AppointmentHallQueryInput(BaseModel):
-    """使用本轮知识检索返回的事项编码查询真实预约大厅。"""
+    """使用可信事项编码查询真实预约大厅。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,8 +56,7 @@ class AppointmentHallQueryInput(BaseModel):
         min_length=1,
         max_length=160,
         description=(
-            "必须直接取自本轮先行调用 knowledge_search 成功返回的 data.sources[].item_code；"
-            "不得猜测、编造或使用历史对话中的 item_code"
+            "本轮可信公开信息中的真实事项编码；不得猜测、编造或使用历史对话中的 item_code"
         ),
     )
 
@@ -72,8 +69,7 @@ class AppointmentBookInput(BaseModel):
     slot_id: int = Field(
         ge=1,
         description=(
-            "必须直接取自本轮先行调用 appointment_slot_query 成功返回的 data.slots[].slot_id；"
-            "不得猜测、编造或使用历史对话中的 slot_id"
+            "本轮可信号源结果中的可用号源主键；不得猜测、编造或使用历史对话中的 slot_id"
         ),
     )
     confirmed: bool = Field(
@@ -90,8 +86,7 @@ class AppointmentCancelInput(BaseModel):
     appointment_id: int = Field(
         ge=1,
         description=(
-            "待取消预约的业务主键；应先调用 appointment_list_query 确认目标预约，"
-            "不得猜测、编造或直接使用历史对话中的 appointment_id"
+            "本轮可信预约结果中的待取消预约主键；不得猜测、编造或直接使用历史对话中的 appointment_id"
         ),
     )
     confirmed: bool = Field(
@@ -108,8 +103,7 @@ class QueueStatusQueryInput(BaseModel):
     appointment_id: int = Field(
         ge=1,
         description=(
-            "必须直接取自本轮先行调用 appointment_list_query 成功返回的 "
-            "data.appointments[].appointment_id；不得猜测、编造或使用历史对话中的 appointment_id"
+            "本轮可信预约结果中的真实预约主键；不得猜测、编造或使用历史对话中的 appointment_id"
         ),
     )
 
@@ -123,9 +117,8 @@ class ApplicationBatchQueryInput(BaseModel):
         min_length=1,
         max_length=100,
         description=(
-            "申请主键数组；必须直接取自本轮先行调用 ticket_detail_query 成功返回的 "
-            "data.applications[].application_id。多个申请必须放入同一个数组，不得拆成多个工具调用，"
-            "也不得猜测、编造或使用历史对话中的 application_id"
+            "本轮可信申请结果中的申请主键数组；多个 application_id 放入同一个数组，不得猜测、"
+            "编造或使用历史对话中的 application_id"
         ),
     )
 
@@ -137,15 +130,14 @@ class PaymentReceiptTarget(BaseModel):
 
     application_id: int = Field(
         ge=1,
-        description="必须取自本轮 ticket_detail_query 返回的 application_id",
+        description="本轮可信申请结果中的真实 application_id",
     )
 
     payment_order_id: int | None = Field(
         default=None,
         ge=1,
         description=(
-            "可选；必须直接取自本轮先行调用 payment_order_query 成功返回的 "
-            "data.payment_orders[].payment_order_id，不得猜测、编造或使用历史对话中的 payment_order_id"
+            "可选；本轮可信缴费结果中的真实 payment_order_id，不得猜测、编造或使用历史对话中的值"
         ),
     )
 
@@ -198,8 +190,7 @@ class AppointmentHallQueryTool:
     name = "appointment_hall_query"
     description = (
         "按事项编码查询当前可信地区号源库中的真实预约大厅，返回 data.halls[].hall_code、"
-        "hall_name 和 hall_address。调用前必须先在本轮调用 knowledge_search，并仅使用其成功"
-        "返回的 data.sources[].item_code；不得根据知识文档地址猜测或编造 hall_code。"
+        "hall_name 和 hall_address。不得根据知识文档地址猜测或编造 hall_code。"
     )
     input_model = AppointmentHallQueryInput
 
@@ -232,12 +223,8 @@ class AppointmentHallQueryTool:
 class AppointmentSlotQueryTool:
     name = "appointment_slot_query"
     description = (
-        "批量查询当前事项在多个服务大厅的可预约日期、时间段、容量和剩余号源。调用前必须先在"
-        "本轮调用 knowledge_search 获取 data.sources[].item_code，再调用 appointment_hall_query，"
-        "并把其成功返回的全部 data.halls[].hall_code 放入 hall_codes 数组一次调用；"
-        "不得按大厅拆分调用，也不得猜测、编造或复用历史对话中的编码。"
-        "只查询公开号源，不查询或创建个人预约；如需预约，必须从本工具本轮成功返回的 "
-        "data.slots[].slot_id 中选择并传给 appointment_book。"
+        "批量查询当前事项在多个服务大厅的可预约日期、时间段、容量和剩余号源。"
+        "只查询公开号源，不查询或创建个人预约。"
     )
     input_model = AppointmentSlotQueryInput
 
@@ -267,13 +254,7 @@ class AppointmentSlotQueryTool:
 class AppointmentBookTool:
     name = "appointment_book"
     description = (
-        "为当前登录用户预约指定号源。这是写操作，调用前必须先在本轮调用 "
-        "appointment_slot_query，等待查询结果返回后再单独发起本工具调用，不得与号源查询同批调用；"
-        "仅使用该工具成功返回的 data.slots[].slot_id；"
-        "不得猜测、编造或复用历史对话中的 slot_id。"
-        "用户明确表达预约或重新预约意图且存在可用号源时必须调用本工具，无需用户先在对话中指定"
-        "大厅、日期或具体时段，也不得只展示号源后要求用户再次选择；任选一个可用 slot_id 作为"
-        "确认界面的默认值即可。"
+        "为当前登录用户预约指定的有效号源。这是写操作，只接受本轮可信号源结果中的可用 slot_id。"
         "工具执行前服务端会暂停并请求用户在界面中选择大厅、时段并人工确认；"
         "事项、大厅、日期和时间由服务端号源派生。"
     )
@@ -317,8 +298,8 @@ class AppointmentBookTool:
 class AppointmentCancelTool:
     name = "appointment_cancel"
     description = (
-        "取消当前登录用户尚未签到的预约。这是写操作；应先调用 appointment_list_query 确认"
-        "目标预约及 appointment_id。工具执行前服务端会暂停并请求用户在界面中人工确认。"
+        "取消当前登录用户尚未签到的预约。这是写操作，只接受本轮可信预约结果中的 appointment_id。"
+        "工具执行前服务端会暂停并请求用户在界面中人工确认。"
         "工具会校验预约归属；重复取消不会重复归还号源。"
     )
     input_model = AppointmentCancelInput
@@ -358,9 +339,7 @@ class AppointmentCancelTool:
 class QueueStatusQueryTool:
     name = "queue_status_query"
     description = (
-        "查询当前登录用户指定预约的签到、排队人数、预计等待时间、叫号窗口和预约状态。调用前"
-        "必须先在本轮调用 appointment_list_query，并仅使用其成功返回的 "
-        "data.appointments[].appointment_id；不得猜测、编造或复用历史对话中的 appointment_id。"
+        "查询当前登录用户指定预约的签到、排队人数、预计等待时间、叫号窗口和预约状态。"
         "服务端会按当前登录用户校验该参数。"
     )
     input_model = QueueStatusQueryInput
@@ -380,11 +359,7 @@ class QueueStatusQueryTool:
 class PaymentOrderQueryTool:
     name = "payment_order_query"
     description = (
-        "批量查询当前登录用户多个申请的缴费项目、金额、支付状态、支付期限和支付时间。调用前必须"
-        "先在本轮调用 ticket_detail_query，并仅使用其成功返回的 "
-        "data.applications[].application_id。多个申请必须放入 application_ids 一次调用，"
-        "不得拆分调用，也不得猜测、编造或复用历史对话中的 application_id。"
-        "返回的 data.payment_orders[].payment_order_id 可供 payment_receipt_query 使用。"
+        "批量查询当前登录用户多个申请的缴费项目、金额、支付状态、支付期限和支付时间。"
     )
     input_model = ApplicationBatchQueryInput
 
@@ -403,10 +378,7 @@ class PaymentOrderQueryTool:
 class PaymentReceiptQueryTool:
     name = "payment_receipt_query"
     description = (
-        "批量查询当前登录用户多个申请的电子缴费票据和下载状态。调用前必须先在本轮调用 "
-        "ticket_detail_query 获取 data.applications[].application_id。需要限定具体缴费订单时，先调用 "
-        "payment_order_query，并使用其成功返回的 data.payment_orders[].payment_order_id；"
-        "多个目标必须放入 targets 一次查询，不得拆分调用，也不得猜测、编造或复用历史对话中的业务主键。"
+        "批量查询当前登录用户多个申请的电子缴费票据和下载状态，可按 payment_order_id 限定具体订单。"
     )
     input_model = PaymentReceiptBatchQueryInput
 
@@ -426,9 +398,7 @@ class PaymentReceiptQueryTool:
 class SubmissionReceiptQueryTool:
     name = "submission_receipt_query"
     description = (
-        "批量查询当前登录用户多个申请的提交回执、受理回执、签发时间和下载状态。调用前必须先在"
-        "本轮调用 ticket_detail_query，并仅使用其成功返回的 data.applications[].application_id；"
-        "多个申请必须放入 application_ids 一次查询，不得拆分调用或复用历史业务主键。"
+        "批量查询当前登录用户多个申请的提交回执、受理回执、签发时间和下载状态。"
     )
     input_model = ApplicationBatchQueryInput
 
@@ -447,9 +417,7 @@ class SubmissionReceiptQueryTool:
 class ResultCertificateQueryTool:
     name = "result_certificate_query"
     description = (
-        "批量查询当前登录用户多个申请的办结结果、电子批文或电子证照是否生成及下载状态。调用前"
-        "必须先在本轮调用 ticket_detail_query，并仅使用其成功返回的 "
-        "data.applications[].application_id；多个申请必须放入 application_ids 一次查询，不得拆分调用。"
+        "批量查询当前登录用户多个申请的办结结果、电子批文或电子证照是否生成及下载状态。"
     )
     input_model = ApplicationBatchQueryInput
 
@@ -468,9 +436,7 @@ class ResultCertificateQueryTool:
 class DeliveryStatusQueryTool:
     name = "delivery_status_query"
     description = (
-        "批量查询当前登录用户多个申请的邮寄、自取、物流单号和送达状态。调用前必须先在本轮调用 "
-        "ticket_detail_query，并仅使用其成功返回的 data.applications[].application_id；"
-        "多个申请必须放入 application_ids 一次查询，不得拆分调用或复用历史业务主键。"
+        "批量查询当前登录用户多个申请的邮寄、自取、物流单号和送达状态。"
     )
     input_model = ApplicationBatchQueryInput
 

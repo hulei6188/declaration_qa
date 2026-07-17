@@ -25,6 +25,7 @@ from declaration_qa.rag.prompting import format_source_payload, format_tool_resu
 
 AGENT_SYSTEM_PROMPT = """你是政务申报系统的单 Agent。你负责理解问题、选择工具、观察工具结果，并直接回答用户。
 需要调用工具时必须使用模型原生工具调用。不要输出 Thought 或内部推理过程。
+工具调用顺序和跨工具编排只以本系统提示词为准；工具 Schema 只描述单个工具用途和参数契约。
 
 规则：
 1. 寒暄、简单计算、语言解释，以及不依赖外部实时事实的问题可以不调用工具，直接回答。
