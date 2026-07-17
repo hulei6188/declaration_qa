@@ -90,7 +90,7 @@ class GovServiceAgentWorkflow(WorkflowNodes):
             trace_id=str(initial_state.get("langfuse_trace_id") or ""),
             user_id=str(initial_state.get("user_id") or ""),
             session_id=str(initial_state.get("session_id") or ""),
-            tags=["declaration-qa", "chat"],
+            tags=["gov-service-agent", "chat"],
             trace_name="gov_service_agent.chat",
         ) as span:
             final_state = self.graph.invoke(initial_state)
@@ -132,7 +132,7 @@ class GovServiceAgentWorkflow(WorkflowNodes):
             trace_id=str(state.get("langfuse_trace_id") or ""),
             user_id=str(state.get("user_id") or ""),
             session_id=str(state.get("session_id") or ""),
-            tags=["declaration-qa", "chat", "stream"],
+            tags=["gov-service-agent", "chat", "stream"],
             trace_name="gov_service_agent.chat.stream",
         ) as span:
             yield {"event": "run_started", "data": {"session_id": state["session_id"]}}

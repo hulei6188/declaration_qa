@@ -24,7 +24,7 @@ class AttachmentDownloadSettings:
     timeout_seconds: float = 10.0
     max_bytes: int = 20 * 1024 * 1024
     retries: int = 1
-    user_agent: str = "declaration-qa-indexer/1.0"
+    user_agent: str = "gov-service-agent-indexer/1.0"
 
 
 class AttachmentDownloader:
@@ -119,4 +119,3 @@ def content_type_from_extension(extension: str) -> str:
         "tif": "image/tiff",
         "tiff": "image/tiff",
     }.get(ext, "application/octet-stream")
-

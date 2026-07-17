@@ -165,7 +165,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             trace_id=str(initial_state.get("langfuse_trace_id") or ""),
             user_id=str(initial_state.get("user_id") or ""),
             session_id=str(initial_state.get("session_id") or ""),
-            tags=["declaration-qa", "chat"],
+            tags=["gov-service-agent", "chat"],
             trace_name="gov_service_agent.chat",
         ) as span:
             pending_confirmation = self._current_human_confirmation(config)
@@ -224,7 +224,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             trace_id=str(state.get("langfuse_trace_id") or ""),
             user_id=str(state.get("user_id") or ""),
             session_id=str(state.get("session_id") or ""),
-            tags=["declaration-qa", "chat", "stream"],
+            tags=["gov-service-agent", "chat", "stream"],
             trace_name="gov_service_agent.chat.stream",
         ) as span:
             yield {"event": "run_started", "data": {"session_id": state["session_id"]}}
@@ -303,7 +303,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             trace_id=trace_id,
             user_id=str(request.user_id or ""),
             session_id=str(request.session_id or ""),
-            tags=["declaration-qa", "chat", "resume", "human-confirmation"],
+            tags=["gov-service-agent", "chat", "resume", "human-confirmation"],
             trace_name="gov_service_agent.chat",
         ) as span:
             observe_human_confirmation_resolved(request, state)

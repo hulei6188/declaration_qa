@@ -10,7 +10,7 @@
 -- 申报问答工作流服务使用的独立数据库模式。
 --
 -- 此文件有意与 AgentBase 的主数据库模式分离。申报问答服务从
--- declaration_qa.api.server.app:app 启动，并在 declaration_qa 模式下存储
+-- gov_service_agent.api.server.app:app 启动，并在 declaration_qa 模式下存储
 -- 自身的知识、聊天、审计和反馈数据。
 
 BEGIN;

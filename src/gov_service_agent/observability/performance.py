@@ -16,7 +16,7 @@ LOGGER = logging.getLogger("uvicorn.error.gov_service_agent.performance")
 LOGGER.setLevel(logging.INFO)
 
 _PERFORMANCE_CONTEXT: ContextVar[dict[str, Any]] = ContextVar(
-    "declaration_qa_performance_context",
+    "gov_service_agent_performance_context",
     default={},
 )
 

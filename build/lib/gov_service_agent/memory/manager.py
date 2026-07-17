@@ -270,15 +270,15 @@ def query_image_attachments(query_image: Any) -> list[dict[str, Any]]:
 
 def short_memory_key(*, user_id: int, session_id: str) -> str:
     """Redis 短期记忆 key。"""
-    return f"declaration_qa:context:short:{int(user_id)}:{session_id}"
+    return f"gov_service_agent:context:short:{int(user_id)}:{session_id}"
 
 
 def long_memory_list_key(*, user_id: int) -> str:
     """Redis 用户长期记忆列表 key。"""
-    return f"declaration_qa:context:long:list:{int(user_id)}"
+    return f"gov_service_agent:context:long:list:{int(user_id)}"
 
 
 def long_retrieval_cache_key(*, user_id: int, query: str) -> str:
     """Redis 长期记忆检索结果缓存 key。"""
     digest = hashlib.sha256(query.encode("utf-8")).hexdigest()[:32]
-    return f"declaration_qa:context:long:retrieve:{int(user_id)}:{digest}"
+    return f"gov_service_agent:context:long:retrieve:{int(user_id)}:{digest}"

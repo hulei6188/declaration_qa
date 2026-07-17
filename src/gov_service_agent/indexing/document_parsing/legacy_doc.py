@@ -56,7 +56,7 @@ def convert_legacy_doc_to_docx(
     if Path(safe_name).suffix.lower() != ".doc":
         safe_name = f"{Path(safe_name).stem or 'document'}.doc"
 
-    with TemporaryDirectory(prefix="declaration-qa-doc-") as temp_dir:
+    with TemporaryDirectory(prefix="gov-service-agent-doc-") as temp_dir:
         work_dir = Path(temp_dir)
         profile_dir = work_dir / "libreoffice-profile"
         source_path = work_dir / safe_name

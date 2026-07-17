@@ -31,8 +31,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$processes = @(Get-CimInstance Win32_Process);" ^
   "$roots = @($processes | Where-Object {" ^
   "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|eval-worker|frontend)') -or" ^
-  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'declaration_qa\.api\.server\.app:app|-m declaration_qa\.indexing\.worker|-m declaration_qa\.application\.evals\.worker|-m mineru\.cli\.fast_api') -or" ^
-  "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'declaration_qa[\\/]frontend.*vite')" ^
+  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'gov_service_agent\.api\.server\.app:app|-m gov_service_agent\.indexing\.worker|-m gov_service_agent\.application\.evals\.worker|-m mineru\.cli\.fast_api') -or" ^
+  "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match '(declaration-qa|gov-service-agent)[\\/]frontend.*vite')" ^
   "});" ^
   "$queue = @($roots | ForEach-Object { [int]$_.ProcessId });" ^
   "$targets = @{};" ^

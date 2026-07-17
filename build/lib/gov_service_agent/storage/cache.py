@@ -48,7 +48,7 @@ class InMemoryCacheStore:
 class RedisCacheStore:
     """基于 Redis 的 JSON 缓存实现。"""
     backend = "redis"
-    key_registry = "declaration_qa:cache_keys"
+    key_registry = "gov_service_agent:cache_keys"
 
     def __init__(self, redis_url: str, *, allow_fallback: bool = True) -> None:
         """初始化Redis 缓存。"""

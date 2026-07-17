@@ -13,7 +13,7 @@ def register_system_routes(app):
         """返回服务健康检查信息。"""
         return {
             "ok": True,
-            "service": "declaration-qa",
+            "service": "gov-service-agent",
             "entrypoint": "gov_service_agent.api.server.app:app",
             "rag_engine": workflow.rag_engine.__class__.__name__,
             "chunks": workflow.rag_engine.chunk_count,

@@ -26,9 +26,9 @@ SENSITIVE_KEYWORDS = (
 MAX_STRING_LENGTH = 800
 MAX_LIST_ITEMS = 12
 MAX_DICT_ITEMS = 30
-CURRENT_TRACE_ID: ContextVar[str] = ContextVar("declaration_qa_langfuse_trace_id", default="")
-CURRENT_TRACE_DEPTH: ContextVar[int] = ContextVar("declaration_qa_langfuse_trace_depth", default=0)
-CURRENT_SPAN_ID: ContextVar[str] = ContextVar("declaration_qa_langfuse_span_id", default="")
+CURRENT_TRACE_ID: ContextVar[str] = ContextVar("gov_service_agent_langfuse_trace_id", default="")
+CURRENT_TRACE_DEPTH: ContextVar[int] = ContextVar("gov_service_agent_langfuse_trace_depth", default=0)
+CURRENT_SPAN_ID: ContextVar[str] = ContextVar("gov_service_agent_langfuse_span_id", default="")
 
 
 class NoopObservation:
@@ -306,7 +306,7 @@ def langchain_config(state: dict[str, Any], *, run_name: str, tags: list[str] | 
     return {
         "callbacks": [handler],
         "run_name": run_name,
-        "tags": tags or ["declaration-qa"],
+        "tags": tags or ["gov-service-agent"],
         "metadata": safe_value(metadata),
     }
 

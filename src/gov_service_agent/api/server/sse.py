@@ -29,7 +29,7 @@ def threaded_sse_event_stream(events: Iterable[dict]) -> Iterable[str]:
         finally:
             queue.put(("done", None))
 
-    thread = Thread(target=produce, name="declaration-qa-sse-producer", daemon=True)
+    thread = Thread(target=produce, name="gov-service-agent-sse-producer", daemon=True)
     thread.start()
     while True:
         kind, payload = queue.get()

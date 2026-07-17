@@ -78,11 +78,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('declaration-qa-theme', theme);
+    window.localStorage.setItem('gov-service-agent-theme', theme);
   }, [theme]);
 
   useEffect(() => {
-    window.localStorage.setItem('declaration-qa-sidebar-collapsed', String(sidebarCollapsed));
+    window.localStorage.setItem('gov-service-agent-sidebar-collapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
   // ---- 聊天 ----
@@ -664,13 +664,13 @@ function streamPhaseLabel(event, data = {}) {
 }
 
 function initialTheme() {
-  const saved = window.localStorage.getItem('declaration-qa-theme');
+  const saved = window.localStorage.getItem('gov-service-agent-theme');
   if (saved === 'light' || saved === 'dark') return saved;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function initialSidebarCollapsed() {
-  const saved = window.localStorage.getItem('declaration-qa-sidebar-collapsed');
+  const saved = window.localStorage.getItem('gov-service-agent-sidebar-collapsed');
   if (saved === 'true' || saved === 'false') return saved === 'true';
   return window.matchMedia?.('(max-width: 860px)').matches ?? false;
 }

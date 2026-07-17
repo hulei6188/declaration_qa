@@ -41,7 +41,7 @@ class TicketScriptAgent:
 
 
 def test_chat_routes_have_no_ticket_selection_endpoint():
-    routes = Path("src/declaration_qa/api/server/routes/chat.py").read_text(encoding="utf-8")
+    routes = Path("src/gov_service_agent/api/server/routes/chat.py").read_text(encoding="utf-8")
 
     assert '"/api/declaration-qa/chat"' in routes
     assert '"/api/declaration-qa/chat/stream"' in routes

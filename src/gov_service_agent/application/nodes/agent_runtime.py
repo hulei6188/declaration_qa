@@ -350,7 +350,7 @@ class AgentRuntimeNodes:
                     human_approved=call_id in approved_ids,
                 )
             else:
-                with ThreadPoolExecutor(max_workers=min(4, len(executable_calls)), thread_name_prefix="declaration-qa-tool") as executor:
+                with ThreadPoolExecutor(max_workers=min(4, len(executable_calls)), thread_name_prefix="gov-service-agent-tool") as executor:
                     futures = [
                         executor.submit(
                             copy_context().run,

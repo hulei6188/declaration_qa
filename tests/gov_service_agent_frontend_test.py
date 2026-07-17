@@ -9,7 +9,7 @@ def frontend_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8") for path in files if path.is_file())
 
 
-def test_declaration_qa_frontend_is_isolated_react_app():
+def test_gov_service_agent_frontend_is_isolated_react_app():
     assert (FRONTEND_ROOT / "index.html").exists()
     assert (FRONTEND_ROOT / "src" / "App.jsx").exists()
     assert (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").exists()

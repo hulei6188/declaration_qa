@@ -1044,7 +1044,7 @@ class BaseRAGEngine:
             sort_keys=True,
             default=str,
         )
-        return f"declaration_qa:rag:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+        return f"gov_service_agent:rag:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
     def _rewrite_cache_key(
         self,
@@ -1078,7 +1078,7 @@ class BaseRAGEngine:
             sort_keys=True,
             default=str,
         )
-        return f"declaration_qa:rag:agent-queries:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+        return f"gov_service_agent:rag:agent-queries:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
     def _result_from_cache(self, cached_payload: dict[str, Any], effective_filter: dict[str, Any]) -> RetrievalResult:
         """回表缓存中的检索结果。"""
