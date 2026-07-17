@@ -271,6 +271,9 @@ class AppointmentBookTool:
         "appointment_slot_query，等待查询结果返回后再单独发起本工具调用，不得与号源查询同批调用；"
         "仅使用该工具成功返回的 data.slots[].slot_id；"
         "不得猜测、编造或复用历史对话中的 slot_id。"
+        "用户明确表达预约或重新预约意图且存在可用号源时必须调用本工具，无需用户先在对话中指定"
+        "大厅、日期或具体时段，也不得只展示号源后要求用户再次选择；任选一个可用 slot_id 作为"
+        "确认界面的默认值即可。"
         "工具执行前服务端会暂停并请求用户在界面中选择大厅、时段并人工确认；"
         "事项、大厅、日期和时间由服务端号源派生。"
     )
@@ -281,8 +284,10 @@ class AppointmentBookTool:
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
         request = AppointmentBookInput.model_validate(arguments)
+        tool_call_id = str(context.metadata.get("tool_call_id") or "").strip()
+        operation_id = tool_call_id or f"{context.session_id or 'direct'}:{request.slot_id}"
         idempotency_key = sha256(
-            f"appointment_book:{context.user_id}:{context.session_id or 'direct'}:{request.slot_id}".encode("utf-8")
+            f"appointment_book:{context.user_id}:{operation_id}:{request.slot_id}".encode("utf-8")
         ).hexdigest()
         try:
             appointment = self.adapter.book_appointment(

@@ -359,6 +359,7 @@ class AgentRuntimeNodes:
             metadata={
                 "state": state,
                 "tool_call_origin": str(call.get("origin") or "agent"),
+                "tool_call_id": str(call.get("id") or name),
             },
         )
         denial_reason = "" if human_approved else agent_tool_call_denial_reason(

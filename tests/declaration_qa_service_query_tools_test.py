@@ -205,6 +205,11 @@ def test_dependent_tool_schemas_require_current_turn_source_results():
     assert "payment_order_query" in receipt["description"]
     assert "targets" in receipt["parameters"]["properties"]
 
+    booking = definitions["appointment_book"]["description"]
+    assert "无需用户先在对话中指定" in booking
+    assert "不得只展示号源后要求用户再次选择" in booking
+    assert "人工确认" in booking
+
 
 def test_service_query_tools_return_realistic_user_scoped_records():
     registry = service_query_registry()
@@ -349,6 +354,39 @@ def test_appointment_book_is_idempotent_and_only_decrements_once():
     assert replay.data["appointment"]["appointment_id"] == first.data["appointment"]["appointment_id"]
     assert before_slot["remaining_count"] == 10
     assert after_slot["remaining_count"] == 9
+
+
+def test_cancelled_slot_can_be_booked_again_with_a_new_confirmed_tool_call():
+    registry = service_query_registry()
+    first_context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id="rebooking-test",
+        metadata={"tool_call_id": "book-attempt-1"},
+    )
+    second_context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id="rebooking-test",
+        metadata={"tool_call_id": "book-attempt-2"},
+    )
+
+    first = registry.execute("appointment_book", {"slot_id": 6103}, first_context)
+    cancelled = registry.execute(
+        "appointment_cancel",
+        {"appointment_id": first.data["appointment"]["appointment_id"]},
+        first_context,
+    )
+    rebooked = registry.execute("appointment_book", {"slot_id": 6103}, second_context)
+    replay = registry.execute("appointment_book", {"slot_id": 6103}, second_context)
+
+    assert first.data["appointment"]["booking_status"] == "created"
+    assert cancelled.data["appointment"]["status"] == "cancelled"
+    assert rebooked.data["appointment"]["booking_status"] == "created"
+    assert rebooked.data["appointment"]["status"] == "booked"
+    assert rebooked.data["appointment"]["appointment_id"] != first.data["appointment"]["appointment_id"]
+    assert replay.data["appointment"]["booking_status"] == "idempotent_replay"
+    assert replay.data["appointment"]["appointment_id"] == rebooked.data["appointment"]["appointment_id"]
 
 
 def test_appointment_book_rejects_full_or_other_region_slots():
