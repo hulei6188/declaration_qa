@@ -315,6 +315,14 @@ export function createToolTrace(status = 'running') {
   };
 }
 
+export function toolTraceStatus(ok, status) {
+  if (ok) return 'completed';
+  if (status === 'not_found') return 'empty';
+  if (status === 'human_rejected') return 'rejected';
+  if (status === 'pending') return 'running';
+  return 'failed';
+}
+
 export function reduceToolTrace(current, event, data = {}) {
   const trace = current ? { ...current } : createToolTrace();
   trace.tools = [...(trace.tools || [])];
@@ -351,7 +359,7 @@ export function reduceToolTrace(current, event, data = {}) {
       }
     }
     const completed = {
-      status: data.ok ? 'completed' : (data.status === 'human_rejected' ? 'rejected' : 'failed'),
+      status: toolTraceStatus(data.ok, data.status),
       ok: Boolean(data.ok),
       latencyMs: numberOrNull(data.latency_ms),
       parallel: Boolean(data.parallel),
@@ -431,7 +439,7 @@ export function traceFromAgentRun(run) {
       toolName: String(call.tool_name || 'unknown_tool'),
       arguments: call.arguments || {},
       iteration: iterationByCall.get(externalId) || 0,
-      status: call.ok ? 'completed' : (call.status === 'pending' ? 'running' : 'failed'),
+      status: toolTraceStatus(call.ok, call.status),
       ok: Boolean(call.ok),
       latencyMs: numberOrNull(call.latency_ms),
       parallel: Boolean(call.metadata?.parallel),

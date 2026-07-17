@@ -3,6 +3,7 @@ import {
   Activity,
   CheckCircle2,
   ChevronDown,
+  CircleMinus,
   FileSearch,
   ListChecks,
   LoaderCircle,
@@ -136,6 +137,7 @@ function toolIcon(name) {
 
 function statusIcon(status) {
   if (status === 'completed') return <CheckCircle2 size={13} />;
+  if (status === 'empty') return <CircleMinus size={13} />;
   if (status === 'awaiting_confirmation') return <Activity size={13} />;
   if (status === 'rejected') return <XCircle size={13} />;
   if (status === 'failed') return <XCircle size={13} />;
@@ -144,6 +146,7 @@ function statusIcon(status) {
 
 function statusLabel(status) {
   if (status === 'completed') return '已完成';
+  if (status === 'empty') return '无记录';
   if (status === 'awaiting_confirmation') return '等待确认';
   if (status === 'rejected') return '已拒绝';
   if (status === 'failed') return '失败';

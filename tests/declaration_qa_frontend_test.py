@@ -80,3 +80,15 @@ def test_frontend_waits_long_enough_for_rq_index_jobs():
     assert "export const INDEX_JOB_MAX_ATTEMPTS = 180" in utils
     assert "for (let i = 0; i < INDEX_JOB_MAX_ATTEMPTS; i++)" in app
     assert "chunksIndexed: job.payload?.chunks_indexed || 0" in app
+
+
+def test_frontend_displays_empty_tool_results_without_failure_state():
+    utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
+    timeline = (FRONTEND_ROOT / "src" / "components" / "ToolCallTimeline.jsx").read_text(encoding="utf-8")
+    styles = (FRONTEND_ROOT / "src" / "styles.css").read_text(encoding="utf-8")
+
+    assert "if (status === 'not_found') return 'empty'" in utils
+    assert "status: toolTraceStatus(data.ok, data.status)" in utils
+    assert "status: toolTraceStatus(call.ok, call.status)" in utils
+    assert "if (status === 'empty') return '无记录'" in timeline
+    assert ".status-empty .tool-step-icon" in styles

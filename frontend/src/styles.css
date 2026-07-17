@@ -841,6 +841,16 @@ select {
   color: #0f766e;
 }
 
+.status-empty .tool-step-icon {
+  border-color: var(--border-strong);
+  background: var(--surface-soft);
+  color: var(--text-tertiary);
+}
+
+.tool-step.status-empty .tool-step-head > span {
+  color: var(--text-tertiary);
+}
+
 .status-failed .tool-step-icon {
   border-color: #f2b8b5;
   background: #fff3f2;
