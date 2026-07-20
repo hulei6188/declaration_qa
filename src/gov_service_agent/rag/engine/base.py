@@ -147,6 +147,17 @@ class RAGEngine(Protocol):
         """对已校验候选统一重排并应用当前阈值。"""
         ...
 
+    def retrieve_variants(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 10,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """在冻结查询下返回BM25、向量、RRF和Rerank四组排名。"""
+        ...
+
 
 def strategy_weighted_hit_lists(
     strategy: str,
@@ -256,6 +267,84 @@ class BaseRAGEngine:
                 requested_top_k=len(candidates),
             )
             return selected
+
+    def retrieve_variants(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        *,
+        top_k: int = 10,
+        retrieval_plan: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """用同一查询和召回候选生成四组可比排名，不读取或写入在线缓存。"""
+        started = perf_counter()
+        normalized_query = normalize_text(query)
+        effective_filter = normalize_retrieval_filter(filters)
+        policy = normalize_retrieval_plan(retrieval_plan)
+        top_k = max(1, int(top_k or 10))
+        candidate_limit = self._recall_limit(top_k)
+        dense_hits, bm25_hits, channel_status = self._retrieval_channel_hits(
+            normalized_query,
+            effective_filter,
+            limit=candidate_limit,
+        )
+        rrf_started = perf_counter()
+        fused_hits = rrf_fuse([hits for hits in (dense_hits, bm25_hits) if hits], rrf_k=60)
+        rrf_latency_ms = int((perf_counter() - rrf_started) * 1000)
+        rerank_candidates = fused_hits[:candidate_limit]
+        rerank_started = perf_counter()
+        rerank_degraded = False
+        try:
+            reranked = self._call_reranker(
+                normalized_query,
+                rerank_candidates,
+                effective_filter,
+                top_n=min(top_k, max(1, len(rerank_candidates))),
+                retrieval_plan=policy,
+            ) if rerank_candidates else []
+        except Exception as exc:
+            rerank_degraded = True
+            reranked = HeuristicReranker().rerank(
+                normalized_query,
+                rerank_candidates,
+                effective_filter,
+                top_n=min(top_k, max(1, len(rerank_candidates))),
+                retrieval_plan=policy,
+            ) if rerank_candidates else []
+            channel_status.setdefault("degraded", []).append(
+                {"stage": "rerank", "error": type(exc).__name__, "fallback": "heuristic"}
+            )
+        rerank_latency_ms = int((perf_counter() - rerank_started) * 1000)
+        variants = {
+            "bm25": bm25_hits[:top_k],
+            "vector": dense_hits[:top_k],
+            "rrf": fused_hits[:top_k],
+            "rrf_rerank": reranked[:top_k],
+        }
+        return {
+            "query": normalized_query,
+            "filter": effective_filter,
+            "top_k": top_k,
+            "candidate_limit": candidate_limit,
+            "variants": variants,
+            "status": {
+                **channel_status,
+                "rrf_latency_ms": rrf_latency_ms,
+                "rerank_latency_ms": rerank_latency_ms,
+                "rerank_degraded": rerank_degraded,
+                "elapsed_ms": int((perf_counter() - started) * 1000),
+            },
+        }
+
+    def _retrieval_channel_hits(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        limit: int,
+    ) -> tuple[list[RetrievedSource], list[RetrievedSource], dict[str, Any]]:
+        """由具体后端在相同过滤条件下返回向量和BM25候选。"""
+        raise NotImplementedError
 
     def _clear_cache(self) -> None:
         """清理检索缓存；缓存故障不能阻断知识索引发布。"""

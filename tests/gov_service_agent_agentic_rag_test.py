@@ -226,6 +226,58 @@ def test_agent_prepare_preserves_checkpoint_summary_context():
     assert prepared["memory_context"]["summary_marker"] == "kept"
 
 
+def test_agent_prepare_exposes_previous_tool_audit_without_result_content():
+    workflow = GovServiceAgentWorkflow(
+        rag_engine=CapturingKnowledgeRag(),
+        agent=ScriptedAgent(lambda state, definitions: AgentDecision("finish", final_answer="直接回答")),
+    )
+    state = workflow._initial_state(ChatRequest(query="上一轮检索了吗", user_id=1))
+    state["normalized_query"] = "上一轮检索了吗"
+    state["agent_messages"] = [
+        {"id": "user-1", "role": "user", "content": "制水供水是什么"},
+        {
+            "id": "assistant-tool-1",
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "knowledge-call-1",
+                    "name": "knowledge_search",
+                    "args": {"queries": [{"text": "不得保留的查询"}]},
+                }
+            ],
+        },
+        {
+            "id": "tool-1",
+            "role": "tool",
+            "tool_call_id": "knowledge-call-1",
+            "name": "knowledge_search",
+            "content": {
+                "call_id": "knowledge-call-1",
+                "ok": True,
+                "status": "success",
+                "data": {"sources": [{"evidence_text": "不得保留的结果"}]},
+            },
+        },
+        {"id": "answer-1", "role": "assistant", "content": "上一轮回答"},
+    ]
+
+    prepared = workflow.agent_prepare(state)
+    summarized = workflow.agent_summarize(prepared)
+    memory = summarized["conversation_memory"]
+
+    assert memory["historical_tool_audit"] == [
+        {
+            "relative_turn": 1,
+            "tools": [
+                {"tool_name": "knowledge_search", "status": "success", "ok": True}
+            ],
+        }
+    ]
+    assert "不得保留的查询" not in str(memory)
+    assert "不得保留的结果" not in str(memory)
+
+
 def test_chat_request_has_no_bound_ticket_fields():
     fields = ChatRequest.model_json_schema().get("properties", {})
 

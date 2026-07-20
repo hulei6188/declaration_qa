@@ -82,6 +82,11 @@ def register_evaluation_routes(app):
         ensure_knowledge_base_fresh()
         use_ragas = settings.ragas_enabled if request.use_ragas is None else request.use_ragas
         snapshot = runtime_snapshot()
+        snapshot["evaluation"] = {
+            "fixed_retrieval_metrics": ["Recall@5", "Recall@10", "MRR@10"],
+            "run_retrieval_ablation": request.run_retrieval_ablation,
+            "use_ragas": use_ragas,
+        }
         try:
             run = workflow.audit_store.create_eval_run(
                 dataset_id=dataset_id,
@@ -99,6 +104,7 @@ def register_evaluation_routes(app):
                     "dataset_id": dataset_id,
                     "top_k": request.top_k,
                     "use_ragas": use_ragas,
+                    "run_retrieval_ablation": request.run_retrieval_ablation,
                 },
             )
             if queued.get("backend") == "inline":

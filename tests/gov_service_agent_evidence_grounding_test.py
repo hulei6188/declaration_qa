@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from gov_service_agent.application.evidence_registry import build_evidence_registry, extract_business_key
-from gov_service_agent.memory.evidence import project_historical_messages
+from gov_service_agent.memory.evidence import (
+    build_conversation_memory,
+    project_historical_messages,
+    retain_historical_tool_audit,
+)
 from gov_service_agent.rag.prompting import format_source_payload, format_tool_result_payload
 
 
@@ -265,3 +269,71 @@ def test_knowledge_evidence_is_removed_even_before_rolling_summary():
     assert "knowledge-call-1" not in serialized
     assert "chunk-1" not in serialized
     assert "第一轮证据原文" not in serialized
+
+
+def test_historical_tool_audit_keeps_only_execution_metadata():
+    messages = [
+        {"id": "user-1", "role": "user", "content": "制水供水是什么"},
+        {
+            "id": "assistant-tool-1",
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "knowledge-call-1",
+                    "name": "knowledge_search",
+                    "args": {"queries": [{"text": "敏感检索词"}]},
+                }
+            ],
+        },
+        {
+            "id": "knowledge-tool-1",
+            "role": "tool",
+            "tool_call_id": "knowledge-call-1",
+            "name": "knowledge_search",
+            "content": {
+                "tool_name": "knowledge_search",
+                "call_id": "knowledge-call-1",
+                "ok": True,
+                "status": "success",
+                "data": {
+                    "sources": [
+                        {"chunk_id": "secret-chunk", "evidence_text": "不可保留的证据正文"}
+                    ]
+                },
+            },
+        },
+        {"id": "answer-1", "role": "assistant", "content": "回答"},
+    ]
+
+    context = retain_historical_tool_audit(messages, {})
+    memory = build_conversation_memory(context)
+    serialized = str(memory)
+
+    assert memory["historical_tool_audit"] == [
+        {
+            "relative_turn": 1,
+            "tools": [
+                {"tool_name": "knowledge_search", "status": "success", "ok": True}
+            ],
+        }
+    ]
+    assert "knowledge-call-1" not in serialized
+    assert "敏感检索词" not in serialized
+    assert "secret-chunk" not in serialized
+    assert "不可保留的证据正文" not in serialized
+
+
+def test_historical_tool_audit_tracks_no_tool_turn_and_keeps_recent_turns():
+    context: dict[str, object] = {}
+    for turn in range(1, 5):
+        messages = [
+            {"id": f"user-{turn}", "role": "user", "content": f"第{turn}轮"},
+            {"id": f"answer-{turn}", "role": "assistant", "content": "直接回答"},
+        ]
+        context = retain_historical_tool_audit(messages, context)
+
+    memory = build_conversation_memory(context)
+
+    assert [item["relative_turn"] for item in memory["historical_tool_audit"]] == [3, 2, 1]
+    assert all(item["tools"] == [] for item in memory["historical_tool_audit"])

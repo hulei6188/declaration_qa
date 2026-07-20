@@ -125,6 +125,16 @@ GOV_SERVICE_AGENT_EVALUATION_ENABLED=true
 GOV_SERVICE_AGENT_EVAL_DATABASE_URL=postgresql+psycopg://eval_user:password@eval-db/gov_service_agent_eval
 GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq
 GOV_SERVICE_AGENT_EVAL_PII_SALT=replace-with-a-long-random-secret
+GOV_SERVICE_AGENT_EVAL_JUDGE_ENABLED=true
+GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL=independent-judge-model
+GOV_SERVICE_AGENT_EVAL_JUDGE_API_KEY=
+
+GOV_SERVICE_AGENT_ONLINE_EVAL_ENABLED=true
+GOV_SERVICE_AGENT_ONLINE_EVAL_INTERVAL_MINUTES=15
+GOV_SERVICE_AGENT_ONLINE_EVAL_SAMPLE_RATE=0.05
+GOV_SERVICE_AGENT_ONLINE_EVAL_SAMPLE_LIMIT=50
+GOV_SERVICE_AGENT_ONLINE_EVAL_LOOKBACK_HOURS=24
+GOV_SERVICE_AGENT_ONLINE_EVAL_FAITHFULNESS_THRESHOLD=0.90
 
 GOV_SERVICE_AGENT_LANGFUSE_ENABLED=true
 LANGFUSE_PUBLIC_KEY=
@@ -160,6 +170,7 @@ MinerU 用于复杂 PDF 和 Office 文档解析，是可选组件；未启用时
 | --- | --- | ---: |
 | `agent-smoke-v1.json` | PR 冒烟 | 20 |
 | `agent-golden-v1.json` | Agent 回归 | 60 |
+| `database-retrieval-golden-v1.json` | 正文与DOC/DOCX/PDF/XLS/XLSX/图片附件检索回归 | 150 |
 | `full-regression-v1.json` | RAG + Agent 全量回归 | 260 |
 
 导入数据集：
@@ -174,6 +185,21 @@ python -m gov_service_agent.application.evals.import_dataset `
 ```powershell
 python -m gov_service_agent.application.evals.worker
 ```
+
+固定检索指标会在同一次运行中同时输出 `retrieval_recall_at_5`、
+`retrieval_recall_at_10` 和 `retrieval_mrr_at_10`。启动运行时传入
+`"run_retrieval_ablation": true`，会冻结Agent实际生成的检索Query，额外输出
+`bm25`、`vector`、`rrf`、`rrf_rerank` 四组消融结果。
+
+线上Trace采样必须使用独立调度进程，避免多个API Worker重复启动定时任务：
+
+```powershell
+python -m gov_service_agent.application.evals.scheduler
+```
+
+调度器按稳定哈希抽样生产审计Trace，并无条件保留差评、工具错误、失败和高延迟样本；
+独立Judge的忠实性等分数写回对应Langfuse Trace，抽样结果自动进入脱敏候选池。
+候选仍需人工补充 `doc_id/chunk_id` 金标后才能提升为黄金用例。
 
 GitHub Actions 中配置 `EVAL_BASE_URL`、数据集 ID、基线 Run ID 和 `EVAL_INTERNAL_API_KEY` 后，即可启用 PR 与夜间发布门禁。
 

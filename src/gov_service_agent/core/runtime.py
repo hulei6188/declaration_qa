@@ -52,6 +52,13 @@ def production_readiness_errors(settings: GovServiceAgentSettings) -> list[str]:
                 errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL must differ from generation models")
             if not settings.evaluation_judge_api_key:
                 errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_API_KEY is required when evaluation judge is enabled")
+        if settings.online_evaluation_enabled:
+            if not settings.langfuse_enabled or not settings.langfuse_public_key or not settings.langfuse_secret_key:
+                errors.append("Langfuse must be configured when online evaluation is enabled")
+            if not settings.evaluation_judge_enabled:
+                errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_ENABLED=true is required when online evaluation is enabled")
+    if settings.online_evaluation_enabled and not settings.evaluation_enabled:
+        errors.append("GOV_SERVICE_AGENT_EVALUATION_ENABLED=true is required when online evaluation is enabled")
     if settings.seed_knowledge:
         errors.append("GOV_SERVICE_AGENT_SEED_KNOWLEDGE=false is required in production")
     return errors

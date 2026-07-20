@@ -141,6 +141,33 @@ class InMemoryRAGEngine(BaseRAGEngine):
         self.cache_store.clear()
         return len(chunks)
 
+    def _retrieval_channel_hits(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        limit: int,
+    ) -> tuple[list[RetrievedSource], list[RetrievedSource], dict[str, Any]]:
+        """为评测消融返回同一候选集上的向量与BM25排名。"""
+        search_filter = published_visibility_filter(effective_filter)
+        candidates = [
+            chunk
+            for chunk in self._chunks.values()
+            if chunk.chunk_type == "child" and matches_filter(chunk, search_filter)
+        ]
+        degraded: list[dict[str, str]] = []
+        try:
+            dense_hits = self._dense_retrieve(normalized_query, candidates, search_filter, limit=limit)
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
+        bm25_hits = bm25_retrieve(normalized_query, candidates, limit=limit)
+        return dense_hits, bm25_hits, {
+            "candidate_count": len(candidates),
+            "candidate_source": "memory",
+            "degraded": degraded,
+        }
+
     def _retrieve_uncached(
         self,
         normalized_query: str,

@@ -24,6 +24,8 @@ CASE_JSON_FIELDS = (
     "tags",
     "turns",
     "expected_chunk_ids",
+    "agent_retrieval_queries",
+    "source_metadata",
     "expected_trajectory",
     "expected_outcome",
 )
@@ -37,6 +39,8 @@ RUN_ITEM_JSON_FIELDS = (
     "ragas_scores",
     "ragas_status",
     "actual_trajectory",
+    "agent_retrieval_queries",
+    "retrieval_ablation",
     "rule_scores",
     "judge_scores",
     "failure_reasons",
@@ -144,13 +148,15 @@ class EvaluationRepository(EngineBackedRepository):
                 case_uid, dataset_id, query, user_id, region_code, policy_version,
                 biz_type, apply_id, apply_context, expected_intent, expected_refused, expected_doc_ids,
                 expected_answer_keywords, reference_answer, reference_contexts, tags,
-                case_type, turns, fixture_key, expected_chunk_ids, expected_trajectory,
-                expected_outcome, severity, enabled
+                case_type, turns, fixture_key, expected_chunk_ids, agent_retrieval_queries,
+                source_trace_id, source_metadata, expected_trajectory, expected_outcome,
+                severity, enabled
             )
             SELECT :case_uid, d.id, :query, :user_id, :region_code, :policy_version,
                    :biz_type, :apply_id, :apply_context, :expected_intent, :expected_refused, :expected_doc_ids,
                    :expected_answer_keywords, :reference_answer, :reference_contexts, :tags,
                    :case_type, :turns, :fixture_key, :expected_chunk_ids,
+                   :agent_retrieval_queries, :source_trace_id, :source_metadata,
                    :expected_trajectory, :expected_outcome, :severity, :enabled
             FROM declaration_qa.eval_datasets d
             WHERE d.dataset_uid = :dataset_uid AND d.status = 'draft'
@@ -158,7 +164,8 @@ class EvaluationRepository(EngineBackedRepository):
                       query, user_id, region_code, policy_version, biz_type, apply_id, apply_context, expected_intent,
                       expected_refused, expected_doc_ids, expected_answer_keywords,
                       reference_answer, reference_contexts, tags, case_type, turns,
-                      fixture_key, expected_chunk_ids, expected_trajectory,
+                      fixture_key, expected_chunk_ids, agent_retrieval_queries,
+                      source_trace_id, source_metadata, expected_trajectory,
                       expected_outcome, severity, enabled, created_at
             """
         )
@@ -197,7 +204,8 @@ class EvaluationRepository(EngineBackedRepository):
                            c.expected_intent, c.expected_refused, c.expected_doc_ids,
                            c.expected_answer_keywords, c.reference_answer,
                            c.reference_contexts, c.tags, c.case_type, c.turns,
-                           c.fixture_key, c.expected_chunk_ids, c.expected_trajectory,
+                           c.fixture_key, c.expected_chunk_ids, c.agent_retrieval_queries,
+                           c.source_trace_id, c.source_metadata, c.expected_trajectory,
                            c.expected_outcome, c.severity, c.enabled, c.created_at
                     FROM declaration_qa.eval_cases c
                     JOIN declaration_qa.eval_datasets d ON d.id = c.dataset_id
@@ -276,7 +284,8 @@ class EvaluationRepository(EngineBackedRepository):
                 expected_answer_keywords, reference_answer, reference_contexts,
                 retrieved_contexts, answer, audit_uid, recall_hit, refusal_match,
                 intent_match, keyword_hit, ragas_scores, ragas_status, agent_run_uid,
-                actual_trajectory, rule_scores, judge_scores, failure_reasons, passed,
+                actual_trajectory, agent_retrieval_queries, retrieval_ablation,
+                rule_scores, judge_scores, failure_reasons, passed,
                 input_tokens, output_tokens, total_tokens, latency_ms, estimated_cost
             )
             SELECT :item_uid, r.id, c.id, :query, :expected_intent, :actual_intent,
@@ -284,7 +293,8 @@ class EvaluationRepository(EngineBackedRepository):
                    :expected_answer_keywords, :reference_answer, :reference_contexts,
                    :retrieved_contexts, :answer, :audit_uid, :recall_hit, :refusal_match,
                    :intent_match, :keyword_hit, :ragas_scores, :ragas_status, :agent_run_uid,
-                   :actual_trajectory, :rule_scores, :judge_scores, :failure_reasons, :passed,
+                   :actual_trajectory, :agent_retrieval_queries, :retrieval_ablation,
+                   :rule_scores, :judge_scores, :failure_reasons, :passed,
                    :input_tokens, :output_tokens, :total_tokens, :latency_ms, :estimated_cost
             FROM declaration_qa.eval_runs r
             LEFT JOIN declaration_qa.eval_cases c ON c.case_uid = :case_uid
@@ -294,7 +304,8 @@ class EvaluationRepository(EngineBackedRepository):
                       retrieved_doc_ids, expected_answer_keywords, reference_answer,
                       reference_contexts, retrieved_contexts, answer, audit_uid,
                       recall_hit, refusal_match, intent_match, keyword_hit, ragas_scores,
-                      ragas_status, agent_run_uid, actual_trajectory, rule_scores,
+                      ragas_status, agent_run_uid, actual_trajectory,
+                      agent_retrieval_queries, retrieval_ablation, rule_scores,
                       judge_scores, failure_reasons, passed, input_tokens, output_tokens,
                       total_tokens, latency_ms, estimated_cost, annotation_label,
                       annotation_comment
@@ -325,6 +336,8 @@ class EvaluationRepository(EngineBackedRepository):
                 "ragas_status": dict(item.get("ragas_status") or {}),
                 "agent_run_uid": str(item.get("agent_run_uid") or ""),
                 "actual_trajectory": dict(item.get("actual_trajectory") or {}),
+                "agent_retrieval_queries": list(item.get("agent_retrieval_queries") or []),
+                "retrieval_ablation": dict(item.get("retrieval_ablation") or {}),
                 "rule_scores": dict(item.get("rule_scores") or {}),
                 "judge_scores": dict(item.get("judge_scores") or {}),
                 "failure_reasons": list(item.get("failure_reasons") or []),
@@ -436,7 +449,8 @@ class EvaluationRepository(EngineBackedRepository):
                            i.reference_answer, i.reference_contexts, i.retrieved_contexts,
                            i.answer, i.audit_uid, i.recall_hit, i.refusal_match,
                            i.intent_match, i.keyword_hit, i.ragas_scores, i.ragas_status,
-                           i.agent_run_uid, i.actual_trajectory, i.rule_scores,
+                           i.agent_run_uid, i.actual_trajectory,
+                           i.agent_retrieval_queries, i.retrieval_ablation, i.rule_scores,
                            i.judge_scores, i.failure_reasons, i.passed, i.input_tokens,
                            i.output_tokens, i.total_tokens, i.latency_ms, i.estimated_cost,
                            i.annotation_label, i.annotation_comment
@@ -488,23 +502,32 @@ class EvaluationRepository(EngineBackedRepository):
 
     def create_eval_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
         candidate_uid = f"eval-candidate-{uuid4().hex}"
+        payload = {
+            **candidate,
+            "agent_retrieval_queries": list(candidate.get("agent_retrieval_queries") or []),
+            "online_scores": dict(candidate.get("online_scores") or {}),
+        }
         stmt = text(
             """
             INSERT INTO declaration_qa.eval_candidates (
                 candidate_uid, audit_uid, agent_run_uid, trace_id, source, severity,
-                sanitized_query, sanitized_answer, detection_signals, trajectory_snapshot
+                sanitized_query, sanitized_answer, detection_signals, trajectory_snapshot,
+                agent_retrieval_queries, online_scores
             ) VALUES (
                 :candidate_uid, :audit_uid, :agent_run_uid, :trace_id, :source, :severity,
-                :sanitized_query, :sanitized_answer, :detection_signals, :trajectory_snapshot
+                :sanitized_query, :sanitized_answer, :detection_signals, :trajectory_snapshot,
+                :agent_retrieval_queries, :online_scores
             )
             RETURNING candidate_uid AS candidate_id, *
             """
         ).bindparams(
             bindparam("detection_signals", type_=JSON),
             bindparam("trajectory_snapshot", type_=JSON),
+            bindparam("agent_retrieval_queries", type_=JSON),
+            bindparam("online_scores", type_=JSON),
         )
         with self.engine.begin() as connection:
-            row = connection.execute(stmt, {"candidate_uid": candidate_uid, **candidate}).mappings().first()
+            row = connection.execute(stmt, {"candidate_uid": candidate_uid, **payload}).mappings().first()
         return normalize_eval_candidate(row)
 
     def list_eval_candidates(self, *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
@@ -560,12 +583,31 @@ class EvaluationRepository(EngineBackedRepository):
     def promote_eval_candidate(self, *, candidate_id: str, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:
         with self.engine.begin() as connection:
             promotable = connection.execute(
-                text("SELECT 1 FROM declaration_qa.eval_candidates WHERE candidate_uid = :uid AND status IN ('triaged', 'labeled')"),
+                text(
+                    """
+                    SELECT trace_id, agent_retrieval_queries, source, detection_signals
+                    FROM declaration_qa.eval_candidates
+                    WHERE candidate_uid = :uid AND status IN ('triaged', 'labeled')
+                    """
+                ),
                 {"uid": candidate_id},
-            ).first()
+            ).mappings().first()
         if not promotable:
             raise ValueError("Evaluation candidate must be reviewed before promotion")
-        created = self.add_eval_case(dataset_id=dataset_id, case=case)
+        promoted_case = {
+            **case,
+            "source_trace_id": str(case.get("source_trace_id") or promotable.get("trace_id") or ""),
+            "agent_retrieval_queries": list(
+                case.get("agent_retrieval_queries") or promotable.get("agent_retrieval_queries") or []
+            ),
+            "source_metadata": {
+                "candidate_id": candidate_id,
+                "candidate_source": str(promotable.get("source") or ""),
+                "detection_signals": dict(promotable.get("detection_signals") or {}),
+                **dict(case.get("source_metadata") or {}),
+            },
+        }
+        created = self.add_eval_case(dataset_id=dataset_id, case=promoted_case)
         with self.engine.begin() as connection:
             row = connection.execute(
                 text(
@@ -595,7 +637,8 @@ class EvaluationRepository(EngineBackedRepository):
                            i.reference_answer, i.reference_contexts, i.retrieved_contexts,
                            i.answer, i.audit_uid, i.recall_hit, i.refusal_match,
                            i.intent_match, i.keyword_hit, i.ragas_scores, i.ragas_status,
-                           i.agent_run_uid, i.actual_trajectory, i.rule_scores,
+                           i.agent_run_uid, i.actual_trajectory,
+                           i.agent_retrieval_queries, i.retrieval_ablation, i.rule_scores,
                            i.judge_scores, i.failure_reasons, i.passed, i.input_tokens,
                            i.output_tokens, i.total_tokens, i.latency_ms, i.estimated_cost,
                            i.annotation_label, i.annotation_comment
@@ -633,6 +676,9 @@ class EvaluationRepository(EngineBackedRepository):
             "turns": list(case.get("turns") or []),
             "fixture_key": str(case.get("fixture_key") or ""),
             "expected_chunk_ids": list(case.get("expected_chunk_ids") or []),
+            "agent_retrieval_queries": list(case.get("agent_retrieval_queries") or []),
+            "source_trace_id": str(case.get("source_trace_id") or ""),
+            "source_metadata": dict(case.get("source_metadata") or {}),
             "expected_trajectory": dict(case.get("expected_trajectory") or {}),
             "expected_outcome": dict(case.get("expected_outcome") or {}),
             "severity": str(case.get("severity") or "medium"),
