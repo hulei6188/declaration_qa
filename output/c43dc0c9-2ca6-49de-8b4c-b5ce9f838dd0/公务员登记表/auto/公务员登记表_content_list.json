@@ -1,0 +1,42 @@
+[
+    {
+        "type": "table",
+        "img_path": "images/e6fbbf9496642cb8cb449554fa244424a60c0989a77aab0f868b80af15496dfa.jpg",
+        "table_caption": [
+            "公务员登记表"
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>姓名</td><td></td><td></td><td>性别</td><td></td><td>出生年月</td><td></td><td rowspan=\"3\"></td></tr><tr><td>籍贯</td><td></td><td></td><td>民族</td><td></td><td>政治面貌</td><td></td></tr><tr><td>入时</td><td>党间</td><td></td><td>参加工 作时间</td><td></td><td>健 状况</td><td></td></tr><tr><td>身证</td><td colspan=\"5\">份号</td><td colspan=\"2\"></td></tr><tr><td>学历</td><td>教</td><td>全日制 育</td><td></td><td>毕业院校 系及专业</td><td></td><td colspan=\"2\"></td></tr><tr><td>学位</td><td>在教 现工作单位</td><td>职育</td><td></td><td>毕业院校 系及专业</td><td colspan=\"3\"></td></tr><tr><td colspan=\"2\">及职务职级</td><td colspan=\"5\"></td></tr><tr><td>H 作 简 历</td><td colspan=\"5\"></td></tr><tr><td colspan=\"1\" rowspan=\"1\">何时受过何种奖惩</td><td colspan=\"5\" rowspan=\"1\"></td></tr><tr><td colspan=\"1\" rowspan=\"1\">所在机关意见</td><td colspan=\"5\" rowspan=\"1\">同意登记。年     月      日盖章</td></tr><tr><td colspan=\"1\" rowspan=\"1\">审核机关意见</td><td colspan=\"5\" rowspan=\"1\">年     月      日盖章</td></tr><tr><td colspan=\"1\" rowspan=\"1\">审批机关意见</td><td colspan=\"5\" rowspan=\"1\">年  月     日盖章</td></tr><tr><td colspan=\"1\" rowspan=\"1\">备注</td><td colspan=\"5\" rowspan=\"1\"></td></tr></table>",
+        "bbox": [
+            122,
+            123,
+            873,
+            870
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "img_path": "",
+        "table_caption": [],
+        "table_footnote": [],
+        "bbox": [
+            124,
+            82,
+            873,
+            856
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "中共中央组织部制",
+        "bbox": [
+            673,
+            875,
+            842,
+            894
+        ],
+        "page_idx": 1
+    }
+]

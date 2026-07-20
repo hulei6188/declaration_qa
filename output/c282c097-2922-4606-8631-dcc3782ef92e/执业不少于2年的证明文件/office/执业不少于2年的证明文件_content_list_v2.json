@@ -1,0 +1,127 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "证  明",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "安徽省司法厅："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "**律师事务所",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "拟派驻首席代表"
+                    },
+                    {
+                        "type": "text",
+                        "content": " Zhao **/赵** ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "（拟派驻代表姓名）拥有在"
+                    },
+                    {
+                        "type": "text",
+                        "content": " 香港及美国纽约 ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "合法执业的资格，执业至今"
+                    },
+                    {
+                        "type": "text",
+                        "content": " 15 ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "年，其他拟任代表已经执业不少于2年，符合《香港、澳门特别行政区律师事务所驻内地代表机构管理办法》的规定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "特此证明。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "***特别行政区律师管理机构"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "**",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "年"
+                    },
+                    {
+                        "type": "text",
+                        "content": "**月**日",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+]

@@ -1,0 +1,147 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会申请设立登记事先告知书"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（示范文本）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "根据《中华人民共和国民法典》、《基金会管理条例》等法律法规以及相关政策规定，就"
+                    },
+                    {
+                        "type": "text",
+                        "content": "  安徽省xxxxx基金会        ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "【基金会名称】申请设立登记事宜，现告知如下："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、基金会是具备法人条件、为公益目的以捐助财产设立的捐助法人，属于非营利法人。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、基金会的财产来源必须合法，财产及其他收入受法律保护，任何单位和个人不得私分、侵占、挪用。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、捐资人对投入的财产不保留或者享有任何财产权利，投入的原始基金属于捐赠资金。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、基金会的财产必须用于符合章程规定的宗旨和业务活动，财产及其孳息不得用于分配。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、基金会法人终止时，不得向捐资人、申请人分配剩余财产。剩余财产应当按照法人章程的规定或者权力机构的决议用于公益目的；无法按照法人章程的规定或者权力机构的决议处理的，由主管机关主持转给宗旨相同或者相近的法人，并向社会公告。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "【登记管理机关名称】"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "年  月  日"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "申请人（盖章或签字）："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "年  月  日"
+                    }
+                ]
+            }
+        }
+    ]
+]

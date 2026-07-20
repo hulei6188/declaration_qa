@@ -1,0 +1,38 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "流程图"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                451,
+                22,
+                539,
+                47
+            ]
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/e22807f7f65c940df1c64f0de44b6938bdabd43f3ef0e70d6bfe9b1acee4d930.jpg"
+                },
+                "image_caption": [],
+                "image_footnote": []
+            },
+            "bbox": [
+                30,
+                85,
+                978,
+                961
+            ]
+        }
+    ]
+]

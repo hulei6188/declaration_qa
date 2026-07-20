@@ -1,0 +1,48 @@
+[
+    {
+        "type": "text",
+        "text": "申请",
+        "bbox": [
+            472,
+            112,
+            525,
+            133
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "申请人通过“安徽政务服务网”、邮寄或到省政务服务中心综合窗口提交申请材料。",
+        "bbox": [
+            122,
+            136,
+            865,
+            155
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/afc43deb8af1cc01e787b1f687a4e2fbab6c27e920d63350f937d88e4f1abc30.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            252,
+            164,
+            746,
+            902
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "流程图",
+        "bbox": [
+            457,
+            71,
+            541,
+            92
+        ],
+        "page_idx": 0
+    }
+]

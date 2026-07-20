@@ -1,0 +1,43 @@
+[
+    {
+        "type": "table",
+        "img_path": "images/f20a35ea73c23cd419ac53a6b1123acfbd219d82ef95a8a5d70fc27eccec66c1.jpg",
+        "table_caption": [
+            "注册会计师注册申请表"
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=3>张三</td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=2>男</td><td rowspan=1 colspan=9>国籍（地区）</td><td rowspan=1 colspan=4>中国</td><td rowspan=4 colspan=1><img src=\"images/37702da3df8b579c295951074e161122d558886912123739499c0d6ba815ec19.jpg\"/></td></tr><tr><td rowspan=1 colspan=1>出生日期</td><td rowspan=1 colspan=4>19XX年X月X日</td><td rowspan=1 colspan=5>政治面貌</td><td rowspan=1 colspan=10>中共党员</td></tr><tr><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=2>汉</td><td rowspan=1 colspan=3>户口所在地</td><td rowspan=1 colspan=4>庐阳</td><td rowspan=1 colspan=6>是否退休</td><td rowspan=1 colspan=4>否</td></tr><tr><td rowspan=1 colspan=3>有效身份证件名称/号码</td><td rowspan=1 colspan=17>二代身份证/34010119XXXXXXXXXX</td></tr><tr><td rowspan=1 colspan=9>参加注册会计师全国统一考试提供的有效身份证件名称/号码</td><td rowspan=1 colspan=12>二代身份证/34010119XXXXXXXXXX</td></tr><tr><td rowspan=1 colspan=1>专业职称</td><td rowspan=1 colspan=3>会计师</td><td rowspan=1 colspan=3>职称等级</td><td rowspan=1 colspan=5>中级</td><td rowspan=1 colspan=6>学历</td><td rowspan=1 colspan=3>大学本科</td></tr><tr><td rowspan=1 colspan=1>毕业学校</td><td rowspan=1 colspan=11>安徽某某大学</td><td rowspan=1 colspan=6>所学专业</td><td rowspan=1 colspan=3>会计学</td></tr><tr><td rowspan=1 colspan=1>毕业时间</td><td rowspan=1 colspan=3>20XX年X月</td><td rowspan=1 colspan=3>外语程度</td><td rowspan=1 colspan=5>四级</td><td rowspan=1 colspan=6>学位</td><td rowspan=1 colspan=3>学士</td></tr><tr><td rowspan=1 colspan=1>进所时间</td><td rowspan=1 colspan=3>20XX年X月</td><td rowspan=1 colspan=4>进所前工作单位</td><td rowspan=1 colspan=13>安徽某某公司</td></tr><tr><td rowspan=1 colspan=1>电子邮箱</td><td rowspan=1 colspan=7>XXXXXXX@qq.com</td><td rowspan=1 colspan=7>非执业会员证号</td><td rowspan=1 colspan=6>34XXXXXXXXXX</td></tr><tr><td rowspan=1 colspan=1>通讯地址</td><td rowspan=1 colspan=18>安徽省某市某区某某小区 XX栋 XX室</td><td rowspan=1 colspan=1>邮编</td><td rowspan=1 colspan=1>230001</td></tr><tr><td rowspan=1 colspan=1>考试（√）</td><td rowspan=1 colspan=4>全科合格证号码</td><td rowspan=1 colspan=6>QY1618XXXXX</td><td rowspan=1 colspan=8>全科合格日期</td><td rowspan=1 colspan=2>2018年X月X日</td></tr><tr><td rowspan=1 colspan=1>考核（）</td><td rowspan=1 colspan=4>考核批准文号</td><td rowspan=1 colspan=6></td><td rowspan=1 colspan=8>考核批准日期</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=2>档案现存放的单位</td><td rowspan=1 colspan=5>某市人才交流中心</td><td rowspan=1 colspan=7>个人社会保障号码</td><td rowspan=1 colspan=7>34010119XXXXXXXXXX</td></tr><tr><td rowspan=1 colspan=2>是否在会计师事务所专职从业</td><td rowspan=1 colspan=3>是</td><td rowspan=1 colspan=2>所内职务</td><td rowspan=1 colspan=10>审计助理</td><td rowspan=1 colspan=4>从事审计业务时间(年)</td></tr><tr><td rowspan=1 colspan=2>固定电话</td><td rowspan=1 colspan=3>无</td><td rowspan=1 colspan=8>移动电话</td><td rowspan=1 colspan=8>139XXXXXXXX</td></tr><tr><td rowspan=1 colspan=3>何时因何原因受到何种处罚或处分</td><td rowspan=1 colspan=18>无</td></tr></table>",
+        "bbox": [
+            137,
+            156,
+            858,
+            873
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "附表1",
+        "bbox": [
+            147,
+            93,
+            215,
+            112
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "img_path": "images/81c752e841e13e60f55edbc5a29297c28133d1ac1bf000f23e7a009757ee2ff7.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=5>个人简历（从大学填起）</td></tr><tr><td rowspan=1 colspan=1>起止时间</td><td rowspan=1 colspan=2>在何单位学习、工作</td><td rowspan=1 colspan=2>证明人</td></tr><tr><td rowspan=1 colspan=1>20XX年X月至20XX年X月</td><td rowspan=1 colspan=2>安徽某某大学 学习</td><td rowspan=1 colspan=2>某甲</td></tr><tr><td rowspan=1 colspan=1>20XX年X月至20XX年X月</td><td rowspan=1 colspan=2>安徽某某公司 工作</td><td rowspan=1 colspan=2>某乙</td></tr><tr><td rowspan=1 colspan=1>20XX年X月至20XX年X月</td><td rowspan=1 colspan=2>安徽某某会计师事务所 工作</td><td rowspan=1 colspan=2>某丙</td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=5>个人从事审计业务经历</td></tr><tr><td rowspan=1 colspan=1>起止时间</td><td rowspan=1 colspan=1>会计师事务所</td><td rowspan=1 colspan=2>从事审计业务具体项目(至少填写1个)</td><td rowspan=1 colspan=1>证明人</td></tr><tr><td rowspan=1 colspan=1>20XX年X月至20XX年X月</td><td rowspan=1 colspan=1>安徽某某会计师事务所</td><td rowspan=1 colspan=2>某某审计项目</td><td rowspan=1 colspan=1>某丙</td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2>本人声明已从事审计业务满2年、熟知《中华人民共和国注册会计师法》规定的权利与义务，承诺在会计师事务所专职从业，并且不具有《注册会计师注册办法》第五条规定不予注册的其他情形，对以上所填写内容及提交的申请材料的真实性负责。申请人签字：（手写签名）20XX年X月X日</td><td rowspan=1 colspan=3>所在会计师事务所意见：申请人为本所员工，在本所专职从业，本所对以上情形的真实性负责。主任会计师签字：（手写签名）会计师事务所盖章（加盖）20XX年 X 月 X 日</td></tr></table>",
+        "bbox": [
+            137,
+            83,
+            860,
+            846
+        ],
+        "page_idx": 1
+    }
+]

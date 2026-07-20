@@ -1,0 +1,27 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "合肥市 \"互联网＋不动产抵押登记\" 申请表"
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "单位:平方米、万元"
+                    }
+                ]
+            }
+        }
+    ]
+]

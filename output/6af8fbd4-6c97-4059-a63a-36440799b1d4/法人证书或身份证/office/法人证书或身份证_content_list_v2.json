@@ -1,0 +1,100 @@
+[
+    [
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "1.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "个人提交身份证正反面复印件"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/77e421b9768fe39affb9d702ad90a0893b5b4f84409356b87b9550c91a184b45.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/3d9095f24445f416f96727725cf82f896bdc1da435ac6866a46411bf35d7b6bd.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "2.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "企业法人提供营业执照"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/a7cf9cc91211970ec53abeca87080f51f1f73412d63679b24049f1830cbb38ef.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "3.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "事业单位提供法人证书"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/9684685d94e8c96d60332dd4563a1b46a6d1a950c4c8c37bfab3e99e10c07b81.jpg"
+                },
+                "image_caption": []
+            }
+        }
+    ]
+]

@@ -1,0 +1,25 @@
+[
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/c8885a901586acd70a0b1ff2f1b86b9d72bdcabde7ff326a4dcaab91fabd4116.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "流程图"
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                26,
+                67,
+                986,
+                1000
+            ]
+        }
+    ]
+]

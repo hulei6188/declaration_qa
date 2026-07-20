@@ -1,0 +1,5561 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "住房公积金个人住房贷款借款合同",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "编号： ",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "安徽省省直住房公积金管理分中心",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "敬请注意",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "为了维护您的利益，请您在签署本合同时，仔细阅读以下注意事项："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、您已经具有申请住房公积金贷款的相关法律常识；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、您已经阅读本合同的所有条款，并知悉其含义；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3、您确认提交的有关证件及资料是真实、完整、合法和有效的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4、您已经确认自己有权签署本合同，并且知道签署本合同后所享有 的权利与应承担的义务；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5、您已经确知提供任何与签署本合同有关的虚假文件和资料，不履 行本合同约定的义务，均须承担相应的法律责任；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "6、您已确知任何欺诈、违约行为均要承担相应的法律责任，您将本 着诚实、信用的原则，自愿签订本合同，并依约履行本合同；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "7、您已确认本合同委托扣款提示手机号码；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "8、请您使用黑色钢笔、毛笔或签字笔工整地填写需要您填写的内容。 在签订本合同之前，请合同各方，特别是借款人和担保人，仔细审阅"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同中相关的义务约定及违约的责任承担条款。如有不明之处可向住房 公积金管理中心等相关机构咨询。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "立约人："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "借款人(甲方)：见本合同第三十二条 委托人(乙方)：见本合同第三十二条"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贷款人(丙方，受托人)：见本合同第三十二条 抵(质)押权人：见本合同第三十二条"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "保证人（丁方，贷后资产管理方）：见本合同第三十二条 抵押人：见本合同第三十二条"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "出质人：见本合同第三十二条"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "遵照国家有关法律法规，根据甲方个人住房融资需要和借款申请，乙方同意并委 托丙方向甲方发放住房公积金个人住房贷款。为明确各方的权利和义务，本着平等自 愿、诚实信用的原则，经合同签约各方协商一致，订立本合同并承诺严格履约。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同由借贷条款、担保条款、违约责任条款、其他约定条款和特别签订条款等 内容组成。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同甲方是申请住房公积金个人住房贷款的自然人（包括借款人、共同借款人  及承担本合同项下债务的其他债务人）。共同借款人、其他债务人与借款人承担相同  的义务，对全部借款本息及相关费用承担共同还款责任。乙方是住房公积金管理机构， 丙方是受乙方委托具体办理住房公积金个人住房贷款发放和偿还等事宜的商业银行。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "丁方是独立的法律主体，具备履行本协议所有必要的权利能力和资格，能以自身名义  履行本协议的义务并独立承担民事责任，为借款人的贷款提供阶段性保证担保，同时  接受乙方委托对贷款开展贷后资产管理。乙方作为本合同项下纯住房公积金贷款的抵  (质)押权人，丙方作为本合同项下组合住房公积金贷款的抵(质)押权人，组合住房公  积金贷款中丙方的商业贷款部分由丁方保证的，组合住房公积金贷款的抵押权人为丁方。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "借贷条款",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第一条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  借款用途"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "见本合同第三十三条。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第二条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  借款金额"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "见本合同第三十四条。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第三条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  借款期限"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "见本合同第三十五条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同所载的借款期限起始日与贷款支付凭证所载日期不一致的，借款期限起始 日 (即起息日)以贷款支付凭证所载实际放款日期为准，借款到期日根据借款期限相应 调整。贷款支付凭证为本合同的组成部分，与本合同具有同等法律效力。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  贷款利率、罚息利率"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、贷款利率"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同所称公积金个人住房贷款利率是指中国人民银行、住房和城乡建设部公布 的相应公积金个人住房贷款利率。本合同项下发放借款时，该利率按借款起息日当日 施行的公积金个人住房贷款利率确定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "二、罚息利率"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)借款人未按本合同约定用途使用借款的，罚息利率为本合同载明的贷款利率 水平上加收100%。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)本合同项下借款逾期的，罚息利率见本合同第三十六条。本合同中借款逾期 是指借款人未在本合同约定的时限前足额偿还任意一期借款本息的行为。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "三、利率调整"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下贷款利率或罚息利率依本条约定调整时，该利率按利率调整日当日施 行的公积金个人住房贷款利率确定。本合同项下贷款：借款期限在一年(含)以内的为 固定利率，贷款利率不进行调整；借款期限在一年以上的为浮动利率，贷款利率调整 日为每年的 1 月 1 日。具体约定见本合同第三十七条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第五条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  委托资金交付和贷款资金发放"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、在本合同项下贷款放款前，乙方应将足额委托资金交付丙方。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、只有同时满足下列条件后，丙方才有义务向甲方发放贷款："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)丙方接到乙方的书面委托放款通知；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)乙方已将足额委托资金存入住房委托贷款基金账户或指定的账户且未被有权 机关查封、冻结、扣款；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)甲方、乙方未发生本合同所约定的任一违约事项；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)本合同设有担保的，符合乙方要求的担保已生效且持续有效；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)甲方已按乙方规定支付首付款，首付款具体金额见本合同第三十八条；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(六)发放贷款的其他前提条件，见本合同第三十八条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、丙方不为乙方垫付资金，即乙方实际交付的委托资金金额少于约定要发放的 贷款金额的，丙方有权拒绝发放。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、本合同项下借款采用贷款人受托支付方式进行支付，丙方根据乙方的委托放 款通知，将借款资金划付给甲方交易对象认可的收款账户。甲方不可撤销地授权丙方 将本合同项下借款划入本合同第三十九条约定的账户内。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第六条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  计息、结息"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、贷款利息自丙方放款之日起计算。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、贷款按月计结息，首次结息日为首次还款日前一日。以此类推，贷款自每月 还款日当日起息，至下一还款日前一日结息；对于采用固定日方式还款的，首次和末"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "次还款按实际天数计结息。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、逾期还款、提前还款按实际天数计息，结息日为实际还款日前一日。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、贷款期限在 1 年以内(含 1 年)的，还款期内如遇法定利率调整，实行合同 利率，不分段计息；贷款期限在 1 年以上的，遇法定利率调整，于次年 1 月 1 日 开始，按相应利率档次执行新的利率。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "第七条  ",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "还款"
+                    }
+                ],
+                "level": 3
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、还款原则"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下甲方的还款按照先还息后还本、息随本清的原则偿还。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、约定还款日"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "见本合同第四十条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、甲方原则上采用委托扣款方式还款，甲方指定委托扣款账户具体约定见本合 同第四十一条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "委托扣款方式：甲方授权丙方在每期约定还款日，按当期应还款项从甲方指定的 委托扣款账户中扣款。授权期限自该笔贷款发放之日起，至甲方在本合同项下的债务 全部履行完毕之日止。如该委托扣款账户为甲方之外的第三人名下账户，则该第三人 应签发授权书，授权丙方从该账户中扣收甲方应还款项。丙方将有权通过短信方式向 委托扣款账户所有人逐笔提示委托扣款业务信息。甲方采取委托扣款方式还款的，丙 方不收取委托扣款服务费用。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "委托扣款方式下，甲方最迟应在每期约定还款日的前一日柜面营业终了前将当期 应还款项足额存入指定委托扣款账户内。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方未能在委托扣款日前一日柜面营业终了前将应还款项足额存入指定委托扣款  账户造成借款拖欠的，乙、丙方有权自约定还款日开始计收逾期罚息。甲方自愿同意乙、 丙方在该期委托扣款日及此后的任意时间直接从甲方在丙方系统开立的任一账户或甲  方的住房公积金账户中扣划相应款项，但该扣划并不构成乙、丙方的义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方如变更委托扣款账户的，应在委托扣款日前 15 个工作日以上到乙方指定的 柜面办理变更手续，甲方的委托扣款授权账户相应变更。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方委托扣款提示手机号码如有变动，应于发生变动之日起5个工作日内到乙方 指定的柜面办理变更手续，因未及时办理而造成的法律后果由变动方承担。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "四、甲方可选择以下还款方式之一偿还借款："
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)等额本息还款法；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)等额本金还款法；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)其他符合规定的还款方法。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "还款方式的具体约定见本合同第四十二条。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第八条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  提前还款及借款期限变更"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、提前还款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方在正常还款状态下，经乙方同意可提前偿还贷款本金，对于甲方提前偿还的 本金，按照提前还款时本合同执行的贷款利率和提前偿还本金的金额及当期实际用款 天数计收利息。提前偿还贷款本金的，提前还款金额、办理时间等相关要求按乙方规 定执行。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、还款期限的变更"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方在正常还款情况下，经乙方同意可采用提前结清方式缩短还款期限。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第九条  ",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "甲方的权利和义务"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、甲方有权要求丙方按乙方委托放款通知的要求和按本合同的约定发放贷款；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、甲方有权要求乙方和丙方对甲方提供的有关家庭资产、财务情况等方面的个 人资料予以保密，但法律法规和规章另有规定及本合同另有约定的除外；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、甲方应按乙方和丙方要求提供有关个人及其家庭成员的身份、还款能力、个 人信用及住房公积金贷款使用情况的资料，保证其向乙方和丙方提供的有关资料、文 件和信息完整、准确、真实、有效、合法， 自愿接受乙、丙方使用大数据核查身份证 件及相关信息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、甲方应按本合同约定的用途使用借款，不得将借款挪作他用；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、甲方应按本合同的约定按期归还借款本息、缴纳本合同约定的各类费用；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、如要为他人债务提供担保，甲方应当书面通知乙方并征得乙方书面同意；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、甲方采用委托扣款方式还款，应按以下要求确保丙方有效扣款："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)提供真实合法有效的委托扣款账户资料；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)按约定将每期应还款额足额存入委托扣款账户中，并保证委托扣款之后存款  账户上仍保留符合丙方要求的最低存款余额；乙、丙方因系统问题或法定节假日及其  他不可抗力等因素需要顺延至正常工作日后扣划当期应还款项的，甲方不得以未在约  定日期扣划为由转移账户资金，由此造成不能扣划或不能足额扣划的，视为甲方违约， 乙、丙方有权自约定还款日开始计收逾期罚息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)如委托扣款账户出现冻结、挂失、余额不足等情况而造成丙方无法足额扣款 的，甲方应及时另行开立符合扣划条件的合法有效的扣款账户并按乙方规定办理账户 变更手续，或及时补足账户余额并向乙方申请扣款，或及时到乙方指定的营业柜台还 款。发生上述情况，丙方在还款日前未能收到甲方当期应付款项的，视为甲方违约， 乙、丙方有权自约定还款日开始计收逾期罚息。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "八、甲方应在知悉下列事项发生或可能发生之日起10个工作日内以书面形式通知 乙方、丙方和丁方："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)抵押财产被列入拆迁范围、强制征用等可能造成抵押财产灭失情形的；"
+                    }
+                ],
+                "level": 4
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)抵押人、出质人与第三人就抵押财产、质押权利发生任何纠纷的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)对甲方履行还款义务产生或可能产生重大不利影响的诉讼、仲裁或行政措施 等的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)在借款全部清偿前，甲方个人及家庭经济状况发生变化，可能对其债务清偿 能力造成不利影响的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)发生其他对甲方履行还款义务产生或可能产生重大不利影响的事件。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "九、甲方所购房屋用于抵押担保本合同项下债务的，甲方应当按照乙方或丙方要 求及时办理所购房产的房屋所有权证、土地使用权证等权属证书以及相应的抵押登记 手续；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "十、本合同约定的甲方其他权利义务。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第十条  ",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "乙方的权利和义务"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、乙方作为本合同项下贷款的委托人，享有作为实际贷款人的全部权利、利益， 并承担作为实际贷款人而应当承担的风险；乙方可以自行向本合同项下的其他立约人  直接行使和主张合同权利；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、有权了解、核实甲方及其家庭成员的身份、还款能力、个人信用、住房公积  金贷款使用情况和家庭财务状况，要求甲方提供与借款申请、使用有关的资料、文件， 并对相关资料信息予以保密，但法律法规和规章另有规定及本合同另有约定的除外；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、有权对甲方提供的资料、文件的合法性、真实性、完整性、有效性、准确性 以及借款的使用情况进行调查，使用大数据核查甲方身份证件及相关信息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、有权要求甲方按期偿还贷款本金、利息和费用，有权行使本合同约定的其他 各项权利，要求甲方履行其在本合同项下的其他各项义务；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、本合同项下贷款到期未获清偿的，有权直接或通过贷后资产管理方向甲方催 收，对甲方、担保人提起诉讼、申请执行以及采取法律许可的其他救济措施；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、乙方向丙方发出的指示应当明确、完整、符合法律法规和规章的规定以及本 合同的约定；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、乙方作为本合同项下贷款抵(质)押权人的，应妥善保管或指定贷后资产管理 方妥善保管抵(质)押权属证明及其他有关文件资料；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "八、在乙方为甲方、担保人（本条仅限担保人为自然人的）办理本合同项下事项 所必需的情形下，甲方、担保人同意并授权乙方收集、存储甲方、担保人在办理本业 务过程中主动提供或因使用服务而产生的个人信息，甲方、担保人同意并授权乙方或 乙方指定的贷后资产管理方可将上述信息用于贷前审査、贷款审批、贷后管理、纠纷 处理，甲方、担保人同意并授权乙方向丙方或乙方指定的贷后资产管理方提供乙方获 取的甲方、担保人个人信息。上述信息的范围包括甲方、担保人的个人基本资料、个"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "人身份信息、个人教育工作信息、个人财产信息。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "对于甲方、担保人同意乙方处理的个人信息，乙方将按照法律法规、监管规定及 与甲方、担保人的约定开展信息处理行为，并釆取相应的安全措施保护甲方、担保人 的个人信息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "九、委托贷款发放后，有权对甲方使用借款的情况进行持续监督，关注甲方的财 务状况以及还款能力，在甲方发生任何可能影响乙方债权实现的情形时及时采取适当 措施；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "十、若甲方在贷后资产管理阶段逾期、乙方要求丁方垫付追偿的，乙方同意自丁 方垫付款项之日将垫付部分债权及抵押权无条件转让给丁方，该等债权及抵押权转让 事宜无须经甲方同意，乙方或丁方有权选择于债权转让时或追偿时通知甲方，也可采 取由乙方或丁方通过诉讼或仲裁方式通知，甲方对此已明确知晓且不持异议；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "十一、本合同约定的乙方其他权利义务。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第十一条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  丙方的权利和义务"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、应按合同约定及时足额发放贷款；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、应对甲方提供的有关个人资料予以保密，但法律法规和规章另有规定及本合 同另有约定的除外；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、有权按乙方要求了解、核实甲方及其家庭成员的身份、还款能力、个人信用、 住房公积金贷款使用情况和家庭财务状况，要求甲方提供与借款申请、使用有关的资  料、文件；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、有权按乙方要求对甲方提供的资料、文件的合法性、真实性、有效性、准确 性以及借款的使用情况进行调查，使用大数据核查甲方身份证件及相关信息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、丙方作为本合同项下贷款抵(质)押权人的，应妥善保管抵(质)押权属证明及 其他有关文件资料；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、有权要求甲方按期偿还贷款本金、利息和费用，有权行使本合同约定的其他 各项权利，要求甲方履行其在本合同项下的其他各项义务；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、甲方未按期足额偿还其在本合同项下任何应付款项的，丙方有权按乙方要求 从甲方在丙方系统开立的任一账户或甲方的住房公积金账户中扣划相应款项，且无须 提前通知甲方；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "八、在丙方为甲方、担保人（本条仅限担保人为自然人的）办理本合同项下事项  所必需的情形下，甲方、担保人同意并授权丙方收集、存储甲方、担保人在办理本业  务过程中主动提供或因使用服务而产生的个人信息，甲方、担保人同意并授权丙方或  乙方指定的贷后资产管理方可将上述信息用于贷前审査、贷款审批、贷后管理、纠纷  处理及乙方要求办理的其他事项，上述信息的范围包括甲方、担保人的个人基本资料、"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "个人身份信息、个人教育工作信息、个人财产信息。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "对于甲方、担保人同意丙方处理的个人信息，丙方将按照法律法规、监管规定及 与甲方、担保人的约定开展信息处理行为，并采取相应的安全措施保护甲方、担保人 的个人信息；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "九、委托贷款发放后，有权对甲方使用借款的情况进行持续监督，关注甲方的财 务状况以及还款能力，在甲方发生任何可能影响乙、丙方债权实现的情形时及时采取 适当措施；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "十、未经乙方同意，丙方不可单方面解除本合同项下的抵押。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "担保条款",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十二条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  本合同采用第四十三条约定的担保方式。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十三条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  保证条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、保证人在本合同项下提供的保证为阶段性连带责任保证。保证人的权利义务， 由乙方与丁方在《安徽省省直住房公积金个人贷款阶段性担保及贷后资产管理服务协  议》中约定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、保证人在本合同项下的保证范围包括本合同约定的借款本金、利息(包括罚 息)、违约金、赔偿金、甲方应向乙方或丙方支付的其他款项、乙方或丙方为实现债 权与担保权利而发生的相关费用(包括但不限于诉讼费、仲裁费、财产保全费、律师 费、执行费、评估费、拍卖费等)。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、保证期间见本合同第四十六条的约定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、如本合同项下的借贷关系被确认为不成立、不生效、无效、部分无效、被撤 销，则保证人对于甲方因返还财产或赔偿损失而形成的债务承担连带责任；如果本合 同项下的借贷关系被解除，则保证人对甲方因返还财产或赔偿损失而形成的债务继续 在本合同约定的保证范围内承担连带保证责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、保证责任"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)如果本合同项下债务到期，或者乙方或丙方根据本合同的约定或法律规定宣 布债务提前到期，甲方未按时足额履行，或者甲方违反本合同的其他约定，保证人应 在本合同约定的保证期间、保证范围内立即承担连带保证责任；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)保证人依据本合同偿付的任何款项，乙方和丙方有权决定将该款项优先用于 抵偿乙方或丙方为实现债权而发生的相关费用；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)如有多个保证人为本合同项下债务提供保证，上述保证人共同对本合同项下 债务承担连带共同保证责任，但保证人与乙方和丙方另有约定的除外。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "六、保证人的其他义务"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)保证人应对甲方借款用途进行监督，并接受乙方对保证人资金、财产和经营 状况的监督；保证人应根据乙方的要求提供财务报表等有关信息、文件、资料，并保"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "证其准确、真实、完整与有效；未经乙方书面同意，保证人不得向第三方提供超出其 自身负担能力的担保；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)保证人发生合并、停业整顿、申请解散、被撤销、被有权机关施以高额罚款、 被注销登记、法定代表人或主要负责人无法正常履行职责、涉及重大法律纠纷、生产  经营出现严重困难或财务状况恶化，或者因任何原因丧失或可能丧失担保能力，保证  人应立即书面通知乙方和丙方，并按照要求落实本合同项下保证责任的承担、转移或  承继，或者为本合同的履行提供乙方和丙方认可的新担保；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)保证人发生名称、法定代表人(负责人)、住所、经营范围、注册资本金或公 司(企业)章程等工商登记事项变更的，应当在变更后及时书面通知乙方和丙方，并附 变更后的相关资料；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)保证人保证不存在为筹集资金或其他原因，以甲方的名义向乙方申请借款套 取乙方资金的情形。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、保证人同时为售房人、房地产中介机构等与房屋权属交易有关联的个人、单 位或其他组织的，应协助甲方或抵押人及时办理所购房产的房屋所有权证、土地使用 权证等权属证书及相应抵押登记手续。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "八、违约责任"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "保证人违反本合同的任一约定或陈述与保证的事项存在任何虚假、错误、遗漏， 乙方和丙方有权采取以下一项或多项措施："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)要求保证人限期纠正违约行为；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)要求保证人提供新的担保；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)要求保证人赔偿损失；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)法律许可的其他救济措施。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第十四条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  抵押条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "一、抵押人以本合同第四十五条“抵押财产清单 ”所列之财产设定抵押。"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵押财产因故换发新的所有权或其他权利证书(明)，导致“抵押财产清单 ”或者 乙方或丙方收执的他项权利(抵押权)证书或抵押权证明文件与上述新的权利证书(明) 或登记机关的登记簿相关记载不一致的，抵押人不得以此为由拒绝承担担保责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "除抵押人与乙方或丙方另有约定或法律另有规定，抵押财产上因附合、混合、加 工、改建等原因而新增的物也作为本合同项下债权的抵押担保，抵押人应根据乙方或 丙方的要求办理必要的抵押登记等手续。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "如果抵押财产因自然因素或者第三人行为毁损、灭失、被侵害、价值减少、脱离 抵押人控制，抵押财产权属发生争议或权利证书(明)被注销，抵押人均应立即通知乙 方、丙方、丁方，并应按照乙方、丙方或丁方要求提供新的担保。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、抵押担保范围包括本合同约定的借款本金、利息(包括罚息)、违约金、赔偿 金、甲方应向乙方、丙方或丁方支付的其他款项、乙方、丙方或丁方为实现债权和抵 押权而发生的相关费用 (包括但不限于诉讼费、仲裁费、财产保全费、律师费、执行 费、评估费、拍卖费等)。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、抵押登记"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本抵押条款签订后，抵押人(或其委托的代理人)应在乙方或丙方要求的时限内到 相应的登记部门办妥抵押登记。抵押人(或其委托的代理人)应于抵押登记完成之日将 抵押财产的他项权利证书、抵押登记文件正本原件及其他权利证书交抵押权人或乙方 指定的贷后资产管理方。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "四、抵押财产的占有与保管"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)抵押人应妥善地对抵押财产进行占有、保管和维修保养，合理使用抵押财产， 维持抵押财产完好，按时缴纳与抵押财产相关的各项税费。乙方、丙方和丁方有权对  抵押财产进行检查，并可要求抵押人将抵押财产权利凭证的正本交抵押权人或乙方指  定的贷后资产管理方保管。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)抵押人委托或同意第三方占有、保管、使用抵押财产的，应当告知该第三方 本合同项下抵押权人抵押权的存在，并要求其保持抵押财产的完好、接受乙方、丙方 和丁方对抵押财产的检查以及不妨碍抵押权人实现抵押权。抵押人不因此免除前项中 的义务，同时应对该第三方的行为承担责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)抵押财产造成人身或财产损害的，应由抵押人自行承担赔偿责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "五、第三方妨碍"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)如果抵押财产被国家征收、征用、拆除、没收、无偿收回，抵押人与第三人 就抵押财产发生任何纠纷，或者抵押财产被第三方查封、冻结、扣押、监管、留置、 拍卖、强行占有、毁损或者进行其他处置，抵押人应当立即通知乙方、丙方、丁方， 并及时采取制止、排除或补救措施，防止损失扩大；若乙方、丙方和丁方提出要求， 抵押人应提供符合要求的新担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)抵押财产发生前项情形后的剩余部分仍作为本合同项下债权的抵押担保。抵 押人因上述原因取得的赔偿金或补偿金，应首先用于恢复抵押财产价值。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)抵押财产被列入拆迁范围的，抵押人应在知悉之日起 10 个工作日内书面通 知乙方、丙方和丁方。抵押人获得交换产权作为补偿的，抵押人应就交换产权所得的 房屋为本合同项下债权重新设定抵押权。拆迁人对抵押人实行作价补偿的，抵押人应 按照乙方、丙方和丁方的要求提供质押担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "六、抵押人处分抵押财产的限制"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "未经乙方、丙方书面同意，抵押人不得以任何方式处分抵押财产，包括但不限于 放弃、赠与、转让、设立居住权、出资、重复担保、迁移、改为公益用途、改建、分 割等。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "七、抵押权的实现"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)甲方未足额履行本合同项下到期债务(包括依照本合同约定被宣布提前到期 的债务)，或违反本合同的其他约定，乙方或丙方有权行使抵押权利。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)本合同条款“抵押财产清单 ”记载的抵押财产价值(下称“暂定价值”)， 无论是否记载于登记机关的登记簿，均不表明抵押财产的最终价值，其最终价值为乙 方或丙方或丁方处分抵押财产所得价款在扣除各项税费后的净额。若以抵押财产抵偿 债权的，上述暂定价值并不作为抵押财产抵偿债权的依据，届时抵押财产的价值应依 法公平评估确定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)乙方及乙方指定的贷后资产管理方或丙方处分抵押财产所得价款，在支付变 卖或拍卖过程中的费用 (包括但不限于保管费、评估费、拍卖费、过户费、税款、国 有土地使用权出让金等)后，优先用于清偿抵押财产担保的债务，剩余价款退还抵 押人。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)抵押人与甲方为同一人的，乙方及乙方指定的贷后资产管理方或丙方可以对 抵押人的抵押财产之外的财产申请强制执行，且不以放弃抵押权或必须先处分抵押财 产为前提条件。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)抵押人不得以任何方式(包括作为或不作为)妨碍抵押权实现。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(六)在实现抵押权的过程中，相关各方还应遵守国家有关法律、法规、规章的规 定及本合同中相关约定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "八、违约及处理"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)抵押人违约责任"
+                    }
+                ],
+                "level": 4
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.抵押人违反本合同的任一约定或陈述与保证的事项存在任何虚假、错误、遗漏， 乙方和丙方有权采取以下一项或多项措施："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(1)要求抵押人限期纠正违约行为；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(2)要求抵押人提供新的担保；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(3)要求抵押人赔偿损失；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(4)处分抵押财产；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(5)法律许可的其他救济措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.如果因抵押人过错导致抵押权未有效设立，或者导致抵押财产价值减少，或者 导致乙方或丙方未及时且充分实现抵押权，且其与甲方不是同一人，乙方和丙方有权 要求抵押人对甲方在本合同项下的债务承担连带责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)抵押权人违约责任"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "如果抵押权人因过错遗失抵押人交付的抵押财产权利证书，或者本合同项下债务 清偿完毕，抵押权人不及时返还抵押财产权利证书或在抵押人提出申请后不依法协助"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "办理抵押登记注销手续，抵押人有权相应采取以下措施： 1.要求抵押权人承担抵押财产权利证书的补办费用；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.要求抵押权人限期返还抵押财产的权利证书，或依法协助抵押人注销抵押登记。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第十五条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  质押条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、出质人以本合同第四十四条“质押权利清单 ”所列之权利设定质押。质押权  利因故换发新的所有权或其他权利证书(明)，导致“质押权利清单 ”或者质权人收执  的质权证书或质押证明文件与上述新的权利证书(明)或登记机关的相关记载不一致的， 出质人不得以此为由拒绝承担担保责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "出质人应以最大的谨慎维持质押权利的有效性和价值，防止因为超过规定的期限 或任何其他事由导致质押权利失效或贬值。质押权利价值增加，增加的部分仍作为本 合同项下债权的质押担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "质押权利的孳息由质权人收取；孳息作为质押权利的一部分用于本合同项下债权 的质押担保，但应优先用于清偿收取孳息的费用。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "质押权利因第三人行为或者自然因素而毁损、灭失、被侵害、价值减少，或质押 权利项下权属发生争议，或权利证书(明)被注销，出质人均应立即通知乙方和丙方， 并应按照乙方和丙方要求提供新的担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、质押担保范围"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "质押担保的范围包括本合同约定的借款本金、利息(包括罚息)、违约金、赔偿金、 甲方应向乙方或丙方支付的其他款项、乙方或丙方实现债权和质权而发生的费用 (包  括但不限于诉讼费、仲裁费、财产保全费、律师费、执行费、评估费、拍卖费等)。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、质押权利的登记或交付"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "依法需要办理出质登记(含记载、备案)的，出质人应于本质押条款签订后在乙方 或丙方要求的时限内到相应的登记部门办权理出质登记。出质人应于出质登记完成当 日将质权证书、出质登记文件正本原件及其他权利证书交质权人持有。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "四、第三方妨碍"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)国家或者其他第三方对质押权利进行注销、没收、强制收回、冻结等，出质 人知悉后应当立即通知乙方和丙方，并及时采取必要的措施，防止损失扩大，如果乙 方和丙方提出要求，出质人应提供符合要求的新担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)质押权利发生前项情形后的剩余部分仍作为本合同项下债权的质押担保。出 质人因上述原因取得的赔偿金、补偿金，应存入丙方指定账户。乙方和丙方有权选择 下列 1 至 3 项约定的任一方法进行处理，出质人应协助办理有关手续："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.清偿或提前清偿本合同项下债务本息及相关费用；"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.转为权利质押，用于担保本合同项下的债务；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3.出质人提供符合要求的新的担保后，由出质人自由处分。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "五、质权的实现"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)甲方不履行本合同项下到期债务(包括依照本合同约定被宣布提前到期的债 务)，或违反本合同的其他约定，乙方或丙方有权行使质权。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)本合同“质押权利清单 ”记载的质押权利价值(下称“暂定价值”)，均不表 明质押权利的最终价值，其最终价值为乙方或丙方处分质押权利所得价款在扣除各项 税费后的净额。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "若以质押权利抵偿债权的，上述暂定价值并不作为质押权利抵偿债权的依据， 届时质押权利的价值应依法公平评估确定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)乙方或丙方实现质押权利所得价款，在支付相关费用 (包括但不限于保管费、 评估费、拍卖费、过户费、税款等)后优先用于清偿质押权利所担保的债务，剩余价  款退还出质人。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)出质人与甲方为同一人的，乙方或丙方可以对出质人的质押权利之外的财产 申请强制执行，且不以放弃质权或先处分质押权利为前提条件。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)出质人不得以任何方式(包括作为或不作为)妨碍质权实现。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(六)在实现质权的过程中，相关各方还应遵守国家有关法律、法规、规章的规定 及本合同中相关约定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "六、质押权利凭证的返还"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "在质押权利担保的债务清偿完毕且出质人支付了本合同项下应由出质人承担的各 项费用后，出质人有权要求质权人及时与出质人共同办理出质登记注销手续，或要求 质权人返还质押权利凭证。质权人返还质押权利凭证时，出质人应当场验收，如有异 议应当场提出，否则视为出质人无异议。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "七、违约责任"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)出质人违约责任"
+                    }
+                ],
+                "level": 4
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.出质人违反本合同的任一约定或陈述与保证的事项存在任何虚假、错误、遗漏， 质权人有权采取以下一项或多项措施："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(1)要求出质人限期纠正违约行为；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(2)要求出质人提供新的担保；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(3)要求出质人赔偿损失；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(4)处分质押权利；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(5)法律许可的其他救济措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "质权人有权选择本条(一)1(2)至(4)项约定的任一方法对处分质押权利所得价款"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "进行处理，出质人应协助办理有关手续。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.如果因出质人过错导致质权未有效设立，或者导致质押权利价值减少，或者导 致质权人未及时且充分实现质权，且其与甲方不是同一人，质权人有权要求出质人对 甲方在本合同项下的债务承担连带责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)质权人违约责任"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "如果质权人因故意或重大过失致使质押权利凭证毁损、灭失，出质人有权要求质 权人承担补办凭证的费用。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "如在质押权利担保的债务清偿完毕且出质人支付了本合同项下应由出质人承担的 各项费用后，质权人不及时返还质押权利的凭证，或者不依法协助出质人办理出质登 记注销，出质人有权要求质权人及时返还被质押权利的凭证或依法协助办理出质登记 注销。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十六条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  担保人通用条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "以下通用条款约定，除特别指明仅适用于某类担保人外，本合同项下担保人(包 括保证人、抵押人、出质人；下同)均须遵守："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、合同条款的变更"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下债权或债务的转移行为未生效、无效、被撤销、被解除，担保人仍按 照担保条款约定对乙方和丙方承担担保责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、催收条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "对担保人拒不承担担保责任、或发生其他违约情形、或可能危及乙方和丙方债权 的情形、或担保人从事违法违规行为，乙方和丙方有权通过短信、电话、即时通讯工 具、电子邮件、信函、上门拜访、依法委托第三方、司法途径等方式向担保人进行催 收，有权向有关部门或单位予以通报，有权通过新闻媒体进行催收，但上述方式并不 构成乙方、丙方义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、乙方或丙方记录的证据效力"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "除非有可靠、确定的相反证据，乙方或丙方有关本金、利息、费用和还款记录等 内容的内部账务记载，制作或保留的甲方办理提款、还款、付利息等业务过程中发生 的单据、凭证及催收贷款的记录、凭证，均构成有效证明本合同项下债权关系的确定 证据。担保人不能仅因为上述记录、记载、单据、凭证由乙方或丙方制作或保留，而 提出异议。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、权利保留"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "乙方和丙方在本合同项下的权利并不影响和排除其根据法律、法规和其他合同所 享有的任何权利。任何对违约或延误行为施以任何宽容、宽限、优惠或延缓行使本合 同项下的任何权利，均不能视为对本合同项下权利、权益的放弃或对任何违反本合同 行为的许可或认可，也不影响、阻止和妨碍对该权利的继续行使或对其任何其他权利"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "的行使，也不因此导致乙方或丙方对担保人承担义务和责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "即使乙方和丙方不行使或延缓行使本合同项下的任何权利或未用尽本合同项下的  任何救济，担保人在本合同项下的担保责任不因此减免，但乙方若减免本合同项下债  务，担保人在本合同项下的担保责任相应减免。甲方、抵押人、质押人同意乙方委托  丁方作为阶段性担保保证人或贷后资产管理方，对本合同项下贷款进行期房阶段性担  保和贷后资产管理，负责逾期贷款催收，对逾期贷款进行代偿或受让债权，并有权向  甲方、抵押人、质押人追偿。在丁方履行期房阶段性保证责任或贷后资产管理责任后， 有权依法向甲方、抵押人、质押人追偿包括但不限于代偿款或受让债权金额、利息  （以代偿款或受让债权数额为基数，从代偿或垫付之日起，按本合同第三十六条约定  罚息标准计算至款清之日止）以及为实现追偿权支付的一切费用（包括但不限于诉讼  费、仲裁费、财产保全费、律师费、执行费、评估费、拍卖费等）。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、担保人如发生分立、解散、进入破产程序、被撤销、被注销工商登记、被吊  销营业执照等情形，担保人均应立即通知乙方和丙方。对于担保人发生解散或破产的， 即使本合同项下债权尚未到期，乙方和丙方也有权参加担保人清算或破产程序，申报  债权。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、担保人的陈述与保证"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)担保人清楚地知悉乙方和丙方的经营范围、授权权限。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)担保人已阅读本合同所有条款。应担保人要求，乙方和丙方已经就本合同做 了相应的条款说明。担保人对本合同条款的含义及相应的法律后果已全部通晓并充分 理解。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)担保人具备作为担保人的合法资格，担保人在本合同项下的担保行为符合法 律、行政法规、规章规定，担保人签署本合同或履行担保人在本合同项下的义务不违 反担保人订立的任何其他协议。若担保人为法人或其他组织的，担保人在本合同项下 的担保行为符合担保人章程或内部组织文件的规定，且已获得公司(机构、组织)内部 有权机构及/或国家有权机关的批准。因担保人无权签署本合同而产生的一切责任均 由担保人承担，包括但不限于全额赔偿乙方和丙方因此遭受的损失。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)提供给乙方和丙方的全部资料、文件和信息均是真实、合法、准确、完整、 有效的。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)担保人已充分认识到利率风险。如果根据本合同的约定或者国家的利率政策 变化而调整利率水平、计息或结息方式，导致甲方应偿还的利息、罚息增加的，对增 加部分，担保人也承担连带保证责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(六)抵押人、出质人各自保证："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵押人、出质人分别合法拥有用于抵押、质押的抵押财产或质押权利，并对之享"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "有所有权或处分权，抵押财产或质押权利并非公益性质、禁止(或限制)流通与转让的 财产或财产权利，不存在任何权属争议，不存在被查封、被冻结、被监管等情形，未 为第三人设定担保。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(七)担保人已知悉，乙、丙、丁方将通过短信、电话、即时通讯工具、电子邮件、 信函、依法委托第三方等方式向担保人传递贷款情况核实信息、贷款风险提示信息、"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贷款到期提醒信息、贷款催告信息，但上述方式并不构成乙、丙、丁方义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(八)担保人信用信息的使用：担保人同意乙方或乙方委托的贷后资产管理方及丙 方通过金融信用信息基础数据库及其他依法成立的征信机构査询、打印、保存担保人 的信用状况等个人信息，査询获得的信息用于审核贷款申请、担保人资格审査和贷后 管理。担保人还同意乙方和丙方将担保人的个人信息和信用信息（包括不良信息）提 供给金融信用信息基础数据库及其他依法成立的征信机构。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "违约责任条款",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十七条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  违约情形"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)甲方发生下列任一情况，均构成违约："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.甲方不按本合同约定按时足额偿还借款本息或其他应付款项的； 2.甲方未按合同约定用途使用贷款的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3.甲方向乙方或丙方提供虚假的、无效的或不完整的信息、文件或资料的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4.甲方拒绝或阻碍乙方及其指定的贷后资产管理方或丙方对其收入、信用情况进 行检查的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5.甲方死亡或被宣告死亡而其财产合法继承人不继续履行本合同的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "6.甲方被宣告失踪，而其财产代管人不继续履行本合同的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "7.甲方丧失民事行为能力，而其监护人不继续履行本合同的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "8.甲方的个人及资信情况或还贷能力出现其他重大变化(包括但不限于国籍变更、 婚姻情况变动、家庭财务状况恶化、收入降低、失业、重大疾病、拖欠其他债务等)， 乙方或丙方认为可能或已经对其偿债能力造成不利影响，且甲方未追加乙方和丙方认  可的担保的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "9.甲方以自有或共有房产设立居住权，乙方或丙方认为可能危及本合同项下债权 安全的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "10.甲方发生其他足以对其偿还债务能力造成不利影响的事件，或甲方明确表示 或以其行为表明将不履行本合同项下的义务；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "11.甲方违反住房公积金贷款及本合同约定的其他义务。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)保证期间内，保证人发生下列情况之一，甲方未提供符合乙方或丙方要求的 新的担保的，构成甲方违约："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.违反本合同任一约定或陈述与保证的事项存在任何虚假、错误、遗漏的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.作为保证人的法人或其他组织发生合并、停业整顿、申请解散、被撤销、被有 权机关施以高额罚款、被注销登记、法定代表人或主要负责人无法正常履行职责、涉 及重大法律纠纷、生产经营出现严重困难或财务状况恶化，或者因任何原因丧失或可 能丧失担保能力的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3.保证人拒绝乙方对其资金和财产状况进行监督的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4.保证人以自有或共有房产设立居住权、或向第三方提供超出其自身负担能力的 担保的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5.保证人丧失或可能丧失保证能力的其他情形。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)抵押或质押期间内，抵押或质押发生下列情况之一，甲方未提供符合乙方或 丙方要求的新的担保的，构成甲方违约："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.因第三人行为、国家征收、没收、征用、无偿收回、拆迁、市场行情变化或任 何其他原因导致抵押财产或质押权利毁损、灭失、价值减少；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.抵押财产或质押权利被转让、査封、扣押、设立居住权、冻结、扣划、拍卖、 行政机关监管，或者权属发生争议；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3.抵押人或出质人违反本合同任一约定或陈述与保证的事项存在任何虚假、错误、 遗漏的；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4.可能危及抵押权或质权实现的其他情形。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)担保未生效、无效、被撤销、被解除，担保人违约或者明确表示或以其行为 表明将不履行其担保责任，或担保人出现部分或全部丧失担保能力、担保物价值减少 等乙方或丙方认为可能危及本合同项下债权安全的其他情形，甲方未按乙方或丙方要 求提供新的担保的，视为甲方违约。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十八条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  违约责任"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方出现任一违约情形，乙方和丙方有权行使下述一项或几项救济措施： 1.停止发放本合同项下的借款；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.宣布贷款立即到期，要求甲方立即清偿借款本息及相关费用； 3.解除与甲方的借贷关系；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4.从甲方在丙方所属系统开立的任一账户上划收任何币种的款项用以抵偿甲方应 付款项；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5.从甲方住房公积金账户上扣划抵偿相应款项； 6.要求甲方限期纠正违约行为并赔偿相应损失；"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "7.要求甲方对本合同项下所有债务提供符合乙方或丙方要求的新的担保； 8.行使担保权利；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "9.委托第三方或通过任何公众媒体发布公告等方式进行催收或追偿； 10.要求丁方承担保证或资产管理责任；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "11.以法律手段追偿借款本息及由此产生的一切费用； 12.有权采取的其他救济措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "其他约定条款",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第十九条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  如本合同有两个以上(含两个)借款人，则各借款人应就本合同项下全  部合同义务承担连带责任，即乙方和丙方有权要求任何一个借款人履行全部合同义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  本合同履行期间，甲方与售房人(建造、翻建、大修施工方)就本合同 第三十三条所述房产有关质量、条件、权属或其他事宜发生的任何纠纷，均与乙方、 丙方、丁方无关，本合同仍应正常履行。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十一条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  甲方与售房人签订的房屋买卖合同被确认无效或被撤销、被解除的， 甲方仍应承担本合同项下的还款义务，甲方应将售房人返还的已付购房款及利息、售  房人支付的赔偿损失款项，用于清偿本合同项下的债务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方如请求确认其与售房人签订的房屋买卖合同无效或变更、撤销、解除该合同 的，应提前 10 个工作日书面通知乙方和丙方，乙方和丙方有权在上述合同被确认无 效或变更、撤销、解除后，根据情况单方面解除与甲方的借贷关系、宣布贷款立即到 期或采取其他相应措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "乙方和丙方依上款约定解除与甲方的借贷关系后，甲方应当立即将其所欠乙方的 贷款本金、利息、罚息及乙方和丙方实现债权的费用归还至乙方和丙方指定账户，或 委托售房人直接将上述款项归还乙方和丙方。若甲方未能履行归还义务，乙方和丙方 保留提起诉讼的权利。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "对于甲方贷款用途为建造、翻建、大修自住住房的，比照上述约定执行。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十二条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  乙方委托丁方对在住房公积金个人贷款的抵押权落实之日起至贷款 结清期间的新增贷款进行贷后资产管理，丁方负责还款提醒、资产分析、风险预警、 逾期催收、相关法律诉讼、逾期垫付、抵押权注销等工作。贷后资产管理方的权利义 务，由乙方与丁方在《安徽省省直住房公积金个人贷款阶段性担保及贷后资产管理服 务协议》中约定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下甲方与抵押人相同的，甲方同意乙方或丙方在丁方履行完毕保证义务 或受让债权后，有权将甲方交付的相关证书、资料原件及复印件交付于丁方，同时依 法将相应债权和抵押权转让给丁方，甲方保证对该交付行为无异议。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十三条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  与本合同相关的书面文件凭证均为本合同的有效组成部分。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十四条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  杂项约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、催收条款"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "对甲方拖欠借款本息、或发生其他违约情形、或可能危及乙方和丙方债权的情形、 或借款人从事违法违规行为，乙方和丙方有权通过短信、电话、即时通讯工具、电子  邮件、信函、上门拜访、依法委托第三方、司法途径等方式向甲方进行催收，有权向  有关部门或单位予以通报，有权通过新闻媒体进行催收，但上述方式并不构成乙方、"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "丙方义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、乙方或丙方记录的证据效力"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "除非有可靠、确定的相反证据，乙方或丙方就本合同项下贷款有关本金、利息、"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "费用和还款记录等内容的内部账务记载，丙方单方制作或保留的甲方办理提款、还款、 付利息等业务过程中发生的单据、凭证及乙方或丙方委托机构催收贷款的记录、凭证， 均构成有效证明本合同项下债权关系、义务履行情况的证据。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、权利保留"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "乙方和丙方在本合同项下的权利并不影响和排除其根据法律、法规和其他合同所 享有的任何权利。任何对违约或延误行为施以任何宽容、宽限、优惠或延缓行使本合 同项下的任何权利，均不能视为对本合同项下权利、权益的放弃或对任何违反本合同 行为的许可或认可，也不限制、阻止和妨碍对该权利的继续行使或对其任何其他权利 的行使，也不因此导致乙方和丙方对甲方承担义务和责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "四、甲方的陈述与保证"
+                    }
+                ],
+                "level": 2
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(一)甲方清楚地知悉乙方和丙方的经营范围、授权权限。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(二)甲方巳知悉，乙方或乙方指定的贷后资产管理方及丙方将通过电话、短信、 即时通讯工具、电子邮件、信函等方式向甲方传递贷款情况核实信息、贷款风险提示 信息、贷款还款提醒信息、贷款到期提醒信息、贷款催告信息，但上述行为并不构成 乙方或乙方指定的贷后资产管理方及丙方的义务。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(三)甲方清楚若甲方拖欠借款本息或发生本合同其他违约情形，乙方有权要求丁   方开展贷款的催收、期房阶段性担保代偿或贷后资产管理垫付义务。乙方有权指定丁   方以法律手段追偿借款本息（丁方代偿或垫付后的追偿利息以代偿款或受让债权数额   为基数，从代偿或垫付之日起，按本合同第三十六条约定罚息标准计算至款清之日止） 及由此产生的一切费用（包括但不限于诉讼费、仲裁费、财产保全费、律师费、执行   费、评估费、拍卖费等）。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(四)甲方已阅读本合同所有条款。应甲方要求，乙方和丙方已经就本合同做了相 应的条款说明。甲方对本合同条款的含义及相应的法律后果已全部通晓并充分理解。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(五)甲方有权签署本合同。"
+                    }
+                ],
+                "level": 4
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、乙方向甲方和丙方保证，乙方签署与履行本合同项下的义务，不违反或规避 国家法律、法规、规章或行政监管措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、丙方向乙方和甲方保证，丙方签署与履行本合同项下的义务，不违反或规避 国家法律、法规、规章或行政监管措施。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、乙方委托丙方向甲方发放住房公积金个人住房贷款，丙方按照乙方的委托要 求履行相关职责，并且按照乙方依合同发出的通知内容履行相关的义务，因丙方上述 履行而产生的后果应由乙方负责。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "丙方在履行本合同的过程中需要对一些事项作出决策时，如果双方已有明确约定 的，依该约定执行；如果没有明确约定，丙方应就该事项书面征求乙方意见，乙方应 及时书面回复意见，甲方不得对此过程提出异议。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "八、甲方信用信息的使用"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方同意乙方或乙方指定的贷后资产管理方和丙方通过金融信用信息基础数据库 及其他依法成立的征信机构査询、打印、保存甲方的信用状况等个人信息，査询获得 的信息用于审核贷款申请、担保人资格审査和贷后管理。甲方还同意乙方和丙方将甲 方的个人信息和信用信息（包括不良信息）提供给金融信用信息基础数据库及其他依 法成立的征信机构。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "九、甲方、乙方、丙方约定的其他条款。具体约定见本合同第四十七条。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第二十五条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  合同争议解决方式"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "凡因本合同引起的或与本合同有关的任何争议，当事人可以通过协商解决；协商 不成，按照本合同第四十八条约定的方式解决。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "在诉讼或仲裁期间，本合同不涉及争议部分的条款仍需履行。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第二十六条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  合同的生效"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同同时满足以下条件后生效："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、甲方或其授权代理人签字；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、乙方加盖公章(或合同专用章)；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、丙方加盖公章(或合同专用章)；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、担保人(抵押人、或出质人)为自然人的，经担保人或其授权代理人签字；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、担保人为法人或其他组织的，加盖公章(或合同专用章)。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第二十七条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  合同的变更"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、本合同生效后，如需变更，经协商一致，须另行签订变更协议。本合同另有 约定的除外。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、对于甲方申请提前部分偿还贷款、提前还清全部贷款、变更委托扣款账号、 变更还款方式的，经乙方审批同意即可，对于乙方审批核定的结果本合同其他各方均"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "予以认可。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十八条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  合同的转让与承继"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、甲方转让本合同项下的权利义务，须经乙方、丙方和丁方书面同意。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、乙方转让本合同项下的权利义务，可书面通知甲方和丙方，但不须经甲方和 丙方同意。如因乙方发生机构或业务职能调整等原因由其他机构承继的，应由承继机 构书面通知甲方和丙方。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、丙方转让本合同项下的权利义务，须经乙方书面同意。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、乙方转让本合同项下的权利义务给丙方(须另行签订协议)，可书面通知甲方， 但不须经甲方同意。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第二十九条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  通知"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同任何一方当事人传递给其他各方的通知，须按本合同所列的通信地址、联 系电话或其他联系方式进行。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方、担保人通信地址、联系方式如有变动，应于发生变动之日起五个工作日内 以书面形式通知其他各方，因未及时通知而造成的法律后果由变动方承担。如甲方、 担保人未履行前述通知义务，在甲方、担保人出现违约情形或可能危及乙方和丙方债 权的情形时，甲方、担保人同意并授权乙方或乙方指定的贷后资产管理方和丙方通过 通信运营商获取甲方最新联系电话，并用于违约贷款的催收和管理工作。乙方或乙方 指定的贷后资产管理方和丙方按照本合同中记载的通讯地址、联系电话或传真（如有 变动，以有效书面通知指定的地址为准）发送相关书面函件、通知等，均视为已履行 送达义务。乙方或乙方指定的贷后资产管理方和丙方发生需通知甲方、担保人的事项 时，也可采用在乙方办公地点、丙方网点张贴公告、网上银行、电话银行、手机银行 等方式通知。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  合同份数  见本合同第四十九条。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "特别签订条款",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十一条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  借款人与贷款人约定的其他条款为："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、借款人提前部分还本的，提前还本金额必须为¥"
+                    },
+                    {
+                        "type": "text",
+                        "content": "10000",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "元以上。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、合同有效期内，如借款人本合同项下的房产发生继承、遗赠等法律行为，合 法继承人或受遗赠人应当承担借款人本合同项下的全部义务，包括偿还借款人尚未清 偿的全部贷款本息。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、因各种原因导致商品房买卖合同被确认无效或被撤销、被解除的，借款人及 其合法继承人或受遗赠人同意将商品房出卖人返还的已付房款及利息、商品房出卖人 赔偿的损失等，优先用于清偿本合同项下的借款债务。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "填写说明：按照实际情况填写，无内容处可直接在相应处填写“此栏空白 ”。 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "第三十二条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": " 立约人信息"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、借款人信息"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>借款人姓名</p><p>信息项目</p></td><td></td><td></td></tr><tr><td><p>证件类型</p></td><td></td><td></td></tr><tr><td><p>证件号码</p></td><td></td><td></td></tr><tr><td><p>住所</p></td><td></td><td></td></tr><tr><td><p>通信地址及邮政编码</p></td><td></td><td></td></tr><tr><td><p>联系电话</p></td><td></td><td></td></tr><tr><td><p>其他信息</p></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、委托人信息"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "委托人: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "安徽省省直住房公积金管理分中心",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "住 所 : "
+                    },
+                    {
+                        "type": "text",
+                        "content": "合肥市包河区芜湖路347号城市华庭B座1－3楼 ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "      通信地址及邮政编"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "码:"
+                    },
+                    {
+                        "type": "text",
+                        "content": " 230000 ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "联系电话："
+                    },
+                    {
+                        "type": "text",
+                        "content": "62870270",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  其他信息："
+                    },
+                    {
+                        "type": "text",
+                        "content": "此栏空白",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、贷款人（受托人）信息:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贷款人（受托人）: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "                   ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "通信地址及邮政编码: ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "联系电话："
+                    },
+                    {
+                        "type": "text",
+                        "content": "  62878581   ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、抵(质)押权人信息:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵（质）押权人:"
+                    },
+                    {
+                        "type": "text",
+                        "content": " 安徽省省直住房公积金管理分中心           ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "通信地址及邮政编码:合肥市包河区芜湖路347号城市华庭B座1-3楼 230061      ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "联系电话："
+                    },
+                    {
+                        "type": "text",
+                        "content": " 62878581    ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、保证人信息"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "保证人:"
+                    },
+                    {
+                        "type": "text",
+                        "content": " ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "通信地址及邮政编码： 联系电话:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "  ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、抵押人及配偶和共有人信息:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>抵押人姓名（或名称） 信息项目</p></td><td><p>抵押人： </p></td><td><p>抵押人配偶：</p></td><td><p>抵押物共有人：</p></td><td><p>抵押物共有人：</p></td></tr><tr><td><p>证件类型</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>证件号码</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>住所</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>通信地址及邮政编码</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>联系电话及传真</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>（法人或其他组织的）</p><p>法定代表人或负责人姓名</p></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>其他信息</p></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "七、出质人信息:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>抵押人姓名（或名称） 信息项目</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>证件类型</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>证件号码</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>住所</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>通信地址及邮政编码</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>联系电话及传真</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>（法人或其他组织的）</p><p>法定代表人或负责人姓名</p></td><td></td><td></td><td></td><td></td></tr><tr><td><p>其他信息</p></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十三条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第一条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方借款用于购买、建造、翻建、大修自住住房:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、房屋坐落:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                                                    ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、房屋建筑面积: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "   ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "平方米;套内建筑面积: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "     ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "平方米"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、成交价格:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "        ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "元;评估价值:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "                 ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "元"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、购房(施工)合同名称及编号: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "                       ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": ";"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "产权证书名称及编号: "
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                                 ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、售房人(施工方): "
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                           ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、房屋类型:  "
+                    },
+                    {
+                        "type": "text",
+                        "content": "          ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十四条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第二条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "甲方借款本金金额为人民币(小写)"
+                    },
+                    {
+                        "type": "text",
+                        "content": "        ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "元， (大写) "
+                    },
+                    {
+                        "type": "text",
+                        "content": "  元整           ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十五条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第三条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "借款期限为(大写) "
+                    },
+                    {
+                        "type": "text",
+                        "content": "              ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "个月 (即 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "       ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "年"
+                    },
+                    {
+                        "type": "text",
+                        "content": "     ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "月"
+                    },
+                    {
+                        "type": "text",
+                        "content": "  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "日至 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "      ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "年"
+                    },
+                    {
+                        "type": "text",
+                        "content": "     ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "月 "
+                    },
+                    {
+                        "type": "text",
+                        "content": "     ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "日)"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "借款期限起止日期按照本合同第三条借款期限的内容确定。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十六条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第四条第二款、第十六条第四款及第二十四条第四款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同罚息利率为本合同载明的贷款利率水平上加收"
+                    },
+                    {
+                        "type": "text",
+                        "content": "50",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "%。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十七条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第四条第一款、第三款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下的贷款利率当前为年利率"
+                    },
+                    {
+                        "type": "text",
+                        "content": "2.85  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "%，贷款利率调整执行下列第"
+                    },
+                    {
+                        "type": "text",
+                        "content": " ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "壹",
+                        "style": [
+                            "bold",
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": " ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "种:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "壹:借款期限在一年以内(含一年)的，在借款期限内，该利率保持不变；贷款期 限一年以上的，贷款利率调整日为每年的 1 月 1 日。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贰: 自贷款起息日起至贷款本息全部清偿之日按本合同约定的每个利率调整日调 整一次。"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十八条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": " 对第五条第二款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、甲方首付款金额为人民币(大写)"
+                    },
+                    {
+                        "type": "text",
+                        "content": "                  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、发放贷款的其他前提条件："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第三十九条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第五条第四款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同借款资金直接划入以下账户:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "账户名称:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "      \t\t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "账    号:"
+                    },
+                    {
+                        "type": "text",
+                        "content": " \t\t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "开户银行:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "     \t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "第四十条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第七条第二款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下借款的约定还款日为 : 每月20日，20日扣款失败的，将于当月月底最",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "后一日补扣一次。扣款日当天零点开始扣款",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十一条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第七条第三款的约定 甲方指定委托扣款账户为:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "账户名称："
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                                    ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "账   号:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "       \t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "开户银行:"
+                    },
+                    {
+                        "type": "text",
+                        "content": "   \t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "委托扣款提示手机号码为："
+                    },
+                    {
+                        "type": "text",
+                        "content": "                     ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十二条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "   对第七条第四款的约定 甲方的还款方式为下列"
+                    },
+                    {
+                        "type": "text",
+                        "content": "第",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "贰 ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "种",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": ":"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "壹:等额本息还款法。 贰:等额本金还款法。 叁:其他。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十三条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第十二条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同项下的担保方式为："
+                    },
+                    {
+                        "type": "text",
+                        "content": "抵押担保。\t",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "第四十四条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第十五条第一款的约定 质押权利清单:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>质押名称</p></td><td><p>数量</p></td><td><p>质押权利状况</p></td><td><p>权利凭证编号</p></td><td><p>抵押财产价值 （元）</p></td><td><p>抵押率(%)</p></td><td><p>备注</p></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十五条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第十四条第一款的约定 抵押财产清单:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>抵押财产名称</p></td><td><p>权属证书及其他有 关证书编号</p></td><td><p>坐落</p></td><td><p>建筑面积(平</p><p>方米)</p></td><td><p>抵押财产价值</p><p>（元）</p></td><td><p>抵押率(%)</p></td><td><p>备注</p></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十六条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第十三条第三款的约定  关于保证期间的约定为下列第"
+                    },
+                    {
+                        "type": "text",
+                        "content": "  贰  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "种:"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "壹:采用保证担保，保证期间为本合同保证条款生效之日起至本合同项下甲方的债 务履行期限届满之后两年止。乙方或丙方与甲方就合同项下债务宣布履行期限达成期 限变更协议的(如为债务展期，应经保证人同意)，保证期间至双方约定的新的债务履 行期限届满之日后两年止。 若乙方或丙方根据合同约定,宣布债务提前到期的，保证 期间至乙方或丙方宣布的债务提前到期日后两年止。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贰:采用抵押加阶段性保证担保，保证期间为本合同保证条款生效之日起至抵押登 记已办妥且抵押物他项权利证书、抵押登记证明文件正本及其他权利证书由抵押权人 或其授权代理人核对无误、收执之日止。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十七条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  第二十四条第九款的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1."
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                                  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "2. "
+                    },
+                    {
+                        "type": "text",
+                        "content": "                                                   ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "第四十八条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第二十五条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同的争议解决方式："
+                    },
+                    {
+                        "type": "text",
+                        "content": "乙方所在地人民法院起诉。",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "第四十九条",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "  对第三十条的约定"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本合同一式"
+                    },
+                    {
+                        "type": "text",
+                        "content": "  伍  ",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "份，具有同等法律效力。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "凡在本合同“第三十二条 立约人信息 ”中列明的当事人均应在本合同对应位置 签字盖章，不可缺漏。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "委托人（抵押权人/质权人） (公章或合同专用章):"
+                    }
+                ]
+            }
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "借款人或其授权代理人(签字):"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "借款人配偶或其授权代理人(签字):"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2025年2月11日"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "贷款人、受托人（组合贷款抵押权人/质权人） (公章或合同专用章)："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵押人为自然人的："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵押人或其授权代理人(签字)： 抵押人为法人或其他组织的："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "抵押人(公章或合同专用章)："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "出质人为自然人的："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "出质人或其授权代理人(签字)： 出质人为法人或其他组织的："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "出质人(公章或合同专用章)："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "保证人、贷后资产管理人(公章或合同专用章)："
+                    }
+                ]
+            }
+        }
+    ]
+]

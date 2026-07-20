@@ -1,0 +1,26 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "稳定生活保障证明"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "稳定生活保障证明可以是国内银行存款证明，也可以是直系亲属担保证明，也可以是工作单位收入证明。"
+                    }
+                ]
+            }
+        }
+    ]
+]

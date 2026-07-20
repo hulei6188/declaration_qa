@@ -1,0 +1,26 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "情况说明"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "该事项目前未办理过，暂无法提供该材料样本。"
+                    }
+                ]
+            }
+        }
+    ]
+]

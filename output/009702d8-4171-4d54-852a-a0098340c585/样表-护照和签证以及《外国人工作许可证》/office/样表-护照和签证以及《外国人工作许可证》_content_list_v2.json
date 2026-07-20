@@ -1,0 +1,75 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "图2-1-1护照示例（美国护照）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/ca09cd7ae8160f54ff95706c172539b0671c4a5d4b938d4be7a3e8c603212cf7.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/f3ca25b54e3e37168d4f56abc6e51cdf599d064a845f3fd172db733b21e55eca.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图2-1-2护照示例（英国护照）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/36b10e9e7d97cf02f818d1ffbac65c6a629c17f85f216a8d8276b770174e0430.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图2-2签证信息示例"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/eda393be78e1aa7a0775201e64f1eb1b05733b474fceaa0c465dea0e7c85ce33.png"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/8aa6ce8aaefc8ec49e600401b3d2ee6db691cf8187f470ce320aad6501095432.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图2-3《外国人工作许可证》示例"
+                    }
+                ]
+            }
+        }
+    ]
+]

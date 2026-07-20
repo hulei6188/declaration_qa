@@ -1,0 +1,90 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "附件 4"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                147,
+                92,
+                228,
+                114
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/0dc5260cdcf68bf98d9996fd655c323a8b2dc87c68fa391b3be7c0b7c0acaf96.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "造价工程师（水利工程）变更注册申请表"
+                    },
+                    {
+                        "type": "text",
+                        "content": "（□一级 ☑二级）"
+                    }
+                ],
+                "table_footnote": [
+                    {
+                        "type": "text",
+                        "content": "注：□位置请勾选符合条件的选项"
+                    }
+                ],
+                "html": "<table><tr><td rowspan=1 colspan=2>姓名</td><td rowspan=1 colspan=1>XXX</td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=2>男/女</td><td rowspan=1 colspan=2>出生年月</td><td rowspan=1 colspan=2>1995.07</td><td rowspan=4 colspan=1><img src=\"images/91f59e90d999871c7792b1b83319cf8aa5cfc744eeac6e1a80e0a26de0d1927d.jpg\"/></td></tr><tr><td rowspan=1 colspan=2>证件名称</td><td rowspan=1 colspan=8>☑身份证          □军官证        □其他</td></tr><tr><td rowspan=1 colspan=2>证件号码</td><td rowspan=1 colspan=2>3408XXXXXXXXXXXXXX</td><td rowspan=1 colspan=2>个人签名</td><td rowspan=1 colspan=4>XXX</td></tr><tr><td rowspan=1 colspan=3>注册证书编号</td><td rowspan=1 colspan=3>建[造]23233451000XXX</td><td rowspan=1 colspan=2>注册有效期届满时间</td><td rowspan=1 colspan=2>20XX-X-X</td></tr><tr><td rowspan=1 colspan=3>变更注册事项</td><td rowspan=1 colspan=8>☑执业单位变更        □单位名称变更</td></tr><tr><td rowspan=5 colspan=1>执业单位变更</td><td rowspan=1 colspan=2>原聘用单位名称</td><td rowspan=1 colspan=8>A 公司</td></tr><tr><td rowspan=4 colspan=1>现聘用单位情况</td><td rowspan=1 colspan=1>单位名称</td><td rowspan=1 colspan=8>B公司</td></tr><tr><td rowspan=1 colspan=1>统一社会信用代码</td><td rowspan=1 colspan=8>XXXXXXXXXXXXXXXXXXXX</td></tr><tr><td rowspan=1 colspan=1>通信地址</td><td rowspan=1 colspan=8>合肥市包河区 XX 路 XXX 号</td></tr><tr><td rowspan=1 colspan=1>工商登记地</td><td rowspan=1 colspan=4>合肥市</td><td rowspan=1 colspan=3>经办人手机号码</td><td rowspan=1 colspan=1>1234567XXXX</td></tr><tr><td rowspan=2 colspan=1>单位名称更变更</td><td rowspan=1 colspan=2>原名称</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=1 colspan=2>现名称</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=1 colspan=3>申请人手机号码</td><td rowspan=1 colspan=2>XXX</td><td rowspan=1 colspan=2>原注册地</td><td rowspan=1 colspan=2>蚌埠市</td><td rowspan=1 colspan=1>现注册地</td><td rowspan=1 colspan=1>合肥市</td></tr><tr><td rowspan=1 colspan=11>原聘用单位意见</td></tr><tr><td rowspan=1 colspan=11>负责人（签字）：XXX                 （公章）加盖公章                  20XX年X月X日</td></tr><tr><td rowspan=1 colspan=11>现聘用单位意见</td></tr><tr><td rowspan=1 colspan=11>负责人（签字）：XXX                  （公章）加盖公章                         20XX年X月X日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                94,
+                195,
+                902,
+                877
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/37b9dc72b91ea072fdc0fd52eb33da6ef7ef9bfe006a773961dfd4376343f6d4.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "造价工程师（水利工程）变更注册申请表"
+                    },
+                    {
+                        "type": "text",
+                        "content": "（□一级 ☑二级）"
+                    }
+                ],
+                "table_footnote": [
+                    {
+                        "type": "text",
+                        "content": "注：□位置请勾选符合条件的选项"
+                    }
+                ],
+                "html": "<table><tr><td rowspan=1 colspan=2>姓名</td><td rowspan=1 colspan=1>XXX</td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=2>男/女</td><td rowspan=1 colspan=2>出生年月</td><td rowspan=1 colspan=2>1995.07</td><td rowspan=4 colspan=1><img src=\"images/e1fdf610908c888e2f8d4f6dc2253561909efa700c39a2bd1009c435bbca9c96.jpg\"/></td></tr><tr><td rowspan=1 colspan=2>证件名称</td><td rowspan=1 colspan=8>身份证          □军官证        □其他</td></tr><tr><td rowspan=1 colspan=2>证件号码</td><td rowspan=1 colspan=2>3408XXXXXXXXXXXXXX</td><td rowspan=1 colspan=2>个人签名</td><td rowspan=1 colspan=4>XXX</td></tr><tr><td rowspan=1 colspan=3>注册证书编号</td><td rowspan=1 colspan=3>建[造]23233451000XXX</td><td rowspan=1 colspan=2>注册有效期届满时间</td><td rowspan=1 colspan=2>20XX-X-X</td></tr><tr><td rowspan=1 colspan=3>变更注册事项</td><td rowspan=1 colspan=8>□执业单位变更       单位名称变更</td></tr><tr><td rowspan=5 colspan=1>执业单位变更</td><td rowspan=1 colspan=2>原聘用单位名称</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=4 colspan=1>现聘用单位情况</td><td rowspan=1 colspan=1>单位名称</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=1 colspan=1>统一社会信用代码</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=1 colspan=1>通信地址</td><td rowspan=1 colspan=8></td></tr><tr><td rowspan=1 colspan=1>工商登记地</td><td rowspan=1 colspan=4></td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=2 colspan=1>单位名称变更</td><td rowspan=1 colspan=2>原名称</td><td rowspan=1 colspan=8>A公司</td></tr><tr><td rowspan=1 colspan=2>现名称</td><td rowspan=1 colspan=8>B公司</td></tr><tr><td rowspan=1 colspan=3>申请人手机号码</td><td rowspan=1 colspan=2>XXX</td><td rowspan=1 colspan=2>原注册地</td><td rowspan=1 colspan=2>合肥市</td><td rowspan=1 colspan=1>现注册地</td><td rowspan=1 colspan=1>合肥市</td></tr><tr><td rowspan=1 colspan=11>原聘用单位意见</td></tr><tr><td rowspan=1 colspan=11>负责人（签字）：                       （公章）                                         年月日</td></tr><tr><td rowspan=1 colspan=11>现聘用单位意见</td></tr><tr><td rowspan=1 colspan=11>负责人（签字）：XXX                  （公章）加盖公章                         20XX年X月X日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                94,
+                156,
+                902,
+                840
+            ]
+        }
+    ]
+]

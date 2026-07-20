@@ -1,0 +1,395 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "清算报告应当载明的内容",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、公司的基本情况；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、公司清算的截止日期；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3、公司开业以来的经营盈亏情况；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4、公司的债权债务情况；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5、公司的完税情况；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "6、股东会决议公司解散后，清算组按照《公司法》履行注销登记程序的过程以及在报刊或者网站上刊登公告的时间；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "7、清算组按照清算顺序（1、清算费用2、职工工资和劳动保险费用3、缴纳所欠税款4、清偿公司债务5、股东按出资比例分配剩余财产）对公司财产进行清算的情况；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "8、清算报告应当由公司清算组的全体人员亲笔签名；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "9、公司解散时，股东尚未缴纳的出资均应作为清算财产。股东尚未缴纳的出资，包括到期应缴未缴的出资，以及依照公司法第四十七条、第四十九条和第九十六条的规定分期缴纳尚未届满缴纳期限的出资。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "安徽",
+                        "style": [
+                            "bold"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "####"
+                    },
+                    {
+                        "type": "text",
+                        "content": "有限公司",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "清算报告",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（一）清算工作基本情况："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、安徽**有限公司的公司性质是有限责任公司，成立时间是**年**月**日，注册资本是**万元，没有分支机构及对外投资，出资情况："
+                    },
+                    {
+                        "type": "hyperlink",
+                        "content": "芦**",
+                        "url": "http://10.0.1.10:9083/topbirt/run?__report=%252Fgdml%2erptdesign&fqid=340300000019908834&id=340300000019908834&__overwrite=true"
+                    },
+                    {
+                        "type": "text",
+                        "content": "出资**万元，"
+                    },
+                    {
+                        "type": "hyperlink",
+                        "content": "卢**",
+                        "url": "http://10.0.1.10:9083/topbirt/run?__report=%252Fgdml%2erptdesign&fqid=340300000019908836&id=340300000019908836&__overwrite=true"
+                    },
+                    {
+                        "type": "text",
+                        "content": "出资**万，已全部缴到位。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、公司注销的原因。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3、清算组的成立情况。（清算组成立时间、清算组成员的组成及清算组成员的身份、职务）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4、公告的情况。（公告的时间、方式、网上或报纸类别）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（二）发起人认购的出资是否已全部足额到位"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（三）清算公司财产状况（清算开始日期：###年###月####日，清算结止日期：###年###月####日，财产构成包括：货币资产、实物资产、其他资产）。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（四）清算公司债权、债务的审定情况："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、债权的追收情况及对未收债权的处理情况：（有债权或无债权）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、债务的申报、审定情况：（有债务或无债务）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（五）清算财产分配情况："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、清算费用是多少元，职工工资是否已支付；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、海关、税务部门税款是否完税；（有无欠税）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3、公司债务的清偿情况；（有无债务）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4、投资人或股东的分配情况；（公司剩余资产是否已按股东投资比例全部返还股东）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（六）、清算其它情况："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1、公司帐本及营业、清算的重要文件，由"
+                    },
+                    {
+                        "type": "text",
+                        "content": "×××有限公司投资人",
+                        "style": [
+                            "underline"
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "content": "保存十年，本公司投资人承诺予以妥善保存。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、投资人保证企业债务已清偿完毕，所报清算备案材料真实、完整，并承担由此产生的一切责任。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "清算组成员签名："
+                    }
+                ]
+            }
+        }
+    ]
+]

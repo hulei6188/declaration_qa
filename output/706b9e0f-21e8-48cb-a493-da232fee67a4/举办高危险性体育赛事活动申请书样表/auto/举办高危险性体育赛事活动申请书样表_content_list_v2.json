@@ -1,0 +1,80 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "附件 2"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                147,
+                92,
+                228,
+                114
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "举办高危险性体育赛事活动申请书"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                267,
+                162,
+                729,
+                190
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/d691a47fc9cc620bc0482f21ec639036d5b9e7991988bb78a0786a7158fd559d.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td colspan=\"4\" rowspan=\"1\">拟举办高危险性体育赛事活动</td></tr><tr><td colspan=\"1\" rowspan=\"1\">名称</td><td colspan=\"1\" rowspan=\"1\">XXX</td><td colspan=\"1\" rowspan=\"1\">时间</td><td colspan=\"1\" rowspan=\"1\">XXX. XX.XX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">地点</td><td colspan=\"3\" rowspan=\"1\">XXXXXXXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">规模</td><td colspan=\"3\" rowspan=\"1\">XXXXXXXX</td></tr><tr><td colspan=\"4\" rowspan=\"1\">赛事活动主办方、承办方、协办方信息</td></tr><tr><td colspan=\"1\" rowspan=\"1\">主办方名称及法定代表人姓名</td><td colspan=\"3\" rowspan=\"1\">XXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">主办方联系人</td><td colspan=\"1\" rowspan=\"1\">XXX</td><td colspan=\"1\" rowspan=\"1\">联系电话</td><td colspan=\"1\" rowspan=\"1\">XXXXXXXXXXXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">承办方名称及法定代表人姓名</td><td colspan=\"3\" rowspan=\"1\">XXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">承办方联系人</td><td colspan=\"1\" rowspan=\"1\">XXX</td><td colspan=\"1\" rowspan=\"1\">联系电话</td><td colspan=\"1\" rowspan=\"1\">XXXXXXXXXXXXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">协办方名称及法定代表人姓名</td><td colspan=\"3\" rowspan=\"1\">XXX</td></tr><tr><td colspan=\"1\" rowspan=\"1\">协办方联系人</td><td colspan=\"1\" rowspan=\"1\">XXX</td><td colspan=\"1\" rowspan=\"1\">联系电话</td><td colspan=\"1\" rowspan=\"1\">XXXXXXXXXXXXX</td></tr><tr><td colspan=\"4\" rowspan=\"1\">参赛条件：XXXX</td></tr><tr><td colspan=\"4\" rowspan=\"1\">申请材料清单：XXXX</td></tr><tr><td colspan=\"4\" rowspan=\"1\">保密要求：XXX</td></tr><tr><td colspan=\"4\" rowspan=\"1\">本申请书及所附申请材料均真实、合法，复印件与原件一致。如有不实之处，申请单位承担由此造成的法律后果。申请单位（盖章）：XXX法定代表人（签字）：XXXXXX 年 XXX 月 XXX 日</td></tr><tr><td colspan=\"1\" rowspan=\"1\">材料是否齐全经办人员：XXXX年XX月XX日</td><td colspan=\"1\" rowspan=\"1\">实地核查意见经办人员：XXXX 年 XX月 XX 日</td><td colspan=\"2\" rowspan=\"1\">体育行政部门意见(公章)XX年XX月 XX 日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                139,
+                233,
+                858,
+                882
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                139,
+                85,
+                858,
+                875
+            ]
+        }
+    ]
+]

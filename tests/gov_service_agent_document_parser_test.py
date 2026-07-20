@@ -247,7 +247,8 @@ def test_dashscope_qwen_ocr_uses_compatible_chat_endpoint(monkeypatch):
     content = captured["json"]["messages"][0]["content"]
     assert content[0]["type"] == "image_url"
     assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
-    assert "只输出识别到的正文" in content[1]["text"]
+    prompt = content[1]["text"]
+    assert prompt == "请提取图片中的全部文字。"
 
 
 def make_docx(document_xml: str) -> bytes:

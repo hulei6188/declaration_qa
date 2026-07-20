@@ -1,0 +1,1064 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "股份有限公司"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                531,
+                229,
+                746,
+                254
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "水资源论证报告"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                292,
+                350,
+                699,
+                392
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "(报批稿)"
+                    }
+                ]
+            },
+            "bbox": [
+                447,
+                419,
+                545,
+                439
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "公司"
+                    }
+                ]
+            },
+            "bbox": [
+                630,
+                804,
+                681,
+                825
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二〇一二年十月"
+                    }
+                ]
+            },
+            "bbox": [
+                416,
+                828,
+                594,
+                848
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "目 录"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                457,
+                89,
+                540,
+                110
+            ]
+        },
+        {
+            "type": "index",
+            "content": {
+                "list_type": "text_list",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.总论.."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.1 项目来源.... …"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.2.1论证目的.……."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.2.2 论证任务……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.3 编制依据."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.3.1 国家法律法规...."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.3.2 省部级文件..."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.3.3 技术标准."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.3.4 参考资料..."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.4 取水规、取水水源与取水地点"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.4.1 取水规模……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.4.2 取水水源与取水地点..."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.5 工作等级...."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.6 分析范围与论证范.."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.7 水平年.... ..8"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "1.8 论证委托书，委托单位与承担单位.. .. 8"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.建设项目概况...."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.1 建设项目名称及项目性质.……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.2 建设地点、占地面积和土地利用情况………"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.3建设规模..."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.4 建设项目业主提出的取用水方案……… .. 10"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.4.1 取水方案……… .. 10"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.4.2 用水方案……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.4.3 用水量.... .....11"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.5 建设项目业主提出的退水方案………"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.5.1 废水来源及排水量…… ...11"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.5.2 废水处理方案及退水水质… .….. 12"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "2.5.3 退水途径 … 12"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": ".... 14"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1 基本情况... .... 14"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1.1 流域及水系概况………"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1.2 自然地理.... .... 15"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1.3 社会经济.... ……15"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1.4 水文气象"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.1.5 区域地质.... .... 18"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.2 水资源状况及其开发利用分析.… .19"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.2.1 水资源总量 ... 19"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.2.2 过境水资源量.. ... 20"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.2.3 水功能区划概况………"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.2.4 水资源开发利用分析..... .. 21"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "3.3 区域水资源开发利用存在的主要问题. .. 22"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "4.1 取水合理性分析24"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "4.2用水合理性分析25"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "4.2.1 给水25"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "4.3 节水潜力与节水措施分析…28"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.取水水源论证…"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.2 依据的资料30"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.3 来水量分析……… ……30"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.3.2 区间主要支流径流特性分析…32"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.3.3 区间取、退水量分析…34"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.4 用水量分析.… ……34"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.6 取水口合理性分析36"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.6.2 取水口区域河岸稳定性分析…… 37"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.6.3 水位分析.... …38"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "5.7 取水可靠性与可行性分析39"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "6.取水影响分析."
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "6.3 结论… ……40"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.退水影响分析……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.1 退水系统及组成41"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.1.2 生活污水 41"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.2.1 退水水质41"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.3 退水对水环境影响… … 42"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.3.1 对排洪沟、扫帚沟水环境影响……42"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.3.2 对长江水环境影响43"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "7.4 退水对水功能区和第三者的影响…43"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "8.1 工程措施……… …45"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "8.2 非工程措施……. …………………………………………………………………………………… 46"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "9.1 补偿原则…… …47"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "9.2 补偿方案建议……"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "10.建设项目水资源论证结论与建议…………………"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "bbox": [
+                135,
+                114,
+                866,
+                902
+            ]
+        }
+    ],
+    [
+        {
+            "type": "index",
+            "content": {
+                "list_type": "text_list",
+                "list_items": []
+            },
+            "bbox": [
+                116,
+                78,
+                849,
+                916
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "10.建设项目水资源论证结论与建议"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                17,
+                92,
+                557,
+                120
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "10.1 取用水的合理性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                15,
+                142,
+                286,
+                165
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "（1）取水合理性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                69,
+                177,
+                244,
+                196
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "从国家及地方发展规划、产业政策要求、技术及企业自身发展需要等方面考虑，本项目建设是必要的，该项目取水是合理的。"
+                    }
+                ]
+            },
+            "bbox": [
+                11,
+                206,
+                865,
+                253
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本项目以长江过境水量作为水源，长江水量、水质均满足项目用水要求；取水口设置在长江左岸枞阳工业农业用水区，满足水功能区划的要求，符合区域开发利用保护的总体规划。项目年取水量679.8万m³是合理的。"
+                    }
+                ]
+            },
+            "bbox": [
+                9,
+                261,
+                869,
+                337
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(2) 用水合理性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                63,
+                343,
+                238,
+                362
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "通过对建设项目的用水工艺和水量平衡分析，其主要用水、退水工艺的清洁生产达到国内同行业先进水平，并具有可行性；本项目生产和生活用水指标优于产业用水定额标准和同行业类似项目用水指标。由此可见，本项目是节水性系统，用水合理。"
+                    }
+                ]
+            },
+            "bbox": [
+                5,
+                372,
+                867,
+                453
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "10.2 取水水源的可靠性与可行性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                5,
+                466,
+                421,
+                488
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(1）取水水量的可靠性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                59,
+                499,
+                305,
+                518
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本项目直接从长江取水，项目取水量（20600m³/d，合0.24m³/s）约占长江历史最小过境水资源量（1979年，4620m³/s）的1/20000，长江过境水资源量可以满足建设项目取水量的要求。在规划水平年内，即使上游来水有所减少，长江来水量也足以满足本项目取水量。"
+                    }
+                ]
+            },
+            "bbox": [
+                1,
+                527,
+                861,
+                631
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "(2) 取水水质的可靠性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                55,
+                638,
+                300,
+                658
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "从水质监测结果可看出，水质监测指标基本上达到《地表水环境质量标准》中Ⅱ~III类水质标准，可以满足建设项目对水质的要求。"
+                    }
+                ]
+            },
+            "bbox": [
+                0,
+                667,
+                857,
+                715
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "（3) 取水可行性"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                53,
+                722,
+                228,
+                740
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "建设项目取水口段河势稳定，水流常年贴岸，已实施护岸工程，岸坡较稳定，近期岸坡以微冲为主，变化幅度不大，适合取水口建设。长江大通站历年最低水位1.25m(黄海，下同)，内插至取水口处历年最低水位约为1.55m。本项目采用长轴深井泵形式取水，取水钢管管口高程为黄海-0.7m，取水头部有足够的水深满足建设项目取水要求，项目取水可行。"
+                    }
+                ]
+            },
+            "bbox": [
+                0,
+                750,
+                855,
+                882
+            ]
+        },
+        {
+            "type": "page_header",
+            "content": {
+                "page_header_content": [
+                    {
+                        "type": "text",
+                        "content": "10建设项目水资源论证结论与建议"
+                    }
+                ]
+            },
+            "bbox": [
+                626,
+                64,
+                875,
+                78
+            ]
+        },
+        {
+            "type": "page_aside_text",
+            "content": {
+                "page_aside_text_content": []
+            },
+            "bbox": [
+                965,
+                475,
+                982,
+                686
+            ]
+        },
+        {
+            "type": "page_number",
+            "content": {
+                "page_number_content": [
+                    {
+                        "type": "text",
+                        "content": "48"
+                    }
+                ]
+            },
+            "bbox": [
+                801,
+                945,
+                826,
+                958
+            ]
+        }
+    ]
+]

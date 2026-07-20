@@ -1,0 +1,61 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "船舶建造检验申请表",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"7\"><p>兹向贵局申请对以下船舶按法规要求进行检验</p></td></tr><tr><td colspan=\"2\"><p>船    名</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船 籍 港</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶建造厂</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船舶类型</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶所有人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>设计总吨位</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶经营人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>主机总功率</p></td><td></td></tr><tr><td colspan=\"2\"><p>图纸设计单位</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船体材料</p></td><td></td></tr><tr><td colspan=\"2\"><p>图   号</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>航    区</p></td><td></td></tr><tr><td colspan=\"2\"><p>图纸批准号</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>建造类型</p></td><td><p>□新建   □改建</p></td></tr><tr><td colspan=\"7\"><p>申请人承诺：</p><p>我们保证提交的资料真实可靠，并按批准图纸建造船舶。</p><p>我们保证按规定支付检验费用：包括检验费和船舶检验人员为执行检验工作所必需的差旅费和其它开支。即使此项检验未能由你局完成，我们也同意根据已进行的工作按比例向你局支付相应的费用。</p><p>其它说明：</p><p>                                  申请单位盖章（或签名）</p><p>                                                       日期：        年     月     日</p></td></tr><tr><td><p>联 系 人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>电  话</p></td><td colspan=\"2\"></td></tr><tr><td><p>联系地址</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>邮  编</p></td><td colspan=\"2\"></td></tr><tr><td><p>证书领取人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>领取日期</p></td><td colspan=\"2\"></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "船舶营运检验申请表",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"7\"><p>兹向贵局申请对以下船舶按法规要求进行检验</p></td></tr><tr><td colspan=\"2\"><p>船    名</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船检登记号</p></td><td></td></tr><tr><td colspan=\"2\"><p>船 籍 港</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船舶类型</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶所有人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>总吨位</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶经营人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>主机总功率</p></td><td></td></tr><tr><td colspan=\"2\"><p>船舶修造厂</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>船体材料</p></td><td></td></tr><tr><td colspan=\"2\"><p>检验地点</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>预约检验时间</p></td><td></td></tr><tr><td colspan=\"7\"><p>注：检验类别为初次检验</p></td></tr><tr><td colspan=\"7\"><p>申请人承诺：</p><p>我们保证提交的资料真实可靠。</p><p>我们保证按规定支付检验费用：包括检验费和船舶检验人员为执行检验工作所必需的差旅费和其它开支。即使此项检验未能由你局完成，我们也同意根据已进行的工作按比例向你局支付相应的费用。</p><p>其它说明：</p><p>                                  申请单位盖章（或签名）</p><p>                                                       日期：        年     月     日</p></td></tr><tr><td><p>联 系 人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>电  话</p></td><td colspan=\"2\"></td></tr><tr><td><p>联系地址</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>邮  编</p></td><td colspan=\"2\"></td></tr><tr><td><p>证书领取人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>领取日期</p></td><td colspan=\"2\"></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "page_header",
+            "content": {
+                "page_header_content": [
+                    {
+                        "type": "text",
+                        "content": "QP／XX-05-2016-01 船舶建造检验工作程序"
+                    }
+                ]
+            }
+        }
+    ]
+]

@@ -1,0 +1,924 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "取 水 许 可 申 请 书"
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "申请人（盖章）"
+                    },
+                    {
+                        "type": "text",
+                        "content": "                      ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "申请日期"
+                    },
+                    {
+                        "type": "text",
+                        "content": "                            ",
+                        "style": [
+                            "underline"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "中华人民共和国水利部监制"
+                    }
+                ],
+                "level": 1
+            }
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "填表说明",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "1.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "申请人",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "：申请取水的单位或个人名称，包括法人、公民和其他组织（非法人组织）。单位名称应与注册登记信息一致，个人（公民）名称应与身份证信息一致。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "2.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "统一社会信用代码（身份证号码）",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "：申请人为法人或其他组织时，填写其统一社会信用代码；申请人为个人（公民）时，填写其身份证号码。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "3.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "法定代表人：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "申请人为法人或其他组织时，填写法定代表人；申请人为个人（公民）时，不填。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "4.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "住所（住址）：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "单位按工商或事业单位登记机关登记的注册地址填写，应与注册登记信息一致；个人填写身份证载明的住址。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "5.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "邮编：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "住所（住址）所在行政区域的邮政编码。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "6.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "生产经营场所地址：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "填写申请人生产经营的地点，填至具体街道、小区门牌号。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "7.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "行业类别：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "按照国民经济行业分类标准GB/T 4754—2017的中类填写。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "8.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "用水管理部门：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "取水单位的用水管理部门名称，取水个人不填。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "9.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "联系人：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "取用水管理部门对外沟通、联系的固定人员的姓名；申请人为个人时，填写其本人。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "10.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "手机号码：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "联系人的常用手机号码。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "11.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "共同申请人：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "如有共同申请人，填写共同申请人的信息，包括单位名称（个人姓名）、统一社会信用代码（身份证号码）及对应享有的份额。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "12.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "项目名称：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "填写新建、改建、扩建的建设项目名称；其他可不填。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "13.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "项目性质：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "按照新建、改建、扩建、其他进行勾选。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "14.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "项目概况：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "简要说明项目的建设内容、建设规模、投资情况、地理位置、生产地点等基本情况。工业项目应说明主要产品、设计年生产规模、计划投产时间等；农业项目应说明受益或供水范围、设计灌溉面积、主要作物品种及产量；发电项目应说明发电类型、机组台数与装机容量、设计年发电量、设计年利用小时等。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "15.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "运行期年取水量：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "项目运行期所有取水水源的年总取水量，单位为万m"
+                            },
+                            {
+                                "type": "text",
+                                "content": "3",
+                                "style": [
+                                    "superscript"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "/年。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "16.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "施工期取水量：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "项目施工期内申请的所有取水水源的取水总量，单位为万m"
+                            },
+                            {
+                                "type": "text",
+                                "content": "3",
+                                "style": [
+                                    "superscript"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "17.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "水源类型：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "分为地表水、地下水和其他。取用地下水的，如为矿泉水或地热水，需进一步勾选相关类型；勾选“其他”的，应写明具体水源类型。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "18.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "取水地点：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "填写取水工程（设施）取水口所在行政区（写至村/社区）。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "19.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "取水口位置：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "取水水源为地表水的，填写江河/湖泊/水库名称+相对位置，例如，**水库坝上/坝下；**河**桥下游左岸**米；**湖**岸段；**工程**段。取水水源为地下水的，说明水井的具体位置或范围。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "20.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "取水量：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "申请的单个水源的取水量，单位为万m"
+                            },
+                            {
+                                "type": "text",
+                                "content": "3",
+                                "style": [
+                                    "superscript"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "/年。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "21.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "取水工程（设施）类型：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "分为闸、坝、渠道、人工河道、虹吸管、水泵、水井、水电站以及其他，根据实际情况可多选。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "22.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "水源n:",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "如有多个水源，根据取水量的大小，从大到小，按照水源1的表格内容填写各个水源的信息。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "23.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "申请事由：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "说明申请取水缘由，取水事项的基本情况、取水用途、具备申请取水许可的依据、是否符合国家和地方相关产业政策等。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "24.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "申请取水起始时间：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "取水工程预计竣工开始取水的时间，填写年月日。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "25.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "期限：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "根据实际情况填写。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "26.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "取水用途：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "指取水的使用范围、方面。主要包括制水供水、原水供水、河道内生产用水（水力发电、航运、河道内养殖、河道内其他）、生活用水、工业用水〔一般工业用水、火（核）电用水和其他电力生产用水〕、农业用水、林业用水、畜牧业用水、渔业用水、建筑业用水、服务业用水、生态用水、其他用水（水源热泵、施工降水、其他）。按实际取水用途填写，该取水同时具有多种用途时，应逐项点选。"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "1.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "制水供水是指城乡公共供水企业取原水按照国家标准生产自来水，利用管网供给城乡居民和企事业单位等。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "2.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "原水供水是指取水单位直接从江河、湖泊或地下取水，不作制水加工，直接供给其他企业生产、城市自来水公司等。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "3.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "河道内生产用水是指在江河、湖泊等水域兴建的用于水力发电、航运、河道内养殖以及其他河道内取水，勾选其他时应注明具体用途。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "4.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "生活用水是指城镇生活用水和农村生活用水（含工业、农业生产过程中所需的生活用水）。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "5.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "建筑业用水是指土木工程、房屋建设和设备安装等用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "6.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "服务业用水是指服务业单位从事经营活动用水，服务业包括交通运输、仓储和邮政业，信息传输、软件和信息技术服务业，租赁和商务服务业，科学研究和技术服务业，水利、环境和公共设施管理业，教育，卫生和社会工作;以及物业管理、房地产中介服务、自有房地产经营活动和其他房地产业等。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "7.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "工业用水是指工业企业生产用水，含附属生产用水和辅助生产用水。其中火（核）电用水和其他电力生产用水单独勾选。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "8.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "农业用水是指各种农作物的种植灌溉用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "9.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "林业用水是指林业灌溉用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "10.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "畜牧业用水是指为了获得各种畜禽产品的用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "11.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "渔业用水是指各种水生动植物的养殖用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "12.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "生态用水是指直接从江河、湖泊或地下取水，为其他河湖、湿地等补水；以及城乡市政、厂区、场区、园区、校区等区域环境（绿地灌溉）、卫生、清洁用水。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "13.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "其他用水包括水源热泵、施工降水、其他类型用水，按照实际取水用途勾选，勾选其他时应注明具体用途。"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "27.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "计量方式：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "包括管道计量方式、明渠计量方式、其他折算方式。"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（1）管道计量方式包括：包括机械水表、电子远传水表、电磁流量计、超声波流量计、其他，选其他计量方式时应注明具体方式；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（2）明渠计量方式包括：包括水工建筑物法（上下游水位加闸门开度）、堰槽（单水位）、规则断面单水位推流、规则断面单水位加流速仪推流、走航式ADCP、水平式ADCP（H-ADCP）、坐底式二线能坡法、超声波时差法、表面流速法、其他，选其他计量方式时应注明具体方式；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（3）其他折算方式包括：泵站机组效率曲线折算、发电机组效率曲线折算、行政单元机电井群以电折水（根据单元内抽水总用电量及地下水平均埋深折算）、其他，其他折算应注明具体折算方式。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "list",
+            "content": {
+                "list_type": "text_list",
+                "attribute": "ordered",
+                "list_items": [
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "28.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "年退水量：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "取用水户用水后，直接或通过沟、渠、管道等设施对外排放的污水量，单位为万m"
+                            },
+                            {
+                                "type": "text",
+                                "content": "3",
+                                "style": [
+                                    "superscript"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "；如项目无退水，填写0。对于水库、引调水工程以及水电站等河道内用水，年退水量及以下内容无须填写。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "29.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "退水方式和排放去向：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "分为企业污水处理厂处理、公共污水收集管网、达标处理后直接排入江河湖库、其他，选其他时应注明具体退水情况；无退水的，不填此项。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "30.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "受纳水体名称：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "退水排入河湖的，填写排入河湖的水功能区具体名称；退水排入污水处理厂或公共污水管网的，或者无退水的，不填此项。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "31.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "受纳水体功能目标：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "退水排入河湖的，填写排入的水功能区的水质目标，I～V类；退水排入污水处理厂或公共污水管网的，或者无退水的，不填此项。"
+                            }
+                        ]
+                    },
+                    {
+                        "item_type": "text",
+                        "ilevel": 0,
+                        "prefix": "32.",
+                        "item_content": [
+                            {
+                                "type": "text",
+                                "content": "退水地点：",
+                                "style": [
+                                    "bold"
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "content": "退水排入河湖的，填写排入河湖的具体位置。"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td rowspan=\"9\"><p>申请人基本情况</p></td><td colspan=\"2\"><p>统一社会信用代码（身份证号码）</p></td><td colspan=\"3\"></td><td colspan=\"3\"><p>法定代表人</p></td><td colspan=\"3\"></td></tr><tr><td colspan=\"2\"><p>住所（住址）</p></td><td colspan=\"3\"></td><td colspan=\"3\"><p>邮    编</p></td><td colspan=\"3\"></td></tr><tr><td colspan=\"2\"><p>生产经营场所地址</p></td><td colspan=\"9\"><p>      省（自治区、直辖市）      市（区）      县（区、市）      乡（镇、街道）        村（社区）    号</p></td></tr><tr><td colspan=\"2\"><p>行业类别</p></td><td colspan=\"3\"></td><td colspan=\"3\"><p>用水管理部门</p></td><td colspan=\"3\"></td></tr><tr><td colspan=\"2\"><p>联系人</p></td><td colspan=\"3\"></td><td colspan=\"3\"><p>联系人手机号码</p></td><td colspan=\"3\"></td></tr><tr><td colspan=\"2\" rowspan=\"2\"><p>共同申请人1</p></td><td colspan=\"3\"><p>单位名称（个人姓名）</p></td><td colspan=\"3\"></td><td colspan=\"2\"><p>份额</p></td><td><p>%</p></td></tr><tr><td colspan=\"3\"><p>统一社会信用代码</p><p>（身份证号码）</p></td><td colspan=\"6\"></td></tr><tr><td colspan=\"2\" rowspan=\"2\"><p>共同申请人n</p></td><td colspan=\"3\"><p>单位名称（个人姓名）</p></td><td colspan=\"3\"></td><td colspan=\"2\"><p>份额</p></td><td><p>%</p></td></tr><tr><td colspan=\"3\"><p>统一社会信用代码</p><p>（身份证号码）</p></td><td colspan=\"6\"></td></tr><tr><td rowspan=\"3\"><p>项目基本情况</p></td><td colspan=\"2\"><p>项目名称</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"2\"><p>项目性质</p></td><td colspan=\"9\"><p>□新建    □改建、扩建    □其他</p></td></tr><tr><td colspan=\"2\"><p>项目概况</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"3\"><p>运行期年取水量（合计）</p></td><td colspan=\"9\"></td></tr><tr><td rowspan=\"5\"><p>水源1</p></td><td colspan=\"2\"><p>水源类型</p></td><td colspan=\"9\"><p>□地表水       □地下水（□矿泉水  □地热水）   □其他            </p></td></tr><tr><td colspan=\"2\"><p>取水地点</p></td><td colspan=\"9\"><p>    省（自治区、直辖市）    市（区）    县（区、市）    乡（镇、街道）    村（组）</p></td></tr><tr><td colspan=\"2\"><p>取水口位置</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"2\"><p>年取水量</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"2\"><p>取水工程（设施）类型（可多选）</p></td><td colspan=\"9\"><p>□闸 □坝  □渠道 □人工河道 □虹吸管 □水泵 □水井 □水电站 </p><p>□其他</p></td></tr><tr><td><p>...</p></td><td colspan=\"11\"><p>...</p></td></tr><tr><td><p>水源n</p></td><td colspan=\"11\"><p>（同上）</p></td></tr><tr><td colspan=\"4\"><p>施工期起止时间</p></td><td colspan=\"8\"><p>从    年    月    日至    年    月    日</p></td></tr><tr><td colspan=\"4\"><p>施工期取水量（合计）</p></td><td colspan=\"8\"><p>施工期取水量可不按年取水量填写，按施工期的总取水量填写</p></td></tr><tr><td colspan=\"2\" rowspan=\"5\"><p>水源1</p></td><td colspan=\"2\"><p>水源类型</p></td><td colspan=\"8\"><p>□地表水       □地下水（□矿泉水  □地热水）   □其他            </p></td></tr><tr><td colspan=\"2\"><p>取水地点</p></td><td colspan=\"8\"><p>    省（自治区、直辖市）    市（区）    县（区、市）    乡（镇、街道）    村（组）</p></td></tr><tr><td colspan=\"2\"><p>取水口位置</p></td><td colspan=\"8\"></td></tr><tr><td colspan=\"2\"><p>取水量</p></td><td colspan=\"8\"></td></tr><tr><td colspan=\"2\"><p>取水工程（设施）类型（可多选）</p></td><td colspan=\"8\"><p>□闸 □坝  □渠道 □人工河道 □虹吸管 □水泵 □水井 □水电站 </p><p>□其他</p></td></tr><tr><td colspan=\"2\"><p>...</p></td><td colspan=\"10\"><p>...</p></td></tr><tr><td colspan=\"2\"><p>水源n</p></td><td colspan=\"10\"><p>（同上）</p></td></tr><tr><td colspan=\"3\"><p>申请事由</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"3\"><p>申请取水起始时间</p></td><td colspan=\"5\"><p>   年     月     日</p></td><td colspan=\"2\"><p>期限</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"3\"><p>取水用途</p><p>（可多选）</p></td><td colspan=\"9\"><p>□制水供水 □原水供水 </p><p>□河道内生产用水（□水力发电 □航运 □河道内养殖 □河道内其他      ）</p><p>□生活用水 □建筑业用水 □服务业用水 </p><p>□工业用水〔□一般工业用水 □火（核）电和其他电力生产用水〕 </p><p>□农业用水 □林业用水 □畜牧业用水 □渔业用水 </p><p>□生态用水 □其他用水（□水源热泵 □施工降水 □其他     ）</p></td></tr><tr><td colspan=\"3\" rowspan=\"4\"><p>计量方式</p></td><td colspan=\"2\"><p>□管道计量</p></td><td colspan=\"7\"><p>□机械水表 □电子远传水表 □电磁流量计 □超声波流量计 □其他         </p></td></tr><tr><td colspan=\"2\"><p>□明渠计量</p></td><td colspan=\"7\"><p>□水工建筑物法 □流速面积法 □堰槽 </p><p>□规则断面单水位推流 □规则断面单水位加流速仪推流 □走航式ADCP □水平式ADCP（H-ADCP）</p><p>□坐底式二线能坡法 □超声波时差法 </p><p>□表面流速法 </p><p>□其他         </p></td></tr><tr><td colspan=\"2\"><p>□其他折算方式</p></td><td colspan=\"7\"><p>□泵站机组效率曲线折算</p><p>□发电机组效率曲线折算</p><p>□行政单元机电井群以电折水</p><p>□其他         </p></td></tr><tr><td colspan=\"2\"><p>数据传输</p><p>方式</p></td><td colspan=\"7\"><p>□在线      □非在线</p></td></tr><tr><td colspan=\"3\"><p>年退水量</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"3\" rowspan=\"7\"><p>退水方式和排放去向</p></td><td colspan=\"4\" rowspan=\"2\"><p>□企业污水处理厂处理</p></td><td colspan=\"5\"><p>污水处理厂名称：</p></td></tr><tr><td colspan=\"5\"><p>污水处理厂地址：</p></td></tr><tr><td colspan=\"9\"><p>□公共污水收集管网</p></td></tr><tr><td colspan=\"4\" rowspan=\"3\"><p>□达标处理后直接排入江河湖库</p></td><td colspan=\"5\"><p>受纳水体名称：</p></td></tr><tr><td colspan=\"5\"><p>受纳水体功能目标：</p></td></tr><tr><td colspan=\"5\"><p>退水地点：</p></td></tr><tr><td colspan=\"4\"><p>□其他</p></td><td colspan=\"5\"><p>具体说明：</p></td></tr><tr><td colspan=\"3\"><p>承诺</p></td><td colspan=\"9\"><p>我单位（本人）承诺：</p><ol><li>对办理事项清楚了解</li><li>提供的申请材料真实有效</li><li>严格遵守国家法律法规和水行政主管部门的各项要求，确保取水、用水、节水符合国家产业政策和水行政主管部门管理要求。</li></ol><p>承诺人（法人代表签章）：          </p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        }
+    ]
+]

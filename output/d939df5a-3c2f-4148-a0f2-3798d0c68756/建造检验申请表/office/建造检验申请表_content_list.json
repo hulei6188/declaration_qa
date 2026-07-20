@@ -1,0 +1,13 @@
+[
+    {
+        "type": "text",
+        "text": "**船舶建造检验申请表**",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td colspan=\"7\"><p>兹向贵局申请对以下船舶按法规要求进行检验</p></td></tr><tr><td colspan=\"2\"><p>船    名</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>船 籍 港</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>船舶建造厂</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>船舶类型</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>船舶所有人</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>设计总吨位</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>船舶经营人</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>主机总功率</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>图纸设计单位</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>船体材料</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>图   号</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>航    区</p></td><td><p><strong>XXXX</strong></p></td></tr><tr><td colspan=\"2\"><p>图纸批准号</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>建造类型</p></td><td><p>□新建   □改建</p></td></tr><tr><td colspan=\"7\"><p>申请人承诺：</p><p>我们保证提交的资料真实可靠，并按批准图纸建造船舶；没有私自改变船舶主尺度、结构布置和设备等船舶状态；没有违反任何法律、法规规定的情况，并愿意承担相应的责任。</p><p>我们保证按规定支付船舶检验人员为执行检验工作所必需的差旅费和其它开支。</p><p>其它说明：</p><p> </p><p>                                       申请单位盖章（或签名）</p><p>                            日期： <strong> XXXX </strong>  年<strong> XX </strong> 月  <strong> XX</strong> 日</p></td></tr><tr><td><p>联 系 人</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>电  话</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td></tr><tr><td><p>联系地址</p></td><td colspan=\"2\"><p><strong>XXXX</strong></p></td><td colspan=\"2\"><p>邮  编</p></td><td colspan=\"2\"></td></tr><tr><td><p>证书领取人</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>领取日期</p></td><td colspan=\"2\"></td></tr></table>",
+        "page_idx": 0
+    }
+]

@@ -1,0 +1,91 @@
+[
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/abe00b4afa5b232df95b8a55f73c00b3af79ad034d7c4549e2a4555ccd466fcb.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图 2-1-1 护照示例（美国护照）"
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                201,
+                110,
+                741,
+                846
+            ]
+        }
+    ],
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/33e9554844e66a29b57fda95fe701ebce9c80011fdeb5673ad1a6c504152c10c.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图 2-1-2 护照示例（英国护照）"
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                221,
+                98,
+                747,
+                619
+            ]
+        }
+    ],
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/980dc1fbaf1d33b307bde8fc77e79715dfb87abd898c20a8f4787d23d093fbd4.jpg"
+                },
+                "image_caption": [],
+                "image_footnote": []
+            },
+            "bbox": [
+                200,
+                89,
+                736,
+                330
+            ]
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/691c1c272f091a01be4b6b5fc6263585e6ee99186c2db718ddef28e953250cc8.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "图2-2签证信息示例"
+                    },
+                    {
+                        "type": "text",
+                        "content": "图2-3《外国人工作许可证》示例"
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                267,
+                384,
+                710,
+                829
+            ]
+        }
+    ]
+]
