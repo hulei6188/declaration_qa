@@ -1562,6 +1562,70 @@ select {
   border-radius: 50%;
 }
 
+.service-channel-selection {
+  display: grid;
+  gap: 13px;
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-alt);
+}
+
+.service-channel-selection-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.service-channel-selection-head > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.service-channel-selection-head > div,
+.service-channel-option > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.service-channel-selection-head span,
+.service-channel-option small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.service-channel-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.service-channel-option {
+  min-height: 72px;
+  justify-content: flex-start;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--composer-bg);
+}
+
+.service-channel-option > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.service-channel-option strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .service-channel-options { grid-template-columns: 1fr; }
+}
+
 /* ============================================================
    列表
    ============================================================ */

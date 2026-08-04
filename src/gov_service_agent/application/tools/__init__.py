@@ -22,6 +22,12 @@ from gov_service_agent.application.tools.service_queries import (
     SubmissionReceiptQueryTool,
 )
 from gov_service_agent.application.tools.ticket import TicketDetailQueryTool, TicketListQueryTool
+from gov_service_agent.application.tools.submissions import (
+    ApplicationSubmitInput,
+    ApplicationSubmitTool,
+    ComplaintCreateInput,
+    ComplaintCreateTool,
+)
 
 __all__ = [
     "AgentTool",
@@ -30,6 +36,10 @@ __all__ = [
     "AppointmentHallQueryTool",
     "AppointmentListQueryTool",
     "AppointmentSlotQueryTool",
+    "ApplicationSubmitInput",
+    "ApplicationSubmitTool",
+    "ComplaintCreateInput",
+    "ComplaintCreateTool",
     "ConsultationRecordQueryTool",
     "DeliveryStatusQueryTool",
     "KnowledgeSearchInput",

@@ -25,6 +25,8 @@ const TOOL_LABELS = {
   delivery_status_query: '查询送达状态',
   queue_status_query: '查询排队状态',
   consultation_record_query: '查询咨询记录',
+  application_submit: '提交申报',
+  complaint_create: '创建投诉',
   appointment_book: '提交预约',
   appointment_cancel: '取消预约',
 };
@@ -187,7 +189,7 @@ function toolCategories(tools) {
   for (const tool of tools) {
     const name = String(tool?.toolName || '');
     if (name === 'knowledge_search') categories.add('knowledge');
-    else if (name === 'appointment_book' || name === 'appointment_cancel') categories.add('write');
+    else if (['appointment_book', 'appointment_cancel', 'application_submit', 'complaint_create'].includes(name)) categories.add('write');
     else categories.add('business');
   }
   return categories;

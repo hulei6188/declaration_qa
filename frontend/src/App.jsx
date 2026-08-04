@@ -93,7 +93,13 @@ export default function App() {
       attachments: queryImage ? [queryImage] : [],
     };
     setMessages((prev) => [...prev, userMsg]);
-    const assistantMsg = { role: 'assistant', content: '', sources: [], toolTrace: createToolTrace() };
+    const assistantMsg = {
+      role: 'assistant',
+      content: '',
+      sources: [],
+      suggestedActions: [],
+      toolTrace: createToolTrace(),
+    };
     setMessages((prev) => [...prev, assistantMsg]);
     assistantRef.current = '';
     setStreaming(true);
@@ -129,6 +135,14 @@ export default function App() {
           addTimeline(event, { count: (data.items || []).length });
         } else if (event === 'done') {
           setSessionId(data.session_id || sessionId);
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              suggestedActions: data.suggested_actions || [],
+            };
+            return next;
+          });
           setAudit({
             intent: [data.route, data.intent].filter(Boolean).join(' / ') || '-',
             auditId: data.audit_id || '-',
@@ -139,6 +153,7 @@ export default function App() {
         } else {
           addTimeline(event, data);
         }
+        if (['done', 'run_paused', 'error'].includes(event)) break;
       }
     } catch (e) {
       setMessages((prev) => {
@@ -214,6 +229,7 @@ export default function App() {
           throw new Error(data.message || data.error || '人工确认处理失败');
         }
         addTimeline(event, data);
+        if (['done', 'run_paused'].includes(event)) break;
       }
     } catch (e) {
       setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
@@ -268,6 +284,7 @@ export default function App() {
           content: m.content || '',
           attachments: m.role === 'user' ? (m.attachments || []) : [],
           sources: m.role === 'user' ? [] : (m.sources || []),
+          suggestedActions: m.role === 'user' ? [] : (m.suggested_actions || []),
           runId: m.role === 'user' ? '' : (m.run_id || ''),
           toolTrace: null,
         }))

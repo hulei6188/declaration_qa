@@ -20,6 +20,8 @@ BUSINESS_PRIMARY_KEY_FIELDS: dict[str, tuple[str, ...]] = {
     "result_certificate_query": ("result_certificate_id",),
     "delivery_status_query": ("delivery_id",),
     "consultation_record_query": ("consultation_id",),
+    "application_submit": ("application_id",),
+    "complaint_create": ("consultation_id",),
 }
 
 

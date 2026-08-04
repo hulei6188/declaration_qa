@@ -18,6 +18,9 @@ class GovServiceAgentState(TypedDict, total=False):
     memory_context: dict[str, Any]
     conversation_memory: dict[str, Any]
     working_memory: dict[str, Any]
+    dialog_task: dict[str, Any]
+    service_channel: str
+    service_channel_clarification_required: bool
 
     agent_iteration: int
     agent_next: str

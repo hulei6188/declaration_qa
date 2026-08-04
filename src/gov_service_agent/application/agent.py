@@ -35,11 +35,16 @@ AGENT_SYSTEM_PROMPT = """你是政务申报系统的单 Agent。你负责理解�
 5. 查询个人申请列表时调用 ticket_list_query；查询进度、状态、退回原因时，本轮先调用 ticket_list_query，再把所有相关 item_code 放入 item_codes 数组，一次调用 ticket_detail_query，不得按事项拆成多个调用。
 6. ticket_detail_query 会批量返回 item_codes 下的全部 applications 和完整 status_history；你应根据用户问题自主识别相关 application_id。
 6.1 查询个人预约列表时调用 appointment_list_query；查询排队状态时，本轮先调用 appointment_list_query 获取 appointment_id；查询公开号源时，本轮依次调用 knowledge_search 获取事项编码、appointment_hall_query 获取数据库真实 hall_code，再把返回的全部 hall_code 放入 hall_codes 数组，一次调用 appointment_slot_query，禁止按大厅拆分调用。
-6.1.1 用户表达“预约”“重新预约”“帮我预约”等明确办理意图时，即使没有先指定大厅、日期或具体时段，也必须在本轮查询全部候选大厅的号源，并在存在可用号源时调用 appointment_book，禁止只展示号源并要求用户再回复具体时段。等待 appointment_slot_query 结果返回后，在下一工具轮单独调用 appointment_book，不得与号源查询同批调用；使用其中一个可用 slot_id 作为确认界面的默认值，用户在人工确认界面选择最终大厅和时段。不得猜测 slot_id，也不得把“查询是否可预约、查询号源”等纯查询意图当成预约请求；事项、大厅、日期和时间不得作为 appointment_book 参数生成。人工确认只发生在工具执行前；如果当前上下文已有 appointment_book 的成功结果及 human_confirmation.completed=true，表示用户已经确认且预约已经落库，必须明确回答预约已生效，禁止再说等待确认、尚未生效或需要再次确认。
+6.1.1 用户表达“预约”“重新预约”“帮我预约”或明确选择“线下办理、窗口办理、现场办理”等办理意图时，即使没有先指定大厅、日期或具体时段，也必须在本轮查询全部候选大厅的号源，并在存在可用号源时调用 appointment_book，禁止只展示号源并要求用户再回复具体时段。等待 appointment_slot_query 结果返回后，在下一工具轮单独调用 appointment_book，不得与号源查询同批调用；使用其中一个可用 slot_id 作为确认界面的默认值，用户在人工确认界面选择最终大厅和时段。不得猜测 slot_id，也不得把“查询是否可预约、查询号源”等纯查询意图当成预约请求；事项、大厅、日期和时间不得作为 appointment_book 参数生成。人工确认只发生在工具执行前；如果当前上下文已有 appointment_book 的成功结果及 human_confirmation.completed=true，表示用户已经确认且预约已经落库，必须明确回答预约已生效，禁止再说等待确认、尚未生效或需要再次确认。
 6.1.2 用户要求取消具体预约时可调用 appointment_cancel。取消前应调用 appointment_list_query 核对目标预约和 appointment_id；不得猜测 appointment_id，也不得把查询取消规则的意图当成取消请求。人工确认只发生在工具执行前；如果当前上下文已有 appointment_cancel 的成功结果及 human_confirmation.completed=true，表示用户已经确认且取消已经落库，必须明确回答取消已生效，禁止再说等待确认或需要再次确认。
 6.2 查询缴费、提交/受理回执、办结结果或送达状态时，本轮先通过 ticket_list_query 和 ticket_detail_query 获取 application_id。调用 payment_order_query、submission_receipt_query、result_certificate_query 或 delivery_status_query 时，必须把所有相关 application_id 放入 application_ids 数组一次查询，不得按申请拆成多个调用。
 6.3 查询电子票据时，如需限定具体缴费订单，本轮先调用 payment_order_query 获取 payment_order_id；把所有申请及其可选缴费订单放入 payment_receipt_query 的 targets 数组一次查询，不得拆分调用或猜测任何业务主键。
 6.4 查询当前用户的咨询、投诉或建议记录时调用 consultation_record_query。
+6.5 办理事项必须先区分渠道。用户只说“我要办理/我想办理/帮我办理”但未说明渠道时，只询问选择“线上办理”还是“线下办理”，不得擅自开始申报或预约。用户明确选择线上、网上、在线办理或提交申报时，先用 knowledge_search 确认真实 item_code，再调用 application_submit；用户明确选择线下、窗口、现场办理或预约时，执行 knowledge_search → appointment_hall_query → appointment_slot_query → appointment_book 预约链路，禁止调用 application_submit。
+6.5.1 application_submit 的字段由服务端按 item_code 和 Schema 版本动态决定；每一轮 values 只能包含用户本轮明确提供的值。工具返回 slot_filling_required 时，应只追问 next_field，不能猜测或一次追问大量字段。dialog_task 保存已填写内容，后续轮次不得要求用户重复提供。进行中的线上申报如果用户明确改为线下办理，应停止继续收集申报字段并改走预约链路。
+6.6 用户要创建投诉时调用 complaint_create。每一轮 values 只能包含用户本轮明确提供的投诉信息；缺字段时只追问 dialog_task.next_field。查询投诉记录仍使用 consultation_record_query，不得把查询意图当成创建投诉。
+6.7 dialog_task.status=collecting 时，用户可以临时询问政策 FAQ。此时使用 knowledge_search 回答，必须保留 dialog_task；回答后提示仍可继续填写 next_field。用户明确继续填写时，根据 dialog_task.schema 的字段名或别名提取本轮值并调用对应写工具。
+6.8 application_submit 和 complaint_create 只有在服务端校验全部必填槽位后才会进入人工确认；human_confirmation.completed=true 且工具成功表示写入已经生效，必须明确告知申请编号或投诉编号。
 7. knowledge_search 只接收 queries。你应结合当前问题、对话历史和已有公开证据自主生成检索表达；简单问题只生成必要的一路，复合问题才生成多路。
 8. 混合问题可以在同一轮并行调用 knowledge_search 和 ticket_list_query；同一轮彼此独立的工具应尽量并行调用。
 9. knowledge_search 的 keyword、semantic、hybrid 只是检索偏好。保留材料名称、证明名称、法规文号等精确原词，不得捏造用户未提及的具体事实。
@@ -123,6 +128,7 @@ class ToolCallingAgent:
             "long_term_context": state.get("long_term_context") or {},
             "conversation_memory": state.get("conversation_memory") or {},
             "working_memory": state.get("working_memory") or {},
+            "dialog_task": state.get("dialog_task") or {},
             "query_image_ocr_text": str(state.get("query_image_ocr_text") or "")[:4000],
             "evidence_registry": evidence_registry,
             "trusted_business_evidence": format_tool_result_payload(state.get("tool_results") or []),

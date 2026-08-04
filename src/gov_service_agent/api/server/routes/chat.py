@@ -39,7 +39,7 @@ def register_chat_routes(app):
         request: HumanConfirmationRequest,
         context: RequestContext = Depends(auth_context),
     ):
-        """确认或拒绝暂停中的预约写操作，并继续原 Agent 运行。"""
+        """确认或拒绝暂停中的写操作，并继续原 Agent 运行。"""
         user_id = int(context.user_id or request.user_id)
         if settings.effective_auth_required and not context.user_id:
             raise HTTPException(

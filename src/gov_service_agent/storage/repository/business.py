@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from hashlib import sha256
+import json
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -743,6 +744,179 @@ class BusinessRepository(EngineBackedRepository):
                 },
             ).mappings().all()
         return [business_row(row) for row in rows]
+
+    def get_application_form_schema(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Load the latest published schema for an item and region."""
+        region_codes = region_code_variants(region_code)
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT schema_uid AS schema_id, version_no, item_code, item_name,
+                           biz_type, fields
+                    FROM declaration_qa.business_item_form_schemas
+                    WHERE item_code = :item_code
+                      AND status = 'published'
+                      AND (:use_region_filter = FALSE OR region_code = ANY(:region_codes) OR region_code = '')
+                    ORDER BY CASE WHEN region_code = ANY(:region_codes) THEN 0 ELSE 1 END,
+                             version_no DESC, updated_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {
+                    "item_code": str(item_code or "").strip(),
+                    "use_region_filter": bool(region_codes),
+                    "region_codes": region_codes or [""],
+                },
+            ).mappings().first()
+        if not row:
+            return None
+        return {
+            "schema_id": str(row.get("schema_id") or ""),
+            "version": str(row.get("version_no") or 1),
+            "item_code": str(row.get("item_code") or ""),
+            "item_name": str(row.get("item_name") or ""),
+            "biz_type": str(row.get("biz_type") or ""),
+            "fields": list(row.get("fields") or []),
+        }
+
+    def submit_application(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        item_code: str,
+        item_name: str,
+        biz_type: str,
+        schema_version: str,
+        form_data: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Create an application and initial status in one idempotent transaction."""
+        key = str(idempotency_key or "").strip()
+        apply_uid = f"APP-{sha256(f'{user_id}:{key}'.encode('utf-8')).hexdigest()[:40]}"
+        with self.engine.begin() as connection:
+            replay = connection.execute(
+                text(
+                    """
+                    SELECT id AS application_id, apply_uid, item_code, item_name, biz_type,
+                           region_code, status AS current_status, current_node, node_name,
+                           submitted_at, updated_at
+                    FROM declaration_qa.business_applications
+                    WHERE user_id = :user_id AND idempotency_key = :idempotency_key
+                    """
+                ),
+                {"user_id": int(user_id), "idempotency_key": key},
+            ).mappings().first()
+            if replay:
+                return {**business_row(replay), "submission_status": "idempotent_replay"}
+            application = connection.execute(
+                text(
+                    """
+                    INSERT INTO declaration_qa.business_applications (
+                        apply_uid, idempotency_key, user_id, item_code, item_name, biz_type,
+                        region_code, status, current_node, node_name, submitted_at, payload
+                    ) VALUES (
+                        :apply_uid, :idempotency_key, :user_id, :item_code, :item_name, :biz_type,
+                        :region_code, 'submitted', 'SUBMIT', '申请提交', CURRENT_TIMESTAMP,
+                        jsonb_build_object(
+                            'source', 'application_submit',
+                            'schema_version', CAST(:schema_version AS TEXT),
+                            'form_data', CAST(:form_data AS JSONB)
+                        )
+                    )
+                    RETURNING id AS application_id, apply_uid, item_code, item_name, biz_type,
+                              region_code, status AS current_status, current_node, node_name,
+                              submitted_at, updated_at
+                    """
+                ),
+                {
+                    "apply_uid": apply_uid,
+                    "idempotency_key": key,
+                    "user_id": int(user_id),
+                    "item_code": item_code,
+                    "item_name": item_name,
+                    "biz_type": biz_type,
+                    "region_code": str(region_code or "340000"),
+                    "schema_version": schema_version,
+                    "form_data": json.dumps(form_data, ensure_ascii=False),
+                },
+            ).mappings().one()
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO declaration_qa.business_application_statuses (
+                        apply_id, sequence_no, from_status, status, current_node,
+                        node_name, is_current, occurred_at, source_event_id
+                    ) VALUES (
+                        :application_id, 1, NULL, 'submitted', 'SUBMIT',
+                        '申请提交', TRUE, CURRENT_TIMESTAMP, :source_event_id
+                    )
+                    """
+                ),
+                {"application_id": int(application["application_id"]), "source_event_id": f"{apply_uid}-SUBMIT"},
+            )
+        return {**business_row(application), "submission_status": "created"}
+
+    def create_complaint(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        values: dict[str, Any],
+        schema_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Create a complaint with idempotency and trusted user ownership."""
+        key = str(idempotency_key or "").strip()
+        complaint_uid = f"COMPLAINT-{sha256(f'{user_id}:{key}'.encode('utf-8')).hexdigest()[:40]}"
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    INSERT INTO declaration_qa.business_consultations (
+                        consultation_uid, idempotency_key, user_id, consultation_type,
+                        subject, content_summary, status, channel, payload
+                    ) VALUES (
+                        :consultation_uid, :idempotency_key, :user_id, 'complaint',
+                        :subject, :content, 'submitted', 'agent',
+                        jsonb_build_object(
+                            'source', 'complaint_create',
+                            'schema_version', CAST(:schema_version AS TEXT),
+                            'region_code', CAST(:region_code AS TEXT),
+                            'target', CAST(:target AS TEXT),
+                            'occurred_at', CAST(:occurred_at AS TEXT),
+                            'contact_phone', CAST(:contact_phone AS TEXT)
+                        )
+                    )
+                    ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key <> ''
+                    DO UPDATE SET updated_at = declaration_qa.business_consultations.updated_at
+                    RETURNING id AS consultation_id, consultation_uid, consultation_type,
+                              subject, status, channel, created_at, updated_at,
+                              payload->>'target' AS target, (xmax = 0) AS inserted
+                    """
+                ),
+                {
+                    "consultation_uid": complaint_uid,
+                    "idempotency_key": key,
+                    "user_id": int(user_id),
+                    "subject": str(values.get("subject") or ""),
+                    "content": str(values.get("content") or ""),
+                    "schema_version": schema_version,
+                    "region_code": str(region_code or ""),
+                    "target": str(values.get("target") or ""),
+                    "occurred_at": str(values.get("occurred_at") or ""),
+                    "contact_phone": str(values.get("contact_phone") or ""),
+                },
+            ).mappings().one()
+        payload = business_row(row)
+        inserted = bool(payload.pop("inserted", False))
+        return {**payload, "creation_status": "created" if inserted else "idempotent_replay"}
 
     def _application_rows_by_ids(
         self,

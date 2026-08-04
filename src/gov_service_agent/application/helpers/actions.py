@@ -26,6 +26,27 @@ def suggested_actions(state: GovServiceAgentState) -> list[dict[str, Any]]:
     app_version = state.get("app_version") or ""
     item_code = str(state.get("agent_selected_item_code") or "")
     application_id = state.get("agent_selected_application_id")
+    if state.get("service_channel_clarification_required"):
+        return [
+            {
+                "type": "select_service_channel",
+                "label": "线上申报",
+                "payload": {
+                    "channel": "online",
+                    "query": "线上办理",
+                    "description": "在线逐项填写并提交申报信息",
+                },
+            },
+            {
+                "type": "select_service_channel",
+                "label": "线下预约",
+                "payload": {
+                    "channel": "offline",
+                    "query": "线下办理",
+                    "description": "查询服务大厅和号源后预约办理",
+                },
+            },
+        ]
     if state.get("refused"):
         return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version}}]
     has_detail = any(

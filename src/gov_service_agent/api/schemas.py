@@ -99,6 +99,7 @@ class ChatResponse(BaseModel):
     agent_query_plan: dict[str, Any] = Field(default_factory=dict)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
     human_confirmation: dict[str, Any] = Field(default_factory=dict)
+    dialog_task: dict[str, Any] = Field(default_factory=dict)
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
 

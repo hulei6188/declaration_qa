@@ -82,6 +82,9 @@ Get-Content .\sql\postgresql\declaration_qa_postgresql_all.sql -Raw |
 ```powershell
 Get-Content .\sql\postgresql\013_agent_evaluation.sql -Raw |
   docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U agentbase -d agentbase
+
+Get-Content .\sql\postgresql\014_multiturn_form_filling.sql -Raw |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U agentbase -d agentbase
 ```
 
 ### 3. 启动应用
@@ -156,6 +159,24 @@ Invoke-RestMethod -Method Post `
 ```
 
 MinerU 用于复杂 PDF 和 Office 文档解析，是可选组件；未启用时会按配置回退到本地解析器。
+
+## 多轮申报和投诉
+
+`application_submit` 与 `complaint_create` 会把用户每轮明确提供的字段合并到会话中的 `dialog_task`。字段未齐时返回下一缺失字段；全部必填项通过服务端校验后才进入人工确认并正式写入。
+
+不同申报事项的字段配置保存在 PostgreSQL 表 `declaration_qa.business_item_form_schemas`，按 `item_code + region_code + version_no` 选择当前发布版本。`fields` 是 JSON 数组，每个字段支持：
+
+```json
+{
+  "name": "contact_phone",
+  "label": "联系电话",
+  "type": "phone",
+  "required": true,
+  "aliases": ["手机号", "电话"]
+}
+```
+
+新增事项时创建一条 `status='published'` 的 Schema 即可，无需为每个事项新增 Tool 类。修改字段时新增版本，不要直接覆盖已被在途会话引用的版本。
 
 ## 评测
 

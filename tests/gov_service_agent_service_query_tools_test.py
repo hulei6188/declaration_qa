@@ -5,12 +5,14 @@ from gov_service_agent.api.schemas import ChatRequest, HumanConfirmationRequest
 from gov_service_agent.application.agent import AGENT_SYSTEM_PROMPT, AgentDecision
 from gov_service_agent.application.nodes.agent_runtime import agent_tool_call_denial_reason, unique_new_tool_calls
 from gov_service_agent.application.tools import (
+    ApplicationSubmitTool,
     AppointmentBookTool,
     AppointmentCancelTool,
     AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
     ConsultationRecordQueryTool,
+    ComplaintCreateTool,
     DeliveryStatusQueryTool,
     PaymentOrderQueryTool,
     PaymentReceiptQueryTool,
@@ -41,6 +43,8 @@ def service_query_registry(adapter=None):
         ResultCertificateQueryTool(adapter),
         DeliveryStatusQueryTool(adapter),
         ConsultationRecordQueryTool(adapter),
+        ApplicationSubmitTool(adapter),
+        ComplaintCreateTool(adapter),
     ]:
         registry.register(tool)
     return registry
@@ -160,6 +164,8 @@ def test_service_query_tool_schemas_never_accept_user_identity():
         "result_certificate_query",
         "delivery_status_query",
         "consultation_record_query",
+        "application_submit",
+        "complaint_create",
     }
     for definition in definitions.values():
         properties = definition["parameters"].get("properties", {})

@@ -293,15 +293,23 @@ export async function* readSSE(stream) {
   const reader = stream.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop() || '';
-    for (const part of parts) yield parseSSE(part);
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) yield parseSSE(part);
+    }
+    if (buffer.trim()) yield parseSSE(buffer);
+  } finally {
+    // The workflow emits an explicit terminal event. If the consumer stops at
+    // that event, cancel the body instead of waiting for a delayed TCP EOF.
+    try { await reader.cancel(); }
+    catch { /* The server may already have closed the stream. */ }
+    reader.releaseLock();
   }
-  if (buffer.trim()) yield parseSSE(buffer);
 }
 
 export function createToolTrace(status = 'running') {

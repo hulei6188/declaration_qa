@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from hashlib import sha256
 from threading import Lock
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
@@ -131,6 +132,42 @@ class BusinessDataAdapter(Protocol):
         """查询当前用户的咨询、投诉和建议记录。"""
         ...
 
+    def get_application_form_schema(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+    ) -> dict[str, Any] | None:
+        """读取事项当前生效的版本化申报字段 Schema。"""
+        ...
+
+    def submit_application(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        item_code: str,
+        item_name: str,
+        biz_type: str,
+        schema_version: str,
+        form_data: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """提交已通过 Schema 校验且经过人工确认的申报。"""
+        ...
+
+    def create_complaint(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        values: dict[str, Any],
+        schema_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """创建已通过校验且经过人工确认的投诉。"""
+        ...
+
 class InMemoryBusinessDataAdapter:
     """独立问答应用使用的业务数据适配器。
 
@@ -141,6 +178,9 @@ class InMemoryBusinessDataAdapter:
     def __init__(self) -> None:
         """初始化内存业务适配器。"""
         self._appointment_lock = Lock()
+        self._write_lock = Lock()
+        self._write_operations: dict[str, dict[str, Any]] = {}
+        self._form_schemas = default_application_form_schemas()
         self._applications: dict[str, dict[str, Any]] = {
             "A1001": {
                 "application_id": 1001,
@@ -1161,6 +1201,117 @@ class InMemoryBusinessDataAdapter:
             output.append({key: value for key, value in item.items() if key != "user_id"})
         return sorted(output, key=lambda row: str(row.get("created_at") or ""), reverse=True)
 
+    def get_application_form_schema(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+    ) -> dict[str, Any] | None:
+        schema = self._form_schemas.get(str(item_code or "").strip())
+        return dict(schema) if schema else None
+
+    def submit_application(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        item_code: str,
+        item_name: str,
+        biz_type: str,
+        schema_version: str,
+        form_data: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        key = f"application:{int(user_id)}:{idempotency_key}"
+        with self._write_lock:
+            replay = self._write_operations.get(key)
+            if replay:
+                return {**replay, "submission_status": "idempotent_replay"}
+            application_id = max(
+                [int(item.get("application_id") or 0) for item in self._applications.values()] or [0]
+            ) + 1
+            now = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+            apply_uid = f"APP-{sha256(key.encode('utf-8')).hexdigest()[:24]}"
+            record = {
+                "application_id": application_id,
+                "apply_uid": apply_uid,
+                "user_id": int(user_id),
+                "item_code": item_code,
+                "item_name": item_name,
+                "biz_type": biz_type,
+                "region_code": str(region_code or "340000"),
+                "status": "submitted",
+                "current_node": "SUBMIT",
+                "node_name": "申请提交",
+                "submitted_at": now,
+                "updated_at": now,
+                "payload": {
+                    "source": "application_submit",
+                    "schema_version": schema_version,
+                    "form_data": dict(form_data),
+                },
+                "status_history": [
+                    {
+                        "event_id": application_id * 100 + 1,
+                        "sequence_no": 1,
+                        "from_status": None,
+                        "status": "submitted",
+                        "current_node": "SUBMIT",
+                        "node_name": "申请提交",
+                        "changed_at": now,
+                    }
+                ],
+            }
+            self._applications[apply_uid] = record
+            public = application_detail(record)
+            self._write_operations[key] = public
+            return {**public, "submission_status": "created"}
+
+    def create_complaint(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        values: dict[str, Any],
+        schema_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        key = f"complaint:{int(user_id)}:{idempotency_key}"
+        with self._write_lock:
+            replay = self._write_operations.get(key)
+            if replay:
+                return {**replay, "creation_status": "idempotent_replay"}
+            complaint_id = max(
+                [int(item.get("consultation_id") or 0) for item in self._consultations] or [0]
+            ) + 1
+            now = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+            record = {
+                "consultation_id": complaint_id,
+                "consultation_uid": f"COMPLAINT-{sha256(key.encode('utf-8')).hexdigest()[:24]}",
+                "user_id": int(user_id),
+                "consultation_type": "complaint",
+                "subject": str(values.get("subject") or ""),
+                "content_summary": str(values.get("content") or ""),
+                "status": "submitted",
+                "channel": "agent",
+                "created_at": now,
+                "replied_at": "",
+                "reply_summary": "",
+                "payload": {
+                    "source": "complaint_create",
+                    "schema_version": schema_version,
+                    "region_code": str(region_code or ""),
+                    "target": values.get("target"),
+                    "occurred_at": values.get("occurred_at"),
+                    "contact_phone": values.get("contact_phone"),
+                },
+            }
+            self._consultations.append(record)
+            public = {name: value for name, value in record.items() if name not in {"user_id", "payload", "content_summary"}}
+            public["target"] = values.get("target")
+            self._write_operations[key] = public
+            return {**public, "creation_status": "created"}
+
 
 def public_appointment(
     item: dict[str, Any],
@@ -1179,6 +1330,58 @@ def public_appointment(
         for key, value in {**item, **status_fields}.items()
         if key not in {"user_id", "idempotency_key"}
     }
+
+
+def default_application_form_schemas() -> dict[str, dict[str, Any]]:
+    """Local-development schemas demonstrating item-specific field sets."""
+    common_identity = [
+        {"name": "applicant_name", "label": "申请人姓名", "type": "text", "required": True, "max_length": 80, "aliases": ["姓名", "申请人"]},
+        {"name": "id_number", "label": "证件号码", "type": "id_number", "required": True, "aliases": ["身份证号", "身份证号码"]},
+        {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话", "联系方式"]},
+    ]
+    schemas = [
+        {
+            "schema_id": "residence-permit-v1",
+            "version": "1",
+            "item_code": "ITEM-RESIDENCE-PERMIT",
+            "item_name": "居住证办理",
+            "biz_type": "residence_permit",
+            "fields": [
+                *common_identity,
+                {"name": "residence_address", "label": "现居住地址", "type": "text", "required": True, "max_length": 300, "aliases": ["住址", "居住地址"]},
+                {"name": "residence_proof_no", "label": "居住证明编号", "type": "text", "required": True, "max_length": 100, "aliases": ["证明编号"]},
+            ],
+        },
+        {
+            "schema_id": "health-certificate-v1",
+            "version": "1",
+            "item_code": "ITEM-HEALTH-CERTIFICATE",
+            "item_name": "健康证办理",
+            "biz_type": "health_certificate",
+            "fields": [
+                *common_identity,
+                {"name": "employer_name", "label": "从业单位", "type": "text", "required": True, "max_length": 200, "aliases": ["单位", "工作单位"]},
+                {"name": "occupation_type", "label": "从业类别", "type": "select", "required": True, "options": ["食品", "公共场所", "饮用水", "化妆品", "其他"], "aliases": ["职业类别", "行业"]},
+            ],
+        },
+        {
+            "schema_id": "water-permit-v1",
+            "version": "1",
+            "item_code": "11340000002985923L200011900100001",
+            "item_name": "取水许可",
+            "biz_type": "water_permit",
+            "fields": [
+                {"name": "applicant_name", "label": "申请单位或个人", "type": "text", "required": True, "max_length": 200, "aliases": ["申请人", "单位名称"]},
+                {"name": "credit_code", "label": "统一社会信用代码或证件号码", "type": "text", "required": True, "max_length": 40, "aliases": ["统一社会信用代码", "证件号码"]},
+                {"name": "contact_name", "label": "联系人", "type": "text", "required": True, "max_length": 80, "aliases": ["经办人"]},
+                {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话"]},
+                {"name": "water_source", "label": "取水水源", "type": "text", "required": True, "max_length": 200, "aliases": ["水源"]},
+                {"name": "annual_water_volume", "label": "年取水量（立方米）", "type": "number", "required": True, "aliases": ["年取水量", "取水量"]},
+                {"name": "water_use", "label": "取水用途", "type": "multiselect", "required": True, "options": ["制水供水", "原水供水", "生活用水", "工业用水", "农业用水", "其他"], "aliases": ["用途"]},
+            ],
+        },
+    ]
+    return {schema["item_code"]: schema for schema in schemas}
 
 
 def application_detail(item: dict[str, Any]) -> dict[str, Any]:

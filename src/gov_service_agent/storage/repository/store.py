@@ -173,6 +173,54 @@ class PostgresGovServiceAgentStore(PostgresStoreBase):
             consultation_id=consultation_id,
         )
 
+    def get_application_form_schema(
+        self,
+        *,
+        item_code: str,
+        region_code: str | None = None,
+    ) -> dict[str, Any] | None:
+        return self.business.get_application_form_schema(item_code=item_code, region_code=region_code)
+
+    def submit_application(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        item_code: str,
+        item_name: str,
+        biz_type: str,
+        schema_version: str,
+        form_data: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self.business.submit_application(
+            user_id=user_id,
+            region_code=region_code,
+            item_code=item_code,
+            item_name=item_name,
+            biz_type=biz_type,
+            schema_version=schema_version,
+            form_data=form_data,
+            idempotency_key=idempotency_key,
+        )
+
+    def create_complaint(
+        self,
+        *,
+        user_id: int,
+        region_code: str | None,
+        values: dict[str, Any],
+        schema_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self.business.create_complaint(
+            user_id=user_id,
+            region_code=region_code,
+            values=values,
+            schema_version=schema_version,
+            idempotency_key=idempotency_key,
+        )
+
     def create_eval_dataset(self, *, name: str, description: str, cases: list[dict[str, Any]], **metadata) -> dict[str, Any]:
         """创建评测数据集并写入初始用例。"""
         return self.evaluation.create_eval_dataset(name=name, description=description, cases=cases, **metadata)

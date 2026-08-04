@@ -25,12 +25,14 @@ from gov_service_agent.application.nodes import ApplicationNodes
 from gov_service_agent.application.nodes.agent_runtime import apply_human_confirmation_selections
 from gov_service_agent.application.state import GovServiceAgentState
 from gov_service_agent.application.tools import (
+    ApplicationSubmitTool,
     AppointmentBookTool,
     AppointmentCancelTool,
     AppointmentHallQueryTool,
     AppointmentListQueryTool,
     AppointmentSlotQueryTool,
     ConsultationRecordQueryTool,
+    ComplaintCreateTool,
     DeliveryStatusQueryTool,
     KnowledgeSearchTool,
     PaymentOrderQueryTool,
@@ -140,6 +142,8 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             ResultCertificateQueryTool(self.business_adapter),
             DeliveryStatusQueryTool(self.business_adapter),
             ConsultationRecordQueryTool(self.business_adapter),
+            ApplicationSubmitTool(self.business_adapter),
+            ComplaintCreateTool(self.business_adapter),
         ]
         for tool in business_query_tools:
             if self.tool_registry.get(tool.name) is None:
@@ -175,7 +179,11 @@ class GovServiceAgentWorkflow(ApplicationNodes):
                     "answer": "请先处理当前待确认的预约操作。",
                 }
             else:
-                final_state = self.graph.invoke(initial_state, config=config)
+                graph_state = self.graph.invoke(initial_state, config=config)
+                # LangGraph 在 interrupt（例如预约提交前的人机确认）处暂停时，
+                # 某些版本只返回当前节点的增量状态。保留请求级基础字段，避免
+                # 同步接口在读取 session_id 等字段时因状态不完整而返回 500。
+                final_state = {**initial_state, **dict(graph_state or {})}
             pending_after_run = self._current_human_confirmation(config)
             if pending_after_run:
                 observe_human_confirmation_requested(
@@ -205,6 +213,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             agent_query_plan=final_state.get("agent_query_plan") or {},
             tool_results=final_state.get("tool_results") or [],
             human_confirmation=self._current_human_confirmation(config),
+            dialog_task=final_state.get("dialog_task") or {},
             suggested_actions=final_state.get("suggested_actions") or [],
             events=final_state.get("events") or [],
         )
@@ -432,6 +441,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             "memory_context": dict(checkpoint_state.get("memory_context") or {}),
             "conversation_memory": dict(checkpoint_state.get("conversation_memory") or {}),
             "working_memory": {},
+            "dialog_task": dict(checkpoint_state.get("dialog_task") or {}),
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},

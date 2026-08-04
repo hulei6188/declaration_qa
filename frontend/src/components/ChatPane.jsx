@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Check, ImagePlus, Landmark, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { Building2, Check, Globe2, ImagePlus, Landmark, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
@@ -145,6 +145,18 @@ export default function ChatPane({
             {m.role === 'assistant' && m.sources?.length > 0 && (
               <SourceEvidenceList sources={m.sources} />
             )}
+            {m.role === 'assistant' && i === lastAssistantIndex && m.suggestedActions?.some(
+              (action) => action.type === 'select_service_channel'
+            ) && (
+              <ServiceChannelSelection
+                actions={m.suggestedActions.filter((action) => action.type === 'select_service_channel')}
+                disabled={streaming}
+                onSelect={(action) => onSend?.(
+                  action.payload?.query || action.label,
+                  action.label,
+                )}
+              />
+            )}
             {m.role === 'assistant' && m.confirmation && (
               <HumanConfirmationCard
                 confirmation={m.confirmation}
@@ -236,6 +248,41 @@ export default function ChatPane({
           </div>
         </div>
       </form>
+    </section>
+  );
+}
+
+function ServiceChannelSelection({ actions, disabled, onSelect }) {
+  return (
+    <section className="service-channel-selection" aria-label="选择办理方式">
+      <div className="service-channel-selection-head">
+        <ShieldCheck size={17} />
+        <div>
+          <strong>请选择办理方式</strong>
+          <span>您的选择将决定后续进入在线申报或大厅预约。</span>
+        </div>
+      </div>
+      <div className="service-channel-options">
+        {actions.map((action) => {
+          const online = action.payload?.channel === 'online';
+          const Icon = online ? Globe2 : Building2;
+          return (
+            <button
+              key={action.payload?.channel || action.label}
+              type="button"
+              className={`service-channel-option channel-${action.payload?.channel || 'unknown'}`}
+              disabled={disabled}
+              onClick={() => onSelect(action)}
+            >
+              <Icon size={19} />
+              <span>
+                <strong>{action.label}</strong>
+                <small>{action.payload?.description || ''}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

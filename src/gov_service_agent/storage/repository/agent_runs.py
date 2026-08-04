@@ -842,6 +842,8 @@ BUSINESS_TOOL_NAMES = {
     "result_certificate_query",
     "delivery_status_query",
     "consultation_record_query",
+    "application_submit",
+    "complaint_create",
 }
 
 

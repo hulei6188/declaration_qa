@@ -49,7 +49,7 @@ class ResponseNodes:
             next_state.get("retrieved_sources") or [],
             next_state.get("tool_results") or [],
         )
-        transaction_answer = authoritative_appointment_write_answer(next_state)
+        transaction_answer = authoritative_write_answer(next_state)
         if transaction_answer:
             answer = transaction_answer
         if not answer:
@@ -123,8 +123,8 @@ class ResponseNodes:
             "agent_final_token_usage": next_state.get("agent_final_token_usage") or {},
             "agent_final_latency_ms": next_state.get("agent_final_latency_ms"),
             "agent_system_prompt": AGENT_SYSTEM_PROMPT,
-            "agent_prompt_version": "single-agent-tool-loop-v1",
-            "tool_registry_version": "tool-registry-v1",
+            "agent_prompt_version": "single-agent-tool-loop-v2-form-filling",
+            "tool_registry_version": "tool-registry-v2-form-filling",
             "agent_model_config": agent_model_config(getattr(self, "agent", None)),
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
             "agent_selected_application_id": next_state.get("agent_selected_application_id"),
@@ -146,6 +146,7 @@ class ResponseNodes:
             "long_term_context": next_state.get("long_term_context") or {},
             "conversation_memory": next_state.get("conversation_memory") or {},
             "working_memory": next_state.get("working_memory") or {},
+            "dialog_task": next_state.get("dialog_task") or {},
             **(next_state.get("audit_payload") or {}),
         }
         audit_id = self.audit_store.append(payload)
@@ -196,6 +197,57 @@ def authoritative_appointment_write_answer(state: dict) -> str:
         if tool_name == "appointment_book":
             return booking_result_answer(appointment, citation)
         return cancellation_result_answer(appointment, citation)
+    return ""
+
+
+def authoritative_write_answer(state: dict) -> str:
+    """Return deterministic text for every confirmed write operation."""
+    appointment_answer = authoritative_appointment_write_answer(state)
+    if appointment_answer:
+        return appointment_answer
+    results = list(state.get("tool_results") or [])
+    registry = (state.get("evidence_registry") or {}).get("business") or []
+    for result in reversed(results):
+        if not isinstance(result, dict) or not result.get("ok"):
+            continue
+        tool_name = str(result.get("tool_name") or "")
+        if tool_name not in {"application_submit", "complaint_create"}:
+            continue
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        record_key = "application" if tool_name == "application_submit" else "complaint"
+        record = data.get(record_key) if isinstance(data.get(record_key), dict) else {}
+        if not record:
+            continue
+        citation = next(
+            (
+                f"[{entry['evidence_id']}]"
+                for entry in registry
+                if entry.get("tool_name") == tool_name
+                and str(entry.get("call_id") or "") == str(result.get("call_id") or "")
+            ),
+            "",
+        )
+        if not citation:
+            continue
+        if tool_name == "application_submit":
+            return "\n".join(
+                [
+                    f"申报已提交，人工确认已完成，办件已经正式生成。{citation}",
+                    "",
+                    f"- 申请编号：{record.get('application_id')} {citation}",
+                    f"- 事项：{record.get('item_name') or '-'} {citation}",
+                    f"- 当前状态：已提交 {citation}",
+                ]
+            )
+        return "\n".join(
+            [
+                f"投诉已提交，人工确认已完成，投诉记录已经正式生成。{citation}",
+                "",
+                f"- 投诉编号：{record.get('consultation_id')} {citation}",
+                f"- 投诉主题：{record.get('subject') or '-'} {citation}",
+                f"- 当前状态：已提交 {citation}",
+            ]
+        )
     return ""
 
 

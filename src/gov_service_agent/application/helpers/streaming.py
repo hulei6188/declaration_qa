@@ -71,6 +71,7 @@ def done_event(state: GovServiceAgentState) -> dict[str, Any]:
             "agent_iteration": int(state.get("agent_iteration") or 0),
             "selected_item_code": state.get("agent_selected_item_code") or "",
             "selected_application_id": state.get("agent_selected_application_id"),
+            "dialog_task": state.get("dialog_task") or {},
             "refused": bool(state.get("refused")),
             "refuse_reason": state.get("refuse_reason"),
             "suggested_actions": state.get("suggested_actions") or [],

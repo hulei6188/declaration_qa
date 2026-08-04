@@ -68,8 +68,15 @@ if errorlevel 1 (
 echo [3/4] Starting application...
 set "NO_PROXY=127.0.0.1,localhost,127.0.0.0/8"
 
-"%PYTHON_EXE%" -c "import apscheduler, chonkie, fastapi, langmem, mineru, uvicorn; from langgraph.checkpoint.postgres import PostgresSaver; from langgraph.store.postgres import PostgresStore" >nul 2>nul
-if errorlevel 1 (
+set "MISSING_DEPENDENCY="
+for %%M in (apscheduler chonkie fastapi langmem mineru uvicorn langgraph.checkpoint.postgres langgraph.store.postgres) do (
+    "%PYTHON_EXE%" -c "import %%M" >nul 2>nul
+    if errorlevel 1 (
+        echo Missing Python module in "%CONDA_ENV%": %%M
+        set "MISSING_DEPENDENCY=1"
+    )
+)
+if defined MISSING_DEPENDENCY (
     echo Python dependencies were not found in conda environment "%CONDA_ENV%".
     echo Run: conda activate %CONDA_ENV%
     echo Then: pip install -r requirements-dev.txt ^&^& pip install -e .

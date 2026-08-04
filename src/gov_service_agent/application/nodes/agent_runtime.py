@@ -15,6 +15,15 @@ from langgraph.types import interrupt
 from gov_service_agent.application.agent import accumulated_knowledge_queries, choose_application_id
 from gov_service_agent.application.evidence_registry import build_evidence_registry
 from gov_service_agent.application.state import GovServiceAgentState
+from gov_service_agent.application.slot_filling import masked_confirmation_details
+from gov_service_agent.application.service_channel import (
+    OFFLINE_CHANNEL,
+    detect_service_channel,
+    filter_tool_definitions_for_channel,
+    requests_channel_switch,
+    requires_service_channel_clarification,
+    service_channel_clarification_answer,
+)
 from gov_service_agent.application.tools import ToolExecutionContext, ToolExecutionResult
 from gov_service_agent.application.tools.knowledge import KnowledgeSearchInput
 from gov_service_agent.application.helpers.events import add_event
@@ -39,7 +48,21 @@ class AgentRuntimeNodes:
     def agent_prepare(self, state: GovServiceAgentState) -> GovServiceAgentState:
         """冻结可信知识输入、加载非业务上下文并初始化 Agent。"""
         next_state = dict(state)
+        if (next_state.get("dialog_task") or {}).get("status") in {"completed", "cancelled"}:
+            next_state["dialog_task"] = {}
         query_text = str(next_state.get("normalized_query") or "")
+        service_channel = detect_service_channel(query_text, next_state.get("dialog_task") or {})
+        if (
+            service_channel == OFFLINE_CHANNEL
+            and requests_channel_switch(query_text, service_channel)
+            and (next_state.get("dialog_task") or {}).get("task_type") == "application_submission"
+        ):
+            next_state["dialog_task"] = {}
+        next_state["service_channel"] = service_channel
+        next_state["service_channel_clarification_required"] = requires_service_channel_clarification(
+            query_text,
+            service_channel,
+        )
         if is_unsafe_query(query_text):
             next_state["refuse_reason"] = "unsafe_or_out_of_scope"
         elif not query_text and not next_state.get("query_image"):
@@ -84,6 +107,11 @@ class AgentRuntimeNodes:
             ],
             "memory_policy": "current_turn_evidence_only",
             "sufficiency": "agent_decides",
+            "dialog_task": next_state.get("dialog_task") or {},
+            "service_channel": service_channel or "not_selected",
+            "service_channel_clarification_required": bool(
+                next_state.get("service_channel_clarification_required")
+            ),
         }
         next_state["active_evidence_registry"] = build_evidence_registry(
             next_state["retrieved_sources"],
@@ -152,11 +180,30 @@ class AgentRuntimeNodes:
             decision_action = "finish"
             calls = []
             decision_payload = {"action": "finish", "reason": next_state["refuse_reason"], "provider": "guardrail"}
+        elif next_state.get("service_channel_clarification_required"):
+            decision_action = "finish"
+            calls = []
+            next_state["intent"] = "service_channel_clarification"
+            next_state["sub_intent"] = "service_channel_clarification"
+            next_state["agent_final_answer"] = service_channel_clarification_answer()
+            next_state["agent_answer_provider"] = "guardrail"
+            decision_payload = {
+                "action": "finish",
+                "reason": "service_channel_clarification_required",
+                "provider": "guardrail",
+                "intent": "service_channel_clarification",
+                "tool_calls": [],
+                "iteration": iteration,
+            }
         else:
             final_only = iteration > self.agent_max_iterations
+            definitions = filter_tool_definitions_for_channel(
+                self.tool_registry.definitions(),
+                str(next_state.get("service_channel") or ""),
+            )
             decision = self.agent.decide(
                 next_state,
-                [] if final_only else self.tool_registry.definitions(),
+                [] if final_only else definitions,
             )
             planned_calls = [
                 {**call, "origin": "agent"}
@@ -236,7 +283,7 @@ class AgentRuntimeNodes:
         results = list(next_state.get("tool_results") or [])
         signatures = list(next_state.get("agent_call_signatures") or [])
         calls = list(next_state.get("agent_pending_tool_calls") or [])
-        protected_calls = [call for call in calls if requires_human_confirmation(str(call.get("name") or ""))]
+        protected_calls = [call for call in calls if self._call_requires_human_confirmation(call, next_state)]
         approved_call_ids: set[str] = set()
         if protected_calls:
             confirmation = interrupt(build_human_confirmation_payload(protected_calls, next_state))
@@ -249,7 +296,7 @@ class AgentRuntimeNodes:
                 )
                 protected_calls = [
                     call for call in calls
-                    if requires_human_confirmation(str(call.get("name") or ""))
+                    if prepared_call_requires_confirmation(call)
                 ]
             approved_call_ids = {
                 str(call.get("id") or call.get("name") or "")
@@ -325,6 +372,40 @@ class AgentRuntimeNodes:
         next_state["agent_pending_tool_calls"] = []
         return next_state
 
+    def _call_requires_human_confirmation(
+        self,
+        call: dict[str, Any],
+        state: GovServiceAgentState,
+    ) -> bool:
+        """Require confirmation for writes only after their slots are complete."""
+        name = str(call.get("name") or "")
+        if not requires_human_confirmation(name):
+            return False
+        tool = self.tool_registry.get(name)
+        previewer = getattr(tool, "confirmation_preview", None)
+        if not callable(previewer):
+            return True
+        context = ToolExecutionContext(
+            user_id=int(state.get("user_id") or 0),
+            region_code=str(state.get("region_code") or ""),
+            session_id=str(state.get("session_id") or ""),
+            original_query=str(state.get("frozen_knowledge_query") or state.get("normalized_query") or ""),
+            metadata={
+                "state": state,
+                "tool_call_origin": str(call.get("origin") or "agent"),
+                "tool_call_id": str(call.get("id") or name),
+                "human_approved": False,
+            },
+        )
+        try:
+            preview = previewer(dict(call.get("arguments") or {}), context)
+        except Exception:
+            return False
+        if isinstance(preview, dict):
+            call["confirmation_preview"] = preview
+            return bool(preview.get("ready"))
+        return bool(preview)
+
     def _execute_tool_wave(
         self,
         calls: list[dict[str, Any]],
@@ -340,7 +421,7 @@ class AgentRuntimeNodes:
         rejected_outputs: dict[str, tuple[dict[str, Any], str]] = {}
         for call in calls:
             call_id = str(call.get("id") or call.get("name") or "")
-            if requires_human_confirmation(str(call.get("name") or "")) and call_id not in approved_ids:
+            if prepared_call_requires_confirmation(call) and call_id not in approved_ids:
                 rejected_outputs[call_id] = self._observe_rejected_tool_call(call, state)
             else:
                 executable_calls.append(call)
@@ -396,6 +477,7 @@ class AgentRuntimeNodes:
                 "state": state,
                 "tool_call_origin": str(call.get("origin") or "agent"),
                 "tool_call_id": str(call.get("id") or name),
+                "human_approved": bool(human_approved),
             },
         )
         call_id = str(call.get("id") or name)
@@ -537,6 +619,8 @@ class AgentRuntimeNodes:
             if not isinstance(result, dict) or not result.get("ok"):
                 continue
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
+            if isinstance(data.get("dialog_task"), dict):
+                next_state["dialog_task"] = dict(data["dialog_task"])
             if result.get("tool_name") == "knowledge_search":
                 next_state["retrieved_sources"] = merge_accumulated_source_payloads(
                     [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],
@@ -597,6 +681,7 @@ class AgentRuntimeNodes:
                     if isinstance(item, dict) and item.get("tool_name") != "knowledge_search" and item.get("ok")
                 ],
                 "attempted_call_signatures": list(next_state.get("agent_call_signatures") or []),
+                "dialog_task": next_state.get("dialog_task") or {},
                 "sufficiency": "evidence_available"
                 if next_state.get("retrieved_sources") or next_state.get("tool_results")
                 else "insufficient",
@@ -969,12 +1054,28 @@ def agent_tool_call_denial_reason(
     return ""
 
 
-HUMAN_CONFIRMATION_TOOL_NAMES = {"appointment_book", "appointment_cancel"}
+HUMAN_CONFIRMATION_TOOL_NAMES = {
+    "appointment_book",
+    "appointment_cancel",
+    "application_submit",
+    "complaint_create",
+}
 
 
 def requires_human_confirmation(tool_name: str) -> bool:
     """判断工具是否必须在执行前经过人工确认。"""
     return str(tool_name or "") in HUMAN_CONFIRMATION_TOOL_NAMES
+
+
+def prepared_call_requires_confirmation(call: dict[str, Any]) -> bool:
+    """Respect dynamic preflight readiness for multi-turn write tools."""
+    name = str(call.get("name") or "")
+    if not requires_human_confirmation(name):
+        return False
+    preview = call.get("confirmation_preview")
+    if name in {"application_submit", "complaint_create"} and isinstance(preview, dict):
+        return bool(preview.get("ready"))
+    return True
 
 
 def build_human_confirmation_payload(
@@ -990,6 +1091,12 @@ def build_human_confirmation_payload(
     elif tool_names == {"appointment_book"}:
         title = f"确认提交 {len(actions)} 条预约" if len(actions) > 1 else "确认提交预约"
         warning = "确认后将占用对应号源并创建预约记录。"
+    elif tool_names == {"application_submit"}:
+        title = "确认提交申报"
+        warning = "请核对申报信息；确认后将正式生成办件记录。"
+    elif tool_names == {"complaint_create"}:
+        title = "确认创建投诉"
+        warning = "请核对投诉信息；确认后将正式提交投诉记录。"
     else:
         title = "确认执行预约操作"
         warning = "请核对以下操作，确认后系统才会执行。"
@@ -1028,6 +1135,20 @@ def build_human_confirmation_actions(
                     "subject": str(record.get("item_name") or f"预约 {appointment_id}"),
                     "details": appointment_record_details(record),
                     "arguments": {"appointment_id": appointment_id},
+                }
+            )
+            continue
+        if tool_name in {"application_submit", "complaint_create"}:
+            preview = call.get("confirmation_preview") if isinstance(call.get("confirmation_preview"), dict) else {}
+            task = preview.get("dialog_task") if isinstance(preview.get("dialog_task"), dict) else {}
+            actions.append(
+                {
+                    "call_id": call_id,
+                    "tool_name": tool_name,
+                    "label": "提交申报" if tool_name == "application_submit" else "创建投诉",
+                    "subject": str(task.get("item_name") or ("政务服务投诉" if tool_name == "complaint_create" else "政务服务申报")),
+                    "details": masked_confirmation_details(task),
+                    "arguments": {},
                 }
             )
             continue
