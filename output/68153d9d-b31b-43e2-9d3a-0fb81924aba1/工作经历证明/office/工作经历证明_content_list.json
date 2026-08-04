@@ -1,0 +1,13 @@
+[
+    {
+        "type": "text",
+        "text": "工作经历证明",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td><p>姓名</p></td><td colspan=\"2\"></td><td><p>性别</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>出生年月</p></td><td colspan=\"2\"></td></tr><tr><td><p>主要执业机构名称</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"10\"><p>从事职业病防治、诊疗等相关工作经历</p></td></tr><tr><td colspan=\"2\"><p>起止时间</p></td><td colspan=\"3\"><p>单位</p></td><td colspan=\"2\"><p>技术职务</p></td><td colspan=\"2\"><p>从事何专业技术工作</p></td><td><p>证明人</p></td></tr><tr><td colspan=\"2\"></td><td colspan=\"3\"></td><td colspan=\"2\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"2\"></td><td colspan=\"3\"></td><td colspan=\"2\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"2\"><p>本人专业技术工作述评（专业技术特长、成就、公开发表论文、专著等）</p></td><td colspan=\"8\"></td></tr><tr><td colspan=\"10\"><p>                                      本人签字：</p><p>                                                    年     月     日</p></td></tr><tr><td><p>主要执业机构（单位）意见</p></td><td colspan=\"9\"><p>                                          （公章）</p><p> </p><p>                                          年     月     日</p></td></tr></table>",
+        "page_idx": 0
+    }
+]

@@ -1,0 +1,110 @@
+[
+    {
+        "type": "text",
+        "text": "**安徽省境内外国人集体进行**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "**宗教活动临时地点申请表**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Application  Form  of   Temporary  Spots  of  Religious  Activities  of     Foreigners  in  Anhui  Province",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td rowspan=\"4\"><p> </p><p> 申请人：</p><p> Applicant:</p></td><td><p>英文名：××××      中文名：张××</p></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr></table>",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "申请日期：",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Application  Date:         年   月   日",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "安徽省民族宗教事务委员会印制",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Ethnic and Religious  Affairs  Committee  of  Anhui  Province",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "**说                明**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "一、申请境内外国人集体进行宗教活动临时地点，要按本表栏目认真填写，所填内容要真实无误。",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "二、本表请用蓝、黑色墨水钢笔填写，字迹清晰、工整。",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "三、本表内容请用中文填写，英文名用英文填写，数字用阿拉伯数字填写。",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "四、本表填写一式三份。",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "**Explanation**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1. This   form   should   be   carefully   filled   in  and   contents   submitted",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "should  be  real  in  order  to  apply  for  temporary  spots  of  religious      activities   of   foreigners .",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "2. This  form  should  be  clearly  and  neatly  filled  in   with  pen  in  blue     or   black   ink.",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "3.  This  form  should  be   written  in  Chinese  except  English  name  and   figures  in   this  form  should  be   Arabic   numbers.",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "4.  Three   copies   of   this   form   are    required.",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td><p>其      它      事      项      说      明</p><p>Other          Items</p></td></tr><tr><td><p>××××……</p></td></tr><tr><td><p>提        供      处      所      的      单      位      意      见</p><p>Opinion     of    Work    Unit   Supplying    Place</p></td></tr><tr><td><p>××××……</p><p>　　　　　　　　　　　　　　　　单位（盖章）</p><p>　　　　　　　　　　　　　　　Work   Unit  (Seal)</p><p>　　　　　　　　　　　　　　　 年      月     日</p><p>　　　　　　　　　　　　　　　Yr.        Mo.        Day</p></td></tr></table>",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td><p>省  级  宗  教  事  务  部  门  意  见</p><p>Opinion    of  Religious    Affairs   Bureau</p></td></tr><tr><td><p>经审查，符合法律法规相关规定，同意使用宗教活动临时地点。 </p><p>                                                                                单位（盖章）</p><p>                                                                               Administration  (seal)  </p><p>                                                                                  年     月       日</p><p>                                                                                 Yr.        Mo.      Day</p></td></tr></table>",
+        "page_idx": 0
+    }
+]

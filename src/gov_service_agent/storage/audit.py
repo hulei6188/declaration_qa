@@ -316,6 +316,9 @@ class InMemoryAuditStore:
             "turns": list(case.get("turns") or []),
             "fixture_key": str(case.get("fixture_key") or ""),
             "expected_chunk_ids": list(case.get("expected_chunk_ids") or []),
+            "agent_retrieval_queries": list(case.get("agent_retrieval_queries") or []),
+            "source_trace_id": str(case.get("source_trace_id") or ""),
+            "source_metadata": dict(case.get("source_metadata") or {}),
             "expected_trajectory": dict(case.get("expected_trajectory") or {}),
             "expected_outcome": dict(case.get("expected_outcome") or {}),
             "severity": str(case.get("severity") or "medium"),
@@ -435,6 +438,8 @@ class InMemoryAuditStore:
             "promoted_case_id": None,
             "created_at": now,
             "updated_at": now,
+            "agent_retrieval_queries": list(candidate.get("agent_retrieval_queries") or []),
+            "online_scores": dict(candidate.get("online_scores") or {}),
             **candidate,
         }
         self._eval_candidates[candidate_id] = payload
@@ -455,6 +460,19 @@ class InMemoryAuditStore:
         candidate = self._eval_candidates.get(candidate_id)
         if not candidate or candidate.get("status") not in {"triaged", "labeled"}:
             raise ValueError("Evaluation candidate must be reviewed before promotion")
-        created = self.add_eval_case(dataset_id=dataset_id, case=case)
+        promoted_case = {
+            **case,
+            "source_trace_id": str(case.get("source_trace_id") or candidate.get("trace_id") or ""),
+            "agent_retrieval_queries": list(
+                case.get("agent_retrieval_queries") or candidate.get("agent_retrieval_queries") or []
+            ),
+            "source_metadata": {
+                "candidate_id": candidate_id,
+                "candidate_source": str(candidate.get("source") or ""),
+                "detection_signals": dict(candidate.get("detection_signals") or {}),
+                **dict(case.get("source_metadata") or {}),
+            },
+        }
+        created = self.add_eval_case(dataset_id=dataset_id, case=promoted_case)
         candidate.update({"status": "promoted", "promoted_case_id": created["case_id"]})
         return created

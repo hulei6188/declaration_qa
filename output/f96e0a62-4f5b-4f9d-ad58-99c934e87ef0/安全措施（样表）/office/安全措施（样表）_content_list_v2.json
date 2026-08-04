@@ -1,0 +1,31 @@
+[
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/55488de2c75dc60062e25105bce7a89b1b21bc16301220ee12ab8e0c4f53ffde.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/c99741c739c8954c351bf43664ac6eaeae767975c6763c51f1daf0f85e4f60b5.jpg"
+                },
+                "image_caption": []
+            }
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/c6b5096d25cb29a5899e5ab0b62d0ad87630ca42a21714c724828c9a2a254dec.jpg"
+                },
+                "image_caption": []
+            }
+        }
+    ]
+]

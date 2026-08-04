@@ -15,6 +15,8 @@ def evaluate_retrieval(
     expected_doc_ids: list[str],
     expected_chunk_ids: list[str],
     top_k: int,
+    fixed_ks: tuple[int, ...] = (5, 10),
+    mrr_k: int = 10,
 ) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
     selected = sources[:top_k]
     actual_docs = [str(item.get("doc_id") or "") for item in selected]
@@ -37,6 +39,20 @@ def evaluate_retrieval(
         "retrieval_ndcg": _round(ndcg),
         "retrieval_duplicate_rate": _round(duplicate_rate),
     }
+    all_ranked = [str(item.get("chunk_id") or "") for item in sources] if expected_chunk_ids else [
+        str(item.get("doc_id") or "") for item in sources
+    ]
+    for fixed_k in sorted({max(1, int(value)) for value in fixed_ks}):
+        fixed_ranked = all_ranked[:fixed_k]
+        fixed_hits = [index for index, value in enumerate(fixed_ranked, start=1) if value in relevant]
+        fixed_recall = len(set(fixed_ranked).intersection(relevant)) / len(relevant) if relevant else None
+        scores[f"retrieval_hit_at_{fixed_k}"] = 1.0 if fixed_hits else (0.0 if relevant else None)
+        scores[f"retrieval_recall_at_{fixed_k}"] = _round(fixed_recall)
+    mrr_ranked = all_ranked[: max(1, int(mrr_k))]
+    mrr_hits = [index for index, value in enumerate(mrr_ranked, start=1) if value in relevant]
+    scores[f"retrieval_mrr_at_{max(1, int(mrr_k))}"] = _round(
+        1.0 / mrr_hits[0] if mrr_hits else (0.0 if relevant else None)
+    )
     failures = ["expected_evidence_not_retrieved"] if relevant and not hits else []
     records = records_for_scores(scores, "retrieval-v1", failures)
     return scores, failures, records

@@ -1,0 +1,151 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "首次评定授予人民警察警衔审批表"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                225,
+                217,
+                757,
+                250
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "姓 名"
+                    }
+                ]
+            },
+            "bbox": [
+                223,
+                543,
+                760,
+                577
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "工作单位"
+                    }
+                ]
+            },
+            "bbox": [
+                223,
+                610,
+                760,
+                643
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "职务（职级）"
+                    }
+                ]
+            },
+            "bbox": [
+                225,
+                677,
+                762,
+                710
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "年 月"
+                    }
+                ]
+            },
+            "bbox": [
+                439,
+                838,
+                545,
+                866
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/78b3cff483cbdbb90fb253ba0d90b37a68f8cf05b0c1a4977c923c192251450f.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=2>姓名</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td><td rowspan=3 colspan=1></td></tr><tr><td rowspan=1 colspan=2>期</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1>政治统</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=2 colspan=2>学学历位</td><td rowspan=1 colspan=1>金日制</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>院业</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=1>在教职育</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>院业</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=3>参加工作时间</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=3>入警方式及时间</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=3>录用（调入）公安机关的审批部门</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=3>现任职务(职级)</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=2>担任现职时间(职级)</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>简历</td><td rowspan=1 colspan=8></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                126,
+                139,
+                858,
+                881
+            ]
+        }
+    ],
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "组织鉴定"
+                    }
+                ]
+            },
+            "bbox": [
+                444,
+                184,
+                574,
+                210
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/739a2fe9b2195041f3312835342fa18d11250306e050ddf0f097922246f4f796.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=2>培训情况</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=2>奖惩情况</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=2>审核依据</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>所在单位意见</td><td rowspan=1 colspan=2>(盖章)年月日</td><td rowspan=1 colspan=1>审核单位意见</td><td rowspan=1 colspan=1>(盖章)年月日</td></tr><tr><td rowspan=1 colspan=1>呈报单位意见</td><td rowspan=1 colspan=2>(盖章)年月日</td><td rowspan=1 colspan=1>批准单位意见</td><td rowspan=1 colspan=1>(盖章)年月日</td></tr><tr><td rowspan=1 colspan=2>警衔命令号</td><td rowspan=1 colspan=3>公衔令字[1     号</td></tr><tr><td rowspan=1 colspan=2>警衔起算时间</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=2>备注</td><td rowspan=1 colspan=3></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                124,
+                141,
+                851,
+                882
+            ]
+        }
+    ]
+]

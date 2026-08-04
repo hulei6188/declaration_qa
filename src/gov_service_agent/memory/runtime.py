@@ -23,6 +23,8 @@ from langmem.short_term import SummarizationNode
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from gov_service_agent.memory.evidence import HISTORICAL_TOOL_AUDIT_KEY
+
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +230,15 @@ class LangGraphMemoryRuntime:
         """迁移旧摘要策略，防止历史证据引用继续进入活动上下文。"""
         current = dict(context or {})
         if str(current.get("memory_policy_version") or "") != MEMORY_POLICY_VERSION:
-            return {"memory_policy_version": MEMORY_POLICY_VERSION}
+            audit_records = [
+                dict(item)
+                for item in current.get(HISTORICAL_TOOL_AUDIT_KEY) or []
+                if isinstance(item, dict)
+            ]
+            migrated = {"memory_policy_version": MEMORY_POLICY_VERSION}
+            if audit_records:
+                migrated[HISTORICAL_TOOL_AUDIT_KEY] = audit_records
+            return migrated
         return current
 
     def retrieve(self, *, user_id: int, query: str) -> dict[str, Any]:

@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--api-key", default=os.getenv("GOV_SERVICE_AGENT_API_KEY", ""))
     parser.add_argument("--git-commit", default=os.getenv("GITHUB_SHA", ""))
     parser.add_argument("--use-ragas", action="store_true")
+    parser.add_argument("--run-retrieval-ablation", action="store_true")
     parser.add_argument("--timeout", type=int, default=14400)
     args = parser.parse_args()
     if not args.base_url or not args.dataset_id or not args.api_key:
@@ -34,6 +35,7 @@ def main() -> None:
             "baseline_run_id": args.baseline_run_id or None,
             "trigger_source": "ci",
             "git_commit": args.git_commit,
+            "run_retrieval_ablation": args.run_retrieval_ablation,
         },
         timeout=30,
     )

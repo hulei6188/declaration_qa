@@ -136,6 +136,37 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
         """返回候选来源标签。"""
         return "external_indexes"
 
+    def _retrieval_channel_hits(
+        self,
+        normalized_query: str,
+        effective_filter: dict[str, Any],
+        *,
+        limit: int,
+    ) -> tuple[list[RetrievedSource], list[RetrievedSource], dict[str, Any]]:
+        """为评测消融直接读取外部向量与BM25候选，不经过在线缓存。"""
+        search_filter = published_visibility_filter(effective_filter)
+        degraded: list[dict[str, str]] = []
+        try:
+            dense_hits = self._remote_dense_retrieve(
+                normalized_query,
+                search_filter,
+                limit=limit,
+                channel="dense_ablation",
+            )
+        except Exception as exc:
+            dense_hits = []
+            degraded.append({"stage": "dense_retrieve", "error": type(exc).__name__})
+        try:
+            bm25_hits = self._keyword_retrieve(normalized_query, search_filter, limit=limit)
+        except Exception as exc:
+            bm25_hits = []
+            degraded.append({"stage": "bm25_retrieve", "error": type(exc).__name__})
+        return dense_hits, bm25_hits, {
+            "candidate_count": len({source.chunk.id for source in [*dense_hits, *bm25_hits]}),
+            "candidate_source": "external_indexes",
+            "degraded": degraded,
+        }
+
     def _retrieve_uncached(
         self,
         normalized_query: str,

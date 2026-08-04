@@ -125,14 +125,8 @@ def dashscope_compatible_chat_url(url: str) -> str:
 
 
 def dashscope_ocr_prompt(filename: str) -> str:
-    """返回适合政务附件 OCR 的提取提示。"""
-    return (
-        f"请按阅读顺序提取图片中的全部文字和表格内容。文件名：{filename or 'document'}。"
-        "保留标题、段落、编号、表格行列关系和关键标点。"
-        "不要输出 HTML、XML、LaTeX 或 Markdown 代码块；如果原图是表格，可以用 Markdown 表格表示。"
-        "只输出识别到的正文，不要解释，不要总结，不要编造。"
-        "无法辨认的字符用 ? 表示。"
-    )
+    """返回宽松的 OCR 提示，避免格式约束导致模型返回空内容。"""
+    return "请提取图片中的全部文字。"
 
 
 def extract_dashscope_message_text(payload: dict) -> str:

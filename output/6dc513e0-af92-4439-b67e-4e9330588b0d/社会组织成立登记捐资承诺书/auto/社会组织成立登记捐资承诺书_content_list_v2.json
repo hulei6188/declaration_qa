@@ -1,0 +1,124 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会申请设立登记捐资承诺书"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                236,
+                123,
+                761,
+                155
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（示范文本）"
+                    }
+                ]
+            },
+            "bbox": [
+                423,
+                166,
+                574,
+                190
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "本单位 合肥 xxxxxx 公司 （统一社会信用代码： 9134xxxxxxxxxxxxxx ）/本人 （身份证号： ）自愿捐赠资金人民币 xx 万元（大写： xx 万元），作为拟成立的 安徽省xxxxxx基金会 【基金会名称】的原始基金。以上财产属本单位（本人）合法财产，该财产不存在任何第三人的其他权益。财产捐赠后，本单位（本人）不保留或者享有任何财产权利。"
+                    }
+                ]
+            },
+            "bbox": [
+                144,
+                237,
+                852,
+                512
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "特此承诺。"
+                    }
+                ]
+            },
+            "bbox": [
+                198,
+                524,
+                327,
+                546
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "捐资单位（盖章）/捐资个人（签字）："
+                    }
+                ]
+            },
+            "bbox": [
+                329,
+                623,
+                773,
+                648
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "法定代表人（签章）【捐资单位适用】：xxx"
+                    }
+                ]
+            },
+            "bbox": [
+                307,
+                722,
+                813,
+                747
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "Xxxx 年 xx 月 xx 日"
+                    }
+                ]
+            },
+            "bbox": [
+                569,
+                824,
+                840,
+                846
+            ]
+        }
+    ]
+]

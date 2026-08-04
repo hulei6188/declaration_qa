@@ -1,0 +1,62 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "用于科学研究、文化交流等其他用途的",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "提交科研或交流项目立项文件或材料、科研合作协议等相关背景材料及采集作业办法："
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "①提供用于科学研究、文化交流等公益事业的相关材料；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "②因安全隐患需要采集的，要附上采集后的处置方案；"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "③采集作业办法应包括申请采集的种类、数量、地点、方法及采集人员技术与组织保障措施等；"
+                    }
+                ]
+            }
+        }
+    ]
+]

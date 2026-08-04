@@ -94,6 +94,25 @@ def test_parse_standard_markdown_attachment_links_with_marko_context():
     assert refs[2].role == "flowchart"
 
 
+def test_parse_spreadsheet_attachments_with_material_context():
+    content = """
+# 暂准进口货物海关单证册
+
+## 申请材料
+
+### 1. ATA单证册申请表
+- [申请表样表.xls](https://example.test/forms/sample.xls)
+- [空白申请表.xlsx](https://example.test/forms/blank.xlsx)
+"""
+
+    refs = parse_markdown_attachments(content, document_id="doc-ata")
+
+    assert [ref.extension for ref in refs] == ["xls", "xlsx"]
+    assert [ref.material_name for ref in refs] == ["申请表样表", "空白申请表"]
+    assert [ref.role for ref in refs] == ["sample_file", "blank_form"]
+    assert all(ref.node_title == "1. ATA单证册申请表" for ref in refs)
+
+
 def test_attachment_parser_falls_back_when_marko_parser_fails(monkeypatch):
     monkeypatch.setattr(
         "gov_service_agent.indexing.attachments.parser.parse_marko_attachments",

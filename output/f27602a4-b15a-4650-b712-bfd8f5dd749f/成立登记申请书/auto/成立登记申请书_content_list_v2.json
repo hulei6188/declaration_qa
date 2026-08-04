@@ -1,0 +1,1267 @@
+[
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会设立登记申请书"
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                228,
+                259,
+                534,
+                286
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会名称 （全称）"
+                    }
+                ]
+            },
+            "bbox": [
+                141,
+                473,
+                678,
+                495
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K1]: 填写基金会全称。"
+                    }
+                ]
+            },
+            "bbox": [
+                704,
+                473,
+                1000,
+                491
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "慈善组织 ○是"
+                    }
+                ]
+            },
+            "bbox": [
+                142,
+                504,
+                591,
+                525
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "业务主管单位 ○有 ○无"
+                    }
+                ]
+            },
+            "bbox": [
+                141,
+                532,
+                680,
+                556
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "申请日期 年 月 日"
+                    }
+                ]
+            },
+            "bbox": [
+                144,
+                563,
+                584,
+                585
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K2]: 有业务主管单位的选“有”，无业务主管单位的选“无”。"
+                    }
+                ]
+            },
+            "bbox": [
+                705,
+                535,
+                998,
+                560
+            ]
+        }
+    ],
+    [],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会自律承诺书"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                275,
+                196,
+                462,
+                216
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "安徽省民政厅："
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                248,
+                183,
+                263
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "现申请办理 （基金会名称）设立登记事项，按照诚实守信和依法原则，承诺如下："
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                273,
+                670,
+                313
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "1.提供的全部申请材料真实、有效、完整、准确。"
+                    }
+                ]
+            },
+            "bbox": [
+                100,
+                323,
+                480,
+                338
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2.遵守国家法律、法规和有关规定，遵守社会道德风尚，有明确的公益慈善宗旨，发起设立的原始基金来源合法，为捐赠的财产；严格按照核准的章程开展公益慈善活动。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                348,
+                672,
+                413
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3.积极承担社会责任，诚实守信，公平公正，不损害国家、集体和个人利益。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                422,
+                670,
+                462
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "4.完善法人治理结构，建立民主决策和管理制度，加强组织机构建设。"
+                    }
+                ]
+            },
+            "bbox": [
+                99,
+                470,
+                636,
+                486
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "5.恪守非营利原则，执行《民间非营利组织会计制度》，严格财务管理制度，按照章程规定的宗旨和公益慈善活动的业务范围组织募捐、接受捐赠和使用财产；依法办理税务登记；按照合法、安全、有效的原则实现基金的保值、增值；积极完成章程规定的公益慈善事业支出比例。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                495,
+                670,
+                586
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "6.主动公开年度工作报告、开展公益慈善资助项目、财务状况等信息，自觉接受社会各界监督。及时向登记管理机关和相关部门报告重大事项和涉外活动。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                594,
+                670,
+                659
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "上述承诺，如有违反，愿意接受登记管理机关和业务主管单位（行业管理部门）的依法监督处理。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                668,
+                670,
+                708
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "法定代表人签名："
+                    }
+                ]
+            },
+            "bbox": [
+                383,
+                741,
+                517,
+                757
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "日期： 年 月 日"
+                    }
+                ]
+            },
+            "bbox": [
+                468,
+                791,
+                653,
+                808
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会基本情况表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                275,
+                196,
+                462,
+                217
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/e488b6ecf8ad3f90d90d883ed147a96308866e029e21dfd28ba62ba98fb24269.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=3 colspan=1>基金会名称</td><td rowspan=2 colspan=1></td><td rowspan=2 colspan=5></td><td></td></tr><tr><td rowspan=7 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1>缩写</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>社会组织类型</td><td rowspan=1 colspan=2>(默认：基金会)</td><td rowspan=1 colspan=1>行业分类</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>住所</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=1>手机号码</td><td rowspan=1 colspan=2></td><td rowspan=2 colspan=1>原始基金</td><td rowspan=2 colspan=3>万元</td></tr><tr><td rowspan=1 colspan=1>固定电话</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=2 colspan=1>法定代表人</td><td rowspan=2 colspan=2></td><td rowspan=2 colspan=1>法定代表人本单位职务</td><td rowspan=2 colspan=3></td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=4 colspan=1>批注[K3]:填写法定代表人在基金会担任的职务。</td></tr><tr><td rowspan=1 colspan=1>理事数</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>监事数</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=3 colspan=1>宗旨</td><td rowspan=2 colspan=6></td></tr><tr><td rowspan=1 colspan=1>批注[K4]:根据章程填写基金会宗旨。</td></tr><tr><td rowspan=1 colspan=6></td><td rowspan=3 colspan=1></td></tr><tr><td rowspan=3 colspan=1>业务范围</td><td rowspan=2 colspan=6></td></tr><tr><td rowspan=1 colspan=1>登记证书打印时将以此内容为准。</td></tr><tr><td rowspan=1 colspan=6></td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=3 colspan=1>业务主管单位</td><td rowspan=2 colspan=2></td><td rowspan=2 colspan=1>相关行业管理部门</td><td rowspan=2 colspan=3></td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=2 colspan=1>批注[K6]:有业务主管单位填写业务主管单位名称，无业务主管单位不显示此项。</td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=3></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                63,
+                229,
+                1000,
+                756
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/10c98b63d13f1a262c49860526e2a822eff78895dfd11f98ca437c74ea1fcb93.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "发起单位基本情况表"
+                    },
+                    {
+                        "type": "text",
+                        "content": "批注 [K7]: 基金会由发起单位发起的需填写此表，由个人发起无需填写此表。"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=3 colspan=1>单位名称</td><td rowspan=2 colspan=1></td><td rowspan=2 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>批注[K8]:发起单位名称全称。</td></tr><tr><td rowspan=1 colspan=1></td><td></td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=2 colspan=1>统一社会信用代码</td><td rowspan=3 colspan=1></td><td rowspan=3 colspan=1></td></tr><tr><td rowspan=2 colspan=1>批注[K9]:发起单位统一社会信用代码可从“全国组织机构统一社会信用代码公示查询平台”查询。</td></tr><tr><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>单位简介</td><td rowspan=1 colspan=1>单位盖章：____月__日__</td><td rowspan=2 colspan=2></td></tr><tr><td rowspan=1 colspan=1>附件</td><td rowspan=1 colspan=1></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                55,
+                228,
+                998,
+                768
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/77deb055435d21103404920981713f3638b884e7daca7fbc6132fccbe14b355c.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "发起人基本情况表"
+                    },
+                    {
+                        "type": "text",
+                        "content": "批注 [K10]: 基金会由个人发起的需填写此表，由单位发起的无需填写此表。"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>国籍</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>曾用名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>文化程度</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=2 colspan=1>出生年月</td><td rowspan=2 colspan=1></td><td rowspan=2 colspan=1>政治面貌</td><td rowspan=2 colspan=1></td><td rowspan=1 colspan=1>固定电话</td><td rowspan=1 colspan=1>(非必填）</td></tr><tr><td rowspan=1 colspan=1>手机号码</td><td rowspan=1 colspan=1>(必填)</td></tr><tr><td rowspan=1 colspan=1>证件类型</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>证件号码</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=2>人事关系所在单位及职务</td><td rowspan=1 colspan=4></td></tr><tr><td rowspan=1 colspan=2>其他社会职务</td><td rowspan=1 colspan=4></td></tr><tr><td rowspan=1 colspan=6>本人简历</td></tr><tr><td rowspan=1 colspan=2>自何年月至何年月</td><td rowspan=1 colspan=3>在何地区何单位</td><td rowspan=1 colspan=1>职务</td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=6>身份证明复印件（正反面）粘贴处</td></tr><tr><td rowspan=1 colspan=6>本人意见：本人签名：年月日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                60,
+                231,
+                677,
+                769
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "资金情况表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                310,
+                195,
+                426,
+                217
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K11]: 根据基金会验资报告填写此表。"
+                    }
+                ]
+            },
+            "bbox": [
+                710,
+                192,
+                924,
+                205
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/68ffedaaa9449c86ff65af10cc233d2a3686230207c2aebe7bde54a9ed76140f.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=2>原始基金</td><td rowspan=1 colspan=1>万元</td><td rowspan=1 colspan=1>原始基金币种</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2>验资单位</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>原始基金来源</td><td rowspan=1 colspan=4></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                48,
+                231,
+                689,
+                363
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "住所证明"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                321,
+                405,
+                416,
+                425
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/a402056923b79cadb80d027363eeeff2c0d7b92356deb70985e3e86dd68908e5.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>地址</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>邮政编码</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>住所来源</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>用房面积</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>使用期限</td><td rowspan=1 colspan=3>年_月__日至__年__月_日</td></tr><tr><td rowspan=1 colspan=1>产权人</td><td rowspan=1 colspan=3></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                48,
+                438,
+                687,
+                581
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K12]: 住所来源填写自有、租赁或无偿提供。"
+                    }
+                ]
+            },
+            "bbox": [
+                709,
+                474,
+                957,
+                487
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/ee8686d97caa6257066bc5f062a599ca0e71df1ca58c47eb95132808d09dcb8a.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "基金会内设机构备案表"
+                    },
+                    {
+                        "type": "text",
+                        "content": "批注 [K13]: 基金会设立基金会内设机构需填写此表，未设立的无需填写。"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>基金会名称</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>内设机构名称</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>电话</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>工作职责</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>履行内部程序</td><td rowspan=1 colspan=5>年月   日经第     次    (届)              会表决通过</td></tr><tr><td rowspan=1 colspan=6>内设机构负责人情况</td></tr><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>出生年月</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>证件类型</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>证件号码</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>其他社会职务</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>政治面貌</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=6>基金会法定代表人签章：年__月__日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                62,
+                231,
+                672,
+                788
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会办事机构备案表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                253,
+                193,
+                484,
+                218
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K14]: 基金会设立基金会办事机构需填写此表，未设立的无需填写。"
+                    }
+                ]
+            },
+            "bbox": [
+                709,
+                192,
+                994,
+                215
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/c38abefdbd33826635dab8844e6a159bf64c385e83ac0d2830ffc24c5ff13814.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>基金会名称</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>办事机构名称</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1>电话</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>住所</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=1>邮编</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>工作职责</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>内部履行程序</td><td rowspan=1 colspan=5>年  月    日经第     次    (届)              会表决通过</td></tr><tr><td rowspan=1 colspan=6>办事机构负责人情况</td></tr><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>出生年月</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>证件类型</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>证件号码</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>其他社会职务</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>政治面貌</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=6>基金会法定代表人签章：年__月__日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                60,
+                231,
+                672,
+                788
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "基金会法定代表人登记表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                242,
+                196,
+                495,
+                217
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/5b20e9097d821ca4a65f8d77dd833ddba0a79d4f9ae5f201fedb388f9bfcceaa.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>基金会名称</td><td rowspan=1 colspan=6></td><td rowspan=3 colspan=1>一寸照片</td></tr><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>性别</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>国籍</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>曾用名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>文化程度</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>出生日期</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>政治面貌</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>基金会职务</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=1>证件类型</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>证件号码</td><td rowspan=1 colspan=4></td></tr><tr><td rowspan=1 colspan=1>通信地址</td><td rowspan=1 colspan=4></td><td rowspan=1 colspan=1>邮政编码</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=2 colspan=1>户口所在地</td><td rowspan=2 colspan=2></td><td rowspan=1 colspan=1>固定电话</td><td rowspan=1 colspan=2>(非必填)</td><td rowspan=2 colspan=1>兼职专职</td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=1 colspan=1>手机号码</td><td rowspan=1 colspan=2>(必填)</td></tr><tr><td rowspan=1 colspan=3>是否现职公务员兼职</td><td rowspan=1 colspan=1>是旦否O</td><td rowspan=1 colspan=2>任职会议届次</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=3>人事关系所在单位及职务</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=3>单位性质</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>职级</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=3>党政机关和国有企事业单位领导干部兼任社会组织职务审批情况</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=3>其他社会职务</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>是否退休</td><td rowspan=1 colspan=2>是否</td></tr><tr><td rowspan=1 colspan=4>是否担任其他组织的法定代表人</td><td rowspan=1 colspan=4>是      否</td></tr><tr><td rowspan=1 colspan=8>本人简历</td></tr><tr><td rowspan=1 colspan=2>自何年月至何年月</td><td rowspan=1 colspan=5>在何地区何单位</td><td rowspan=1 colspan=1>职务</td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=1></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                60,
+                231,
+                677,
+                790
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/9752fd45d495845b81e6198ca9fa247560882fc9e0630006d248941fd331fa74.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=3>身份证明复印件（正反面）粘贴处</td></tr><tr><td rowspan=1 colspan=3>兼职审批表粘贴处</td></tr><tr><td rowspan=1 colspan=3>本人意见：本人签名：__年__月__日_</td></tr><tr><td rowspan=1 colspan=2>基金会意见</td><td rowspan=1 colspan=1>本人所在单位人事部门意见</td></tr><tr><td rowspan=1 colspan=2>经办人年__月__日</td><td rowspan=1 colspan=1>(印章)经办人年__月__日</td></tr><tr><td rowspan=1 colspan=1>备注</td><td rowspan=1 colspan=2></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                58,
+                192,
+                680,
+                733
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/55d772d2400ae80878fd52d72a2e2b9e45bf07381f032fd0be91ea32cd8d9294.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "基金会理事、监事备案表"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>基金会名称</td><td rowspan=1 colspan=7></td><td rowspan=3 colspan=1>一寸照片</td></tr><tr><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>性别</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>国籍</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>曾用名</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>文化程度</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>民族</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>出生日期</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>政治面貌</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=1>基金会职务</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=1>证件类型</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>证件号码</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1>通信地址</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=1>邮政编码</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=2 colspan=1>户口所在地</td><td rowspan=2 colspan=2></td><td rowspan=1 colspan=1>固定电话</td><td rowspan=1 colspan=3>(非必填)</td><td rowspan=2 colspan=1>兼职专职</td><td rowspan=2 colspan=1></td></tr><tr><td rowspan=1 colspan=1>手机号码</td><td rowspan=1 colspan=3>(必填)</td></tr><tr><td rowspan=1 colspan=3>人事关系所在单位及职务</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=3>单位性质</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=3>职级</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=3>党政机关和国有企事业单位领导干部兼任社会组织职务审批情况</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=3>其他社会职务</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=2>是否退休</td><td rowspan=1 colspan=2>是旦否</td></tr><tr><td rowspan=1 colspan=9>本人简历</td></tr><tr><td rowspan=1 colspan=2>自何年月至何年月</td><td rowspan=1 colspan=6>在何地区何单位</td><td rowspan=1 colspan=1>职务</td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=6></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=6></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2></td><td rowspan=1 colspan=6></td><td rowspan=1 colspan=1></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                53,
+                231,
+                684,
+                750
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/6c4f9d491bd5e661fbe4a984bd0698f8884dadf332e3bc54380cd886e719c1ff.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=3>身份证明复印件（正反面）粘贴处</td></tr><tr><td rowspan=1 colspan=3>兼职审批表粘贴处</td></tr><tr><td rowspan=1 colspan=3>本人意见：本人签名：__月__日</td></tr><tr><td rowspan=1 colspan=2>基金会意见</td><td rowspan=1 colspan=1>本人所在单位人事部门意见</td></tr><tr><td rowspan=1 colspan=2>经办人_年__月__日__</td><td rowspan=1 colspan=1>(印章)经办人年__月__日</td></tr><tr><td rowspan=1 colspan=1>备注</td><td rowspan=1 colspan=2></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                55,
+                192,
+                677,
+                734
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "理事情况表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                353,
+                176,
+                444,
+                208
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K19]: 根据基金会理事/监事备案表填写。"
+                    }
+                ]
+            },
+            "bbox": [
+                772,
+                171,
+                953,
+                189
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/277b3ac4f6cb289a4b7c932099e09b2cae73f2f94d7f3fb20f59bef5e0c5af70.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>序号</td><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1>证件型</td><td rowspan=1 colspan=1>证号件码</td><td rowspan=1 colspan=1>政面治貌</td><td rowspan=1 colspan=1>人事关系所在单位</td><td rowspan=1 colspan=1>单位质</td><td rowspan=1 colspan=1>职务</td><td rowspan=1 colspan=1>职级</td><td rowspan=1 colspan=1>是否退休</td><td rowspan=1 colspan=1>任基金会职务</td><td rowspan=1 colspan=1>党政机关和国有企事业单位领导干部兼任社会组织职务审批情</td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                53,
+                226,
+                743,
+                724
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "监事情况表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                353,
+                176,
+                444,
+                208
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "批注 [K20]: 根据基金会理事/监事备案表填写。"
+                    }
+                ]
+            },
+            "bbox": [
+                772,
+                171,
+                953,
+                189
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/3cbfd4da2f53860e4b9fcf565a606e5c1bcf902f0e1c27ba569fd8b444888d95.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>序号</td><td rowspan=1 colspan=1>姓名</td><td rowspan=1 colspan=1>性别</td><td rowspan=1 colspan=1>证件型</td><td rowspan=1 colspan=1>证号件码</td><td rowspan=1 colspan=1>政面治貌</td><td rowspan=1 colspan=1>人事关系所在单位</td><td rowspan=1 colspan=1>单位质</td><td rowspan=1 colspan=1>职务</td><td rowspan=1 colspan=1>职级</td><td rowspan=1 colspan=1>是否退休</td><td rowspan=1 colspan=1>任基金会职务</td><td rowspan=1 colspan=1>党政机关和国有企事业单位领导干部兼任社会组织职务审批情</td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                53,
+                226,
+                743,
+                724
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/17e4576c73d6d7f9934be2f49f9da218762a30e3dc1bfabbae60ad4467a086c0.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "基金会章程核准表"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=2 colspan=1>基金会名称</td><td rowspan=2 colspan=5></td><td></td></tr><tr><td rowspan=6 colspan=1>批注[K21]:表决形式填写举手、无记名投票。</td></tr><tr><td rowspan=1 colspan=6>通过章程的会议情况</td></tr><tr><td rowspan=1 colspan=1>会议名称</td><td rowspan=1 colspan=3>第__届__次理事</td><td rowspan=1 colspan=1>表决形式</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>时间</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>应到人数</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>实到人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>赞同人数</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>反对人数</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>弃权人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>修改说明</td><td rowspan=1 colspan=5>(可另附页)</td></tr><tr><td rowspan=1 colspan=3>法定代表人签名：月_日</td><td rowspan=1 colspan=3>业务主管单位审查意见经办人：负责人：                           (印章)年__月__日</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=6>登记管理机关审批</td><td></td></tr><tr><td rowspan=1 colspan=3>审核意见</td><td rowspan=1 colspan=3>审查意见</td><td></td></tr><tr><td rowspan=1 colspan=3>年__月__日</td><td rowspan=1 colspan=3>__月__日</td><td></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                65,
+                230,
+                1000,
+                775
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "会议纪要"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                321,
+                196,
+                416,
+                216
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/90b06d2276b9b59b77db08b4ae94ceb70d92b9876b33afee6e9d1cdd22681b81.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=1>会议类型</td><td rowspan=1 colspan=3>理事会</td></tr><tr><td rowspan=1 colspan=1>会议名称</td><td rowspan=1 colspan=3></td></tr><tr><td rowspan=1 colspan=1>时间</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>地点</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>应到人数</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>实到人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>决议内容</td><td rowspan=1 colspan=3>(可另附页)</td></tr><tr><td rowspan=1 colspan=1>其他需要说明的情况</td><td rowspan=1 colspan=3>(可另附页)</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                60,
+                231,
+                677,
+                789
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "社会组织党建工作情况表"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                242,
+                196,
+                495,
+                217
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/29d0ba63579e4bccbeea00e28fc97d2235a1b5a45eb721fcf016db041030b477.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=2>社会组织名称</td><td rowspan=1 colspan=8></td><td rowspan=1 colspan=2>业务主管单位</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2>住所</td><td rowspan=1 colspan=11></td></tr><tr><td rowspan=1 colspan=2>联系人及职务</td><td rowspan=1 colspan=8></td><td rowspan=1 colspan=2>手机号码</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=2>法定代表人</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=3>政治面貌</td><td rowspan=1 colspan=2></td><td rowspan=1 colspan=2>联系电话</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=5 colspan=2>工作人员、党员基本情况</td><td rowspan=1 colspan=3>工作人员总数</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=2>党员总数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=3>其中：1、专职</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=2>党员人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=3>2、兼职</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=2>党员人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=3>3、退休返聘</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=2>党员人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=3>4、其他</td><td rowspan=1 colspan=5></td><td rowspan=1 colspan=2>党员人数</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=8>党建指导员（联络员）</td><td rowspan=1 colspan=5>联系电话</td></tr><tr><td rowspan=1 colspan=8></td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=6>是否已建立党组织</td><td></td><td rowspan=1 colspan=5>是0                否o</td></tr><tr><td rowspan=1 colspan=8>党组织类型</td><td rowspan=1 colspan=5></td></tr><tr><td rowspan=1 colspan=3>社会组织党组织名称</td><td rowspan=1 colspan=4></td><td></td><td rowspan=1 colspan=3>上级党组织名称</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=4>党组织组建形式</td><td rowspan=1 colspan=7>单独组建o</td><td rowspan=1 colspan=2>联合组建o</td></tr><tr><td rowspan=1 colspan=13>单独组建</td></tr><tr><td rowspan=1 colspan=4>党支部书记</td><td rowspan=1 colspan=7>在社会组织任何职务</td><td rowspan=1 colspan=2>联系方式</td></tr><tr><td rowspan=1 colspan=4></td><td rowspan=1 colspan=7></td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=6></td><td rowspan=1 colspan=3>联合组建</td><td rowspan=1 colspan=4></td></tr><tr><td rowspan=1 colspan=3>党支部书记</td><td rowspan=1 colspan=4>在社会组织任何职务</td><td rowspan=1 colspan=4>联系方式</td><td rowspan=1 colspan=2>联合单位名称</td></tr><tr><td rowspan=1 colspan=3></td><td rowspan=1 colspan=4></td><td rowspan=1 colspan=4></td><td rowspan=1 colspan=2>(允许添加最多6行)</td></tr><tr><td rowspan=1 colspan=13>主要负责人签字：法定代表人签字：年月日</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                62,
+                231,
+                673,
+                794
+            ]
+        }
+    ],
+    [
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "社会组织党建工作承诺书"
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                242,
+                196,
+                495,
+                216
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "安徽省民政厅："
+                    }
+                ]
+            },
+            "bbox": [
+                67,
+                254,
+                183,
+                268
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（基金会名称）将依据《中国共产党章程》的规定，按照《关于加强社会组织党的建设工作的意见（试行）》和《关于改革社会组织管理制度促进社会组织健康有序发展的意见》要求，支持开展党建工作。经商全体发起人，我们郑重作出如下承诺："
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                269,
+                670,
+                332
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "一、坚持中国共产党的领导，执行党的路线、方针和政策，走中国特色社会组织发展之路。"
+                    }
+                ]
+            },
+            "bbox": [
+                67,
+                334,
+                670,
+                365
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "二、支持配合在 （基金会名称）内及时建立党组织并开展党的工作。如暂不能单独建立党组织，支持通过联合建立党组织、选派党建工作指导（联络）员等方式，在本组织开展党的工作。"
+                    }
+                ]
+            },
+            "bbox": [
+                67,
+                366,
+                670,
+                412
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "三、支持配合在 （基金会名称）内发展党员，支持党员参加党的活动，保障党员的合法权益，发挥党员的先锋模范作用。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                413,
+                670,
+                444
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "四、支持配合党的纪律检查机关和上级党组织查处 （基金会名称）违纪党员。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                447,
+                670,
+                476
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "五、为党组织在 （基金会名称）内开展活动提供必要的场地、经费和人员支持。"
+                    }
+                ]
+            },
+            "bbox": [
+                67,
+                478,
+                670,
+                508
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "六、 （基金会名称）承诺自成立大会召开之日起6 个月内建立党组织。如未按期建立，将接受登记管理机关和有关机关的处理。"
+                    }
+                ]
+            },
+            "bbox": [
+                65,
+                510,
+                670,
+                541
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "特此承诺。"
+                    }
+                ]
+            },
+            "bbox": [
+                100,
+                542,
+                184,
+                557
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（基金会名称）"
+                    }
+                ]
+            },
+            "bbox": [
+                426,
+                589,
+                628,
+                605
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "拟任主要负责人签字："
+                    }
+                ]
+            },
+            "bbox": [
+                450,
+                606,
+                621,
+                621
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "拟任法定代表人签字："
+                    }
+                ]
+            },
+            "bbox": [
+                450,
+                621,
+                621,
+                637
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "年 月 日"
+                    }
+                ]
+            },
+            "bbox": [
+                531,
+                653,
+                668,
+                669
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/599787986824dd0a7b1607a0600a1edb63077c4b6d375bb1e53942b2465975a3.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "设立慈善组织申请书"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td rowspan=1 colspan=2>基金会名称</td><td rowspan=1 colspan=7></td></tr><tr><td rowspan=2 colspan=2>登记管理机关</td><td rowspan=2 colspan=2></td><td rowspan=1 colspan=3>业务主管单位</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=1 colspan=3>相关行业管理部门</td><td rowspan=1 colspan=2></td></tr><tr><td rowspan=2 colspan=2>法定代表人</td><td rowspan=2 colspan=2></td><td rowspan=1 colspan=3>固定电话</td><td rowspan=1 colspan=2>(非必填)</td></tr><tr><td rowspan=1 colspan=3>手机号码</td><td rowspan=1 colspan=2>(必填)</td></tr><tr><td rowspan=1 colspan=2>住所</td><td rowspan=1 colspan=7></td></tr><tr><td rowspan=1 colspan=1>善动</td><td rowspan=1 colspan=8>□扶贫、济困□扶老、救孤、恤病、助残、优抚；□救助自然灾害、事故灾难和公共卫生事件等突发事件造成的损害；□促进教育、科学、文化、卫生、体育等事业的发展；□防治污染和其他公害，保护和改善生态环境；□符合《中华人民共和国慈善法》规定的其他公益活动，具体描述为：。</td></tr><tr><td rowspan=1 colspan=1>资金情况</td><td rowspan=1 colspan=2>验资单位名称</td><td rowspan=1 colspan=3></td><td rowspan=1 colspan=2>原始基金</td><td rowspan=1 colspan=1>万元</td></tr><tr><td rowspan=1 colspan=3>申请认定慈善组织履行的内部民主决策程序</td><td rowspan=1 colspan=6></td></tr><tr><td rowspan=1 colspan=5>本组织保证《设立慈善组织申请书》内容真实、准确、完整，并承担由此引起的一切法律责任。法定代表人签字：__年__月__日_</td><td rowspan=1 colspan=4>业务主管单位审查意见：经办人：____月__日_</td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                72,
+                231,
+                665,
+                816
+            ]
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/f8e8141421ea0ded9d7881346cd24ad3b17a1cf2a92438aa4c5af7cb28c3cb5e.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "社会组织成立登记审批表"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td>业务主管单位审查意见</td></tr><tr><td>经办人：</td></tr><tr><td>负责人： (印章)</td></tr><tr><td></td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                65,
+                231,
+                668,
+                468
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/3c3e21c43d06400e3c7df983426569428c8ab1d4f59423cd58cf2b4958ea6b69.jpg"
+                },
+                "table_caption": [
+                    {
+                        "type": "text",
+                        "content": "登记管理机关审批"
+                    }
+                ],
+                "table_footnote": [],
+                "html": "<table><tr><td>承办意见</td><td>审核意见</td><td>批准意见</td></tr><tr><td>承办人： 审查人： _月_日_</td><td>_月__日_</td><td>月_日_</td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                63,
+                546,
+                668,
+                791
+            ]
+        }
+    ]
+]

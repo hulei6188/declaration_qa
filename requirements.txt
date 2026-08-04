@@ -33,6 +33,7 @@ python-calamine>=0.4.0
 marko>=2.2,<3
 chonkie>=1.7,<2
 ragas==0.3.9
+APScheduler==3.11.3
 
 mineru[pipeline]
 llama-cloud-services>=0.6.0

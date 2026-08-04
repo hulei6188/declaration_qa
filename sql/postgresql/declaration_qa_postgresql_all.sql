@@ -937,6 +937,24 @@ CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_candidates_status ON declarati
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_candidates_audit ON declaration_qa.eval_candidates (audit_uid) WHERE audit_uid <> '';
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_scores_item ON declaration_qa.eval_scores (run_item_id, metric_name);
 
+ALTER TABLE declaration_qa.eval_cases
+    ADD COLUMN IF NOT EXISTS agent_retrieval_queries JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS source_trace_id VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE declaration_qa.eval_run_items
+    ADD COLUMN IF NOT EXISTS agent_retrieval_queries JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS retrieval_ablation JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE declaration_qa.eval_candidates
+    ADD COLUMN IF NOT EXISTS agent_retrieval_queries JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS online_scores JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_cases_source_trace
+    ON declaration_qa.eval_cases (source_trace_id) WHERE source_trace_id <> '';
+CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_candidates_trace
+    ON declaration_qa.eval_candidates (trace_id) WHERE trace_id <> '';
+
 COMMENT ON SCHEMA declaration_qa IS '政务申报智能问答独立业务 schema';
 
 COMMENT ON TABLE declaration_qa.knowledge_bases IS '知识库基础信息表';

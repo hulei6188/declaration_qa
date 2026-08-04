@@ -328,6 +328,9 @@ class EvaluationCaseRequest(BaseModel):
     turns: list[dict[str, Any]] = Field(default_factory=list)
     fixture_key: str = Field(default="", max_length=120)
     expected_chunk_ids: list[str] = Field(default_factory=list)
+    agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
+    source_trace_id: str = Field(default="", max_length=120)
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
     expected_trajectory: dict[str, Any] = Field(default_factory=dict)
     expected_outcome: dict[str, Any] = Field(default_factory=dict)
     severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
@@ -364,6 +367,9 @@ class EvaluationCaseResponse(BaseModel):
     turns: list[dict[str, Any]] = Field(default_factory=list)
     fixture_key: str = ""
     expected_chunk_ids: list[str] = Field(default_factory=list)
+    agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
+    source_trace_id: str = ""
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
     expected_trajectory: dict[str, Any] = Field(default_factory=dict)
     expected_outcome: dict[str, Any] = Field(default_factory=dict)
     severity: str = "medium"
@@ -394,6 +400,7 @@ class EvaluationRunRequest(BaseModel):
     trigger_source: str = Field(default="manual", max_length=40)
     git_commit: str = Field(default="", max_length=80)
     force_inline: bool = False
+    run_retrieval_ablation: bool = False
 
 
 class EvaluationAnnotationRequest(BaseModel):
@@ -429,6 +436,8 @@ class EvaluationRunItemResponse(BaseModel):
     annotation_comment: str = ""
     agent_run_uid: str = ""
     actual_trajectory: dict[str, Any] = Field(default_factory=dict)
+    agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
+    retrieval_ablation: dict[str, Any] = Field(default_factory=dict)
     rule_scores: dict[str, Any] = Field(default_factory=dict)
     judge_scores: dict[str, Any] = Field(default_factory=dict)
     failure_reasons: list[str] = Field(default_factory=list)
@@ -483,6 +492,8 @@ class EvaluationCandidateResponse(BaseModel):
     sanitized_answer: str = ""
     detection_signals: dict[str, Any] = Field(default_factory=dict)
     trajectory_snapshot: dict[str, Any] = Field(default_factory=dict)
+    agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
+    online_scores: dict[str, Any] = Field(default_factory=dict)
     labels: list[str] = Field(default_factory=list)
     reviewer_comment: str = ""
     promoted_case_id: str | None = None

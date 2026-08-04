@@ -39,6 +39,7 @@ def process_evaluation_run_task(run_id: str, payload: dict) -> dict:
             if settings.evaluation_judge_enabled
             else None,
             langfuse_settings=settings,
+            run_retrieval_ablation_enabled=bool(payload.get("run_retrieval_ablation")),
         )
         return runner.run(
             dataset_id=str(payload["dataset_id"]),

@@ -1,0 +1,18 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "住所承诺书",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+]

@@ -9,6 +9,7 @@ from typing import Any
 
 from gov_service_agent.api.schemas import ChatRequest, HumanConfirmationRequest
 from gov_service_agent.application.evaluation import evaluate_with_ragas, ratio, unique_contexts, unique_doc_ids
+from gov_service_agent.application.evals.candidates import extract_queries_from_audit_payload
 from gov_service_agent.application.evals.evaluators import (
     evaluate_answer,
     evaluate_outcome,
@@ -17,6 +18,12 @@ from gov_service_agent.application.evals.evaluators import (
 )
 from gov_service_agent.application.evals.fixtures import EvaluationFixtureManager
 from gov_service_agent.application.evals.gate import evaluate_gate
+from gov_service_agent.application.evals.retrieval_ablation import (
+    extract_agent_retrieval_queries,
+    extract_retrieval_filter,
+    normalize_frozen_queries,
+    run_retrieval_ablation,
+)
 from gov_service_agent.application.evals.comparison import compare_runs
 from gov_service_agent.application.evals.trajectory import (
     evaluate_trajectory,
@@ -38,6 +45,8 @@ class CaseExecution:
     human_confirmation: dict[str, Any]
     status: str
     elapsed_ms: int
+    agent_retrieval_queries: list[dict[str, Any]]
+    retrieval_filter: dict[str, Any]
 
 
 class EvaluationRunner:
@@ -53,6 +62,7 @@ class EvaluationRunner:
         ragas_unavailable_reason: str = "",
         judge=None,
         langfuse_settings=None,
+        run_retrieval_ablation_enabled: bool = False,
     ) -> None:
         self.workflow = workflow
         self.store = store
@@ -61,6 +71,7 @@ class EvaluationRunner:
         self.ragas_unavailable_reason = ragas_unavailable_reason
         self.judge = judge
         self.langfuse_settings = langfuse_settings
+        self.run_retrieval_ablation_enabled = bool(run_retrieval_ablation_enabled)
         self.fixtures = EvaluationFixtureManager(workflow.audit_store)
 
     def run(
@@ -109,7 +120,11 @@ class EvaluationRunner:
                     items.append(item)
                 finally:
                     self.fixtures.cleanup(case)
-            metrics = summarize_items(items, ragas_requested=self.ragas_requested)
+            metrics = summarize_items(
+                items,
+                ragas_requested=self.ragas_requested,
+                retrieval_ablation_requested=self.run_retrieval_ablation_enabled,
+            )
             reasons = [reason for item in items for reason in item.get("failure_reasons") or []]
             baseline = self.store.get_eval_run(baseline_run_id) if baseline_run_id else None
             comparison = compare_runs(baseline, {"run_id": run_id, "metrics": metrics}) if baseline else None
@@ -194,6 +209,17 @@ class EvaluationRunner:
                         trajectories.pop()
                     trajectories.append(normalize_agent_run(run, turn_index=turn_index))
         trajectory = merge_turn_trajectories(trajectories)
+        agent_retrieval_queries = extract_agent_retrieval_queries(trajectory)
+        retrieval_filter = extract_retrieval_filter(trajectory)
+        if latest.get("audit_id") and (not agent_retrieval_queries or not retrieval_filter):
+            audit = self.workflow.audit_store.get(str(latest.get("audit_id") or "")) or {}
+            if not agent_retrieval_queries:
+                agent_retrieval_queries = extract_queries_from_audit_payload(
+                    list(audit.get("tool_results") or []),
+                    dict(audit.get("agent_query_plan") or {}),
+                )
+            if not retrieval_filter:
+                retrieval_filter = dict(audit.get("retrieval_filter") or {})
         return CaseExecution(
             query=str(latest.get("query") or case.get("query") or ""),
             answer=str(latest.get("answer") or ""),
@@ -205,6 +231,8 @@ class EvaluationRunner:
             human_confirmation=dict(latest.get("human_confirmation") or pending_confirmation or {}),
             status=str(latest.get("status") or "completed"),
             elapsed_ms=int((perf_counter() - started) * 1000),
+            agent_retrieval_queries=agent_retrieval_queries,
+            retrieval_filter=retrieval_filter,
         )
 
     def _resume_confirmation(
@@ -266,6 +294,25 @@ class EvaluationRunner:
             dict(case.get("expected_trajectory") or {}),
             user_id=int(case.get("user_id") or 1),
         )
+        actual_agent_retrieval_queries = execution.agent_retrieval_queries or extract_agent_retrieval_queries(execution.trajectory)
+        ablation_queries = normalize_frozen_queries(case.get("agent_retrieval_queries") or [])
+        query_source = "golden_case"
+        if not ablation_queries:
+            ablation_queries = actual_agent_retrieval_queries
+            query_source = "replayed_agent"
+        retrieval_ablation = {}
+        ablation_records: list[dict[str, Any]] = []
+        if self.run_retrieval_ablation_enabled:
+            retrieval_filter = execution.retrieval_filter or extract_retrieval_filter(execution.trajectory)
+            retrieval_ablation, ablation_records = run_retrieval_ablation(
+                self.workflow.rag_engine,
+                queries=ablation_queries,
+                filters=retrieval_filter,
+                expected_doc_ids=list(case.get("expected_doc_ids") or []),
+                expected_chunk_ids=list(case.get("expected_chunk_ids") or []),
+                top_k=10,
+            )
+            retrieval_ablation["query_source"] = query_source
         outcome, outcome_failures, outcome_records = evaluate_outcome(
             {
                 "status": execution.status,
@@ -329,6 +376,8 @@ class EvaluationRunner:
             "ragas_status": dict(ragas.get("status") or {}),
             "agent_run_uid": execution.audit_id,
             "actual_trajectory": execution.trajectory,
+            "agent_retrieval_queries": actual_agent_retrieval_queries,
+            "retrieval_ablation": retrieval_ablation,
             "rule_scores": {**retrieval, **answer, **trajectory_scores, **outcome},
             "judge_scores": {"scores": judge.get("scores") or {}, "status": judge.get("status") or {}},
             "failure_reasons": failures,
@@ -348,7 +397,7 @@ class EvaluationRunner:
             }
             for name, value in (ragas.get("scores") or {}).items()
         ]
-        records = retrieval_records + answer_records + trajectory_records + outcome_records + ragas_records + list(judge.get("records") or [])
+        records = retrieval_records + answer_records + trajectory_records + outcome_records + ragas_records + list(judge.get("records") or []) + ablation_records
         return item, records
 
     def _score_langfuse_traces(
@@ -412,10 +461,17 @@ def trajectory_from_pending_response(response, *, turn_index: int) -> dict[str, 
     return {"run_id": "", "status": "paused", "iteration_count": 0, "calls": calls, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "latency_ms": 0}
 
 
-def summarize_items(items: list[dict[str, Any]], *, ragas_requested: bool) -> dict[str, Any]:
+def summarize_items(
+    items: list[dict[str, Any]],
+    *,
+    ragas_requested: bool,
+    retrieval_ablation_requested: bool = False,
+) -> dict[str, Any]:
     rules: dict[str, list[float]] = {}
     ragas: dict[str, list[float]] = {}
     judge: dict[str, list[float]] = {}
+    ablation: dict[str, dict[str, list[float]]] = {}
+    ablation_latencies: list[int] = []
     for item in items:
         for name, value in (item.get("rule_scores") or {}).items():
             if isinstance(value, (int, float)):
@@ -426,6 +482,13 @@ def summarize_items(items: list[dict[str, Any]], *, ragas_requested: bool) -> di
         for name, value in ((item.get("judge_scores") or {}).get("scores") or {}).items():
             if isinstance(value, (int, float)):
                 judge.setdefault(name, []).append(float(value))
+        ablation_result = item.get("retrieval_ablation") or {}
+        if ablation_result.get("status") == "success":
+            ablation_latencies.append(int(ablation_result.get("elapsed_ms") or 0))
+            for variant, result in (ablation_result.get("variants") or {}).items():
+                for name, value in (result.get("metrics") or {}).items():
+                    if isinstance(value, (int, float)):
+                        ablation.setdefault(str(variant), {}).setdefault(str(name), []).append(float(value))
     passed = sum(1 for item in items if item.get("passed") is True)
     latencies = sorted(int(item.get("latency_ms") or 0) for item in items)
     metrics = {
@@ -442,6 +505,18 @@ def summarize_items(items: list[dict[str, Any]], *, ragas_requested: bool) -> di
             "scores": {name: round(mean(values), 6) for name, values in ragas.items()},
         },
         "judge": {name: round(mean(values), 6) for name, values in judge.items()},
+        "retrieval_ablation": {
+            "enabled": retrieval_ablation_requested,
+            "evaluated_case_count": max(
+                (len(values) for metrics_by_variant in ablation.values() for values in metrics_by_variant.values()),
+                default=0,
+            ),
+            "variants": {
+                variant: {name: round(mean(values), 6) for name, values in metrics_by_name.items()}
+                for variant, metrics_by_name in ablation.items()
+            },
+            "p95_latency_ms": percentile(sorted(ablation_latencies), 0.95),
+        },
         "performance": {
             "total_tokens": sum(int(item.get("total_tokens") or 0) for item in items),
             "average_tool_calls": round(mean([len((item.get("actual_trajectory") or {}).get("calls") or []) for item in items]), 6) if items else 0,
@@ -455,6 +530,9 @@ def summarize_items(items: list[dict[str, Any]], *, ragas_requested: bool) -> di
         metrics.setdefault(name, value)
     for name, value in metrics["judge"].items():
         metrics.setdefault(name, value)
+    metrics["recall_at_5"] = metrics["rules"].get("retrieval_recall_at_5")
+    metrics["recall_at_10"] = metrics["rules"].get("retrieval_recall_at_10")
+    metrics["mrr_at_10"] = metrics["rules"].get("retrieval_mrr_at_10")
     return metrics
 
 

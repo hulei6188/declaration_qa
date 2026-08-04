@@ -118,6 +118,36 @@ def test_sqlalchemy_postgres_url_is_normalized_for_psycopg():
     )
 
 
+def test_memory_policy_migration_preserves_minimal_tool_audit_only():
+    runtime = build_test_memory_runtime()
+
+    normalized = runtime.normalize_context(
+        {
+            "legacy_evidence": {"evidence_text": "不得保留"},
+            "historical_tool_audit": [
+                {
+                    "turn_id": "user-1",
+                    "tools": [
+                        {"tool_name": "knowledge_search", "status": "success", "ok": True}
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert normalized == {
+        "memory_policy_version": MEMORY_POLICY_VERSION,
+        "historical_tool_audit": [
+            {
+                "turn_id": "user-1",
+                "tools": [
+                    {"tool_name": "knowledge_search", "status": "success", "ok": True}
+                ],
+            }
+        ],
+    }
+
+
 def test_langmem_creates_running_summary_after_token_threshold():
     runtime = build_test_memory_runtime(summary_max_tokens=200, summary_trigger_tokens=50)
 

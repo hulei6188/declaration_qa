@@ -1,0 +1,53 @@
+[
+    {
+        "type": "text",
+        "text": "**草原防火期内在草原上进行**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "**爆破、勘察和施工等活动申请表**",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "申请单位或个人：____________（单位盖章）",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "通讯地址：____________________________",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "邮政编码：____________________________",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "联系人：______________________________",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "联系电话：____________________________",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "填表时间：____________________________",
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "**草原防火期内在草原上进行爆破、勘察和施工**等活动申请表",
+        "page_idx": 0
+    },
+    {
+        "type": "table",
+        "table_caption": [],
+        "table_body": "<table><tr><td><p>个人或单位名称</p></td><td></td><td><p>个人或单位法人代表身份证号</p></td><td></td></tr><tr><td><p>单位经办人名称</p></td><td></td><td><p>单位经办人身份证号</p></td><td></td></tr><tr><td><p>受个人委托的代办人名称</p></td><td></td><td><p>受个人委托的代办人身份证号</p></td><td></td></tr><tr><td><p>申报时间</p></td><td colspan=\"3\"><p>       年     月      日</p></td></tr><tr><td><p>申请活动名称</p></td><td colspan=\"3\"></td></tr><tr><td><p>活动期限</p></td><td colspan=\"3\"><p>从       年   月   日   时   分到       年   月   日   时   分</p></td></tr><tr><td><p>活动地点</p><p>（具体到乡镇、村）</p></td><td colspan=\"3\"></td></tr><tr><td><p>活动地点经纬度</p></td><td colspan=\"3\"></td></tr><tr><td><p>参加人员数量</p></td><td colspan=\"3\"></td></tr><tr><td><p>活动主要内容</p></td><td colspan=\"3\"></td></tr><tr><td><p>主要防火措施</p></td><td colspan=\"3\"></td></tr></table>",
+        "page_idx": 0
+    }
+]

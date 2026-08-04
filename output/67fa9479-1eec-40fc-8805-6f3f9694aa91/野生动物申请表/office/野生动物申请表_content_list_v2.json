@@ -1,0 +1,24 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "野生动物保护管理行政许可事项申请表"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"2\"><p>申请单位名称</p></td><td colspan=\"8\"></td></tr><tr><td colspan=\"2\"><p>地址、邮编及电话</p></td><td colspan=\"8\"></td></tr><tr><td colspan=\"2\"><p>法定代表人姓名</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>身份证明类型及号码</p></td><td colspan=\"4\"></td></tr><tr><td><p>申</p><p>请</p><p>事</p><p>由</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"10\"><p>涉 及 物 种</p></td></tr><tr><td colspan=\"3\"><p>中文名</p></td><td colspan=\"4\"><p>拉丁学名</p></td><td colspan=\"2\"><p>我国保护级别</p></td><td><p>公约保护级别</p></td></tr><tr><td colspan=\"3\"></td><td colspan=\"4\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"3\"></td><td colspan=\"4\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"3\"></td><td colspan=\"4\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"3\"></td><td colspan=\"4\"></td><td colspan=\"2\"></td><td></td></tr><tr><td colspan=\"3\"></td><td colspan=\"4\"></td><td colspan=\"2\"></td><td></td></tr><tr><td><p>附</p><p>件</p><p>材</p><p>料</p></td><td colspan=\"9\"></td></tr><tr><td colspan=\"5\" rowspan=\"3\"><p>申请单位领导签字及盖章：</p><p>日期：      年    月    日</p></td><td colspan=\"3\"><p>联系人姓名</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"3\"><p>联系电话、</p><p>传真</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"3\"><p>通讯地址</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"5\"><p>县（市、区）林业行政主管部门意见：</p><p> </p><p>经办人：                       </p><p>签发人：</p><p> </p><p>                日期：      年    月    日</p><p>                    （加盖公章）</p></td><td colspan=\"5\"><p>市级林业行政主管部门意见：</p><p> </p><p>经办人：                       </p><p>签发人：                                   </p><p>                  日期：      年    月    日</p><p>                         （加盖公章）                 </p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        }
+    ]
+]

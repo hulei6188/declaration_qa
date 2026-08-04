@@ -87,6 +87,13 @@ class GovServiceAgentSettings(BaseSettings):
     evaluation_judge_api_key: str = Field(default="", alias="GOV_SERVICE_AGENT_EVAL_JUDGE_API_KEY")
     evaluation_pii_salt: str = Field(default="", alias="GOV_SERVICE_AGENT_EVAL_PII_SALT")
     evaluation_candidate_scan_limit: int = Field(default=500, alias="GOV_SERVICE_AGENT_EVAL_CANDIDATE_SCAN_LIMIT")
+    online_evaluation_enabled: bool = Field(default=False, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_ENABLED")
+    online_evaluation_interval_minutes: int = Field(default=15, ge=1, le=1440, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_INTERVAL_MINUTES")
+    online_evaluation_sample_rate: float = Field(default=0.05, ge=0.0, le=1.0, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_SAMPLE_RATE")
+    online_evaluation_sample_limit: int = Field(default=50, ge=1, le=2000, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_SAMPLE_LIMIT")
+    online_evaluation_lookback_hours: int = Field(default=24, ge=1, le=8760, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_LOOKBACK_HOURS")
+    online_evaluation_faithfulness_threshold: float = Field(default=0.9, ge=0.0, le=1.0, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_FAITHFULNESS_THRESHOLD")
+    online_evaluation_run_on_start: bool = Field(default=True, alias="GOV_SERVICE_AGENT_ONLINE_EVAL_RUN_ON_START")
 
     auth_required: bool = Field(default=False, alias="GOV_SERVICE_AGENT_AUTH_REQUIRED")
     jwt_secret: str = Field(default="", alias="GOV_SERVICE_AGENT_JWT_SECRET")

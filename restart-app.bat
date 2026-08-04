@@ -21,6 +21,7 @@ if /i "%~1"=="api" goto run_api
 if /i "%~1"=="mineru" goto run_mineru
 if /i "%~1"=="worker" goto run_worker
 if /i "%~1"=="eval-worker" goto run_eval_worker
+if /i "%~1"=="eval-scheduler" goto run_eval_scheduler
 if /i "%~1"=="frontend" goto run_frontend
 
 echo [1/4] Stopping existing application processes...
@@ -30,8 +31,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ports = @(8010, 8011, 5173);" ^
   "$processes = @(Get-CimInstance Win32_Process);" ^
   "$roots = @($processes | Where-Object {" ^
-  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|eval-worker|frontend)') -or" ^
-  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'gov_service_agent\.api\.server\.app:app|-m gov_service_agent\.indexing\.worker|-m gov_service_agent\.application\.evals\.worker|-m mineru\.cli\.fast_api') -or" ^
+  "  ($_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'restart-app\.bat.? (api|mineru|worker|eval-worker|eval-scheduler|frontend)') -or" ^
+  "  ($_.Name -match '^python(.exe)?$' -and $_.CommandLine -match 'gov_service_agent\.api\.server\.app:app|-m gov_service_agent\.indexing\.worker|-m gov_service_agent\.application\.evals\.(worker|scheduler)|-m mineru\.cli\.fast_api') -or" ^
   "  ($_.Name -eq 'node.exe' -and $_.CommandLine -match '(declaration-qa|gov-service-agent)[\\/]frontend.*vite')" ^
   "});" ^
   "$queue = @($roots | ForEach-Object { [int]$_.ProcessId });" ^
@@ -67,7 +68,7 @@ if errorlevel 1 (
 echo [3/4] Starting application...
 set "NO_PROXY=127.0.0.1,localhost,127.0.0.0/8"
 
-"%PYTHON_EXE%" -c "import chonkie, fastapi, langmem, mineru, uvicorn; from langgraph.checkpoint.postgres import PostgresSaver; from langgraph.store.postgres import PostgresStore" >nul 2>nul
+"%PYTHON_EXE%" -c "import apscheduler, chonkie, fastapi, langmem, mineru, uvicorn; from langgraph.checkpoint.postgres import PostgresSaver; from langgraph.store.postgres import PostgresStore" >nul 2>nul
 if errorlevel 1 (
     echo Python dependencies were not found in conda environment "%CONDA_ENV%".
     echo Run: conda activate %CONDA_ENV%
@@ -103,6 +104,16 @@ if errorlevel 1 (
     start "Gov Service Agent Worker" cmd /k call "%~f0" worker
 ) else (
     echo Index worker is already running.
+)
+
+findstr /I /X "GOV_SERVICE_AGENT_ONLINE_EVAL_ENABLED=true" .env >nul 2>nul
+if not errorlevel 1 (
+    powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(.exe)?$' -and $_.CommandLine -match '-m gov_service_agent.application.evals.scheduler' }; if ($p) { exit 0 } else { exit 1 }" >nul 2>nul
+    if errorlevel 1 (
+        start "Gov Service Agent Online Evaluation Scheduler" cmd /k call "%~f0" eval-scheduler
+    ) else (
+        echo Online evaluation scheduler is already running.
+    )
 )
 
 findstr /I /X "GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq" .env >nul 2>nul
@@ -188,4 +199,11 @@ title Gov Service Agent Evaluation Worker
 set "PYTHONPATH=%PROJECT_ROOT%src"
 echo Starting RQ evaluation worker with conda environment "%CONDA_ENV%" ...
 "%PYTHON_EXE%" -m gov_service_agent.application.evals.worker
+exit /b %errorlevel%
+
+:run_eval_scheduler
+title Gov Service Agent Online Evaluation Scheduler
+set "PYTHONPATH=%PROJECT_ROOT%src"
+echo Starting APScheduler online evaluation process with conda environment "%CONDA_ENV%" ...
+"%PYTHON_EXE%" -m gov_service_agent.application.evals.scheduler
 exit /b %errorlevel%

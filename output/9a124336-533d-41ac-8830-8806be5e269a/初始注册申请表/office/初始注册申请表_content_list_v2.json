@@ -1,0 +1,63 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "附件2"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "造价工程师（水利工程）初始注册申请表",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（□一级  ☑二级）",
+                        "style": [
+                            "bold"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"2\"><p>姓名</p></td><td></td><td><p>性别</p></td><td></td><td><p>出生年月</p></td><td></td><td rowspan=\"3\"><p>扫描照片</p><p>（二寸）    </p></td></tr><tr><td colspan=\"2\"><p>证件名称</p></td><td colspan=\"5\"><p>□身份证       □军官证       □其他</p></td></tr><tr><td colspan=\"2\"><p>证件号码</p></td><td colspan=\"2\"></td><td><p>个人签名</p></td><td colspan=\"2\"></td></tr><tr><td rowspan=\"2\"><p>最高学历</p></td><td colspan=\"2\"><p>毕业院校</p></td><td colspan=\"2\"></td><td><p>毕业时间</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"2\"><p>专业</p></td><td></td><td><p>学历</p></td><td></td><td><p>学位</p></td><td></td></tr><tr><td><p>资格证书</p></td><td colspan=\"2\"><p>资格证书编号</p></td><td colspan=\"2\"></td><td><p>批准日期</p><p>（签发日期）</p></td><td colspan=\"2\"></td></tr><tr><td rowspan=\"4\"><p>聘用</p><p>单位</p></td><td colspan=\"2\"><p>单位名称</p></td><td colspan=\"5\"></td></tr><tr><td colspan=\"2\"><p>统一社会信用代码</p></td><td colspan=\"5\"></td></tr><tr><td colspan=\"2\"><p>通信地址</p></td><td colspan=\"5\"></td></tr><tr><td colspan=\"2\"><p>工商登记地</p></td><td colspan=\"2\"></td><td><p>经办人手机号码</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"3\"><p>申请人手机号码</p></td><td colspan=\"2\"></td><td><p>注册地</p></td><td colspan=\"2\"></td></tr><tr><td colspan=\"8\"><p>聘用单位意见</p></td></tr><tr><td colspan=\"8\"><p>负责人（签字）：               （公章）                年    月    日</p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "注：□位置请勾选符合条件的选项"
+                    }
+                ]
+            }
+        }
+    ]
+]

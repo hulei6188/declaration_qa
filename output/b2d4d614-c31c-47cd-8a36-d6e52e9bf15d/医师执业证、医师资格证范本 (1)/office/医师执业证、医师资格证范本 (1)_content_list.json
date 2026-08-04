@@ -1,0 +1,38 @@
+[
+    {
+        "type": "image",
+        "img_path": "images/72e4a070ff12190bc2745c19a6ada5d0febc84bc49db418a92479b04257d0203.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/493b946de3a788ac04f7d3e03312e3a0f34d0c1835f92abddd89119487ca760e.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/c3d6f3a286fdceb271d6638fdfb35c98391d92f26dc2ed397c43319b692f8517.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/d94ad569c91dd3ec1367e296e7ad16298ce1c29404685aec9cbe9e8c5883a2f4.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/919732fa81e3108709adfbf914945d44ae1aae8eed34c82c09ff55cf0b0edcce.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/0e5d5ca67cf87f721314893eeba68a77f746627aa601fbfd7283bcd34523e041.jpg",
+        "image_caption": [],
+        "page_idx": 0
+    }
+]

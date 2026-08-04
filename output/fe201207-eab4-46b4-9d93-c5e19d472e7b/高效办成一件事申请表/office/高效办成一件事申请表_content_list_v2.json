@@ -1,0 +1,47 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "高效办成退休“一件事”申请表"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "（灵活就业人员使用）"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td><p>姓名</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>身份证号码</p></td><td colspan=\"3\"></td><td><p>性别</p></td><td><p>£男</p><p>£女</p></td><td><p>联系</p><p>电话</p></td><td></td></tr><tr><td><p>退休类型</p></td><td colspan=\"5\"><p>£正常退休</p><p>£特殊工种提前退休</p><p>£因病或非因工提前退休（退职）</p></td><td><p>家庭住址</p></td><td colspan=\"5\"><p>        省         市       县（区）          镇</p><p>（街道）         村 （社区）         小区      栋（幢）      室 </p></td></tr><tr><td><p>处罚</p><p>情况</p></td><td colspan=\"6\"><p>£无</p><p>£有</p><p>（有期徒刑、开除、除名、其他情形）       </p></td><td colspan=\"3\"><p>已领取省外养老保险待遇</p></td><td colspan=\"2\"><p>£是</p><p>£否</p></td></tr><tr><td colspan=\"2\"><p>重要联系人姓名</p></td><td colspan=\"2\"></td><td colspan=\"2\"><p>与本人</p><p>关系</p></td><td></td><td colspan=\"2\"><p>手机号码</p></td><td colspan=\"3\"></td></tr><tr><td rowspan=\"5\"><p>申请</p><p>事项</p><p>确认</p></td><td colspan=\"11\"><p>①企业职工基本养老保险基本养老金申领 £ （必选）</p></td></tr><tr><td colspan=\"11\"><p>②基本医疗保险视同缴费年限核定（在职转退休）£</p></td></tr><tr><td colspan=\"11\"><p>③离休、退休提取住房公积金 £</p></td></tr><tr><td colspan=\"11\"><p>④城镇独生子女父母奖励金 £ （独生子女父母光荣证：£有  £无）</p></td></tr><tr><td colspan=\"11\"><p>申请人签字：                                   年   月   日</p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "备注：线下申请根据情形问答，系统自动生成此表，申请人签字确认；线上申请根据填写指引，核验人员身份。"
+                    }
+                ]
+            }
+        }
+    ],
+    []
+]

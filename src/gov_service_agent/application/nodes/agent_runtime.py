@@ -26,6 +26,7 @@ from gov_service_agent.memory.evidence import (
     RECENT_CONVERSATION_USER_TURNS,
     build_conversation_memory,
     project_historical_messages,
+    retain_historical_tool_audit,
 )
 from gov_service_agent.rag.engine.text import normalize_text
 from gov_service_agent.rag.retrieval import KNOWLEDGE_RETRIEVAL_CHAIN, normalize_retrieval_filter
@@ -52,10 +53,16 @@ class AgentRuntimeNodes:
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
+        historical_messages = list(next_state.get("agent_messages") or [])
+        memory_context = retain_historical_tool_audit(
+            historical_messages,
+            dict(next_state.get("memory_context") or {}),
+        )
+        next_state["memory_context"] = memory_context
         messages = project_historical_messages(
-            list(next_state.get("agent_messages") or []),
+            historical_messages,
             keep_recent_user_turns=max(0, RECENT_CONVERSATION_USER_TURNS - 1),
-            memory_context=dict(next_state.get("memory_context") or {}),
+            memory_context=memory_context,
         )
         messages.append(
             {
@@ -67,9 +74,7 @@ class AgentRuntimeNodes:
         next_state["agent_messages"] = messages
         next_state["retrieved_sources"] = []
         next_state["tool_results"] = []
-        next_state["conversation_memory"] = build_conversation_memory(
-            next_state.get("memory_context") or {},
-        )
+        next_state["conversation_memory"] = build_conversation_memory(memory_context)
         next_state["working_memory"] = {
             "active_knowledge_chunk_ids": [
                 str(item.get("chunk_id") or "") for item in next_state["retrieved_sources"]

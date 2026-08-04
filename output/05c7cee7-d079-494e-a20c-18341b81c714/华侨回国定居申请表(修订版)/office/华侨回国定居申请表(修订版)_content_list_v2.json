@@ -1,0 +1,66 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "华侨回国定居申请表"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"10\"><p><strong>个人基本情况</strong></p></td></tr><tr><td><p>姓 名</p></td><td></td><td colspan=\"2\"><p>曾用名</p></td><td><p>  </p></td><td colspan=\"2\"><p>外文姓名</p></td><td colspan=\"2\"><p>  </p></td><td rowspan=\"4\"><p>二寸彩色 </p><p>免冠近照 </p></td></tr><tr><td><p>性 别</p></td><td></td><td colspan=\"2\"><p>民 族</p></td><td><p>  </p></td><td colspan=\"2\"><p>出生年月</p></td><td colspan=\"2\"><p>  </p></td></tr><tr><td><p>出生地</p></td><td></td><td colspan=\"2\"><p>籍 贯</p></td><td><p>  </p></td><td colspan=\"2\"><p>文化程度</p></td><td colspan=\"2\"><p>  </p></td></tr><tr><td><p>职 业</p></td><td><p>  </p></td><td colspan=\"2\"><p>婚姻状况</p></td><td colspan=\"5\"><p>未婚□ 已婚□ 丧偶□ 离异□</p></td></tr><tr><td><p>联系方式 </p></td><td colspan=\"3\"><p>电话： </p></td><td colspan=\"2\"><p>手机： </p></td><td colspan=\"4\"><p>电子邮件： </p></td></tr><tr><td colspan=\"3\"><p>出入境证件名称及号码</p></td><td colspan=\"7\"><p>  </p></td></tr><tr><td colspan=\"3\"><p>是否加入他国国籍</p></td><td colspan=\"2\"><p>是□  否□</p></td><td colspan=\"3\"><p>未了结刑事案件</p></td><td colspan=\"2\"><p>有□  无□ </p></td></tr><tr><td colspan=\"3\"><p>最近入境口岸与日期</p></td><td colspan=\"7\"><p>本人于_____年___月___日从________________口岸入境 </p></td></tr><tr><td colspan=\"3\"><p>在国外居住时间</p></td><td colspan=\"7\"><p>  </p></td></tr><tr><td colspan=\"3\" rowspan=\"3\"><p>居住国居留权</p><p>类  别</p></td><td rowspan=\"3\"><p>永久□ </p><p>长期□ </p><p>其它□ </p></td><td colspan=\"6\"><p>居住国____________居留证件名称_____________</p></td></tr><tr><td colspan=\"6\"><p>居留证件号码____________________ </p></td></tr><tr><td colspan=\"6\"><p>有效期至______年______月______日 </p></td></tr><tr><td colspan=\"3\"><p>原户籍注销时间 </p></td><td colspan=\"7\"><p>原户籍于______年______月______日注销 </p></td></tr><tr><td colspan=\"10\"><p>出国前本人户籍地址为： </p></td></tr><tr><td colspan=\"10\"><p>拟定居地址_______省_______市_______区（县）_________街道（乡镇）_________ </p></td></tr><tr><td colspan=\"2\"><p>回国定居理由</p></td><td colspan=\"8\"><p>夫妻团聚□  投亲□  养老□  人才□  投资□ </p><p>其它□（请说明）____________________ </p></td></tr><tr><td colspan=\"2\"><p>生活保障来源</p></td><td colspan=\"8\"><p>工作□  经商□  养老金□ </p><p>其它□（请说明）____________________ </p></td></tr><tr><td colspan=\"2\"><p>拟定居地住所情况</p></td><td colspan=\"8\"><p>本人名下房产□   亲属名下房产□ </p><p>其它□（请说明）_________________________ </p><p>住所地址_________________________________ </p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"9\"><p><strong>主要亲属情况</strong></p></td></tr><tr><td colspan=\"2\"><p>类别</p></td><td><p>关系</p></td><td><p>姓名</p></td><td><p>性别</p></td><td colspan=\"3\"><p>家庭住址</p></td><td><p>联系电话</p></td></tr><tr><td colspan=\"2\" rowspan=\"3\"><p>国</p><p>（境）内 </p></td><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td colspan=\"2\" rowspan=\"3\"><p>国</p><p>（境）外 </p></td><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td><p>  </p></td><td><p>  </p></td><td><p>  </p></td><td colspan=\"3\"><p>  </p></td><td><p>  </p></td></tr><tr><td colspan=\"9\"><p><strong>个人国外简要经历</strong> </p></td></tr><tr><td colspan=\"9\"><p>  </p><p>  </p><p>   </p><p>  </p><p>  </p><p>  </p><p>  </p><p>  </p><p>  </p></td></tr><tr><td colspan=\"9\"><p>声明：本人保证所填内容均属实，所提供的各类证明材料均真实、合法，并愿意接受此申请过程中的任何查询。如有虚假或隐瞒将承担由此带来的一切法律责任。 </p><p>  </p><p>    申请人签名：            申请日期：     年  月  日 </p></td></tr><tr><td><p>市侨办意见</p></td><td colspan=\"5\"><p>          签批人：</p></td><td><p>省侨办意见</p></td><td colspan=\"2\"><p>          签批人：</p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "注：1、本表同时适用于申请人换领或补领回国定居证。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "2、申请人有其它情况，请填写在备注栏或另附页说明。"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "3、申请人若未满16周岁，可以由其监护人代为填写申请表。"
+                    }
+                ]
+            }
+        }
+    ]
+]

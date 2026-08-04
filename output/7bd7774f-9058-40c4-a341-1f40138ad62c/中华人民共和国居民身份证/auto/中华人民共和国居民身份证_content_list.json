@@ -1,0 +1,128 @@
+[
+    {
+        "type": "image",
+        "img_path": "images/4c2f61e2b07cb57afa38ec1643abfa55a105f8b26c0dad39ae0065c4b0c27e56.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            616,
+            476,
+            873,
+            794
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/036ec7476d0429c9fc9dad1b38d99d1dfa9c6aea79f828ede5b8fa2ec7bfd1f8.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            92,
+            60,
+            273,
+            206
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "中华人民共和国居民身份证",
+        "text_level": 1,
+        "bbox": [
+            304,
+            67,
+            872,
+            210
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "签发机关",
+        "bbox": [
+            243,
+            328,
+            611,
+            359
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "有效期限 2013.03.05-2023.03.05",
+        "bbox": [
+            242,
+            380,
+            719,
+            411
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "姓名代用名",
+        "bbox": [
+            85,
+            486,
+            305,
+            524
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "性别男民族汉",
+        "bbox": [
+            84,
+            551,
+            420,
+            588
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "出生2013年05月06 日",
+        "bbox": [
+            85,
+            612,
+            510,
+            649
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "住址",
+        "bbox": [
+            87,
+            674,
+            574,
+            712
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            179,
+            717,
+            416,
+            752
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "公民身份证号码 40 m",
+        "bbox": [
+            85,
+            838,
+            825,
+            877
+        ],
+        "page_idx": 0
+    }
+]

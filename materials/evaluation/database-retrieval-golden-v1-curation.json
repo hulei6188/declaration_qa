@@ -1,0 +1,190 @@
+{
+  "description": "人工逐份阅读真实办事指南 Markdown 与已解析附件后策划的检索题。每条 query 只包含一个问题意图，生成脚本不得改写或拼接 query。",
+  "cases": [
+    {"query":"不同身份的伤残人员分别发什么证？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"policy_fact","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"伤残证件一般能用多少年？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"validity_period","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"因病可以补办评定残疾等级吗？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"基金会负责人最多可以连任几届？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"term_limit","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"基金会一届理事会最长是几年？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"term_limit","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"办省级基金会至少要准备多少原始资金？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"capital_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"人工繁育重点保护野生动物要提供合法来源证明吗？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"material_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"变更重点保护野生动物繁育物种要交哪些主要材料？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 野生动物保护管理行政许可事项申请表","申请材料 > 2. 国家重点保护野生动物人工繁育许可证申请表","申请材料 > 3. 原有人工繁育的野生动物情况说明材料","申请材料 > 4. 证明其对人工繁育固定场所具有相应使用权","申请材料 > 6. 申请人工繁育的野生动物种源来源证明材料"],"mode":"first_per_term"}},
+    {"query":"申请人工繁育许可需要配养殖畜牧师吗？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"staff_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"二手房公积金贷款额度怎么计算？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"loan_amount","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"二手房公积金贷款最长能贷多少年？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"loan_term","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"二手房公积金贷款执行什么利率？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"loan_rate","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"办理水域滩涂养殖证要准备哪些材料？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 水域滩涂养殖证申请审批表","申请材料 > 2. 申请人身份证","申请材料 > 3. 养殖水域滩涂界至图","申请材料 > 4. 申请人养殖水域滩涂承包合同或流转合同"],"mode":"first_per_term"}},
+    {"query":"家庭承包的养殖权转包后要重新办养殖证吗？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"renewal_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"通过招标承包水域后由谁申请养殖证？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"applicant_role","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"在国内结婚后都定居国外能去使领馆办离婚吗？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"两个外国人能在国内婚姻登记机关办离婚吗？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"只有一方想离婚应该走什么途径？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"legal_route","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"跨省超限运输许可在哪个平台申请？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"online_channel","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"可拆解的超限货物能申请跨省运输许可吗？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"超限运输的护送方案必须套固定模板吗？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"format_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"申请参观未开放文物点要提交哪些材料？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 具体参观计划及保证文物安全的防护措施","申请材料 > 2. 不得收集考古记录承诺书","申请材料 > 3. 接待单位的同意函","申请材料 > 4. 外国人护照","申请材料 > 5. 经省文物行政管理部门批准的参观计划"],"mode":"first_per_term"}},
+    {"query":"参观未开放文物点要提前多久申报？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"advance_time","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"参观考古现场时可以采集标本吗？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"prohibited_action","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"注册会计师要求的两年审计经历必须在哪类单位取得？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"experience_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"注册会计师提交虚假申请材料会怎么处理？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"violation_consequence","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+    {"query":"可以用电子社保卡登录办理注册会计师注册吗？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"login_method","evidence":{"scope":"body","heading_contains":["常见问题 > Q5:"]}},
+
+    {"query":"什么货物算一般临时进口货物？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"definition","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"一般临时进口货物流转时有哪些特点？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"business_characteristics","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"ATA单证册到底是什么？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"definition","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"申请职业病诊断医师资格要交哪些主要证明？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 单位申请报告","申请材料 > 2. 从事职业病诊断或鉴定工作三年以上材料","申请材料 > 3. 医师执业证","申请材料 > 4. 医师资格证","申请材料 > 6. 培训考核合格证书"],"mode":"first_per_term"}},
+    {"query":"职业病诊断医师培训考核成绩能用多久？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"validity_period","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"职业病诊断医师资格认定必须本人去现场吗？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"handling_channel","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"作品自愿登记需要提交哪些材料？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 作品登记申请表","申请材料 > 2. 权利保证书","申请材料 > 3. 作品","申请材料 > 4. 法人证书或身份证"],"mode":"first_per_term"}},
+    {"query":"外省作者能在安徽办作品登记吗？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"regional_eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"个人作品的著作权保护期到什么时候？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"validity_period","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"毕业后怎么确认自己的学籍档案去向？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"archive_tracking","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"流动人员档案接收要提供哪些材料？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 劳动（聘用）合同","申请材料 > 2. 中华人民共和国居民身份证","申请材料 > 3. 员工档案信息采集表","申请材料 > 4. 本人授权委托书"],"mode":"first_per_term"}},
+    {"query":"档案由人才服务机构管理还要认定干部身份吗？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"procedure_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"占用高速公路用地的许可去哪里办？","source_file":"guide_b83f6d9ced0542fe98875f2e037ccee7.md","intent":"handling_channel","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"影响交通安全的涉路施工需要交警同意吗？","source_file":"guide_b83f6d9ced0542fe98875f2e037ccee7.md","intent":"approval_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+
+    {"query":"二级水利造价师注册要提供哪个月的社保？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"material_period","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"退休人员注册二级水利造价师要交社保证明吗？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"material_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"二级水利造价师初始注册需要多少继续教育学时？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"education_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"哪些情况可以申请企业职工提前退休？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"企业职工提前退休要提交哪些主要材料？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 退休批复","申请材料 > 2. 职工个人档案","申请材料 > 3. 高效办成退休“一件事”申请表","申请材料 > 5. 服刑材料","申请材料 > 6. 权益告知书"],"mode":"first_per_term"}},
+    {"query":"特殊工种工龄有疑问时单位怎么申请复核？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"review_process","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"港澳律师代表处执业时哪些行为不能做？","source_file":"guide_cc773a18f201448ba6d12e57ffcdf431.md","intent":"prohibited_action","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"港澳律师代表处可以提供哪些法律服务？","source_file":"guide_cc773a18f201448ba6d12e57ffcdf431.md","intent":"business_scope","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"港澳律师事务所派驻内地代表要交哪些主要证明？","source_file":"guide_cc773a18f201448ba6d12e57ffcdf431.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 2. 派驻代表的申请书","申请材料 > 4. 该律师事务所拟任首席代表","申请材料 > 5. 代表处各拟任代表的律师执业资格","申请材料 > 7. 代表处各拟任代表为该律师事务所","申请材料 > 8. 未受处罚的证明文件"],"mode":"first_per_term"}},
+
+    {"query":"非公司企业法人变更登记要交哪些基础材料？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 非公司企业法人登记(备案)申请书","申请材料 > 2. 修改章程的决定","申请材料 > 3. 章程或者章程修正案","申请材料 > 4. 住所使用文件","申请材料 > 13. 经办人的身份证明"],"mode":"first_per_term"}},
+    {"query":"企业法人不按规定办变更登记会有什么后果？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"violation_consequence","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"失信被执行人能当企业法定代表人吗？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"公司注销后法定代表人还会留在黑名单里吗？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"post_cancellation_effect","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"注销分公司会影响总公司继续经营吗？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"business_impact","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"总公司注销前必须先注销分公司吗？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"cancellation_order","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+
+    {"query":"二手房公积金贷款通常要准备哪些核心材料？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 中华人民共和国居民身份证","申请材料 > 3. 婚姻状况证明","申请材料 > 6. 存量房买卖合同","申请材料 > 7. 首付款资金托管凭证","申请材料 > 8. 中华人民共和国不动产权证书"],"mode":"first_per_term"}},
+    {"query":"设立基金会需要提交哪些主要登记材料？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 业务主管单位","申请材料 > 2. 成立登记申请书","申请材料 > 3. 验资报告","申请材料 > 4. 社会组织成立登记捐资承诺书","申请材料 > 7. 章程材料"],"mode":"first_per_term"}},
+    {"query":"注册会计师注册要上传哪些主要材料？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 注册会计师注册申请表","申请材料 > 2. 一寸彩照","申请材料 > 3. 符合认定或者考核条件证明文件"],"mode":"first_per_term"}},
+    {"query":"普通程序注销公司要交哪些关键材料？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"material_list","evidence":{"scope":"body","heading_contains":["申请材料 > 1. 企业注销登记申请书","申请材料 > 2. 公司解散的文件","申请材料 > 4. 清算报告","申请材料 > 5. 清算报告的确认文件","申请材料 > 6. 清税证明"],"mode":"first_per_term"}},
+
+    {"query":"补办伤残等级的申请书要写哪些受伤信息？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"form_content","evidence":{"scope":"attachment","attachment_name":"伤残抚恤人员残疾等级评定和调整以及补换伤残证件申请书内容要求.doc"}},
+    {"query":"义务兵退出现役登记表要填哪些个人和服役信息？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"义务兵退出现役登记表（样表）.pdf"}},
+    {"query":"残疾等级评定审批表里的专家意见栏要写什么？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"form_field","evidence":{"scope":"attachment","attachment_name":"残疾等级评定审批表（样表）.pdf","content_contains":"医疗卫生专家小组意见"}},
+    {"query":"伤残等级评定通过后要公示多少个工作日？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"flow_deadline","evidence":{"scope":"attachment","attachment_name":"$UEY(FQLAK4JX5I{M%Q{V26.png","content_contains":"不少于 7 个工作日"}},
+
+    {"query":"基金会获准设立后每年要报送什么报告？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"post_approval_obligation","evidence":{"scope":"attachment","attachment_name":"基金会成立登记批复.doc","content_contains":"年度工作报告"}},
+    {"query":"基金会法人登记证书上有哪些登记字段？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"基金会法人登记证书正本.jpg"}},
+    {"query":"基金会申请材料有错误时会收到什么通知？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"flow_exception","evidence":{"scope":"attachment","attachment_name":"基金会设立登记.png","content_contains":"补正通知书"}},
+    {"query":"业务主管单位同意基金会成立后还要向哪个部门报批？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"next_step","evidence":{"scope":"attachment","attachment_name":"业务主管单位（行业管理部门）批准的文件.pdf","content_contains":"民政部门"}},
+
+    {"query":"人工繁育示范表里猕猴的拉丁学名是什么？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"sample_value","evidence":{"scope":"attachment","attachment_name":"人工繁育示范表.doc","content_contains":"Macaca mulatta"}},
+    {"query":"人工繁育告知承诺允许其余材料多久内补齐？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"supplement_deadline","evidence":{"scope":"attachment","attachment_name":"告 知 书.doc","content_contains":"6个月内"}},
+    {"query":"人工繁育许可承诺书一共要签几份？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"copy_count","evidence":{"scope":"attachment","attachment_name":"承诺书.doc","content_contains":"一式三份"}},
+    {"query":"收到野生动物不予许可决定后多久内可以申请复议？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"remedy_deadline","evidence":{"scope":"attachment","attachment_name":"行政不予许可决定书.jpg","content_contains":"60 日内"}},
+
+    {"query":"不动产抵押登记申请书要填写哪些登记信息？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"不动产抵押登记申请书.docx"}},
+    {"query":"不动产登记询问笔录主要核实哪些事项？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"form_content","evidence":{"scope":"attachment","attachment_name":"不动产登记申请询问笔录.docx"}},
+    {"query":"个人征信查询授权书授权查询什么信息？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"authorization_scope","evidence":{"scope":"attachment","attachment_name":"金融信用信息基础数据库信息查询授权书.doc"}},
+    {"query":"公积金借款合同中借款人逾期还款要承担什么责任？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"contract_liability","evidence":{"scope":"attachment","attachment_name":"住房公积金个人住房贷款借款合同.docx","content_contains":"逾期"}},
+
+    {"query":"水域滩涂养殖证申请表要填写哪些水域信息？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"水域滩涂养殖证申请审批表.doc"}},
+    {"query":"养殖证申请样表里的水域用途怎么填写？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"sample_guidance","evidence":{"scope":"attachment","attachment_name":"水域滩涂养殖证申请样表.docx"}},
+    {"query":"滩涂养殖承包合同一般约定哪些承包事项？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"contract_terms","evidence":{"scope":"attachment","attachment_name":"滩涂养殖承包合同.docx"}},
+    {"query":"养殖证申请提交后会经过哪些审批环节？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"flow_steps","evidence":{"scope":"attachment","attachment_name":"水域滩涂养殖证发证登记流程图.png"}},
+
+    {"query":"离婚协议样本里孩子由哪一方抚养？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"sample_value","evidence":{"scope":"attachment","attachment_name":"离婚协议书.png","cntent_contains":"抚养"}},
+    {"query":"离婚流程里的冷静期是多少天？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"flow_deadline","evidence":{"scope":"attachment","attachment_name":"离婚流程.jpg"}},
+    {"query":"结婚证样本上包含哪些登记信息？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"结婚证.jpg"}},写哪些车辆和货物数据？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"spreadsheet_fields","evidence":{"scope":"attachment","attachment_name":"公路超限运输申请表.xls"}},
+    {"query":"超限运输经办人授权委托书要写哪些双方信息？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"authorization_fields","evidence":{"scope":"attachment","attachment_name":"经办人授权委托书.doc"}},
+    {"query":"超限运输车辆通行证会标明哪些通行限制？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"permit_fields","evidence":{"scope":"attachment","attachment_name":"超限运输车辆通行证.docx"}},
+    {"query":"跨省超限运输材料不齐全时受理窗口怎么处理？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"flow_exception","evidence":{"scope":"attachment","attachment_name":"跨省超限运输流程图.png","content_contains":"补正"}},
+
+    {"query":"参观未开放文物点的安全措施表要说明哪些内容？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"form_content","evidence":{"scope":"attachment","attachment_name":"安全措施（样表）.doc"}},
+    {"query":"参观考古现场的承诺书承诺不做什么？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"commitment_content","evidence":{"scope":"attachment","attachment_name":"承诺书（样表）.doc"}},
+    {"query":"文物点同意函主要确认什么事项？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"letter_content","evidence":{"scope":"attachment","attachment_name":"同意函（示例样表）.doc"}},
+    {"query":"参观未开放文物点申请不符合要求时流程怎么走？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"flow_exception","evidence":{"scope":"attachment","attachment_name":"外国公民、组织和国际组织参观未开放的文物点和考古发掘现场审批外部流程图.jpg"}},
+
+    {"query":"注册会计师申请表要填哪些个人基本信息？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"注册会计师注册申请表.doc"}},
+    {"query":"港澳台人员注册会计师的证件样表包含哪些字段？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"document_fields","evidence":{"scope":"attachment","attachment_name":"样表-港澳台居民居住证或者港澳台居民出入境证件.docx"}},
+    {"query":"外国人注册会计师要上传哪些护照签证信息？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"document_fields","evidence":{"scope":"attachment","attachment_name":"样表-护照和签证以及《外国人工作许可证》.docx"}},
+    {"query":"注册会计师线上申请经过哪些审核节点？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"flow_steps","evidence":{"scope":"attachment","attachment_name":"注册会计师流程图片.jpg"}},
+
+    {"query":"ATA单证册申请表要填写哪些申请人信息？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"spreadsheet_fields","evidence":{"scope":"attachment","attachment_name":"ATA单证册申请表.xlsx"}},
+    {"query":"ATA货物总清单包含哪些栏目？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"spreadsheet_fields","evidence":{"scope":"attachment","attachment_name":"ATA单证册货物总清单.xls"}},
+    {"query":"ATA消耗品清单需要登记哪些货物信息？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"spreadsheet_fields","evidence":{"scope":"attachment","attachment_name":"ATA单证册消耗品清单.xls"}},
+    {"query":"ATA单证册正文里对有效期是怎么规定的？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"validity_period","evidence":{"scope":"attachment","attachment_name":"暂准进口货物海关单证册（ATA）.docx","content_contains":"有效期"}},
+    {"query":"ATA单证册申请完成后通过什么方式领取？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"result_delivery","evidence":{"scope":"attachment","attachment_name":"暂准进口货物海关单证册（ATA）的出证、担保运行流程图.png"}},
+
+    {"query":"职业病诊断工作满三年的证明材料要体现哪些经历？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"experience_evidence","evidence":{"scope":"attachment","attachment_name":"从事职业病诊断或鉴定工作三年以上材料.pdf"}},
+    {"query":"职业病诊断医师工作经历证明由谁盖章？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"signature_requirement","evidence":{"scope":"attachment","attachment_name":"工作经历证明.docx"}},
+    {"query":"单位申请职业病诊断医师资格要在报告里写什么？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"report_content","evidence":{"scope":"attachment","attachment_name":"单位申请报告.docx"}},
+    {"query":"职业病诊断医师资格证书上有哪些信息？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"职业病诊断医师资格证书.png"}},
+
+    {"query":"作品登记申请表示例勾选的作品类别是什么？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"sample_value","evidence":{"scope":"attachment","attachment_name":"作品登记申请表.doc","content_contains":"作品类别"}},
+    {"query":"作品登记权利保证书主要承诺什么？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"commitment_content","evidence":{"scope":"attachment","attachment_name":"权利保证书.docx"}},
+    {"query":"作品登记证书上会标明哪些作品信息？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"作品登记证书.jpg"}},
+
+    {"query":"员工档案信息采集表有哪些列？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"spreadsheet_fields","evidence":{"scope":"attachment","attachment_name":"员工档案信息采集表.xlsx"}},
+    {"query":"接收流动人员档案时劳动关系证明要体现什么内容？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"document_content","evidence":{"scope":"attachment","attachment_name":"劳动（聘用）合同或劳动合同终止（解除）证明书或户口本.pdf"}},
+    {"query":"流动人员人事档案调函是发给哪个单位的？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"letter_recipient","evidence":{"scope":"attachment","attachment_name":"流动人员人事档案调函.docx"}},
+
+    {"query":"涉路施工申请表要填写哪些项目基本信息？","source_file":"guide_b83f6d9ced0542fe98875f2e037ccee7.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"附件2 申请表.doc"}},
+    {"query":"相关权利人意见样本同意采用什么互通方案？","source_file":"guide_b83f6d9ced0542fe98875f2e037ccee7.md","intent":"sample_value","evidence":{"scope":"attachment","attachment_name":"相关权利人同意的书面意见.jpg","content_contains":"变形单喇叭"}},
+    {"query":"涉路申请材料需要补正时流程上怎么处理？","source_file":"guide_b83f6d9ced0542fe98875f2e037ccee7.md","intent":"flow_exception","evidence":{"scope":"attachment","attachment_name":"涉路流程图.jpg"}},
+
+    {"query":"二级水利造价师初始注册申请表要填哪些执业信息？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"初始注册申请表.doc"}},
+    {"query":"二级水利造价师注册承诺书主要承诺什么？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"commitment_content","evidence":{"scope":"attachment","attachment_name":"承诺书.pdf"}},
+    {"query":"二级水利造价师申请不通过时流程怎么处理？","source_file":"guide_c27fec3313824385be180c0e2cc5216f.md","intent":"flow_exception","evidence":{"scope":"attachment","attachment_name":"办理流程图.png"}},
+
+    {"query":"企业职工提前退休申请表可以勾选哪些联办事项？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"form_options","evidence":{"scope":"attachment","attachment_name":"参保单位申请表.doc","content_contains":"联办"}},
+    {"query":"退休一件事申请表要填写哪些人员退休信息？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"高效办成一件事申请表.doc"}},
+    {"query":"非公司企业法人变更申请书要填写哪些变更事项？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"非公司企业法人登记(备案）申请书（示范材料）.docx"}},
+    {"query":"公司注销清算报告要说明哪些清算结果？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"report_content","evidence":{"scope":"attachment","attachment_name":"清算报告示范材料.docx"}},
+
+    {"query":"人工繁育重点保护野生动物必须有专门场地吗？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"facility_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"养殖证里所说的水域滩涂具体指什么？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"definition","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"参观未开放文物点前需要制定参观计划吗？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"precondition","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"哪些工作经历算职业病诊断相关经历？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"experience_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"什么样的作品符合自愿登记条件？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"eligibility","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"档案放在人才服务机构还要办转正定级吗？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"procedure_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"特殊工种提前退休需要进行公示吗？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"publicity_requirement","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"港澳律师代表处可以直接办理内地法律事务吗？","source_file":"guide_cc773a18f201448ba6d12e57ffcdf431.md","intent":"business_scope","evidence":{"scope":"body","heading_contains":["常见问题 > Q3:"]}},
+    {"query":"非公司企业法人跨地区变更登记怎么迁移？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"change_process","evidence":{"scope":"body","heading_contains":["常见问题 > Q1:"]}},
+    {"query":"注册会计师申请表怎么填写才不容易被退回？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"form_guidance","evidence":{"scope":"body","heading_contains":["常见问题 > Q2:"]}},
+    {"query":"网上办理注册会计师注册要注意什么？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"online_precaution","evidence":{"scope":"body","heading_contains":["常见问题 > Q4:"]}},
+    {"query":"基金会设立登记承诺多少个工作日办结？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"handling_deadline","evidence":{"scope":"body","heading_contains":["办理时限"]}},
+    {"query":"二手房公积金贷款从过户到放款要走哪些步骤？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"process_steps","evidence":{"scope":"body","heading_contains":["办理方式 > 办理流程说明"]}},
+    {"query":"养殖证批准前需要公示多少天？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"publicity_period","evidence":{"scope":"body","heading_contains":["办理方式 > 办理流程说明"]}},
+    {"query":"公司注销材料不齐全时窗口怎么处理？","source_file":"guide_f34550a177f543d9bea0d00ba9d840cd.md","intent":"correction_process","evidence":{"scope":"body","heading_contains":["办理方式 > 办理流程说明"]}},
+
+    {"query":"公务员登记表要填写哪些学历和任职信息？","source_file":"guide_0a9d39eb584a4272ab2b070193909e21.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"公务员登记表.pdf"}},
+    {"query":"基金会捐资人需要承诺哪些捐赠事项？","source_file":"guide_0e101be93e8d4c8986b0aadd41b32d3a.md","intent":"commitment_content","evidence":{"scope":"attachment","attachment_name":"社会组织成立登记捐资承诺书.docx"}},
+    {"query":"人工繁育示范表里的猕猴属于什么保护级别？","source_file":"guide_15c60978b6464586ac66a0a0f8c9bee8.md","intent":"sample_value","evidence":{"scope":"attachment","attachment_name":"野生动物行政许可示范表(繁育).doc","content_contains":"二级"}},
+    {"query":"不动产权证书样本上包含哪些房产登记信息？","source_file":"guide_1b7b6215bcea4cbd912c7d4d9975e855.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"中华人民共和国不动产权证书.png"}},
+    {"query":"水域滩涂养殖证上会登记哪些内容？","source_file":"guide_24ede248169c428aa0b47729d3b132eb.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"养殖证.png"}},
+    {"query":"护照个人资料页通常包含哪些身份信息？","source_file":"guide_2cb1fcc2d6534dfb98728a46b45e27cb.md","intent":"document_fields","evidence":{"scope":"attachment","attachment_name":"护照.png"}},
+    {"query":"超限运输车货轮廓图需要标注哪些尺寸？","source_file":"guide_2d42b3d748b242779bd7edc344f8a7bc.md","intent":"diagram_fields","evidence":{"scope":"attachment","attachment_name":"车货轮廓图样本.jpg"}},
+    {"query":"参观未开放文物点的批复样本会写哪些审批内容？","source_file":"guide_35be1269e3d74e6f8dce31bb45b9cc10.md","intent":"approval_content","evidence":{"scope":"attachment","attachment_name":"参观文物点的批复（示例样表）.jpg"}},
+    {"query":"注册会计师申请表样本包含哪些工作经历信息？","source_file":"guide_377aec8b60ee43c582fc88d0dd5c55a8.md","intent":"form_fields","evidence":{"scope":"attachment","attachment_name":"注册会计师注册申请表样本.pdf"}},
+    {"query":"ATA货物总清单样表的货物明细怎么填写？","source_file":"guide_5dda2ddbe58d47fd953e8a5907d9d136.md","intent":"spreadsheet_guidance","evidence":{"scope":"attachment","attachment_name":"ATA单证册货物总清单样表 .xls"}},
+    {"query":"职业病诊断医师培训考核合格证上有哪些信息？","source_file":"guide_9456740810d34074a5435c60eb0b8e9e.md","intent":"certificate_fields","evidence":{"scope":"attachment","attachment_name":"培训考核合格证书.jpg"}},
+    {"query":"作品登记申请从受理到发证要经过哪些环节？","source_file":"guide_ac16ab842e5443c8a9e34d11fad39aac.md","intent":"flow_steps","evidence":{"scope":"attachment","attachment_name":"服务流程图.jpg"}},
+    {"query":"流动人员档案接收使用的身份证明包含哪些信息？","source_file":"guide_b1080a7245df468887eb15df76a70447.md","intent":"document_fields","evidence":{"scope":"attachment","attachment_name":"中华人民共和国居民身份证.pdf"}},
+    {"query":"退休一件事权益告知书主要告知哪些权益事项？","source_file":"guide_cc0dc3b57dc645ee9951af6bedb0751a.md","intent":"notice_content","evidence":{"scope":"attachment","attachment_name":"高效办成退休一件事权益告知书.docx"}},
+    {"query":"经营场所登记承诺书需要承诺哪些住所事项？","source_file":"guide_e3e179da80514f5fbd1e228ebf577edb.md","intent":"commitment_content","evidence":{"scope":"attachment","attachment_name":"安徽省经营主体住所（经营场所）登记申报承诺书（示范材料）.docx"}}
+  ]
+}

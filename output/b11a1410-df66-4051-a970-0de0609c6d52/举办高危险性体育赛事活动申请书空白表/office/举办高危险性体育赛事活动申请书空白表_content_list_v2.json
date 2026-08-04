@@ -1,0 +1,47 @@
+[
+    [
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "附件2"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "举办高危险性体育赛事活动申请书"
+                    }
+                ],
+                "level": 1
+            }
+        },
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"4\"><p>拟举办高危险性体育赛事活动</p></td></tr><tr><td><p>名称</p></td><td></td><td><p>时间</p></td><td></td></tr><tr><td><p>地点</p></td><td colspan=\"3\"></td></tr><tr><td><p>规模</p></td><td colspan=\"3\"></td></tr><tr><td colspan=\"4\"><p>赛事活动主办方、承办方、协办方信息</p></td></tr><tr><td><p>主办方名称及法</p><p>定代表人姓名</p></td><td colspan=\"3\"></td></tr><tr><td><p>主办方联系人</p></td><td></td><td><p>联系电话</p></td><td></td></tr><tr><td><p>承办方名称及法</p><p>定代表人姓名</p></td><td colspan=\"3\"></td></tr><tr><td><p>承办方联系人</p></td><td></td><td><p>联系电话</p></td><td></td></tr><tr><td><p>协办方名称及法</p><p>定代表人姓名</p></td><td colspan=\"3\"></td></tr><tr><td><p>协办方联系人</p></td><td></td><td><p>联系电话</p></td><td></td></tr><tr><td colspan=\"4\"><p>参赛条件：</p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        }
+    ],
+    [
+        {
+            "type": "table",
+            "content": {
+                "table_caption": [],
+                "html": "<table><tr><td colspan=\"3\"><p>申请材料清单：</p></td></tr><tr><td colspan=\"3\"><p>保密要求：</p></td></tr><tr><td colspan=\"3\"><p>本申请书及所附申请材料均真实、合法，复印件与原件一致。如有不实之处，申请单位承担由此造成的法律后果。</p><p>申请单位（盖章）：</p><p>法定代表人（签字）：</p><p>年    月    日</p></td></tr><tr><td><p>材料是否齐全</p><p>经办人员：</p><p>年   月   日</p></td><td><p>实地核查意见</p><p>经办人员：</p><p>年   月   日</p></td><td><p>体育行政部门意见</p><p>（公章）</p><p>年   月   日</p></td></tr></table>",
+                "table_type": "complex_table",
+                "table_nest_level": 1
+            }
+        }
+    ]
+]
