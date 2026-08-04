@@ -151,6 +151,14 @@ class GovServiceAgentSettings(BaseSettings):
     upload_dir: str = Field(default="data/declaration_qa/uploads", alias="GOV_SERVICE_AGENT_UPLOAD_DIR")
     chat_image_dir: str = Field(default="data/declaration_qa/query_images", alias="GOV_SERVICE_AGENT_CHAT_IMAGE_DIR")
     chat_image_max_bytes: int = Field(default=8 * 1024 * 1024, alias="GOV_SERVICE_AGENT_CHAT_IMAGE_MAX_BYTES")
+    application_material_dir: str = Field(
+        default="data/declaration_qa/application_materials",
+        alias="GOV_SERVICE_AGENT_APPLICATION_MATERIAL_DIR",
+    )
+    application_material_max_bytes: int = Field(
+        default=20 * 1024 * 1024,
+        alias="GOV_SERVICE_AGENT_APPLICATION_MATERIAL_MAX_BYTES",
+    )
 
     seed_knowledge: bool = Field(default=True, alias="GOV_SERVICE_AGENT_SEED_KNOWLEDGE")
 

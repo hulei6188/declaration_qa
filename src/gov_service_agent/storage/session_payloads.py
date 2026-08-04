@@ -50,6 +50,7 @@ def normalize_message_row(row: Any) -> dict[str, Any]:
         "refuse_reason": payload.get("refuse_reason") or "",
         "sources": payload.get("sources") or [],
         "suggested_actions": payload.get("suggested_actions") or [],
+        "dialog_task": meta.get("dialog_task") or {},
         "meta": meta,
         "run_id": str(payload.get("run_id") or ""),
         "created_at": str(payload.get("created_at") or ""),

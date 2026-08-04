@@ -1622,8 +1622,205 @@ select {
   font-size: 14px;
 }
 
+.slot-filling-card {
+  width: min(680px, 100%);
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-alt));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .08);
+}
+
+.slot-filling-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.slot-filling-head > svg { margin-top: 2px; color: var(--accent); }
+.slot-filling-head > div { display: grid; gap: 3px; }
+.slot-filling-head strong { color: var(--text); font-size: 15px; }
+.slot-filling-head span { color: var(--text-tertiary); font-size: 12px; line-height: 1.5; }
+.slot-filling-head b {
+  min-width: 42px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  text-align: center;
+}
+
+.slot-progress {
+  height: 5px;
+  margin: 14px 0 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.slot-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .22s ease;
+}
+
+.slot-field-form { display: grid; gap: 11px; }
+.slot-field-label { display: grid; gap: 4px; color: var(--text); }
+.slot-field-label > span { font-size: 14px; font-weight: 750; }
+.slot-field-label em {
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-style: normal;
+  vertical-align: 1px;
+}
+.slot-field-label small { color: var(--text-tertiary); font-size: 12px; font-weight: 400; }
+
+.slot-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: var(--composer-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.slot-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.slot-textarea { resize: vertical; line-height: 1.6; }
+
+.slot-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.slot-choice-grid button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--composer-bg);
+  color: var(--text);
+  text-align: left;
+}
+
+.slot-choice-grid button:hover:not(:disabled) { border-color: var(--accent); }
+.slot-choice-grid button.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--composer-bg));
+}
+.slot-choice-grid button i {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: white;
+  font-style: normal;
+}
+.slot-choice-grid button.is-selected i { border-color: var(--accent); background: var(--accent); }
+
+.material-upload-list { display: grid; gap: 10px; }
+.material-upload-item {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--composer-bg);
+}
+.material-upload-title { display: grid; gap: 3px; }
+.material-upload-title > div { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.material-upload-title strong { color: var(--text); font-size: 13px; }
+.material-upload-title em,
+.material-upload-title span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+}
+.material-upload-title em { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent); }
+.material-upload-title span { background: var(--bg-alt); color: var(--text-tertiary); }
+.material-upload-title small { color: var(--text-tertiary); font-size: 11px; }
+.material-files { display: grid; gap: 6px; }
+.material-file {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: var(--bg-alt);
+}
+.material-file > svg { flex: 0 0 auto; color: var(--accent); }
+.material-file > span { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.material-file strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.material-file small { color: var(--text-tertiary); font-size: 10px; }
+.material-file .icon-button { width: 28px; height: 28px; padding: 0; color: var(--text-tertiary); }
+.material-upload-button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.material-upload-button:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.material-upload-button.is-uploading { cursor: wait; opacity: .7; }
+.material-upload-button input { display: none; }
+.material-upload-hint { margin: 0; color: var(--text-tertiary); font-size: 11px; }
+
+.slot-field-error { color: var(--danger-text); font-size: 12px; }
+.slot-field-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+}
+.slot-field-actions > span { color: var(--text-tertiary); font-size: 12px; }
+.slot-field-actions button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 13px;
+  white-space: nowrap;
+}
+
 @media (max-width: 600px) {
   .service-channel-options { grid-template-columns: 1fr; }
+  .slot-filling-card { padding: 15px; }
+  .slot-field-actions { align-items: stretch; flex-direction: column; }
+  .slot-field-actions button { width: 100%; }
 }
 
 /* ============================================================

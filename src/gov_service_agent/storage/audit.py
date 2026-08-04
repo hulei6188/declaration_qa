@@ -196,6 +196,7 @@ class InMemoryAuditStore:
                     "refused": bool(item.get("refused")),
                     "sources": item.get("retrieved_sources") or [],
                     "suggested_actions": item.get("suggested_actions") or [],
+                    "dialog_task": item.get("dialog_task") or {},
                     "created_at": item.get("created_at") or "",
                 }
             )
@@ -237,6 +238,7 @@ class InMemoryAuditStore:
                     "refused": bool(item.get("refused")),
                     "sources": item.get("retrieved_sources") or [],
                     "suggested_actions": item.get("suggested_actions") or [],
+                    "dialog_task": item.get("dialog_task") or {},
                     "created_at": item.get("created_at") or "",
                 }
             )

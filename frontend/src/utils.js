@@ -126,7 +126,7 @@ async function requestJson(url, options) {
 }
 
 // 聊天服务端事件流
-export function buildChatRequest(query, sessionId, ctx, queryImage) {
+export function buildChatRequest(query, sessionId, ctx, queryImage, formSubmission) {
   const payload = {
     query,
     user_id: Number(ctx.userId || 1),
@@ -136,6 +136,7 @@ export function buildChatRequest(query, sessionId, ctx, queryImage) {
     session_id: sessionId,
   };
   if (ctx.bizType) payload.biz_type = ctx.bizType;
+  if (formSubmission?.field_name) payload.form_submission = formSubmission;
   if (queryImage?.data_url) {
     payload.query_image = {
       filename: queryImage.filename || '',
@@ -310,6 +311,29 @@ export async function* readSSE(stream) {
     catch { /* The server may already have closed the stream. */ }
     reader.releaseLock();
   }
+}
+
+export async function uploadApplicationMaterial(file, payload) {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('session_id', payload.sessionId);
+  body.append('user_id', String(payload.userId || 1));
+  body.append('item_code', payload.itemCode || '');
+  body.append('field_name', payload.fieldName);
+  body.append('material_key', payload.materialKey);
+  const response = await fetch(`${API_BASE}/api/declaration-qa/application-materials/upload`, {
+    method: 'POST',
+    body,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data?.detail) message = data.detail;
+    } catch { /* 保留 HTTP 状态 */ }
+    throw new Error(message);
+  }
+  return response.json();
 }
 
 export function createToolTrace(status = 'running') {

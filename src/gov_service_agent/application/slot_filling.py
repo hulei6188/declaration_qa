@@ -34,6 +34,9 @@ def normalize_form_schema(schema: dict[str, Any] | None) -> dict[str, Any]:
                 "pattern": str(raw.get("pattern") or "").strip(),
                 "min_length": int(raw.get("min_length") or 0),
                 "max_length": int(raw.get("max_length") or 0),
+                "max_files": int(raw.get("max_files") or 0),
+                "accept": [str(item).lower() for item in (raw.get("accept") or [])],
+                "materials": normalize_material_definitions(raw.get("materials")),
             }
         )
     return {
@@ -96,6 +99,8 @@ def validate_slots(
 
 def normalize_slot_value(field: dict[str, Any], value: Any) -> tuple[Any, str]:
     field_type = str(field.get("type") or "text")
+    if field_type == "material_group":
+        return normalize_material_group_value(field, value)
     if field_type in {"integer", "number"}:
         try:
             converted = int(value) if field_type == "integer" else float(value)
@@ -141,6 +146,67 @@ def normalize_slot_value(field: dict[str, Any], value: Any) -> tuple[Any, str]:
     return text, ""
 
 
+def normalize_material_definitions(value: Any) -> list[dict[str, Any]]:
+    output = []
+    seen: set[str] = set()
+    for raw in value if isinstance(value, list) else []:
+        if not isinstance(raw, dict):
+            continue
+        key = str(raw.get("key") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(
+            {
+                "key": key,
+                "label": str(raw.get("label") or key).strip(),
+                "required": bool(raw.get("required")),
+                "description": str(raw.get("description") or "").strip(),
+                "max_files": max(1, int(raw.get("max_files") or 1)),
+            }
+        )
+    return output
+
+
+def normalize_material_group_value(field: dict[str, Any], value: Any) -> tuple[Any, str]:
+    if not isinstance(value, dict):
+        return value, "请上传申报材料"
+    normalized: dict[str, list[dict[str, Any]]] = {}
+    for material in field.get("materials") or []:
+        key = str(material.get("key") or "")
+        refs = value.get(key) or []
+        if not isinstance(refs, list):
+            return value, f"“{material.get('label') or key}”的附件格式无效"
+        clean_refs = []
+        for reference in refs:
+            if not isinstance(reference, dict) or not re.fullmatch(
+                r"[a-f0-9]{32}", str(reference.get("attachment_id") or "")
+            ):
+                return value, f"“{material.get('label') or key}”包含无效附件"
+            clean_refs.append(
+                {
+                    name: reference.get(name)
+                    for name in (
+                        "attachment_id",
+                        "filename",
+                        "content_type",
+                        "size_bytes",
+                        "sha256",
+                        "item_code",
+                        "field_name",
+                        "material_key",
+                    )
+                }
+            )
+        if material.get("required") and not clean_refs:
+            return value, f"请上传“{material.get('label') or key}”"
+        if len(clean_refs) > int(material.get("max_files") or 1):
+            return value, f"“{material.get('label') or key}”最多上传 {material.get('max_files') or 1} 个文件"
+        if clean_refs:
+            normalized[key] = clean_refs
+    return normalized, ""
+
+
 def build_dialog_task(
     *,
     task_type: str,
@@ -170,7 +236,20 @@ def build_dialog_task(
 def public_field(field: dict[str, Any]) -> dict[str, Any]:
     return {
         key: field[key]
-        for key in ("name", "label", "type", "required", "description", "options")
+        for key in (
+            "name",
+            "label",
+            "type",
+            "required",
+            "description",
+            "options",
+            "pattern",
+            "min_length",
+            "max_length",
+            "max_files",
+            "accept",
+            "materials",
+        )
         if key in field
     }
 
@@ -180,7 +259,21 @@ def masked_confirmation_details(task: dict[str, Any]) -> list[str]:
     fields = {item["name"]: item for item in (task.get("schema") or {}).get("fields") or [] if isinstance(item, dict)}
     details = []
     for name, value in (task.get("values") or {}).items():
-        label = str((fields.get(name) or {}).get("label") or name)
+        field = fields.get(name) or {}
+        label = str(field.get("label") or name)
+        if field.get("type") == "material_group" and isinstance(value, dict):
+            material_labels = {
+                str(item.get("key") or ""): str(item.get("label") or item.get("key") or "")
+                for item in field.get("materials") or []
+                if isinstance(item, dict)
+            }
+            files = [
+                f"{material_labels.get(str(key), str(key))}：{len(refs or [])} 份"
+                for key, refs in value.items()
+                if refs
+            ]
+            details.append(f"{label}：{'；'.join(files) if files else '未上传'}")
+            continue
         details.append(f"{label}：{mask_slot_value(name, value)}")
     return details
 

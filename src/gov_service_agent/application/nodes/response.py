@@ -52,6 +52,9 @@ class ResponseNodes:
         transaction_answer = authoritative_write_answer(next_state)
         if transaction_answer:
             answer = transaction_answer
+        form_answer = active_slot_filling_answer(next_state)
+        if form_answer:
+            answer = form_answer
         if not answer:
             next_state["refused"] = True
             next_state["refuse_reason"] = next_state.get("refuse_reason") or "agent_empty_answer"
@@ -60,6 +63,8 @@ class ResponseNodes:
         effective_provider = (
             "deterministic_transaction_result"
             if transaction_answer
+            else "deterministic_slot_filling"
+            if form_answer
             else provider or "native_tool_calling"
         )
         generation_plan = {
@@ -67,6 +72,7 @@ class ResponseNodes:
             "provider": effective_provider,
             "history_integrity_fallback": history_fallback,
             "transaction_result_override": bool(transaction_answer),
+            "slot_filling_override": bool(form_answer),
         }
         next_state["answer"] = answer
         next_state["agent_answer_provider"] = effective_provider
@@ -249,6 +255,17 @@ def authoritative_write_answer(state: dict) -> str:
             ]
         )
     return ""
+
+
+def active_slot_filling_answer(state: dict) -> str:
+    """让缺失槽位由前端表单承接，避免再次要求用户在对话框回复。"""
+    task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
+    next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
+    if task.get("status") != "collecting" or not next_field.get("name"):
+        return ""
+    item_name = str(task.get("item_name") or (task.get("schema") or {}).get("item_name") or "当前事项")
+    field_label = str(next_field.get("label") or next_field.get("name") or "下一项信息")
+    return f"已保存当前填报进度。请在下方“{item_name}”表单中填写“{field_label}”，提交后将自动进入下一项。"
 
 
 def booking_result_answer(appointment: dict, citation: str) -> str:

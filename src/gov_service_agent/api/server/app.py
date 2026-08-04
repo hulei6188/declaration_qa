@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gov_service_agent import __version__
 from gov_service_agent.api.server.routes.audit import register_audit_routes
 from gov_service_agent.api.server.routes.assets import register_asset_routes
+from gov_service_agent.api.server.routes.application_materials import register_application_material_routes
 from gov_service_agent.api.server.routes.chat import register_chat_routes
 from gov_service_agent.api.server.routes.evaluation import register_evaluation_routes
 from gov_service_agent.api.server.routes.knowledge import register_knowledge_routes
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     )
     register_system_routes(app)
     register_asset_routes(app)
+    register_application_material_routes(app)
     register_chat_routes(app)
     register_knowledge_routes(app)
     register_session_routes(app)

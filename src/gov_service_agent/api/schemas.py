@@ -18,6 +18,13 @@ class ChatImagePayload(BaseModel):
     text_present: bool = True
 
 
+class FormSubmissionPayload(BaseModel):
+    """由前端动态表单提交的单个结构化槽位。"""
+    task_type: str = Field(pattern="^(application_submission|complaint_create)$")
+    field_name: str = Field(min_length=1, max_length=120)
+    value: Any
+
+
 class ChatRequest(BaseModel):
     """政务服务智能体请求模型。"""
     model_config = ConfigDict(extra="forbid")
@@ -31,6 +38,7 @@ class ChatRequest(BaseModel):
     biz_type: str | None = Field(default=None, max_length=80)
     metadata_filter: dict[str, Any] = Field(default_factory=dict)
     query_image: ChatImagePayload | None = None
+    form_submission: FormSubmissionPayload | None = None
 
     @model_validator(mode="after")
     def validate_query_or_image(self) -> "ChatRequest":
@@ -127,6 +135,18 @@ class KnowledgeDocumentRequest(BaseModel):
     effective_start_time: date | None = None
     effective_end_time: date | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApplicationMaterialUploadResponse(BaseModel):
+    """申报材料上传后的服务端引用。"""
+    attachment_id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    item_code: str = ""
+    field_name: str
+    material_key: str
 
 
 class KnowledgeDocumentResponse(BaseModel):

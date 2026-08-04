@@ -9,6 +9,7 @@ import {
   buildChatRequest,
   startChatStream,
   resumeHumanConfirmationStream,
+  uploadApplicationMaterial,
   readSSE,
   fetchSessions,
   fetchSession,
@@ -98,6 +99,7 @@ export default function App() {
       content: '',
       sources: [],
       suggestedActions: [],
+      dialogTask: {},
       toolTrace: createToolTrace(),
     };
     setMessages((prev) => [...prev, assistantMsg]);
@@ -108,7 +110,13 @@ export default function App() {
     setFeedbackResult('');
 
     try {
-      const body = buildChatRequest(query, sessionId, ctxOverride || ctx, queryImage);
+      const body = buildChatRequest(
+        query,
+        sessionId,
+        ctxOverride || ctx,
+        queryImage,
+        meta?.formSubmission,
+      );
       const response = await startChatStream(body);
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
@@ -140,6 +148,7 @@ export default function App() {
             next[next.length - 1] = {
               ...next[next.length - 1],
               suggestedActions: data.suggested_actions || [],
+              dialogTask: data.dialog_task || {},
             };
             return next;
           });
@@ -219,6 +228,11 @@ export default function App() {
           setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({ ...message, sources: data.items || [] })));
         } else if (event === 'done') {
           setSessionId(data.session_id || sessionId);
+          setMessages((prev) => updateMessageAt(prev, messageIndex, (message) => ({
+            ...message,
+            dialogTask: data.dialog_task || {},
+            suggestedActions: data.suggested_actions || [],
+          })));
           setAudit({
             intent: [data.route, data.intent].filter(Boolean).join(' / ') || '-',
             auditId: data.audit_id || '-',
@@ -241,6 +255,17 @@ export default function App() {
       setStreaming(false);
       setSendState('');
     }
+  }
+
+  async function uploadFormMaterial(file, task, field, material) {
+    if (!sessionId) throw new Error('当前申报会话尚未建立');
+    return uploadApplicationMaterial(file, {
+      sessionId,
+      userId: Number(ctx.userId || 1),
+      itemCode: task.item_code || '',
+      fieldName: field.name,
+      materialKey: material.key,
+    });
   }
 
   function addTimeline(event, data) {
@@ -285,6 +310,7 @@ export default function App() {
           attachments: m.role === 'user' ? (m.attachments || []) : [],
           sources: m.role === 'user' ? [] : (m.sources || []),
           suggestedActions: m.role === 'user' ? [] : (m.suggested_actions || []),
+          dialogTask: m.role === 'user' ? {} : (m.dialog_task || {}),
           runId: m.role === 'user' ? '' : (m.run_id || ''),
           toolTrace: null,
         }))
@@ -623,6 +649,7 @@ export default function App() {
           onFeedback={doFeedback}
           onLoadToolTrace={loadToolTrace}
           onResolveConfirmation={resolveHumanConfirmation}
+          onUploadMaterial={uploadFormMaterial}
           theme={theme}
           onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
           sidebarCollapsed={sidebarCollapsed}

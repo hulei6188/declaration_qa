@@ -435,6 +435,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             "query": request.query,
             "normalized_query": "",
             "query_image": request.query_image.model_dump(exclude={"data_url"}) if request.query_image else None,
+            "form_submission": request.form_submission.model_dump() if request.form_submission else None,
             "query_image_ocr_text": "",
             "query_image_ocr_status": {},
             "long_term_context": {},
@@ -498,6 +499,25 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             self._graph_config(user_id=user_id, session_id=session_id)
         )
         return dict(snapshot.values or {})
+
+    def get_session(self, *, user_id: int, session_id: str) -> dict[str, Any] | None:
+        """加载历史消息，并把最新多轮表单状态补到最后一条助手消息。"""
+        item = self.audit_store.get_session(user_id=user_id, session_id=session_id)
+        if not item:
+            return None
+        try:
+            checkpoint = self._checkpoint_state(user_id=user_id, session_id=session_id)
+        except Exception:
+            checkpoint = {}
+        dialog_task = checkpoint.get("dialog_task") if isinstance(checkpoint.get("dialog_task"), dict) else {}
+        if dialog_task.get("status") == "collecting":
+            messages = [dict(message) for message in (item.get("messages") or [])]
+            for message in reversed(messages):
+                if message.get("role") == "assistant":
+                    message["dialog_task"] = dialog_task
+                    break
+            item = {**item, "messages": messages}
+        return item
 
     def _graph_config(self, *, user_id: int, session_id: str, stream: bool = False) -> dict[str, Any]:
         """构造线程配置，并为完整 Agent 轮次预留足够的图节点步数。"""

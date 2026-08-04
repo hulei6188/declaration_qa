@@ -180,6 +180,52 @@ class AgentRuntimeNodes:
             decision_action = "finish"
             calls = []
             decision_payload = {"action": "finish", "reason": next_state["refuse_reason"], "provider": "guardrail"}
+        elif next_state.get("form_submission") and not next_state.get("tool_results"):
+            structured_call, form_error = structured_form_tool_call(next_state)
+            if structured_call:
+                calls = [structured_call]
+                decision_action = "tools"
+                intent = str(structured_call.get("name") or "form_submission")
+                next_state["intent"] = intent
+                next_state["sub_intent"] = intent
+                decision_payload = {
+                    "action": "tools",
+                    "reason": "structured_form_submission",
+                    "provider": "structured_form",
+                    "intent": intent,
+                    "tool_calls": [audit_tool_call(structured_call)],
+                    "iteration": iteration,
+                }
+                messages = list(next_state.get("agent_messages") or [])
+                messages.append(
+                    {
+                        "id": uuid4().hex,
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": str(structured_call["id"]),
+                                "name": str(structured_call["name"]),
+                                "args": dict(structured_call["arguments"]),
+                                "type": "tool_call",
+                            }
+                        ],
+                    }
+                )
+                next_state["agent_messages"] = messages
+            else:
+                calls = []
+                decision_action = "finish"
+                next_state["agent_final_answer"] = form_error
+                next_state["agent_answer_provider"] = "structured_form_guardrail"
+                decision_payload = {
+                    "action": "finish",
+                    "reason": "invalid_structured_form_submission",
+                    "provider": "structured_form_guardrail",
+                    "intent": "form_submission",
+                    "tool_calls": [],
+                    "iteration": iteration,
+                }
         elif next_state.get("service_channel_clarification_required"):
             decision_action = "finish"
             calls = []
@@ -1370,3 +1416,33 @@ def audit_tool_call(call: dict[str, Any]) -> dict[str, Any]:
     if call.get("origin"):
         payload["origin"] = str(call.get("origin"))
     return payload
+
+
+def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """把前端表单槽位直接转换为受控工具调用，不再让模型解析附件引用。"""
+    submission = state.get("form_submission") if isinstance(state.get("form_submission"), dict) else {}
+    task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
+    next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
+    task_type = str(task.get("task_type") or "")
+    field_name = str(submission.get("field_name") or "")
+    if task.get("status") != "collecting" or not next_field:
+        return None, "当前没有待填写的表单，请重新进入申报流程。"
+    if str(submission.get("task_type") or "") != task_type:
+        return None, "表单类型已发生变化，请刷新后重新填写。"
+    if field_name != str(next_field.get("name") or ""):
+        return None, "当前表单字段已发生变化，请刷新后填写最新字段。"
+    tool_name = {
+        "application_submission": "application_submit",
+        "complaint_create": "complaint_create",
+    }.get(task_type)
+    if not tool_name:
+        return None, "当前表单暂不支持结构化提交。"
+    return (
+        {
+            "id": f"form-{uuid4().hex[:20]}",
+            "name": tool_name,
+            "arguments": {"values": {field_name: submission.get("value")}},
+            "origin": "structured_form",
+        },
+        "",
+    )

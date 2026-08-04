@@ -13,8 +13,10 @@ from gov_service_agent.application.slot_filling import (
     normalize_form_schema,
     validate_slots,
 )
+from gov_service_agent.application.application_materials import ApplicationMaterialStore
 from gov_service_agent.application.tools.registry import ToolExecutionContext, ToolExecutionResult
 from gov_service_agent.core.business import BusinessDataAdapter
+from gov_service_agent.core.config import get_settings
 
 
 COMPLAINT_SCHEMA = {
@@ -85,6 +87,7 @@ class ApplicationSubmitTool:
         current = task.get("values") if continuing_same_item else {}
         collected = collect_slots(schema, current, request.values)
         values, missing, invalid = validate_slots(schema, collected)
+        invalid.extend(validate_uploaded_materials(schema, values, context))
         dialog_task = build_dialog_task(
             task_type="application_submission",
             schema=schema,
@@ -216,3 +219,43 @@ def active_task(context: ToolExecutionContext, task_type: str) -> dict[str, Any]
     if not isinstance(task, dict) or task.get("task_type") != task_type or task.get("status") == "completed":
         return {}
     return dict(task)
+
+
+def validate_uploaded_materials(
+    schema: dict[str, Any],
+    values: dict[str, Any],
+    context: ToolExecutionContext,
+) -> list[dict[str, Any]]:
+    """确保附件引用确实属于当前用户、会话和材料类别。"""
+    settings = get_settings()
+    store = ApplicationMaterialStore(
+        settings.application_material_dir,
+        max_bytes=settings.application_material_max_bytes,
+    )
+    invalid = []
+    for field in schema.get("fields") or []:
+        if not isinstance(field, dict) or field.get("type") != "material_group":
+            continue
+        field_name = str(field.get("name") or "")
+        group = values.get(field_name)
+        if not isinstance(group, dict):
+            continue
+        for material in field.get("materials") or []:
+            material_key = str(material.get("key") or "")
+            for reference in group.get(material_key) or []:
+                verified = store.validate_reference(
+                    reference,
+                    user_id=context.user_id,
+                    session_id=context.session_id,
+                    field_name=field_name,
+                    material_key=material_key,
+                )
+                if verified is None:
+                    invalid.append(
+                        {
+                            **field,
+                            "error": f"“{material.get('label') or material_key}”包含已失效或不属于当前会话的附件，请重新上传",
+                        }
+                    )
+                    break
+    return invalid

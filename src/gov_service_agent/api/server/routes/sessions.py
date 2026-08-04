@@ -26,7 +26,7 @@ def register_session_routes(app):
         effective_user_id = context.user_id or user_id
         if settings.effective_auth_required and not effective_user_id:
             raise HTTPException(status_code=401, detail="Authenticated user_id is required")
-        item = workflow.audit_store.get_session(user_id=int(effective_user_id), session_id=session_id)
+        item = workflow.get_session(user_id=int(effective_user_id), session_id=session_id)
         if not item:
             raise HTTPException(status_code=404, detail="Session not found")
         return item

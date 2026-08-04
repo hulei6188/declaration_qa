@@ -1365,8 +1365,8 @@ def default_application_form_schemas() -> dict[str, dict[str, Any]]:
             ],
         },
         {
-            "schema_id": "water-permit-v1",
-            "version": "1",
+            "schema_id": "water-permit-v2",
+            "version": "2",
             "item_code": "11340000002985923L200011900100001",
             "item_name": "取水许可",
             "biz_type": "water_permit",
@@ -1378,6 +1378,22 @@ def default_application_form_schemas() -> dict[str, dict[str, Any]]:
                 {"name": "water_source", "label": "取水水源", "type": "text", "required": True, "max_length": 200, "aliases": ["水源"]},
                 {"name": "annual_water_volume", "label": "年取水量（立方米）", "type": "number", "required": True, "aliases": ["年取水量", "取水量"]},
                 {"name": "water_use", "label": "取水用途", "type": "multiselect", "required": True, "options": ["制水供水", "原水供水", "生活用水", "工业用水", "农业用水", "其他"], "aliases": ["用途"]},
+                {
+                    "name": "application_materials",
+                    "label": "申报材料",
+                    "type": "material_group",
+                    "required": True,
+                    "description": "支持 PDF、Word、Excel、JPG、PNG、ZIP；单个文件不超过 20 MB。",
+                    "accept": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".zip"],
+                    "materials": [
+                        {"key": "water_resource_report", "label": "建设项目水资源论证报告书（表）", "required": True, "max_files": 3},
+                        {"key": "water_right_transfer_report", "label": "水权转让可行性研究报告", "required": False, "description": "通过水权转让方式获得取水指标时上传", "max_files": 3},
+                        {"key": "filing_materials", "label": "备案材料", "required": False, "description": "属于备案项目时上传", "max_files": 3},
+                        {"key": "business_license_or_id", "label": "营业执照或身份证", "required": True, "max_files": 2},
+                        {"key": "water_permit_application", "label": "取水许可申请书", "required": True, "max_files": 2},
+                        {"key": "interested_party_statement", "label": "利害关系说明", "required": True, "max_files": 3},
+                    ],
+                },
             ],
         },
     ]

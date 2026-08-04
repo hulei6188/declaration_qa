@@ -444,6 +444,7 @@ def persist_agent_run(
             "retrieval_chain": payload.get("retrieval_chain") or "",
             "agent_iteration": _safe_int(payload.get("agent_iteration")),
             "langfuse_trace_id": payload.get("langfuse_trace_id") or "",
+            "dialog_task": payload.get("dialog_task") or {},
         },
         pii_level="personal" if any(_is_business_result(item) for item in results) else "none",
     )
