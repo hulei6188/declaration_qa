@@ -113,7 +113,7 @@ def response_json_or_error(response: requests.Response) -> dict:
 
 
 def dashscope_compatible_chat_url(url: str) -> str:
-    """将 DashScope /api/v1 地址转换为 OpenAI-compatible chat 地址。"""
+    """将 DashScope 或通用 OpenAI-compatible 基础地址转换为聊天接口地址。"""
     base = str(url or "").strip().rstrip("/")
     if base.endswith("/chat/completions"):
         return base
@@ -121,6 +121,8 @@ def dashscope_compatible_chat_url(url: str) -> str:
         return f"{base}/chat/completions"
     if base.endswith("/api/v1"):
         return f"{base[:-len('/api/v1')]}/compatible-mode/v1/chat/completions"
+    if base.endswith("/v1"):
+        return f"{base}/chat/completions"
     return f"{base}/compatible-mode/v1/chat/completions"
 
 

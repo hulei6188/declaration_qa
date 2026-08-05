@@ -74,8 +74,11 @@ class HttpVisionSummaryClient:
             ],
             "max_tokens": self.max_tokens,
             "temperature": 0,
-            "enable_thinking": False,
         }
+        if self.model.lower().startswith("gpt-5.6"):
+            payload["reasoning_effort"] = "none"
+        else:
+            payload["enable_thinking"] = False
         response = requests.post(
             dashscope_compatible_chat_url(self.url),
             headers={

@@ -65,9 +65,10 @@ def build_agent_model(
     resolved_base_url = settings.openai_api_base if base_url is None else str(base_url or "").strip()
     if settings.llm_provider.strip().lower() not in {"openai", "dashscope", "deepseek"} or not resolved_api_key:
         return None
+    resolved_model = model_name or settings.agent_model or settings.llm_model
     kwargs: dict[str, Any] = {
         "api_key": resolved_api_key,
-        "model": model_name or settings.agent_model or settings.llm_model,
+        "model": resolved_model,
         "temperature": 0.0,
         "timeout": (
             float(timeout_seconds)
@@ -76,6 +77,8 @@ def build_agent_model(
         ),
         "max_retries": 1,
     }
+    if resolved_model.strip().lower().startswith("gpt-5.6"):
+        kwargs["reasoning_effort"] = settings.llm_reasoning_effort.strip().lower() or "none"
     if resolved_base_url:
         kwargs["base_url"] = resolved_base_url
     return create_chat_openai(**kwargs)

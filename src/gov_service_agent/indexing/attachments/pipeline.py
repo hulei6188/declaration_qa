@@ -243,8 +243,16 @@ def build_vision_summary_client(settings: GovServiceAgentSettings) -> HttpVision
     """根据配置构建视觉摘要客户端。"""
     if not settings.image_summary_enabled:
         return None
-    url = settings.image_summary_api_url or settings.ocr_api_url
-    api_key = settings.image_summary_api_key or settings.ocr_api_key
+    uses_llm_gateway = (
+        not settings.image_summary_api_url
+        and settings.image_summary_model.strip().lower() == settings.llm_model.strip().lower()
+    )
+    if uses_llm_gateway:
+        url = settings.llm_api_base
+        api_key = settings.llm_api_key
+    else:
+        url = settings.image_summary_api_url or settings.ocr_api_url
+        api_key = settings.image_summary_api_key or settings.ocr_api_key
     if not url or not api_key or not settings.image_summary_model:
         return None
     return HttpVisionSummaryClient(

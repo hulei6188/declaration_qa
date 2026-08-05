@@ -68,6 +68,31 @@ def test_empty_text_key_does_not_fall_back_to_dashscope_key():
     ) is None
 
 
+def test_gpt_5_6_chat_completions_disables_reasoning_for_function_tools(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(
+        "gov_service_agent.rag.model_providers.factories.create_chat_openai",
+        lambda **kwargs: captured.update(kwargs) or object(),
+    )
+    settings = GovServiceAgentSettings(
+        _env_file=None,
+        GOV_SERVICE_AGENT_LLM_PROVIDER="openai",
+        GOV_SERVICE_AGENT_LLM_REASONING_EFFORT="none",
+    )
+
+    build_agent_model(
+        settings,
+        model_name="gpt-5.6-sol",
+        api_key="gateway-key",
+        base_url="http://gateway.test/v1",
+    )
+
+    assert captured["model"] == "gpt-5.6-sol"
+    assert captured["reasoning_effort"] == "none"
+    assert captured["base_url"] == "http://gateway.test/v1"
+
+
 def test_dashscope_vl_rerank_text_respects_document_limit():
     assert len(safe_rerank_text("材" * 9000)) == 8000
 

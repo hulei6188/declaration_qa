@@ -59,6 +59,7 @@ class GovServiceAgentSettings(BaseSettings):
     llm_model: str = Field(default="deepseek-v4-flash", alias="GOV_SERVICE_AGENT_LLM_MODEL")
     llm_api_key: str = Field(default="", alias="GOV_SERVICE_AGENT_LLM_API_KEY")
     llm_api_base: str = Field(default="https://api.deepseek.com", alias="GOV_SERVICE_AGENT_LLM_API_BASE")
+    llm_reasoning_effort: str = Field(default="", alias="GOV_SERVICE_AGENT_LLM_REASONING_EFFORT")
     openai_api_key: str = Field(default="", alias="GOV_SERVICE_AGENT_OPENAI_API_KEY")
     openai_api_base: str = Field(default="", alias="GOV_SERVICE_AGENT_OPENAI_API_BASE")
     external_request_timeout_seconds: float = Field(default=10.0, alias="GOV_SERVICE_AGENT_EXTERNAL_REQUEST_TIMEOUT_SECONDS")
