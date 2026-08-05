@@ -178,7 +178,7 @@ export default function ChatPane({
                 )}
               />
             )}
-            {m.role === 'assistant' && m.confirmation && (
+            {m.role === 'assistant' && m.confirmation && confirmationCardIsVisible(m.confirmation) && (
               <HumanConfirmationCard
                 confirmation={m.confirmation}
                 disabled={streaming}
@@ -734,6 +734,11 @@ function HumanConfirmationCard({ confirmation, disabled, onResolve }) {
       )}
     </section>
   );
+}
+
+function confirmationCardIsVisible(confirmation) {
+  const status = String(confirmation?.status || 'pending');
+  return ['pending', 'submitting', 'failed'].includes(status);
 }
 
 function initialSlotSelections(confirmation) {

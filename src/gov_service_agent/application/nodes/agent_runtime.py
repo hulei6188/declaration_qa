@@ -16,7 +16,7 @@ from gov_service_agent.application.agent import accumulated_knowledge_queries, c
 from gov_service_agent.application.evidence_registry import build_evidence_registry
 from gov_service_agent.application.state import GovServiceAgentState
 from gov_service_agent.application.slot_filling import masked_confirmation_details
-from gov_service_agent.application.state_machine import transition_dialog_task
+from gov_service_agent.application.state_machine import cancel_active_dialog_task, transition_dialog_task
 from gov_service_agent.application.tool_policy import (
     allowed_tool_names,
     filter_tool_definitions_for_route,
@@ -440,6 +440,37 @@ class AgentRuntimeNodes:
                     "call_ids": [str(call.get("id") or call.get("name") or "") for call in protected_calls],
                 },
             )
+            cancelled_form_call = next(
+                (
+                    call
+                    for call in protected_calls
+                    if str(call.get("name") or "") in {"application_submit", "complaint_create"}
+                ),
+                None,
+            )
+            if not approved and cancelled_form_call is not None:
+                current_task = dict(next_state.get("dialog_task") or {})
+                preview = (
+                    cancelled_form_call.get("confirmation_preview")
+                    if isinstance(cancelled_form_call.get("confirmation_preview"), dict)
+                    else {}
+                )
+                preview_task = preview.get("dialog_task") if isinstance(preview.get("dialog_task"), dict) else {}
+                task_to_cancel = current_task or dict(preview_task)
+                next_state["dialog_task"] = cancel_active_dialog_task(task_to_cancel)
+                next_state["workflow_gate"] = {
+                    "mode": "dialog_cancelled",
+                    "reason": "human_rejected_form_confirmation",
+                    "tool_name": str(cancelled_form_call.get("name") or ""),
+                }
+                add_event(
+                    next_state,
+                    "dialog_flow_cancelled",
+                    {
+                        "tool_name": str(cancelled_form_call.get("name") or ""),
+                        "reason": "human_rejected_form_confirmation",
+                    },
+                )
 
         with observation(
             "agent.tool_wave",

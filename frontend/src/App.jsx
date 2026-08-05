@@ -238,6 +238,7 @@ export default function App() {
             ...message,
             dialogTask: data.dialog_task || {},
             suggestedActions: data.suggested_actions || [],
+            confirmation: null,
           })));
           setAudit({
             intent: [data.route, data.intent].filter(Boolean).join(' / ') || '-',

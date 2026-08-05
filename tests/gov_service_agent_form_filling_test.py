@@ -474,6 +474,62 @@ def test_sync_invoke_keeps_session_state_when_write_action_pauses_for_confirmati
     assert response.answer == "操作正在等待人工确认。"
 
 
+def test_rejecting_complaint_confirmation_cancels_the_entire_form_flow():
+    class ScriptedAgent:
+        def decide(self, state, _definitions):
+            if state.get("tool_results"):
+                return AgentDecision("finish", final_answer="不应继续填写。")
+            return AgentDecision(
+                "tools",
+                [
+                    tool_call(
+                        "complaint-cancel-flow",
+                        "complaint_create",
+                        {
+                            "values": {
+                                "主题": "问答质量差",
+                                "投诉描述": "回答内容不准确。",
+                                "投诉对象": "合肥工商局",
+                                "电话": "13800006292",
+                            }
+                        },
+                    )
+                ],
+            )
+
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(),
+        intent_router=intent_router("complaint", "create"),
+    )
+    session_id = "complaint-confirmation-cancels-flow"
+    events = list(
+        workflow.stream(ChatRequest(query="我要投诉", user_id=1, session_id=session_id))
+    )
+    confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
+
+    resumed = list(
+        workflow.resume_stream(
+            HumanConfirmationRequest(
+                session_id=session_id,
+                interrupt_id=confirmation["interrupt_id"],
+                user_id=1,
+                approved=False,
+            )
+        )
+    )
+    snapshot = workflow._checkpoint_state(user_id=1, session_id=session_id)
+    workflow.close()
+
+    assert any(item["event"] == "dialog_flow_cancelled" for item in resumed)
+    done = next(item["data"] for item in resumed if item["event"] == "done")
+    assert done["dialog_task"]["status"] == "cancelled"
+    assert snapshot["dialog_task"]["status"] == "cancelled"
+    assert snapshot["dialog_task"]["next_field"] == {}
+    assert snapshot["workflow_gate"]["mode"] == "dialog_cancelled"
+    assert snapshot["tool_results"][0]["status"] == "human_rejected"
+    assert snapshot["answer"] == "已取消当前表单填写流程。"
+
+
 def test_migration_defines_schema_versions_and_idempotent_writes():
     migration = Path("sql/postgresql/014_multiturn_form_filling.sql").read_text(encoding="utf-8")
     materials_migration = Path("sql/postgresql/015_water_permit_application_materials.sql").read_text(encoding="utf-8")

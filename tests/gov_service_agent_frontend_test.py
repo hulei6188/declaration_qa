@@ -142,3 +142,12 @@ def test_confirmation_ready_event_hides_completed_form():
 
     assert "confirmationCompletesFormCollection(confirmation) ? {}" in app
     assert "['application_submit', 'complaint_create'].includes" in utils
+
+
+def test_frontend_hides_resolved_confirmation_cards_after_resume():
+    app = (FRONTEND_ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
+    chat = (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").read_text(encoding="utf-8")
+
+    assert "confirmation: null" in app
+    assert "confirmationCardIsVisible(m.confirmation)" in chat
+    assert "['pending', 'submitting', 'failed'].includes(status)" in chat
