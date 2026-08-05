@@ -114,15 +114,54 @@ class ExternalIndexRAGEngine(BaseRAGEngine):
 
     def rebuild_indexed_data(self, documents: list[KnowledgeDocument], chunks: list[KnowledgeChunk]) -> int:
         """根据片段重建外部向量和关键词索引。"""
-        self._documents = {document.id: document for document in documents}
-        self.vector_index.clear()
-        self.keyword_index.clear()
+        target_documents = {document.id: document for document in documents}
+        if self._documents and not target_documents:
+            raise RuntimeError("Refusing to replace a non-empty external index with an empty knowledge snapshot")
+        target_chunks: dict[str, list[KnowledgeChunk]] = {document_id: [] for document_id in target_documents}
+        unexpected_doc_ids: set[str] = set()
+        for chunk in chunks:
+            if chunk.doc_id not in target_documents:
+                unexpected_doc_ids.add(chunk.doc_id)
+                continue
+            target_chunks[chunk.doc_id].append(chunk)
+        if unexpected_doc_ids:
+            raise ValueError(f"Reindex chunks reference unknown documents: {sorted(unexpected_doc_ids)}")
+
+        # 所有可能失败的远程向量化必须在修改现有索引前完成。重建时不再全局
+        # clear；后续按文档逐个替换，单篇写入失败不会清空整个知识库。
         child_chunks = [chunk for chunk in chunks if chunk.chunk_type == "child"]
+        documents_without_children = [
+            document_id
+            for document_id, document_chunks in target_chunks.items()
+            if not any(chunk.chunk_type == "child" for chunk in document_chunks)
+        ]
+        if documents_without_children:
+            raise RuntimeError(
+                f"Refusing to replace documents without searchable child chunks: {sorted(documents_without_children)}"
+            )
         vectors = embed_knowledge_chunk_batch(self.embedding_provider, child_chunks)
-        for chunk, vector in zip(child_chunks, vectors):
-            self.vector_index.upsert(chunk, vector)
-        self.keyword_index.upsert_chunks(chunks)
+        if len(vectors) != len(child_chunks):
+            raise RuntimeError(
+                f"Embedding vector count mismatch: expected {len(child_chunks)}, got {len(vectors)}"
+            )
+        vectors_by_chunk_id = {chunk.id: vector for chunk, vector in zip(child_chunks, vectors)}
+
+        for document in documents:
+            document_chunks = target_chunks[document.id]
+            self.vector_index.delete_by_doc(document.id)
+            self.keyword_index.delete_by_doc(document.id)
+            for chunk in document_chunks:
+                if chunk.chunk_type == "child":
+                    self.vector_index.upsert(chunk, vectors_by_chunk_id[chunk.id])
+            self.keyword_index.upsert_chunks(document_chunks)
+
+        removed_document_ids = set(self._documents).difference(target_documents)
+        for document_id in sorted(removed_document_ids):
+            self.vector_index.delete_by_doc(document_id)
+            self.keyword_index.delete_by_doc(document_id)
+
         self._flush_vector_index()
+        self._documents = target_documents
         self._clear_cache()
         return len(chunks)
 

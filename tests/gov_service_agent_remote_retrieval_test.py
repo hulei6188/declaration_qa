@@ -1,8 +1,189 @@
 from threading import Lock, get_ident
 from time import sleep
 
-from gov_service_agent.core.domain import KnowledgeChunk, RetrievedSource
+import pytest
+
+from gov_service_agent.core.domain import KnowledgeChunk, KnowledgeDocument, RetrievedSource
 from gov_service_agent.rag.engine.external_index import ExternalIndexRAGEngine
+
+
+def test_rebuild_does_not_mutate_external_indexes_when_embedding_fails():
+    document = KnowledgeDocument(id="doc-safe", title="安全重建", content="")
+    child = KnowledgeChunk(
+        id="chunk-safe",
+        doc_id=document.id,
+        parent_id="",
+        chunk_type="child",
+        title=document.title,
+        content="向量生成失败时必须保留旧索引。",
+    )
+
+    class FailingEmbeddingProvider:
+        name = "failing"
+        dimension = 2
+
+        def embed_chunks(self, chunks):
+            raise RuntimeError("embedding unavailable")
+
+    class RecordingVectorIndex:
+        backend = "milvus"
+
+        def __init__(self):
+            self.mutations = []
+
+        def clear(self):
+            self.mutations.append(("clear", ""))
+
+        def delete_by_doc(self, doc_id):
+            self.mutations.append(("delete", doc_id))
+
+        def upsert(self, chunk, vector):
+            self.mutations.append(("upsert", chunk.id))
+
+    class RecordingKeywordIndex:
+        backend = "elasticsearch"
+
+        def __init__(self):
+            self.mutations = []
+
+        def clear(self):
+            self.mutations.append(("clear", ""))
+
+        def delete_by_doc(self, doc_id):
+            self.mutations.append(("delete", doc_id))
+
+        def upsert_chunks(self, chunks):
+            self.mutations.append(("upsert", [chunk.id for chunk in chunks]))
+
+    vector_index = RecordingVectorIndex()
+    keyword_index = RecordingKeywordIndex()
+    engine = ExternalIndexRAGEngine(
+        vector_index=vector_index,
+        keyword_index=keyword_index,
+        chunk_store=object(),
+        embedding_provider=FailingEmbeddingProvider(),
+    )
+
+    with pytest.raises(RuntimeError, match="embedding unavailable"):
+        engine.rebuild_indexed_data([document], [child])
+
+    assert vector_index.mutations == []
+    assert keyword_index.mutations == []
+
+
+def test_rebuild_replaces_documents_without_globally_clearing_indexes():
+    old_document = KnowledgeDocument(id="doc-old", title="旧文档", content="")
+    new_document = KnowledgeDocument(id="doc-new", title="新文档", content="")
+    child = KnowledgeChunk(
+        id="chunk-new",
+        doc_id=new_document.id,
+        parent_id="",
+        chunk_type="child",
+        title=new_document.title,
+        content="新的可检索内容。",
+    )
+
+    class EmbeddingProvider:
+        name = "recording"
+        dimension = 2
+
+        def embed_chunks(self, chunks):
+            return [[1.0, 0.0] for _ in chunks]
+
+    class RecordingVectorIndex:
+        backend = "milvus"
+
+        def __init__(self):
+            self.mutations = []
+
+        def clear(self):
+            raise AssertionError("rebuild must not globally clear the vector index")
+
+        def delete_by_doc(self, doc_id):
+            self.mutations.append(("delete", doc_id))
+
+        def upsert(self, chunk, vector):
+            self.mutations.append(("upsert", chunk.id, vector))
+
+        def flush(self):
+            self.mutations.append(("flush",))
+
+    class RecordingKeywordIndex:
+        backend = "elasticsearch"
+
+        def __init__(self):
+            self.mutations = []
+
+        def clear(self):
+            raise AssertionError("rebuild must not globally clear the keyword index")
+
+        def delete_by_doc(self, doc_id):
+            self.mutations.append(("delete", doc_id))
+
+        def upsert_chunks(self, chunks):
+            self.mutations.append(("upsert", [chunk.id for chunk in chunks]))
+
+    vector_index = RecordingVectorIndex()
+    keyword_index = RecordingKeywordIndex()
+    engine = ExternalIndexRAGEngine(
+        vector_index=vector_index,
+        keyword_index=keyword_index,
+        chunk_store=object(),
+        embedding_provider=EmbeddingProvider(),
+    )
+    engine.load_indexed_data([old_document], [])
+
+    indexed = engine.rebuild_indexed_data([new_document], [child])
+
+    assert indexed == 1
+    assert vector_index.mutations == [
+        ("delete", new_document.id),
+        ("upsert", child.id, [1.0, 0.0]),
+        ("delete", old_document.id),
+        ("flush",),
+    ]
+    assert keyword_index.mutations == [
+        ("delete", new_document.id),
+        ("upsert", [child.id]),
+        ("delete", old_document.id),
+    ]
+
+
+def test_rebuild_refuses_an_accidental_empty_snapshot():
+    existing_document = KnowledgeDocument(id="doc-existing", title="现有文档", content="")
+
+    class UnusedEmbeddingProvider:
+        name = "unused"
+        dimension = 2
+
+        def embed_chunks(self, chunks):
+            raise AssertionError("empty snapshot must be rejected before embedding")
+
+    class MutationRejectingIndex:
+        backend = "external"
+
+        def clear(self):
+            raise AssertionError("empty snapshot must not clear indexes")
+
+        def delete_by_doc(self, doc_id):
+            raise AssertionError("empty snapshot must not delete documents")
+
+        def upsert(self, chunk, vector):
+            raise AssertionError("empty snapshot must not write documents")
+
+        def upsert_chunks(self, chunks):
+            raise AssertionError("empty snapshot must not write documents")
+
+    engine = ExternalIndexRAGEngine(
+        vector_index=MutationRejectingIndex(),
+        keyword_index=MutationRejectingIndex(),
+        chunk_store=object(),
+        embedding_provider=UnusedEmbeddingProvider(),
+    )
+    engine.load_indexed_data([existing_document], [])
+
+    with pytest.raises(RuntimeError, match="empty knowledge snapshot"):
+        engine.rebuild_indexed_data([], [])
 
 
 def test_remote_retrieval_hydrates_chunk_ids_without_memory_candidates():

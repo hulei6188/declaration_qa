@@ -454,6 +454,9 @@ def test_sync_invoke_keeps_session_state_when_write_action_pauses_for_confirmati
 def test_migration_defines_schema_versions_and_idempotent_writes():
     migration = Path("sql/postgresql/014_multiturn_form_filling.sql").read_text(encoding="utf-8")
     materials_migration = Path("sql/postgresql/015_water_permit_application_materials.sql").read_text(encoding="utf-8")
+    document_schema_migration = Path(
+        "sql/postgresql/016_document_derived_application_form_schemas.sql"
+    ).read_text(encoding="utf-8")
     combined = Path("sql/postgresql/declaration_qa_postgresql_all.sql").read_text(encoding="utf-8")
 
     for token in ["business_item_form_schemas", "version_no", "fields JSONB", "idempotency_key"]:
@@ -461,4 +464,14 @@ def test_migration_defines_schema_versions_and_idempotent_writes():
         assert token in combined
     for token in ["water-permit-v2", '"type":"material_group"', "version_no < 2"]:
         assert token in materials_migration
+        assert token in combined
+    for token in [
+        "disabled-veterans-centralized-support-v1",
+        "fire-accident-review-v1",
+        "foreign-marriage-registration-v1",
+        "foreign-adoption-registration-v1",
+        "high-risk-sports-event-permit-v1",
+        "source_document_uid",
+    ]:
+        assert token in document_schema_migration
         assert token in combined
