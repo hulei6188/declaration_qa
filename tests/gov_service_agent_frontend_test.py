@@ -117,6 +117,17 @@ def test_composer_only_shows_real_streaming_phases():
     assert "sendState &&" in chat
 
 
+def test_form_filling_locks_free_composer_and_exposes_cancel_action():
+    chat = (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").read_text(encoding="utf-8")
+    styles = (FRONTEND_ROOT / "src" / "styles.css").read_text(encoding="utf-8")
+
+    assert "formFillingPending" in chat
+    assert "disabled={streaming || confirmationPending || formFillingPending}" in chat
+    assert "onCancel={() => onSend?.('取消当前表单填写流程', '取消填写')}" in chat
+    assert "取消填写" in chat
+    assert ".slot-field-action-buttons" in styles
+
+
 def test_failed_form_request_retains_current_dialog_task_and_uploaded_values():
     app = (FRONTEND_ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")

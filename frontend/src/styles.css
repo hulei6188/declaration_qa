@@ -1806,6 +1806,7 @@ select {
   margin-top: 3px;
 }
 .slot-field-actions > span { color: var(--text-tertiary); font-size: 12px; }
+.slot-field-action-buttons { display: inline-flex; align-items: center; gap: 8px; }
 .slot-field-actions button {
   display: inline-flex;
   gap: 6px;
@@ -1820,6 +1821,7 @@ select {
   .service-channel-options { grid-template-columns: 1fr; }
   .slot-filling-card { padding: 15px; }
   .slot-field-actions { align-items: stretch; flex-direction: column; }
+  .slot-field-action-buttons { width: 100%; flex-direction: column; }
   .slot-field-actions button { width: 100%; }
 }
 

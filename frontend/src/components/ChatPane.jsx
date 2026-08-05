@@ -43,7 +43,7 @@ export default function ChatPane({
   function handleSubmit(e) {
     e.preventDefault();
     const q = input.trim();
-    if ((!q && !imageDraft) || streaming || confirmationPending) return;
+    if ((!q && !imageDraft) || streaming || confirmationPending || formFillingPending) return;
     setAutoFollow(true);
     onSend(q, q, undefined, undefined, imageDraft ? { ...imageDraft, text_present: Boolean(q) } : null);
     setInput('');
@@ -165,6 +165,7 @@ export default function ChatPane({
                 task={m.dialogTask}
                 disabled={streaming}
                 onUploadMaterial={onUploadMaterial}
+                onCancel={() => onSend?.('取消当前表单填写流程', '取消填写')}
                 onSubmit={(field, value) => onSend?.(
                   buildSlotSubmissionQuery(m.dialogTask, field, value),
                   slotSubmissionDisplay(field, value),
@@ -242,9 +243,9 @@ export default function ChatPane({
             placeholder={confirmationPending
               ? '请先处理上方人工确认'
               : formFillingPending
-                ? '表单请在上方填写，也可以在这里咨询政策问题'
+                ? '请在上方完成表单填写，如需退出请点击“取消填写”'
                 : '输入问题'}
-            disabled={streaming || confirmationPending}
+            disabled={streaming || confirmationPending || formFillingPending}
           />
           <div className={`composer-actions${sendState ? '' : ' is-idle'}`}>
             {sendState && <span className="composer-status"><i />{sendState}</span>}
@@ -260,13 +261,13 @@ export default function ChatPane({
                 type="button"
                 className="icon-button"
                 onClick={() => imageInputRef.current?.click()}
-                disabled={streaming || confirmationPending}
+                disabled={streaming || confirmationPending || formFillingPending}
                 title="上传图片提问"
                 aria-label="上传图片提问"
               >
                 <ImagePlus size={16} />
               </button>
-              <button className="primary send-button" type="submit" disabled={streaming || confirmationPending || (!input.trim() && !imageDraft)} title="发送" aria-label="发送">
+              <button className="primary send-button" type="submit" disabled={streaming || confirmationPending || formFillingPending || (!input.trim() && !imageDraft)} title="发送" aria-label="发送">
                 <Send size={16} />
               </button>
             </div>
@@ -312,7 +313,7 @@ function ServiceChannelSelection({ actions, disabled, onSelect }) {
   );
 }
 
-function SlotFillingCard({ task, disabled, onSubmit, onUploadMaterial }) {
+function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial }) {
   const field = task.next_field || {};
   const initialValue = initialFieldValue(field, task.values || {});
   const [value, setValue] = useState(initialValue);
@@ -384,9 +385,14 @@ function SlotFillingCard({ task, disabled, onSubmit, onUploadMaterial }) {
         {error && <div className="slot-field-error">{error}</div>}
         <div className="slot-field-actions">
           <span>下一步将继续填写下一个必填项</span>
-          <button type="submit" className="primary" disabled={disabled || !hasSlotValue(value)}>
-            {disabled ? '提交中…' : '保存并继续'}<ArrowRight size={14} />
-          </button>
+          <div className="slot-field-action-buttons">
+            <button type="button" className="ghost" disabled={disabled} onClick={onCancel}>
+              <X size={14} />取消填写
+            </button>
+            <button type="submit" className="primary" disabled={disabled || !hasSlotValue(value)}>
+              {disabled ? '提交中…' : '保存并继续'}<ArrowRight size={14} />
+            </button>
+          </div>
         </div>
       </form>
     </section>
