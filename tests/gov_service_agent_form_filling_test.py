@@ -348,12 +348,14 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
     confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
 
     assert confirmation["title"] == "确认提交申报"
+    assert confirmation["form_ready_for_confirmation"] is True
     assert confirmation["actions"][0]["tool_name"] == "application_submit"
     assert any("张三" in detail for detail in confirmation["actions"][0]["details"])
     assert any("138****8000" in detail for detail in confirmation["actions"][0]["details"])
     paused_session = workflow.get_session(user_id=1, session_id=session_id)
     assert paused_session["messages"][-1]["confirmation"]["interrupt_id"] == confirmation["interrupt_id"]
     assert paused_session["messages"][-1]["confirmation"]["status"] == "pending"
+    assert paused_session["messages"][-1]["dialog_task"] == {}
 
     resumed = list(
         workflow.resume_stream(

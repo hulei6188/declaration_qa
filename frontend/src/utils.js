@@ -10,6 +10,37 @@ export const DEFAULT_CONTEXT = {
   policyVersion: '2025',
 };
 
+export function latestCollectingDialogTask(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const task = messages[index]?.dialogTask;
+    if (!task || typeof task !== 'object' || Object.keys(task).length === 0) continue;
+    if (task.status === 'collecting' && task.next_field?.name) return task;
+    // 最近的非空任务已经进入 ready/completed/cancelled 等后续状态时，
+    // 不得继续向前寻找并复活同一会话中的旧 collecting 表单。
+    return {};
+  }
+  return {};
+}
+
+export function retainSubmittedFormValue(task, submission) {
+  const fieldName = String(submission?.field_name || '');
+  if (!fieldName || task?.status !== 'collecting' || task?.next_field?.name !== fieldName) return task || {};
+  return {
+    ...task,
+    values: {
+      ...(task.values || {}),
+      [fieldName]: submission.value,
+    },
+  };
+}
+
+export function confirmationCompletesFormCollection(confirmation) {
+  if (confirmation?.form_ready_for_confirmation) return true;
+  return (confirmation?.actions || []).some((action) =>
+    ['application_submit', 'complaint_create'].includes(String(action?.tool_name || ''))
+  );
+}
+
 // ---- 格式化工具 ----
 export function escapeHtml(value) {
   return String(value ?? '')

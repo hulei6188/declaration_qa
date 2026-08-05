@@ -514,10 +514,21 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             pending_confirmation = {}
         dialog_task = checkpoint.get("dialog_task") if isinstance(checkpoint.get("dialog_task"), dict) else {}
         if dialog_task.get("status") == "collecting" or pending_confirmation:
+            confirmation_tool_names = {
+                str(action.get("tool_name") or "")
+                for action in (pending_confirmation.get("actions") or [])
+                if isinstance(action, dict)
+            }
+            form_ready_for_confirmation = bool(
+                pending_confirmation.get("form_ready_for_confirmation")
+                or confirmation_tool_names & {"application_submit", "complaint_create"}
+            )
             messages = [dict(message) for message in (item.get("messages") or [])]
             for message in reversed(messages):
                 if message.get("role") == "assistant":
-                    if dialog_task.get("status") == "collecting":
+                    if form_ready_for_confirmation:
+                        message["dialog_task"] = {}
+                    elif dialog_task.get("status") == "collecting":
                         message["dialog_task"] = dialog_task
                     if pending_confirmation:
                         message["confirmation"] = {**pending_confirmation, "status": "pending"}

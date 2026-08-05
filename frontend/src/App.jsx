@@ -6,6 +6,9 @@ import KnowledgeLibraryPane from './components/KnowledgeLibraryPane.jsx';
 import VersionManagementPane from './components/VersionManagementPane.jsx';
 import {
   DEFAULT_CONTEXT,
+  latestCollectingDialogTask,
+  retainSubmittedFormValue,
+  confirmationCompletesFormCollection,
   buildChatRequest,
   startChatStream,
   resumeHumanConfirmationStream,
@@ -694,26 +697,6 @@ export default function App() {
   );
 }
 
-function latestCollectingDialogTask(messages) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const task = messages[index]?.dialogTask;
-    if (task?.status === 'collecting' && task?.next_field?.name) return task;
-  }
-  return {};
-}
-
-function retainSubmittedFormValue(task, submission) {
-  const fieldName = String(submission?.field_name || '');
-  if (!fieldName || task?.status !== 'collecting' || task?.next_field?.name !== fieldName) return task || {};
-  return {
-    ...task,
-    values: {
-      ...(task.values || {}),
-      [fieldName]: submission.value,
-    },
-  };
-}
-
 function streamPhaseLabel(event, data = {}) {
   if (event === 'run_started') return '正在启动任务…';
   if (event === 'agent_decision') {
@@ -772,7 +755,11 @@ function updateLastAssistantConfirmation(messages, confirmation) {
   const next = [...messages];
   for (let index = next.length - 1; index >= 0; index -= 1) {
     if (next[index]?.role !== 'assistant') continue;
-    next[index] = { ...next[index], confirmation: { ...confirmation, status: 'pending' } };
+    next[index] = {
+      ...next[index],
+      dialogTask: confirmationCompletesFormCollection(confirmation) ? {} : (next[index].dialogTask || {}),
+      confirmation: { ...confirmation, status: 'pending' },
+    };
     break;
   }
   return next;

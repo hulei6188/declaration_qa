@@ -1218,6 +1218,9 @@ def build_human_confirmation_payload(
         "title": title,
         "warning": warning,
         "actions": actions,
+        "form_ready_for_confirmation": bool(
+            tool_names & {"application_submit", "complaint_create"}
+        ),
     }
 
 
