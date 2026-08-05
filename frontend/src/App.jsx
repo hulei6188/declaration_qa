@@ -88,6 +88,8 @@ export default function App() {
 
   // ---- 聊天 ----
   async function sendMessage(query, displayText, meta, ctxOverride, queryImage) {
+    const activeDialogTask = latestCollectingDialogTask(messages);
+    const retainedDialogTask = retainSubmittedFormValue(activeDialogTask, meta?.formSubmission);
     const userMsg = {
       role: 'user',
       content: displayText || query,
@@ -99,7 +101,8 @@ export default function App() {
       content: '',
       sources: [],
       suggestedActions: [],
-      dialogTask: {},
+      // 在请求失败时继续显示当前表单；成功响应会用服务端返回的新状态覆盖它。
+      dialogTask: retainedDialogTask,
       toolTrace: createToolTrace(),
     };
     setMessages((prev) => [...prev, assistantMsg]);
@@ -311,6 +314,7 @@ export default function App() {
           sources: m.role === 'user' ? [] : (m.sources || []),
           suggestedActions: m.role === 'user' ? [] : (m.suggested_actions || []),
           dialogTask: m.role === 'user' ? {} : (m.dialog_task || {}),
+          confirmation: m.role === 'user' ? null : (m.confirmation || null),
           runId: m.role === 'user' ? '' : (m.run_id || ''),
           toolTrace: null,
         }))
@@ -688,6 +692,26 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+function latestCollectingDialogTask(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const task = messages[index]?.dialogTask;
+    if (task?.status === 'collecting' && task?.next_field?.name) return task;
+  }
+  return {};
+}
+
+function retainSubmittedFormValue(task, submission) {
+  const fieldName = String(submission?.field_name || '');
+  if (!fieldName || task?.status !== 'collecting' || task?.next_field?.name !== fieldName) return task || {};
+  return {
+    ...task,
+    values: {
+      ...(task.values || {}),
+      [fieldName]: submission.value,
+    },
+  };
 }
 
 function streamPhaseLabel(event, data = {}) {

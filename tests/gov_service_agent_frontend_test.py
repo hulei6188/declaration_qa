@@ -115,3 +115,13 @@ def test_composer_only_shows_real_streaming_phases():
     assert "正在连接服务" in app
     assert "正在生成回答" in app
     assert "sendState &&" in chat
+
+
+def test_failed_form_request_retains_current_dialog_task_and_uploaded_values():
+    app = (FRONTEND_ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "latestCollectingDialogTask(messages)" in app
+    assert "retainSubmittedFormValue(activeDialogTask, meta?.formSubmission)" in app
+    assert "dialogTask: retainedDialogTask" in app
+    assert "[fieldName]: submission.value" in app
+    assert "confirmation: m.role === 'user' ? null : (m.confirmation || null)" in app

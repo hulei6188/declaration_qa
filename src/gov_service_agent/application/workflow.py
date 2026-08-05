@@ -505,16 +505,22 @@ class GovServiceAgentWorkflow(ApplicationNodes):
         item = self.audit_store.get_session(user_id=user_id, session_id=session_id)
         if not item:
             return None
+        config = self._graph_config(user_id=user_id, session_id=session_id)
         try:
             checkpoint = self._checkpoint_state(user_id=user_id, session_id=session_id)
+            pending_confirmation = self._current_human_confirmation(config)
         except Exception:
             checkpoint = {}
+            pending_confirmation = {}
         dialog_task = checkpoint.get("dialog_task") if isinstance(checkpoint.get("dialog_task"), dict) else {}
-        if dialog_task.get("status") == "collecting":
+        if dialog_task.get("status") == "collecting" or pending_confirmation:
             messages = [dict(message) for message in (item.get("messages") or [])]
             for message in reversed(messages):
                 if message.get("role") == "assistant":
-                    message["dialog_task"] = dialog_task
+                    if dialog_task.get("status") == "collecting":
+                        message["dialog_task"] = dialog_task
+                    if pending_confirmation:
+                        message["confirmation"] = {**pending_confirmation, "status": "pending"}
                     break
             item = {**item, "messages": messages}
         return item

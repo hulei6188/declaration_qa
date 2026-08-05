@@ -69,10 +69,30 @@ class AgentRuntimeNodes:
             next_state["refuse_reason"] = "clarification_required"
         frozen_query = normalize_text(mask_sensitive_text(next_state.get("normalized_query") or next_state.get("query") or ""))
         next_state["frozen_knowledge_query"] = frozen_query
-        next_state["long_term_context"] = self.memory_runtime.retrieve(
-            user_id=int(next_state.get("user_id") or 0),
-            query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
-        )
+        structured_form_submission = is_structured_form_submission(next_state)
+        if structured_form_submission:
+            # 表单控件已经提交了服务端可校验的结构化值，不需要用语义记忆理解自然语言。
+            # 跳过长期记忆检索也可避免外部 embedding 短暂故障阻断申报流程。
+            next_state["long_term_context"] = {
+                "items": [],
+                "count": 0,
+                "backend": "skipped_structured_form",
+            }
+        else:
+            try:
+                next_state["long_term_context"] = self.memory_runtime.retrieve(
+                    user_id=int(next_state.get("user_id") or 0),
+                    query=str(next_state.get("normalized_query") or next_state.get("query") or ""),
+                )
+            except Exception as exc:
+                # 长期记忆是辅助上下文，不应成为聊天主流程的单点故障。
+                next_state["long_term_context"] = {
+                    "items": [],
+                    "count": 0,
+                    "backend": "langgraph_store",
+                    "status": "degraded",
+                    "error": type(exc).__name__,
+                }
         next_state["agent_iteration"] = 0
         next_state["agent_pending_tool_calls"] = []
         next_state["agent_call_signatures"] = []
@@ -130,16 +150,31 @@ class AgentRuntimeNodes:
         next_state["agent_selected_application_id"] = None
         next_state["route"] = "agentic_rag"
         next_state["retrieval_chain"] = "agentic_rag"
-        add_event(next_state, "agent_prepared", {"knowledge_query_frozen": True, "query_planner": "agent_tool_schema"})
+        add_event(
+            next_state,
+            "agent_prepared",
+            {
+                "knowledge_query_frozen": True,
+                "query_planner": "structured_form" if structured_form_submission else "agent_tool_schema",
+                "long_term_memory": str((next_state.get("long_term_context") or {}).get("status") or "ready"),
+            },
+        )
         return next_state
 
     def agent_summarize(self, state: GovServiceAgentState) -> GovServiceAgentState:
         """根据滚动摘要和最近的完整消息构建模型输入。"""
         next_state = dict(state)
-        summarized, memory_context = self.memory_runtime.summarize(
-            list(next_state.get("agent_messages") or []),
-            dict(next_state.get("memory_context") or {}),
-        )
+        if is_structured_form_submission(next_state):
+            # 结构化表单轮次由服务端直接生成工具调用，不需要模型摘要输入。
+            summarized = []
+            memory_context = self.memory_runtime.normalize_context(
+                dict(next_state.get("memory_context") or {})
+            )
+        else:
+            summarized, memory_context = self.memory_runtime.summarize(
+                list(next_state.get("agent_messages") or []),
+                dict(next_state.get("memory_context") or {}),
+            )
         next_state["agent_input_messages"] = summarized
         next_state["memory_context"] = memory_context
         next_state["conversation_memory"] = build_conversation_memory(memory_context)
@@ -157,10 +192,16 @@ class AgentRuntimeNodes:
     def agent_refresh_input(self, state: GovServiceAgentState) -> GovServiceAgentState:
         """工具执行后应用已有摘要，不在当前用户轮次触发新摘要。"""
         next_state = dict(state)
-        prepared, memory_context = self.memory_runtime.prepare_input(
-            list(next_state.get("agent_messages") or []),
-            dict(next_state.get("memory_context") or {}),
-        )
+        if is_structured_form_submission(next_state):
+            prepared = []
+            memory_context = self.memory_runtime.normalize_context(
+                dict(next_state.get("memory_context") or {})
+            )
+        else:
+            prepared, memory_context = self.memory_runtime.prepare_input(
+                list(next_state.get("agent_messages") or []),
+                dict(next_state.get("memory_context") or {}),
+            )
         next_state["agent_input_messages"] = prepared
         next_state["memory_context"] = memory_context
         add_event(
@@ -226,6 +267,32 @@ class AgentRuntimeNodes:
                     "tool_calls": [],
                     "iteration": iteration,
                 }
+        elif is_structured_form_submission(next_state):
+            # 结构化值已经由业务工具处理，最终文案会在 response 节点依据 dialog_task/
+            # 写入结果确定性生成，无需再调用 Agent 模型。
+            calls = []
+            decision_action = "finish"
+            latest_result = next(
+                (
+                    item
+                    for item in reversed(next_state.get("tool_results") or [])
+                    if isinstance(item, dict)
+                ),
+                {},
+            )
+            next_state["agent_final_answer"] = structured_form_result_answer(latest_result)
+            next_state["agent_answer_provider"] = "structured_form"
+            intent = str(latest_result.get("tool_name") or "form_submission")
+            next_state["intent"] = intent
+            next_state["sub_intent"] = intent
+            decision_payload = {
+                "action": "finish",
+                "reason": "structured_form_processed",
+                "provider": "structured_form",
+                "intent": intent,
+                "tool_calls": [],
+                "iteration": iteration,
+            }
         elif next_state.get("service_channel_clarification_required"):
             decision_action = "finish"
             calls = []
@@ -1416,6 +1483,22 @@ def audit_tool_call(call: dict[str, Any]) -> dict[str, Any]:
     if call.get("origin"):
         payload["origin"] = str(call.get("origin"))
     return payload
+
+
+def is_structured_form_submission(state: dict[str, Any]) -> bool:
+    """判断当前轮次是否来自前端受控表单，而不是聊天框自然语言。"""
+    submission = state.get("form_submission")
+    return isinstance(submission, dict) and bool(str(submission.get("field_name") or "").strip())
+
+
+def structured_form_result_answer(result: dict[str, Any]) -> str:
+    """为结构化表单工具结果提供不依赖模型的基础回答。"""
+    if result.get("ok"):
+        return "表单信息已处理。"
+    error = str(result.get("error") or "").strip()
+    if error:
+        return f"表单提交未完成：{error}"
+    return "表单提交未完成，请检查当前字段后重试。"
 
 
 def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:

@@ -134,6 +134,87 @@ def test_structured_form_submission_keeps_attachment_references_out_of_model_par
     assert call["arguments"]["values"]["application_materials"]["water_resource_report"][0] == attachment
 
 
+def test_structured_form_submission_skips_semantic_memory_and_agent_model(monkeypatch):
+    class FailIfCalledAgent:
+        model = None
+
+        def decide(self, _state, _definitions):
+            raise AssertionError("structured form result must not call the agent model")
+
+    workflow = GovServiceAgentWorkflow(agent=FailIfCalledAgent())
+
+    def fail_retrieve(**_kwargs):
+        raise AssertionError("structured form submission must not call semantic memory")
+
+    monkeypatch.setattr(workflow.memory_runtime, "retrieve", fail_retrieve)
+    submission = {
+        "task_type": "application_submission",
+        "field_name": "application_materials",
+        "value": {"water_resource_report": [{"attachment_id": "a" * 32}]},
+    }
+    prepared = workflow.agent_prepare(
+        {
+            "user_id": 1,
+            "query": "继续填写申报表单，已完成申报材料上传",
+            "normalized_query": "继续填写申报表单，已完成申报材料上传",
+            "form_submission": submission,
+            "dialog_task": {
+                "task_type": "application_submission",
+                "status": "collecting",
+                "next_field": {"name": "application_materials"},
+            },
+        }
+    )
+
+    assert prepared["long_term_context"]["backend"] == "skipped_structured_form"
+
+    decided = workflow.agent_decide(
+        {
+            **prepared,
+            "form_submission": submission,
+            "tool_results": [
+                {
+                    "tool_name": "application_submit",
+                    "call_id": "structured-form-test",
+                    "ok": True,
+                    "status": "slot_filling_required",
+                    "data": {},
+                }
+            ],
+            "dialog_task": {
+                "task_type": "application_submission",
+                "status": "collecting",
+                "next_field": {"name": "next_value"},
+            },
+        }
+    )
+
+    assert decided["agent_next"] == "finish"
+    assert decided["agent_answer_provider"] == "structured_form"
+    assert decided["agent_plan"]["reason"] == "structured_form_processed"
+    workflow.close()
+
+
+def test_long_term_memory_failure_is_non_blocking_for_regular_turn(monkeypatch):
+    workflow = GovServiceAgentWorkflow()
+
+    def fail_retrieve(**_kwargs):
+        raise ConnectionError("embedding service unavailable")
+
+    monkeypatch.setattr(workflow.memory_runtime, "retrieve", fail_retrieve)
+    prepared = workflow.agent_prepare(
+        {
+            "user_id": 1,
+            "query": "取水许可需要哪些材料",
+            "normalized_query": "取水许可需要哪些材料",
+        }
+    )
+
+    assert prepared["long_term_context"]["status"] == "degraded"
+    assert prepared["long_term_context"]["items"] == []
+    workflow.close()
+
+
 def test_application_submit_collects_slots_without_writing_until_confirmed():
     adapter = InMemoryBusinessDataAdapter()
     registry = ToolRegistry()
@@ -270,6 +351,9 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
     assert confirmation["actions"][0]["tool_name"] == "application_submit"
     assert any("张三" in detail for detail in confirmation["actions"][0]["details"])
     assert any("138****8000" in detail for detail in confirmation["actions"][0]["details"])
+    paused_session = workflow.get_session(user_id=1, session_id=session_id)
+    assert paused_session["messages"][-1]["confirmation"]["interrupt_id"] == confirmation["interrupt_id"]
+    assert paused_session["messages"][-1]["confirmation"]["status"] == "pending"
 
     resumed = list(
         workflow.resume_stream(
