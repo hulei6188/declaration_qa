@@ -2,8 +2,10 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from gov_service_agent.api.schemas import ChatRequest, HumanConfirmationRequest
-from gov_service_agent.application.agent import AGENT_SYSTEM_PROMPT, AgentDecision
+from gov_service_agent.application.agent import AgentDecision
 from gov_service_agent.application.nodes.agent_runtime import agent_tool_call_denial_reason, unique_new_tool_calls
+from gov_service_agent.application.prompts import build_agent_system_prompt
+from gov_service_agent.application.routing import StaticIntentRouter
 from gov_service_agent.application.tools import (
     ApplicationSubmitTool,
     AppointmentBookTool,
@@ -25,6 +27,19 @@ from gov_service_agent.application.tools import (
 )
 from gov_service_agent.application.workflow import GovServiceAgentWorkflow
 from gov_service_agent.core.business import InMemoryBusinessDataAdapter
+
+
+def intent_router(domain="business_query", operation="status"):
+    return StaticIntentRouter(
+        {
+            "domain": domain,
+            "operation": operation,
+            "item_name": "测试事项" if domain in {"application", "appointment"} else "",
+            "requested_channel": "offline" if domain == "appointment" else "unspecified",
+            "confidence": 1.0,
+            "reason": "service_query_test",
+        }
+    )
 
 
 def service_query_registry(adapter=None):
@@ -183,12 +198,38 @@ def test_service_query_tool_schemas_never_accept_user_identity():
     assert legacy.status == "invalid_arguments"
 
 
-def test_tool_order_lives_in_system_prompt_instead_of_tool_schemas():
+def test_tool_order_lives_in_dynamic_domain_prompts_instead_of_tool_schemas():
     definitions = {
         item["function"]["name"]: item["function"]
         for item in service_query_registry().definitions()
     }
 
+    prompt_by_tool = {
+        "appointment_hall_query": build_agent_system_prompt(
+            {"route_decision": {"domain": "appointment", "operation": "book"}}
+        ),
+        "appointment_slot_query": build_agent_system_prompt(
+            {"route_decision": {"domain": "appointment", "operation": "book"}}
+        ),
+        "appointment_book": build_agent_system_prompt(
+            {"route_decision": {"domain": "appointment", "operation": "book"}}
+        ),
+        "appointment_cancel": build_agent_system_prompt(
+            {"route_decision": {"domain": "appointment", "operation": "cancel"}}
+        ),
+    }
+    business_prompt = build_agent_system_prompt(
+        {"route_decision": {"domain": "business_query", "operation": "status"}}
+    )
+    for tool_name in (
+        "queue_status_query",
+        "payment_order_query",
+        "payment_receipt_query",
+        "submission_receipt_query",
+        "result_certificate_query",
+        "delivery_status_query",
+    ):
+        prompt_by_tool[tool_name] = business_prompt
     dependencies = {
         "appointment_hall_query": "knowledge_search",
         "appointment_slot_query": "appointment_hall_query",
@@ -201,9 +242,8 @@ def test_tool_order_lives_in_system_prompt_instead_of_tool_schemas():
         "result_certificate_query": "ticket_detail_query",
         "delivery_status_query": "ticket_detail_query",
     }
-    assert "工具调用顺序和跨工具编排只以本系统提示词为准" in AGENT_SYSTEM_PROMPT
     for tool_name, prerequisite in dependencies.items():
-        assert prerequisite in AGENT_SYSTEM_PROMPT
+        assert prerequisite in prompt_by_tool[tool_name]
         assert prerequisite not in definitions[tool_name]["description"]
         assert prerequisite not in str(definitions[tool_name]["parameters"])
 
@@ -212,7 +252,7 @@ def test_tool_order_lives_in_system_prompt_instead_of_tool_schemas():
 
     booking = definitions["appointment_book"]["description"]
     assert "人工确认" in booking
-    assert "禁止只展示号源并要求用户再回复具体时段" in AGENT_SYSTEM_PROMPT
+    assert "不得把事项、大厅、日期或时间作为 appointment_book 参数" in prompt_by_tool["appointment_book"]
 
 
 def test_service_query_tools_return_realistic_user_scoped_records():
@@ -545,7 +585,9 @@ def test_agent_can_query_queue_directly_without_appointment_list():
                 )
             return AgentDecision("finish", final_answer="已查询排队状态。[业务1]")
 
-    response = GovServiceAgentWorkflow(agent=ScriptedAgent()).invoke(
+    response = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router()
+    ).invoke(
         ChatRequest(query="查询预约4101的排队状态", user_id=1, region_code="340000")
     )
 
@@ -582,7 +624,9 @@ def test_agent_allows_human_to_select_queried_slot_before_booking():
                 final_answer="预约请求已提交，但仍需人工确认后才会生效。[业务2]",
             )
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router("appointment", "book")
+    )
     session_id = "human-booking-test"
     events = list(workflow.stream(
         ChatRequest(
@@ -640,7 +684,9 @@ def test_agent_executes_appointment_cancellation_after_human_confirmation():
                 final_answer="取消请求已提交，但仍需人工确认后才会生效。[业务1]",
             )
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router("appointment", "cancel")
+    )
     session_id = "human-cancel-test"
     events = list(workflow.stream(ChatRequest(
         query="请取消取水许可预约",
@@ -690,7 +736,9 @@ def test_agent_does_not_cancel_appointment_when_human_rejects():
                 )
             return AgentDecision("finish", final_answer="已保留原预约。")
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router("appointment", "cancel")
+    )
     session_id = "human-reject-test"
     events = list(workflow.stream(ChatRequest(
         query="取消取水许可预约",
@@ -750,7 +798,9 @@ def test_langfuse_tool_and_human_confirmation_resume_share_trace(monkeypatch):
                 )
             return AgentDecision("finish", final_answer="预约已取消。[业务1]")
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router("appointment", "cancel")
+    )
     session_id = "langfuse-hitl-success"
     events = list(workflow.stream(ChatRequest(
         query="取消取水许可预约",
@@ -829,7 +879,9 @@ def test_langfuse_records_human_rejected_tool_call(monkeypatch):
                 )
             return AgentDecision("finish", final_answer="已保留原预约。")
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router("appointment", "cancel")
+    )
     session_id = "langfuse-hitl-reject"
     events = list(workflow.stream(ChatRequest(
         query="取消取水许可预约",
@@ -877,7 +929,9 @@ def test_agent_executes_business_calls_without_dependency_waves():
                 )
             return AgentDecision("finish", final_answer="已查询到缴费订单和电子票据。[业务3][业务4]")
 
-    response = GovServiceAgentWorkflow(agent=ScriptedAgent()).invoke(
+    response = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router()
+    ).invoke(
         ChatRequest(query="查询我的健康证缴费订单和电子票据", user_id=1, region_code="340000")
     )
 
@@ -926,7 +980,9 @@ def test_agent_completes_four_sequential_tool_rounds_before_graph_limit():
                 )
             return AgentDecision("finish", final_answer="已查询到电子票据。[业务4]")
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(), intent_router=intent_router()
+    )
     response = workflow.invoke(
         ChatRequest(query="现在有没有电子票据", user_id=1, region_code="340000")
     )

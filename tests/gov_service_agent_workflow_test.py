@@ -5,10 +5,26 @@ from pydantic import ValidationError
 
 from gov_service_agent.api.schemas import ChatRequest
 from gov_service_agent.application.agent import AgentDecision
-from gov_service_agent.application.workflow import GovServiceAgentWorkflow
+from gov_service_agent.application.routing import StaticIntentRouter
+from gov_service_agent.application.workflow import GovServiceAgentWorkflow as Workflow
 from gov_service_agent.core.business import InMemoryBusinessDataAdapter
 from gov_service_agent.rag.engine.seed import build_seed_rag_engine
 from gov_service_agent.rag.router import parse_json_object
+
+
+def GovServiceAgentWorkflow(**kwargs):
+    kwargs.setdefault(
+        "intent_router",
+        StaticIntentRouter(
+            {
+                "domain": "business_query",
+                "operation": "status",
+                "confidence": 1.0,
+                "reason": "workflow_test",
+            }
+        ),
+    )
+    return Workflow(**kwargs)
 
 
 class TicketScriptAgent:
@@ -65,7 +81,7 @@ def test_agentic_workflow_emits_tool_decisions_without_manual_selection_fields()
 
     response = workflow.invoke(ChatRequest(query="我的居住证申请为什么被退回", user_id=1))
 
-    assert response.route == "agentic_rag"
+    assert response.route == "business_query"
     assert [result["tool_name"] for result in response.tool_results] == [
         "ticket_list_query",
         "ticket_detail_query",
@@ -140,4 +156,4 @@ def test_agentic_schema_and_migration_define_complete_application_history():
 
 
 def test_parse_json_object_accepts_fenced_model_output():
-    assert parse_json_object('```json\n{"route":"agentic_rag"}\n```') == {"route": "agentic_rag"}
+    assert parse_json_object('```json\n{"route":"business_query"}\n```') == {"route": "business_query"}

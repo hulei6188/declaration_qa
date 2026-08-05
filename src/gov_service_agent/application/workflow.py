@@ -23,6 +23,7 @@ from gov_service_agent.application.helpers.streaming import (
 )
 from gov_service_agent.application.nodes import ApplicationNodes
 from gov_service_agent.application.nodes.agent_runtime import apply_human_confirmation_selections
+from gov_service_agent.application.routing import IntentRouter, StructuredIntentRouter
 from gov_service_agent.application.state import GovServiceAgentState
 from gov_service_agent.application.tools import (
     ApplicationSubmitTool,
@@ -74,6 +75,7 @@ class GovServiceAgentWorkflow(ApplicationNodes):
         agent_model: Any | None = None,
         agent_multimodal_model: Any | None = None,
         agent: Any | None = None,
+        intent_router: IntentRouter | None = None,
         agent_planner: Any | None = None,
         agent_multimodal_enabled: bool = False,
         agent_allowed_image_dirs: list[str] | None = None,
@@ -103,6 +105,9 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             max_evidence_images=agent_max_evidence_images,
             min_image_score=agent_min_image_score,
             max_image_bytes=agent_max_image_bytes,
+        )
+        self.intent_router = intent_router or StructuredIntentRouter(
+            getattr(self.agent, "model", None) or agent_model
         )
         self.agent_max_iterations = max(1, int(agent_max_iterations or 4))
         self.query_image_ocr_client = query_image_ocr_client
@@ -443,6 +448,9 @@ class GovServiceAgentWorkflow(ApplicationNodes):
             "conversation_memory": dict(checkpoint_state.get("conversation_memory") or {}),
             "working_memory": {},
             "dialog_task": dict(checkpoint_state.get("dialog_task") or {}),
+            "workflow_gate": {},
+            "routing_clarification_required": False,
+            "agent_tool_scope": [],
             "agent_iteration": 0,
             "agent_next": "",
             "agent_plan": {},
@@ -578,6 +586,8 @@ class GovServiceAgentWorkflow(ApplicationNodes):
         builder.add_node("context_build", self.context_build)
         builder.add_node("query_image_enrich", self.query_image_enrich)
         builder.add_node("query_preprocess", self.query_preprocess)
+        builder.add_node("state_gate", self.state_gate)
+        builder.add_node("intent_route", self.intent_route)
         builder.add_node("agent_prepare", self.agent_prepare)
         builder.add_node("agent_summarize", self.agent_summarize)
         builder.add_node("agent_refresh_input", self.agent_refresh_input)
@@ -592,7 +602,9 @@ class GovServiceAgentWorkflow(ApplicationNodes):
         builder.add_edge(START, "context_build")
         builder.add_edge("context_build", "query_image_enrich")
         builder.add_edge("query_image_enrich", "query_preprocess")
-        builder.add_edge("query_preprocess", "agent_prepare")
+        builder.add_edge("query_preprocess", "state_gate")
+        builder.add_edge("state_gate", "intent_route")
+        builder.add_edge("intent_route", "agent_prepare")
         builder.add_edge("agent_prepare", "agent_summarize")
         builder.add_edge("agent_summarize", "agent_decide")
         builder.add_conditional_edges(

@@ -16,19 +16,17 @@ from gov_service_agent.application.agent import accumulated_knowledge_queries, c
 from gov_service_agent.application.evidence_registry import build_evidence_registry
 from gov_service_agent.application.state import GovServiceAgentState
 from gov_service_agent.application.slot_filling import masked_confirmation_details
-from gov_service_agent.application.service_channel import (
-    OFFLINE_CHANNEL,
-    detect_service_channel,
-    filter_tool_definitions_for_channel,
-    requests_channel_switch,
-    requires_service_channel_clarification,
-    service_channel_clarification_answer,
+from gov_service_agent.application.state_machine import transition_dialog_task
+from gov_service_agent.application.tool_policy import (
+    allowed_tool_names,
+    filter_tool_definitions_for_route,
+    partition_tool_calls,
 )
 from gov_service_agent.application.tools import ToolExecutionContext, ToolExecutionResult
 from gov_service_agent.application.tools.knowledge import KnowledgeSearchInput
 from gov_service_agent.application.helpers.events import add_event
 from gov_service_agent.application.helpers.retrieval_sources import merge_accumulated_source_payloads
-from gov_service_agent.application.helpers.text_safety import is_unsafe_query, mask_sensitive_text
+from gov_service_agent.application.helpers.text_safety import mask_sensitive_text
 from gov_service_agent.observability.performance import log_performance, performance_stage
 from gov_service_agent.observability.langfuse import observation, record_error, safe_value
 from gov_service_agent.memory.evidence import (
@@ -48,25 +46,6 @@ class AgentRuntimeNodes:
     def agent_prepare(self, state: GovServiceAgentState) -> GovServiceAgentState:
         """冻结可信知识输入、加载非业务上下文并初始化 Agent。"""
         next_state = dict(state)
-        if (next_state.get("dialog_task") or {}).get("status") in {"completed", "cancelled"}:
-            next_state["dialog_task"] = {}
-        query_text = str(next_state.get("normalized_query") or "")
-        service_channel = detect_service_channel(query_text, next_state.get("dialog_task") or {})
-        if (
-            service_channel == OFFLINE_CHANNEL
-            and requests_channel_switch(query_text, service_channel)
-            and (next_state.get("dialog_task") or {}).get("task_type") == "application_submission"
-        ):
-            next_state["dialog_task"] = {}
-        next_state["service_channel"] = service_channel
-        next_state["service_channel_clarification_required"] = requires_service_channel_clarification(
-            query_text,
-            service_channel,
-        )
-        if is_unsafe_query(query_text):
-            next_state["refuse_reason"] = "unsafe_or_out_of_scope"
-        elif not query_text and not next_state.get("query_image"):
-            next_state["refuse_reason"] = "clarification_required"
         frozen_query = normalize_text(mask_sensitive_text(next_state.get("normalized_query") or next_state.get("query") or ""))
         next_state["frozen_knowledge_query"] = frozen_query
         structured_form_submission = is_structured_form_submission(next_state)
@@ -128,10 +107,8 @@ class AgentRuntimeNodes:
             "memory_policy": "current_turn_evidence_only",
             "sufficiency": "agent_decides",
             "dialog_task": next_state.get("dialog_task") or {},
-            "service_channel": service_channel or "not_selected",
-            "service_channel_clarification_required": bool(
-                next_state.get("service_channel_clarification_required")
-            ),
+            "route_decision": next_state.get("route_decision") or {},
+            "agent_tool_scope": list(next_state.get("agent_tool_scope") or []),
         }
         next_state["active_evidence_registry"] = build_evidence_registry(
             next_state["retrieved_sources"],
@@ -148,15 +125,16 @@ class AgentRuntimeNodes:
         next_state["agent_final_latency_ms"] = None
         next_state["agent_selected_item_code"] = ""
         next_state["agent_selected_application_id"] = None
-        next_state["route"] = "agentic_rag"
-        next_state["retrieval_chain"] = "agentic_rag"
+        next_state["retrieval_chain"] = "layered_router"
         add_event(
             next_state,
             "agent_prepared",
             {
                 "knowledge_query_frozen": True,
-                "query_planner": "structured_form" if structured_form_submission else "agent_tool_schema",
+                "query_planner": "structured_form" if structured_form_submission else "layered_router_dynamic_tools",
                 "long_term_memory": str((next_state.get("long_term_context") or {}).get("status") or "ready"),
+                "route": next_state.get("route") or "clarification",
+                "tool_scope": list(next_state.get("agent_tool_scope") or []),
             },
         )
         return next_state
@@ -293,26 +271,42 @@ class AgentRuntimeNodes:
                 "tool_calls": [],
                 "iteration": iteration,
             }
-        elif next_state.get("service_channel_clarification_required"):
+        elif (next_state.get("workflow_gate") or {}).get("mode") == "dialog_cancelled":
             decision_action = "finish"
             calls = []
-            next_state["intent"] = "service_channel_clarification"
-            next_state["sub_intent"] = "service_channel_clarification"
-            next_state["agent_final_answer"] = service_channel_clarification_answer()
-            next_state["agent_answer_provider"] = "guardrail"
+            next_state["agent_final_answer"] = "已取消当前表单填写流程。"
+            next_state["agent_answer_provider"] = "state_machine"
             decision_payload = {
                 "action": "finish",
-                "reason": "service_channel_clarification_required",
-                "provider": "guardrail",
-                "intent": "service_channel_clarification",
+                "reason": "dialog_cancelled",
+                "provider": "state_machine",
+                "intent": next_state.get("intent") or "conversation",
+                "tool_calls": [],
+                "iteration": iteration,
+            }
+        elif next_state.get("routing_clarification_required"):
+            decision_action = "finish"
+            calls = []
+            route_decision = dict(next_state.get("route_decision") or {})
+            next_state["agent_final_answer"] = str(
+                route_decision.get("clarification_question")
+                or "请补充具体事项和希望执行的操作。"
+            )
+            next_state["agent_answer_provider"] = "structured_router"
+            decision_payload = {
+                "action": "finish",
+                "reason": str(route_decision.get("reason") or "routing_clarification_required"),
+                "provider": "structured_router",
+                "intent": next_state.get("intent") or "clarification",
                 "tool_calls": [],
                 "iteration": iteration,
             }
         else:
             final_only = iteration > self.agent_max_iterations
-            definitions = filter_tool_definitions_for_channel(
+            route_decision = dict(next_state.get("route_decision") or {})
+            definitions = filter_tool_definitions_for_route(
                 self.tool_registry.definitions(),
-                str(next_state.get("service_channel") or ""),
+                route_decision,
             )
             decision = self.agent.decide(
                 next_state,
@@ -322,38 +316,57 @@ class AgentRuntimeNodes:
                 {**call, "origin": "agent"}
                 for call in decision.tool_calls
             ] if not final_only else []
+            permitted_calls, denied_calls = partition_tool_calls(planned_calls, route_decision)
+            for denied_call in denied_calls:
+                add_event(
+                    next_state,
+                    "tool_policy_denied",
+                    {
+                        "tool_name": str(denied_call.get("name") or ""),
+                        "domain": str(route_decision.get("domain") or ""),
+                        "operation": str(route_decision.get("operation") or ""),
+                        "stage": "planning",
+                    },
+                )
             calls = unique_new_tool_calls(
-                planned_calls,
+                permitted_calls,
                 existing_signatures=set(next_state.get("agent_call_signatures") or []),
             )
-            no_progress = bool(planned_calls) and not calls
+            policy_denied = bool(planned_calls) and not permitted_calls
+            no_progress = bool(permitted_calls) and not calls
             if no_progress:
                 decision = self.agent.decide(next_state, [])
             decision_action = "tools" if calls else "finish"
+            if policy_denied:
+                next_state["agent_final_answer"] = "当前请求不能执行该操作，请明确要办理的业务。"
+                next_state["agent_answer_provider"] = "tool_policy"
             decision_payload = {
                 "action": decision_action,
                 "reason": (
                     "max_iterations_final"
                     if final_only
+                    else "tool_policy_denied"
+                    if policy_denied
                     else "duplicate_tool_call_final"
                     if no_progress
                     else decision.reason
                 ),
                 "provider": decision.provider,
-                "intent": decision.intent,
+                "intent": next_state.get("intent") or "clarification",
                 "tool_calls": [audit_tool_call(call) for call in calls],
+                "denied_tool_calls": [audit_tool_call(call) for call in denied_calls],
                 "iteration": iteration,
                 "assistant_content": decision.assistant_content,
                 "model": decision.model,
                 "token_usage": decision.token_usage,
                 "latency_ms": decision.latency_ms,
             }
-            next_state["intent"] = decision.intent
-            next_state["sub_intent"] = decision.intent
             if decision_action == "finish":
-                next_state["agent_final_answer"] = decision.final_answer or decision.assistant_content
+                if not policy_denied:
+                    next_state["agent_final_answer"] = decision.final_answer or decision.assistant_content
                 next_state["agent_final_prompt"] = decision.final_prompt
-                next_state["agent_answer_provider"] = decision.provider
+                if not policy_denied:
+                    next_state["agent_answer_provider"] = decision.provider
                 next_state["agent_final_model"] = decision.model
                 next_state["agent_final_token_usage"] = dict(decision.token_usage or {})
                 next_state["agent_final_latency_ms"] = decision.latency_ms
@@ -613,10 +626,13 @@ class AgentRuntimeNodes:
             },
             trace_id=trace_id,
         ) as tool_span:
-            denial_reason = "" if human_approved else agent_tool_call_denial_reason(
-                name,
-                str(state.get("normalized_query") or state.get("query") or ""),
-                arguments=arguments,
+            route_allowed = name in allowed_tool_names(state.get("route_decision"))
+            denial_reason = "tool_not_allowed_for_route" if not route_allowed else (
+                "" if human_approved else agent_tool_call_denial_reason(
+                    name,
+                    str(state.get("normalized_query") or state.get("query") or ""),
+                    arguments=arguments,
+                )
             )
             if denial_reason:
                 result = ToolExecutionResult(
@@ -733,7 +749,24 @@ class AgentRuntimeNodes:
                 continue
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
             if isinstance(data.get("dialog_task"), dict):
-                next_state["dialog_task"] = dict(data["dialog_task"])
+                transitioned, transition_error = transition_dialog_task(
+                    next_state.get("dialog_task"),
+                    data["dialog_task"],
+                    tool_name=str(result.get("tool_name") or ""),
+                )
+                if transition_error:
+                    add_event(
+                        next_state,
+                        "state_machine_violation",
+                        {
+                            "tool_name": str(result.get("tool_name") or ""),
+                            "reason": transition_error,
+                            "current_status": str((next_state.get("dialog_task") or {}).get("status") or ""),
+                            "candidate_status": str(data["dialog_task"].get("status") or ""),
+                        },
+                    )
+                else:
+                    next_state["dialog_task"] = transitioned
             if result.get("tool_name") == "knowledge_search":
                 next_state["retrieved_sources"] = merge_accumulated_source_payloads(
                     [*(next_state.get("retrieved_sources") or []), *(data.get("sources") or [])],

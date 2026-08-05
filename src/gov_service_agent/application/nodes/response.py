@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from uuid import uuid4
 
-from gov_service_agent.application.agent import AGENT_SYSTEM_PROMPT
 from gov_service_agent.application.evidence_registry import build_evidence_registry
+from gov_service_agent.application.prompts import build_agent_system_prompt
 from gov_service_agent.application.state import GovServiceAgentState
 from gov_service_agent.application.helpers.actions import suggested_actions
 from gov_service_agent.application.helpers.events import add_event
@@ -128,9 +128,9 @@ class ResponseNodes:
             "agent_final_model": next_state.get("agent_final_model") or "",
             "agent_final_token_usage": next_state.get("agent_final_token_usage") or {},
             "agent_final_latency_ms": next_state.get("agent_final_latency_ms"),
-            "agent_system_prompt": AGENT_SYSTEM_PROMPT,
-            "agent_prompt_version": "single-agent-tool-loop-v2-form-filling",
-            "tool_registry_version": "tool-registry-v2-form-filling",
+            "agent_system_prompt": build_agent_system_prompt(next_state),
+            "agent_prompt_version": "dynamic-domain-agent-v2",
+            "tool_registry_version": "dynamic-domain-policy-v1",
             "agent_model_config": agent_model_config(getattr(self, "agent", None)),
             "agent_selected_item_code": next_state.get("agent_selected_item_code") or "",
             "agent_selected_application_id": next_state.get("agent_selected_application_id"),

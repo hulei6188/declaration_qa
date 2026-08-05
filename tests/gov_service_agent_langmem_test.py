@@ -5,7 +5,8 @@ from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 from gov_service_agent.api.schemas import ChatRequest
 from gov_service_agent.application.agent import AgentDecision
-from gov_service_agent.application.workflow import GovServiceAgentWorkflow
+from gov_service_agent.application.routing import StaticIntentRouter
+from gov_service_agent.application.workflow import GovServiceAgentWorkflow as Workflow
 from gov_service_agent.memory.runtime import (
     LangGraphMemoryRuntime,
     MEMORY_POLICY_VERSION,
@@ -14,6 +15,21 @@ from gov_service_agent.memory.runtime import (
     psycopg_connection_url,
 )
 from gov_service_agent.rag.model_providers.embeddings.hash_embedding_provider import HashEmbeddingProvider
+
+
+def GovServiceAgentWorkflow(**kwargs):
+    kwargs.setdefault(
+        "intent_router",
+        StaticIntentRouter(
+            {
+                "domain": "conversation",
+                "operation": "chat",
+                "confidence": 1.0,
+                "reason": "memory_test",
+            }
+        ),
+    )
+    return Workflow(**kwargs)
 
 
 class DirectAgent:

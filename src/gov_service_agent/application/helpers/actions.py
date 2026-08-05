@@ -26,14 +26,19 @@ def suggested_actions(state: GovServiceAgentState) -> list[dict[str, Any]]:
     app_version = state.get("app_version") or ""
     item_code = str(state.get("agent_selected_item_code") or "")
     application_id = state.get("agent_selected_application_id")
-    if state.get("service_channel_clarification_required"):
+    route_decision = state.get("route_decision") if isinstance(state.get("route_decision"), dict) else {}
+    if (
+        state.get("routing_clarification_required")
+        and route_decision.get("clarification_kind") == "service_channel"
+    ):
+        item_name = str(route_decision.get("item_name") or "").strip()
         return [
             {
                 "type": "select_service_channel",
                 "label": "线上申报",
                 "payload": {
                     "channel": "online",
-                    "query": "线上办理",
+                    "query": f"线上申报{item_name}" if item_name else "线上申报",
                     "description": "在线逐项填写并提交申报信息",
                 },
             },
@@ -42,7 +47,7 @@ def suggested_actions(state: GovServiceAgentState) -> list[dict[str, Any]]:
                 "label": "线下预约",
                 "payload": {
                     "channel": "offline",
-                    "query": "线下办理",
+                    "query": f"线下预约{item_name}" if item_name else "线下预约",
                     "description": "查询服务大厅和号源后预约办理",
                 },
             },

@@ -9,10 +9,26 @@ from gov_service_agent.application.tools import (
     ToolRegistry,
 )
 from gov_service_agent.application.agent import AgentDecision, ToolCallingAgent, choose_application_id, rule_agent_decision
-from gov_service_agent.application.workflow import GovServiceAgentWorkflow
+from gov_service_agent.application.routing import StaticIntentRouter
+from gov_service_agent.application.workflow import GovServiceAgentWorkflow as Workflow
 from gov_service_agent.application.nodes.agent_runtime import agent_tool_call_allowed, agent_tool_call_denial_reason
 from gov_service_agent.core.business import InMemoryBusinessDataAdapter
 from gov_service_agent.core.domain import KnowledgeChunk, RetrievalResult, RetrievedSource
+
+
+def GovServiceAgentWorkflow(**kwargs):
+    kwargs.setdefault(
+        "intent_router",
+        StaticIntentRouter(
+            {
+                "domain": "business_query",
+                "operation": "status",
+                "confidence": 1.0,
+                "reason": "agent_runtime_test",
+            }
+        ),
+    )
+    return Workflow(**kwargs)
 
 
 class CapturingKnowledgeRag:
@@ -383,8 +399,8 @@ def test_agent_ticket_question_selects_item_and_application_without_bound_ticket
 
     tool_names = [item["tool_name"] for item in response.tool_results]
     assert tool_names == ["ticket_list_query", "ticket_detail_query"]
-    assert response.route == "agentic_rag"
-    assert response.intent == "agentic_rag"
+    assert response.route == "business_query"
+    assert response.intent == "business_query"
     assert response.business_snapshot["item_code"] == "ITEM-RESIDENCE-PERMIT"
     assert response.business_snapshot["selected_application_id"] == 2002
     assert "缺少有效居住证明材料" in response.answer
@@ -406,7 +422,7 @@ def test_agent_can_answer_application_list_without_forcing_a_detail_selection():
 
     response = workflow.invoke(ChatRequest(query="我有哪些历史申请", user_id=1, region_code="340000"))
 
-    assert response.intent == "agentic_rag"
+    assert response.intent == "business_query"
     assert [item["tool_name"] for item in response.tool_results] == ["ticket_list_query"]
     assert response.business_snapshot == {}
     assert "健康证办理" in response.answer

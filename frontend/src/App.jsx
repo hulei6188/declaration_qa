@@ -699,6 +699,8 @@ export default function App() {
 
 function streamPhaseLabel(event, data = {}) {
   if (event === 'run_started') return '正在启动任务…';
+  if (event === 'state_gated') return '正在检查当前流程…';
+  if (event === 'intent_routed') return '正在识别办理意图…';
   if (event === 'agent_decision') {
     const hasTools = data.action === 'tools' || (data.tool_calls || []).length > 0;
     return hasTools ? '正在准备查询…' : '正在组织回答…';

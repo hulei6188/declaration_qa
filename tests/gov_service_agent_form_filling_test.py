@@ -4,6 +4,7 @@ from gov_service_agent.api.schemas import ChatRequest, HumanConfirmationRequest
 from gov_service_agent.application.agent import AgentDecision
 from gov_service_agent.application.application_materials import ApplicationMaterialStore
 from gov_service_agent.application.nodes.agent_runtime import structured_form_tool_call
+from gov_service_agent.application.routing import StaticIntentRouter
 from gov_service_agent.application.tools import (
     ApplicationSubmitTool,
     ComplaintCreateTool,
@@ -12,6 +13,17 @@ from gov_service_agent.application.tools import (
 )
 from gov_service_agent.application.workflow import GovServiceAgentWorkflow
 from gov_service_agent.core.business import InMemoryBusinessDataAdapter
+
+
+def intent_router(domain, operation):
+    return StaticIntentRouter(
+        {
+            "domain": domain,
+            "operation": operation,
+            "confidence": 1.0,
+            "reason": "form_filling_test",
+        }
+    )
 
 
 def tool_call(call_id, name, arguments=None):
@@ -321,7 +333,10 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
                 ],
             )
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(),
+        intent_router=intent_router("application", "continue"),
+    )
     session_id = "multiturn-application-submit"
     first = workflow.invoke(
         ChatRequest(query="开始申报居住证，申请人张三，电话13800138000", user_id=1, session_id=session_id)
@@ -398,7 +413,10 @@ def test_complaint_create_uses_the_same_slot_engine_and_confirmation_boundary():
                 ],
             )
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(),
+        intent_router=intent_router("complaint", "create"),
+    )
     session_id = "multiturn-complaint-create"
     events = list(workflow.stream(ChatRequest(query="我要投诉综合窗口03", user_id=1, session_id=session_id)))
     confirmation = next(item["data"] for item in events if item["event"] == "human_confirmation_required")
@@ -442,7 +460,10 @@ def test_sync_invoke_keeps_session_state_when_write_action_pauses_for_confirmati
                 ],
             )
 
-    workflow = GovServiceAgentWorkflow(agent=ScriptedAgent())
+    workflow = GovServiceAgentWorkflow(
+        agent=ScriptedAgent(),
+        intent_router=intent_router("complaint", "create"),
+    )
     session_id = "sync-invoke-human-confirmation"
     response = workflow.invoke(
         ChatRequest(query="我要创建投诉", user_id=1, session_id=session_id)
