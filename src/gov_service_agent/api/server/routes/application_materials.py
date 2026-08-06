@@ -37,8 +37,18 @@ def register_application_material_routes(app):
         if settings.effective_auth_required and not context.user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user_id is required")
         task = workflow._checkpoint_state(user_id=effective_user_id, session_id=session_id).get("dialog_task") or {}
-        next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
-        materials = next_field.get("materials") if isinstance(next_field.get("materials"), list) else []
+        schema = task.get("schema") if isinstance(task.get("schema"), dict) else {}
+        material_field = next(
+            (
+                field
+                for field in schema.get("fields") or []
+                if isinstance(field, dict)
+                and str(field.get("name") or "") == str(field_name or "")
+                and str(field.get("type") or "") == "material_group"
+            ),
+            {},
+        )
+        materials = material_field.get("materials") if isinstance(material_field.get("materials"), list) else []
         valid_material_keys = {
             str(material.get("key") or "")
             for material in materials
@@ -47,7 +57,7 @@ def register_application_material_routes(app):
         if (
             task.get("status") != "collecting"
             or str(task.get("item_code") or "") != str(item_code or "")
-            or str(next_field.get("name") or "") != str(field_name or "")
+            or not material_field
             or str(material_key or "") not in valid_material_keys
         ):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前表单不接受该申报材料")

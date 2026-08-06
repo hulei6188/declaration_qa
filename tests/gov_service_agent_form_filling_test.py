@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from gov_service_agent.api.schemas import ChatRequest, HumanConfirmationRequest
+import pytest
+from pydantic import ValidationError
+
+from gov_service_agent.api.schemas import ChatRequest, FormSubmissionPayload, HumanConfirmationRequest
 from gov_service_agent.application.agent import AgentDecision
 from gov_service_agent.application.application_materials import ApplicationMaterialStore
 from gov_service_agent.application.nodes.agent_runtime import structured_form_tool_call
@@ -80,11 +83,11 @@ def test_water_application_requires_uploaded_materials_and_validates_session_own
     task = collecting["dialog_task"]
 
     assert collecting["ready"] is False
-    assert task["next_field"]["name"] == "application_materials"
+    material_field = next(field for field in task["schema"]["fields"] if field["name"] == "application_materials")
 
     store = ApplicationMaterialStore(material_dir, max_bytes=1024 * 1024)
     group = {}
-    required = [item for item in task["next_field"]["materials"] if item["required"]]
+    required = [item for item in material_field["materials"] if item["required"]]
     for material in required:
         group[material["key"]] = [
             store.save(
@@ -121,7 +124,7 @@ def test_water_application_requires_uploaded_materials_and_validates_session_own
         wrong_session_context,
     )
     assert invalid["ready"] is False
-    assert "不属于当前会话" in invalid["dialog_task"]["next_field"]["error"]
+    assert "不属于当前会话" in invalid["dialog_task"]["invalid_fields"][0]["error"]
 
 
 def test_structured_form_submission_keeps_attachment_references_out_of_model_parsing():
@@ -130,13 +133,12 @@ def test_structured_form_submission_keeps_attachment_references_out_of_model_par
         {
             "form_submission": {
                 "task_type": "application_submission",
-                "field_name": "application_materials",
-                "value": {"water_resource_report": [attachment]},
+                "values": {"application_materials": {"water_resource_report": [attachment]}},
             },
             "dialog_task": {
                 "task_type": "application_submission",
                 "status": "collecting",
-                "next_field": {"name": "application_materials"},
+                "schema": {"fields": [{"name": "application_materials", "type": "material_group"}]},
             },
         }
     )
@@ -144,6 +146,17 @@ def test_structured_form_submission_keeps_attachment_references_out_of_model_par
     assert error == ""
     assert call["name"] == "application_submit"
     assert call["arguments"]["values"]["application_materials"]["water_resource_report"][0] == attachment
+
+
+def test_structured_form_rejects_legacy_single_field_protocol():
+    with pytest.raises(ValidationError):
+        FormSubmissionPayload.model_validate(
+            {
+                "task_type": "application_submission",
+                "field_name": "applicant_name",
+                "value": "张三",
+            }
+        )
 
 
 def test_structured_form_submission_skips_semantic_memory_and_agent_model(monkeypatch):
@@ -161,8 +174,7 @@ def test_structured_form_submission_skips_semantic_memory_and_agent_model(monkey
     monkeypatch.setattr(workflow.memory_runtime, "retrieve", fail_retrieve)
     submission = {
         "task_type": "application_submission",
-        "field_name": "application_materials",
-        "value": {"water_resource_report": [{"attachment_id": "a" * 32}]},
+        "values": {"application_materials": {"water_resource_report": [{"attachment_id": "a" * 32}]}},
     }
     prepared = workflow.agent_prepare(
         {
@@ -173,7 +185,7 @@ def test_structured_form_submission_skips_semantic_memory_and_agent_model(monkey
             "dialog_task": {
                 "task_type": "application_submission",
                 "status": "collecting",
-                "next_field": {"name": "application_materials"},
+                "schema": {"fields": [{"name": "application_materials", "type": "material_group"}]},
             },
         }
     )
@@ -196,7 +208,7 @@ def test_structured_form_submission_skips_semantic_memory_and_agent_model(monkey
             "dialog_task": {
                 "task_type": "application_submission",
                 "status": "collecting",
-                "next_field": {"name": "next_value"},
+                "schema": {"fields": [{"name": "next_value", "type": "text"}]},
             },
         }
     )
@@ -252,9 +264,8 @@ def test_application_submit_collects_slots_without_writing_until_confirmed():
     assert collecting.status == "slot_filling_required"
     task = collecting.data["dialog_task"]
     assert task["values"]["applicant_name"] == "张三"
-    assert task["next_field"]["name"] == "id_number"
-    assert task["next_field"]["type"] == "id_number"
-    assert "max_length" in task["next_field"]
+    assert {field["name"] for field in task["missing_fields"]} == {"id_number", "residence_address", "residence_proof_no"}
+    assert "next_field" not in task
     assert not any(item["application_id"] > 4004 for item in adapter._applications.values())
 
     # Publishing a newer schema must not change an in-flight task.
@@ -300,8 +311,7 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
                 task = state.get("dialog_task") or {}
                 if task.get("status") == "completed":
                     return AgentDecision("finish", final_answer="申报已处理。[业务1]")
-                next_field = (task.get("next_field") or {}).get("label") or "下一项"
-                return AgentDecision("finish", final_answer=f"请继续提供：{next_field}。")
+                return AgentDecision("finish", final_answer="请填写完整表单。")
             if "开始申报" in str(state.get("query") or ""):
                 return AgentDecision(
                     "tools",
@@ -345,18 +355,28 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
     assert first.human_confirmation == {}
     assert first.dialog_task["status"] == "collecting"
     assert first.dialog_task["values"] == {"applicant_name": "张三", "contact_phone": "13800138000"}
-    assert "证件号码" in first.answer
+    assert "完整表单" in first.answer
     assert "下方" in first.answer
     assert "回复" not in first.answer
     restored = workflow.get_session(user_id=1, session_id=session_id)
-    assert restored["messages"][-1]["dialog_task"]["next_field"]["name"] == "id_number"
+    assert len(restored["messages"][-1]["dialog_task"]["schema"]["fields"]) == 5
 
     events = list(
         workflow.stream(
             ChatRequest(
-                query="身份证号340101199001011234，住合肥市包河区示例路1号，证明编号RES-2026-001",
+                query="提交申报完整表单",
                 user_id=1,
                 session_id=session_id,
+                form_submission=FormSubmissionPayload(
+                    task_type="application_submission",
+                    values={
+                        "applicant_name": "张三",
+                        "contact_phone": "13800138000",
+                        "id_number": "340101199001011234",
+                        "residence_address": "合肥市包河区示例路1号",
+                        "residence_proof_no": "RES-2026-001",
+                    },
+                ),
             )
         )
     )
@@ -524,7 +544,7 @@ def test_rejecting_complaint_confirmation_cancels_the_entire_form_flow():
     done = next(item["data"] for item in resumed if item["event"] == "done")
     assert done["dialog_task"]["status"] == "cancelled"
     assert snapshot["dialog_task"]["status"] == "cancelled"
-    assert snapshot["dialog_task"]["next_field"] == {}
+    assert "next_field" not in snapshot["dialog_task"]
     assert snapshot["workflow_gate"]["mode"] == "dialog_cancelled"
     assert snapshot["tool_results"][0]["status"] == "human_rejected"
     assert snapshot["answer"] == "已取消当前表单填写流程。"

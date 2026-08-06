@@ -217,10 +217,10 @@ def build_dialog_task(
     status: str | None = None,
 ) -> dict[str, Any]:
     normalized = normalize_form_schema(schema)
-    pending = invalid_fields or missing_fields
+    requires_input = bool(missing_fields or invalid_fields)
     return {
         "task_type": task_type,
-        "status": status or ("collecting" if pending else "ready"),
+        "status": status or ("collecting" if requires_input else "ready"),
         "schema_id": normalized["schema_id"],
         "schema_version": normalized["version"],
         "item_code": normalized["item_code"],
@@ -228,7 +228,6 @@ def build_dialog_task(
         "values": dict(values),
         "missing_fields": list(missing_fields),
         "invalid_fields": list(invalid_fields),
-        "next_field": dict(pending[0]) if pending else {},
         "schema": normalized,
     }
 

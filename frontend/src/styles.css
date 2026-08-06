@@ -1623,7 +1623,7 @@ select {
 }
 
 .slot-filling-card {
-  width: min(680px, 100%);
+  width: min(920px, 100%);
   margin-top: 14px;
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
@@ -1670,6 +1670,22 @@ select {
 }
 
 .slot-field-form { display: grid; gap: 11px; }
+.slot-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.slot-form-field {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--composer-bg) 86%, transparent);
+}
+.slot-form-field.is-material-group { grid-column: 1 / -1; }
 .slot-field-label { display: grid; gap: 4px; color: var(--text); }
 .slot-field-label > span { font-size: 14px; font-weight: 750; }
 .slot-field-label em {
@@ -1820,6 +1836,8 @@ select {
 @media (max-width: 600px) {
   .service-channel-options { grid-template-columns: 1fr; }
   .slot-filling-card { padding: 15px; }
+  .slot-form-fields { grid-template-columns: 1fr; }
+  .slot-form-field.is-material-group { grid-column: auto; }
   .slot-field-actions { align-items: stretch; flex-direction: column; }
   .slot-field-action-buttons { width: 100%; flex-direction: column; }
   .slot-field-actions button { width: 100%; }

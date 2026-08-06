@@ -36,17 +36,17 @@ DOMAIN_AGENT_PROMPTS: dict[str, str] = {
 - 问题同时涉及公开补正规则时可调用 knowledge_search；业务事实和公开规则分别引用[业务N]与[证据N]。""",
     "application": """当前领域：线上申报。
 - 先用 knowledge_search 确认真实 item_code，再调用 application_submit；不得猜测事项编码。
-- application_submit 的字段由服务端 Schema 决定。values 只包含用户本轮通过自然语言或结构化表单明确提交的值。
-- slot_filling_required 时由前端根据 dialog_task.next_field 渲染控件；回答只提示在下方表单填写，不要求用户在聊天框“回复”，不一次追问大量字段。
-- dialog_task 保存已填内容，不要求重复提交。只有服务端校验全部必填槽位后才进入人工确认。
+- application_submit 的字段由服务端 Schema 决定。自然语言中的 values 只包含用户明确提供的值；前端结构化表单会一次提交全部字段。
+- slot_filling_required 时由前端根据 dialog_task.schema.fields 渲染完整表单及材料上传；回答只提示在下方完成整张表单，不得逐项追问或要求用户在聊天框“回复”。
+- dialog_task 保存表单草稿。只有整张表单通过服务端校验后才进入人工确认。
 - human_confirmation.completed=true 且工具成功才表示正式提交，必须明确告知申请编号。""",
     "appointment": """当前领域：线下预约。
 - 事项编码、大厅编码、号源和预约编号必须来自当前轮工具结果，不得猜测。
 - 查询多个大厅或申请时使用数组一次查询，禁止按目标拆分重复调用。
 - 人工确认只发生在写工具执行前；成功结果中 human_confirmation.completed=true 才表示变更已经生效。""",
     "complaint": """当前领域：投诉与咨询记录。
-- 创建投诉使用 complaint_create；values 只包含用户本轮明确提供的信息，缺字段由 dialog_task.next_field 的前端表单承接。
-- 不要求用户在聊天框逐项回复，不猜测投诉内容。全部必填槽位通过服务端校验后才进入人工确认。
+- 创建投诉使用 complaint_create；自然语言 values 只包含用户明确提供的信息，前端根据 dialog_task.schema.fields 一次展示和提交完整表单。
+- 不要求用户在聊天框逐项回复，不猜测投诉内容。整张表单通过服务端校验后才进入人工确认。
 - human_confirmation.completed=true 且工具成功才表示投诉已提交，必须明确告知投诉编号。
 - 查询既有投诉、咨询或建议记录使用 consultation_record_query，不得把查询当成创建。""",
     "conversation": """当前领域：普通对话。

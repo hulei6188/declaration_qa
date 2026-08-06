@@ -191,11 +191,11 @@ def router_unavailable_decision(reason: str) -> dict[str, Any]:
 def compact_dialog_task(value: Any) -> dict[str, Any]:
     """只向路由器暴露流程判断所需的最小表单状态。"""
     task = value if isinstance(value, dict) else {}
-    next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
     return {
         "task_type": str(task.get("task_type") or ""),
         "status": str(task.get("status") or ""),
         "item_code": str(task.get("item_code") or ""),
         "item_name": str(task.get("item_name") or ""),
-        "next_field": str(next_field.get("name") or ""),
+        "missing_count": len(task.get("missing_fields") or []),
+        "invalid_count": len(task.get("invalid_fields") or []),
     }

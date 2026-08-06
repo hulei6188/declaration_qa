@@ -7,7 +7,7 @@ import VersionManagementPane from './components/VersionManagementPane.jsx';
 import {
   DEFAULT_CONTEXT,
   latestCollectingDialogTask,
-  retainSubmittedFormValue,
+  retainSubmittedFormValues,
   confirmationCompletesFormCollection,
   buildChatRequest,
   startChatStream,
@@ -92,7 +92,7 @@ export default function App() {
   // ---- 聊天 ----
   async function sendMessage(query, displayText, meta, ctxOverride, queryImage) {
     const activeDialogTask = latestCollectingDialogTask(messages);
-    const retainedDialogTask = retainSubmittedFormValue(activeDialogTask, meta?.formSubmission);
+    const retainedDialogTask = retainSubmittedFormValues(activeDialogTask, meta?.formSubmission);
     const userMsg = {
       role: 'user',
       content: displayText || query,

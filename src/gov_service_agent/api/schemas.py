@@ -19,10 +19,11 @@ class ChatImagePayload(BaseModel):
 
 
 class FormSubmissionPayload(BaseModel):
-    """由前端动态表单提交的单个结构化槽位。"""
+    """由前端动态表单一次提交的完整结构化数据。"""
+    model_config = ConfigDict(extra="forbid")
+
     task_type: str = Field(pattern="^(application_submission|complaint_create)$")
-    field_name: str = Field(min_length=1, max_length=120)
-    value: Any
+    values: dict[str, Any] = Field(min_length=1)
 
 
 class ChatRequest(BaseModel):

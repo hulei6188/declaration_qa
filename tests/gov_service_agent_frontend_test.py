@@ -128,21 +128,21 @@ def test_form_filling_locks_free_composer_and_exposes_cancel_action():
     assert ".slot-field-action-buttons" in styles
 
 
-def test_failed_form_request_retains_current_dialog_task_and_uploaded_values():
+def test_failed_full_form_request_retains_current_dialog_task_and_values():
     app = (FRONTEND_ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
 
     assert "latestCollectingDialogTask(messages)" in app
-    assert "retainSubmittedFormValue(activeDialogTask, meta?.formSubmission)" in app
+    assert "retainSubmittedFormValues(activeDialogTask, meta?.formSubmission)" in app
     assert "dialogTask: retainedDialogTask" in app
-    assert "[fieldName]: submission.value" in utils
+    assert "...values" in utils
     assert "confirmation: m.role === 'user' ? null : (m.confirmation || null)" in app
 
 
 def test_completed_dialog_task_blocks_stale_collecting_form_resurrection():
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
 
-    assert "if (task.status === 'collecting' && task.next_field?.name) return task;" in utils
+    assert "if (task.status === 'collecting' && task.schema?.fields?.length) return task;" in utils
     assert "return {};" in utils
     assert "Object.keys(task).length === 0" in utils
 
@@ -153,6 +153,21 @@ def test_confirmation_ready_event_hides_completed_form():
 
     assert "confirmationCompletesFormCollection(confirmation) ? {}" in app
     assert "['application_submit', 'complaint_create'].includes" in utils
+
+
+def test_frontend_renders_and_submits_one_complete_schema_form():
+    chat = (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").read_text(encoding="utf-8")
+    utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
+    styles = (FRONTEND_ROOT / "src" / "styles.css").read_text(encoding="utf-8")
+
+    assert "const fields = task.schema?.fields || []" in chat
+    assert "fields.map((field) =>" in chat
+    assert "values," in chat
+    assert "提交完整表单" in chat
+    assert "field_name" not in chat
+    assert "formSubmission?.values" in utils
+    assert ".slot-form-fields" in styles
+    assert ".slot-form-field.is-material-group" in styles
 
 
 def test_frontend_hides_resolved_confirmation_cards_after_resume():

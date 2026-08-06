@@ -57,5 +57,4 @@ def cancel_active_dialog_task(task: dict[str, Any] | None) -> dict[str, Any]:
     if str(current.get("status") or "") not in {"collecting", "ready"}:
         return current
     current["status"] = "cancelled"
-    current["next_field"] = {}
     return current

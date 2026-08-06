@@ -14,7 +14,7 @@ export function latestCollectingDialogTask(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const task = messages[index]?.dialogTask;
     if (!task || typeof task !== 'object' || Object.keys(task).length === 0) continue;
-    if (task.status === 'collecting' && task.next_field?.name) return task;
+    if (task.status === 'collecting' && task.schema?.fields?.length) return task;
     // 最近的非空任务已经进入 ready/completed/cancelled 等后续状态时，
     // 不得继续向前寻找并复活同一会话中的旧 collecting 表单。
     return {};
@@ -22,14 +22,14 @@ export function latestCollectingDialogTask(messages) {
   return {};
 }
 
-export function retainSubmittedFormValue(task, submission) {
-  const fieldName = String(submission?.field_name || '');
-  if (!fieldName || task?.status !== 'collecting' || task?.next_field?.name !== fieldName) return task || {};
+export function retainSubmittedFormValues(task, submission) {
+  const values = submission?.values;
+  if (!values || typeof values !== 'object' || Array.isArray(values) || task?.status !== 'collecting') return task || {};
   return {
     ...task,
     values: {
       ...(task.values || {}),
-      [fieldName]: submission.value,
+      ...values,
     },
   };
 }
@@ -167,7 +167,7 @@ export function buildChatRequest(query, sessionId, ctx, queryImage, formSubmissi
     session_id: sessionId,
   };
   if (ctx.bizType) payload.biz_type = ctx.bizType;
-  if (formSubmission?.field_name) payload.form_submission = formSubmission;
+  if (formSubmission?.values && typeof formSubmission.values === 'object') payload.form_submission = formSubmission;
   if (queryImage?.data_url) {
     payload.query_image = {
       filename: queryImage.filename || '',

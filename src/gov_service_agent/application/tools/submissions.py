@@ -61,8 +61,8 @@ class ComplaintCreateInput(BaseModel):
 class ApplicationSubmitTool:
     name = "application_submit"
     description = (
-        "分多轮收集并提交政务服务申报。不同 item_code 由服务端加载不同版本的字段 Schema；"
-        "只传本轮用户明确给出的 values，服务端会合并历史槽位并返回下一缺失字段。"
+        "启动或提交政务服务申报。不同 item_code 由服务端加载不同版本的字段 Schema；"
+        "自然语言只传用户明确给出的 values，缺失时前端展示完整表单并一次提交全部字段。"
         "全部必填项校验通过后，工具执行前会暂停并请求用户确认。"
     )
     input_model = ApplicationSubmitInput
@@ -151,8 +151,8 @@ class ApplicationSubmitTool:
 class ComplaintCreateTool:
     name = "complaint_create"
     description = (
-        "分多轮收集并创建政务服务投诉。只传本轮用户明确提供的 values；"
-        "服务端会合并历史槽位、校验必填项并返回下一缺失字段。全部校验通过后执行前请求人工确认。"
+        "启动或提交政务服务投诉。自然语言只传用户明确提供的 values；"
+        "缺失时前端展示完整表单并一次提交全部字段。全部校验通过后执行前请求人工确认。"
     )
     input_model = ComplaintCreateInput
 

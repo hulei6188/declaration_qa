@@ -84,7 +84,7 @@ export default function ChatPane({
 
   const lastAssistantIndex = findLastAssistantIndex(messages);
   const activeDialogTask = messages[lastAssistantIndex]?.dialogTask || {};
-  const formFillingPending = activeDialogTask.status === 'collecting' && Boolean(activeDialogTask.next_field?.name);
+  const formFillingPending = activeDialogTask.status === 'collecting' && Boolean(activeDialogTask.schema?.fields?.length);
   const canFeedback = Boolean(audit?.auditId && audit.auditId !== '-');
 
   return (
@@ -160,20 +160,19 @@ export default function ChatPane({
                 )}
               />
             )}
-            {m.role === 'assistant' && i === lastAssistantIndex && m.dialogTask?.status === 'collecting' && m.dialogTask?.next_field?.name && (
+            {m.role === 'assistant' && i === lastAssistantIndex && m.dialogTask?.status === 'collecting' && m.dialogTask?.schema?.fields?.length > 0 && (
               <SlotFillingCard
                 task={m.dialogTask}
                 disabled={streaming}
                 onUploadMaterial={onUploadMaterial}
                 onCancel={() => onSend?.('取消当前表单填写流程', '取消填写')}
-                onSubmit={(field, value) => onSend?.(
-                  buildSlotSubmissionQuery(m.dialogTask, field, value),
-                  slotSubmissionDisplay(field, value),
+                onSubmit={(values) => onSend?.(
+                  buildFormSubmissionQuery(m.dialogTask),
+                  formSubmissionDisplay(m.dialogTask, values),
                   {
                     formSubmission: {
                       task_type: m.dialogTask.task_type,
-                      field_name: field.name,
-                      value,
+                      values,
                     },
                   },
                 )}
@@ -314,21 +313,24 @@ function ServiceChannelSelection({ actions, disabled, onSelect }) {
 }
 
 function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial }) {
-  const field = task.next_field || {};
-  const initialValue = initialFieldValue(field, task.values || {});
-  const [value, setValue] = useState(initialValue);
-  const [error, setError] = useState('');
-  const taskKey = [task.schema_id, task.schema_version, field.name, field.error].join(':');
+  const fields = task.schema?.fields || [];
+  const [values, setValues] = useState(() => initialFormValues(fields, task.values || {}));
+  const [errors, setErrors] = useState(() => serverFormErrors(task));
+  const taskKey = [
+    task.schema_id,
+    task.schema_version,
+    JSON.stringify(task.invalid_fields || []),
+    JSON.stringify(task.missing_fields || []),
+  ].join(':');
 
   useEffect(() => {
-    setValue(initialFieldValue(field, task.values || {}));
-    setError(field.error || '');
+    setValues(initialFormValues(fields, task.values || {}));
+    setErrors(serverFormErrors(task));
   }, [taskKey]);
 
-  const fields = task.schema?.fields || [];
   const requiredFields = fields.filter((item) => item.required);
   const progressFields = requiredFields.length > 0 ? requiredFields : fields;
-  const completed = progressFields.filter((item) => hasSlotValue(task.values?.[item.name])).length;
+  const completed = progressFields.filter((item) => hasSlotValue(values[item.name])).length;
   const total = Math.max(progressFields.length, 1);
   const progress = Math.min(100, Math.round((completed / total) * 100));
   const formTitle = task.task_type === 'complaint_create'
@@ -337,22 +339,29 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
 
   function handleSubmit(event) {
     event.preventDefault();
-    const validationError = validateSlotField(field, value);
-    if (validationError) {
-      setError(validationError);
+    const nextErrors = {};
+    const normalizedValues = {};
+    for (const field of fields) {
+      const value = values[field.name];
+      const validationError = validateSlotField(field, value);
+      if (validationError) nextErrors[field.name] = validationError;
+      if (hasSlotValue(value)) normalizedValues[field.name] = normalizedSlotValue(field, value);
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
-    setError('');
-    onSubmit(field, normalizedSlotValue(field, value));
+    setErrors({});
+    onSubmit(normalizedValues);
   }
 
   return (
-    <section className="slot-filling-card" aria-label="逐项填写表单">
+    <section className="slot-filling-card full-form-card" aria-label="完整事项表单">
       <div className="slot-filling-head">
         <ClipboardList size={18} />
         <div>
           <strong>{formTitle}</strong>
-          <span>系统会保存已填内容，并逐项引导完成剩余字段。</span>
+          <span>请一次填写完整信息并上传所需材料，提交后统一校验并进入确认。</span>
         </div>
         <b>{completed}/{total}</b>
       </div>
@@ -367,30 +376,45 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
         <i style={{ width: `${progress}%` }} />
       </div>
       <form className="slot-field-form" onSubmit={handleSubmit}>
-        <label className="slot-field-label" htmlFor={`slot-field-${field.name}`}>
-          <span>{field.label || field.name}{field.required && <em>必填</em>}</span>
-          {field.description && <small>{field.description}</small>}
-        </label>
-        <SlotFieldControl
-          task={task}
-          field={field}
-          value={value}
-          disabled={disabled}
-          onUploadMaterial={onUploadMaterial}
-          onChange={(nextValue) => {
-            setValue(nextValue);
-            if (error) setError('');
-          }}
-        />
-        {error && <div className="slot-field-error">{error}</div>}
+        <div className="slot-form-fields">
+          {fields.map((field) => (
+            <section
+              key={field.name}
+              className={`slot-form-field${field.type === 'material_group' ? ' is-material-group' : ''}`}
+            >
+              <label className="slot-field-label" htmlFor={`slot-field-${field.name}`}>
+                <span>{field.label || field.name}{field.required && <em>必填</em>}</span>
+                {field.description && <small>{field.description}</small>}
+              </label>
+              <SlotFieldControl
+                task={task}
+                field={field}
+                value={values[field.name]}
+                disabled={disabled}
+                onUploadMaterial={onUploadMaterial}
+                onChange={(nextValue) => {
+                  setValues((current) => ({ ...current, [field.name]: nextValue }));
+                  if (errors[field.name]) {
+                    setErrors((current) => {
+                      const next = { ...current };
+                      delete next[field.name];
+                      return next;
+                    });
+                  }
+                }}
+              />
+              {errors[field.name] && <div className="slot-field-error">{errors[field.name]}</div>}
+            </section>
+          ))}
+        </div>
         <div className="slot-field-actions">
-          <span>下一步将继续填写下一个必填项</span>
+          <span>提交后会先展示完整信息供您确认，不会立即生成办件。</span>
           <div className="slot-field-action-buttons">
             <button type="button" className="ghost" disabled={disabled} onClick={onCancel}>
               <X size={14} />取消填写
             </button>
-            <button type="submit" className="primary" disabled={disabled || !hasSlotValue(value)}>
-              {disabled ? '提交中…' : '保存并继续'}<ArrowRight size={14} />
+            <button type="submit" className="primary" disabled={disabled}>
+              {disabled ? '校验中…' : '提交完整表单'}<ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -427,7 +451,6 @@ function SlotFieldControl({ task, field, value, disabled, onChange, onUploadMate
         minLength={field.min_length || undefined}
         maxLength={field.max_length || undefined}
         disabled={disabled}
-        autoFocus
         onChange={(event) => onChange(event.target.value)}
       />
     );
@@ -485,7 +508,6 @@ function SlotFieldControl({ task, field, value, disabled, onChange, onUploadMate
       minLength={field.min_length || undefined}
       maxLength={field.max_length || undefined}
       disabled={disabled}
-      autoFocus
       autoComplete={type === 'phone' ? 'tel' : 'off'}
       placeholder={slotFieldPlaceholder(field)}
       onChange={(event) => onChange(event.target.value)}
@@ -590,6 +612,18 @@ function initialFieldValue(field, values) {
   return ['multiselect', 'checkbox'].includes(String(field.type || '').toLowerCase()) ? [] : '';
 }
 
+function initialFormValues(fields, values) {
+  return Object.fromEntries(fields.map((field) => [field.name, initialFieldValue(field, values)]));
+}
+
+function serverFormErrors(task) {
+  return Object.fromEntries(
+    (task.invalid_fields || [])
+      .filter((field) => field?.name && field?.error)
+      .map((field) => [field.name, field.error]),
+  );
+}
+
 function hasSlotValue(value) {
   if (Array.isArray(value)) return value.length > 0;
   if (value && typeof value === 'object') return Object.values(value).some((item) => hasSlotValue(item));
@@ -600,7 +634,7 @@ function normalizedSlotValue(field, value) {
   const type = String(field.type || '').toLowerCase();
   if (type === 'material_group') return value && typeof value === 'object' ? value : {};
   if (['multiselect', 'checkbox'].includes(type)) return Array.isArray(value) ? value : [];
-  if (type === 'boolean') return String(value) === '是';
+  if (type === 'boolean') return hasSlotValue(value) ? String(value) === '是' : '';
   return String(value).trim();
 }
 
@@ -627,24 +661,22 @@ function slotFieldPlaceholder(field) {
   return `请输入${field.label || '内容'}`;
 }
 
-function buildSlotSubmissionQuery(task, field, value) {
+function buildFormSubmissionQuery(task) {
   const taskLabel = task.task_type === 'complaint_create' ? '投诉' : '申报';
-  if (field.type === 'material_group') return `继续填写${taskLabel}表单，已完成申报材料上传`;
-  const serialized = Array.isArray(value) ? value.join('、') : value === true ? '是' : value === false ? '否' : String(value);
-  return `继续填写${taskLabel}表单，${field.label || field.name}：${serialized}`;
+  return `提交${taskLabel}完整表单`;
 }
 
-function slotSubmissionDisplay(field, value) {
-  if (field.type === 'material_group') {
-    const count = Object.values(value || {}).reduce((total, files) => total + (Array.isArray(files) ? files.length : 0), 0);
-    return `已上传申报材料（${count} 份）`;
-  }
-  const serialized = Array.isArray(value) ? value.join('、') : value === true ? '是' : value === false ? '否' : String(value);
-  const type = String(field.type || '').toLowerCase();
-  let displayValue = serialized;
-  if (type === 'phone' && serialized.length >= 7) displayValue = `${serialized.slice(0, 3)}****${serialized.slice(-4)}`;
-  if (type === 'id_number' && serialized.length >= 8) displayValue = `${serialized.slice(0, 4)}******${serialized.slice(-4)}`;
-  return `已填写：${field.label || field.name}（${displayValue}）`;
+function formSubmissionDisplay(task, values) {
+  const fieldCount = Object.values(values || {}).filter((value) => hasSlotValue(value)).length;
+  const materialCount = Object.values(values || {}).reduce((total, value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return total;
+    return total + Object.values(value).reduce(
+      (sum, files) => sum + (Array.isArray(files) ? files.length : 0),
+      0,
+    );
+  }, 0);
+  const taskLabel = task.task_type === 'complaint_create' ? '投诉' : '申报';
+  return `已提交${taskLabel}完整表单（${fieldCount} 项${materialCount ? `，材料 ${materialCount} 份` : ''}）`;
 }
 
 function HumanConfirmationCard({ confirmation, disabled, onResolve }) {

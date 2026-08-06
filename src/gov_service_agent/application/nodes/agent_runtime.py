@@ -1555,7 +1555,7 @@ def audit_tool_call(call: dict[str, Any]) -> dict[str, Any]:
 def is_structured_form_submission(state: dict[str, Any]) -> bool:
     """判断当前轮次是否来自前端受控表单，而不是聊天框自然语言。"""
     submission = state.get("form_submission")
-    return isinstance(submission, dict) and bool(str(submission.get("field_name") or "").strip())
+    return isinstance(submission, dict) and isinstance(submission.get("values"), dict)
 
 
 def structured_form_result_answer(result: dict[str, Any]) -> str:
@@ -1569,18 +1569,18 @@ def structured_form_result_answer(result: dict[str, Any]) -> str:
 
 
 def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    """把前端表单槽位直接转换为受控工具调用，不再让模型解析附件引用。"""
+    """把前端完整表单直接转换为受控工具调用，不让模型解析字段或附件引用。"""
     submission = state.get("form_submission") if isinstance(state.get("form_submission"), dict) else {}
     task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
-    next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
     task_type = str(task.get("task_type") or "")
-    field_name = str(submission.get("field_name") or "")
-    if task.get("status") != "collecting" or not next_field:
+    schema = task.get("schema") if isinstance(task.get("schema"), dict) else {}
+    values = submission.get("values") if isinstance(submission.get("values"), dict) else {}
+    if task.get("status") != "collecting" or not schema.get("fields"):
         return None, "当前没有待填写的表单，请重新进入申报流程。"
     if str(submission.get("task_type") or "") != task_type:
         return None, "表单类型已发生变化，请刷新后重新填写。"
-    if field_name != str(next_field.get("name") or ""):
-        return None, "当前表单字段已发生变化，请刷新后填写最新字段。"
+    if not values:
+        return None, "表单内容不能为空，请填写后提交。"
     tool_name = {
         "application_submission": "application_submit",
         "complaint_create": "complaint_create",
@@ -1591,7 +1591,7 @@ def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | N
         {
             "id": f"form-{uuid4().hex[:20]}",
             "name": tool_name,
-            "arguments": {"values": {field_name: submission.get("value")}},
+            "arguments": {"values": values},
             "origin": "structured_form",
         },
         "",

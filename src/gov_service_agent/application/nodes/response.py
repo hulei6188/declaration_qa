@@ -258,14 +258,16 @@ def authoritative_write_answer(state: dict) -> str:
 
 
 def active_slot_filling_answer(state: dict) -> str:
-    """让缺失槽位由前端表单承接，避免再次要求用户在对话框回复。"""
+    """让全部字段由前端完整表单承接，避免在对话框逐项追问。"""
     task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
-    next_field = task.get("next_field") if isinstance(task.get("next_field"), dict) else {}
-    if task.get("status") != "collecting" or not next_field.get("name"):
+    fields = (task.get("schema") or {}).get("fields") if isinstance(task.get("schema"), dict) else []
+    if task.get("status") != "collecting" or not fields:
         return ""
     item_name = str(task.get("item_name") or (task.get("schema") or {}).get("item_name") or "当前事项")
-    field_label = str(next_field.get("label") or next_field.get("name") or "下一项信息")
-    return f"已保存当前填报进度。请在下方“{item_name}”表单中填写“{field_label}”，提交后将自动进入下一项。"
+    invalid_count = len(task.get("invalid_fields") or [])
+    if invalid_count:
+        return f"表单中有 {invalid_count} 项需要修改。请在下方“{item_name}”完整表单中修正后重新提交。"
+    return f"请在下方一次填写“{item_name}”完整表单并上传所需申报材料，提交后将进入信息确认。"
 
 
 def booking_result_answer(appointment: dict, citation: str) -> str:
