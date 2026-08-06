@@ -1346,10 +1346,22 @@ def default_application_form_schemas() -> dict[str, dict[str, Any]]:
             "item_code": "ITEM-RESIDENCE-PERMIT",
             "item_name": "居住证办理",
             "biz_type": "residence_permit",
-            "fields": [
-                *common_identity,
-                {"name": "residence_address", "label": "现居住地址", "type": "text", "required": True, "max_length": 300, "aliases": ["住址", "居住地址"]},
-                {"name": "residence_proof_no", "label": "居住证明编号", "type": "text", "required": True, "max_length": 100, "aliases": ["证明编号"]},
+            "steps": [
+                {
+                    "id": "applicant_identity",
+                    "title": "申请人信息",
+                    "description": "填写申请人的身份与联系方式，证件号码仅用于本次申报核验。",
+                    "fields": common_identity,
+                },
+                {
+                    "id": "residence_details",
+                    "title": "居住信息",
+                    "description": "填写当前实际居住地址及对应的居住证明编号。",
+                    "fields": [
+                        {"name": "residence_address", "label": "现居住地址", "type": "text", "required": True, "max_length": 300, "aliases": ["住址", "居住地址"]},
+                        {"name": "residence_proof_no", "label": "居住证明编号", "type": "text", "required": True, "max_length": 100, "aliases": ["证明编号"]},
+                    ],
+                },
             ],
         },
         {
@@ -1358,10 +1370,30 @@ def default_application_form_schemas() -> dict[str, dict[str, Any]]:
             "item_code": "ITEM-HEALTH-CERTIFICATE",
             "item_name": "健康证办理",
             "biz_type": "health_certificate",
-            "fields": [
-                *common_identity,
-                {"name": "employer_name", "label": "从业单位", "type": "text", "required": True, "max_length": 200, "aliases": ["单位", "工作单位"]},
-                {"name": "occupation_type", "label": "从业类别", "type": "select", "required": True, "options": ["食品", "公共场所", "饮用水", "化妆品", "其他"], "aliases": ["职业类别", "行业"]},
+            "steps": [
+                {
+                    "id": "applicant_identity",
+                    "title": "身份信息",
+                    "description": "填写办证人员姓名和有效证件号码。",
+                    "fields": common_identity[:2],
+                },
+                {
+                    "id": "contact_employer",
+                    "title": "联系与单位信息",
+                    "description": "填写可接收办理通知的联系电话及当前从业单位。",
+                    "fields": [
+                        common_identity[2],
+                        {"name": "employer_name", "label": "从业单位", "type": "text", "required": True, "max_length": 200, "aliases": ["单位", "工作单位"]},
+                    ],
+                },
+                {
+                    "id": "occupation_details",
+                    "title": "从业类别",
+                    "description": "选择实际从业类别，系统将据此匹配对应的健康检查要求。",
+                    "fields": [
+                        {"name": "occupation_type", "label": "从业类别", "type": "select", "required": True, "options": ["食品", "公共场所", "饮用水", "化妆品", "其他"], "aliases": ["职业类别", "行业"]},
+                    ],
+                },
             ],
         },
         {
@@ -1370,28 +1402,49 @@ def default_application_form_schemas() -> dict[str, dict[str, Any]]:
             "item_code": "11340000002985923L200011900100001",
             "item_name": "取水许可",
             "biz_type": "water_permit",
-            "fields": [
-                {"name": "applicant_name", "label": "申请单位或个人", "type": "text", "required": True, "max_length": 200, "aliases": ["申请人", "单位名称"]},
-                {"name": "credit_code", "label": "统一社会信用代码或证件号码", "type": "text", "required": True, "max_length": 40, "aliases": ["统一社会信用代码", "证件号码"]},
-                {"name": "contact_name", "label": "联系人", "type": "text", "required": True, "max_length": 80, "aliases": ["经办人"]},
-                {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话"]},
-                {"name": "water_source", "label": "取水水源", "type": "text", "required": True, "max_length": 200, "aliases": ["水源"]},
-                {"name": "annual_water_volume", "label": "年取水量（立方米）", "type": "number", "required": True, "aliases": ["年取水量", "取水量"]},
-                {"name": "water_use", "label": "取水用途", "type": "multiselect", "required": True, "options": ["制水供水", "原水供水", "生活用水", "工业用水", "农业用水", "其他"], "aliases": ["用途"]},
+            "steps": [
                 {
-                    "name": "application_materials",
-                    "label": "申报材料",
-                    "type": "material_group",
-                    "required": True,
-                    "description": "支持 PDF、Word、Excel、JPG、PNG、ZIP；单个文件不超过 20 MB。",
-                    "accept": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".zip"],
-                    "materials": [
-                        {"key": "water_resource_report", "label": "建设项目水资源论证报告书（表）", "required": True, "max_files": 3},
-                        {"key": "water_right_transfer_report", "label": "水权转让可行性研究报告", "required": False, "description": "通过水权转让方式获得取水指标时上传", "max_files": 3},
-                        {"key": "filing_materials", "label": "备案材料", "required": False, "description": "属于备案项目时上传", "max_files": 3},
-                        {"key": "business_license_or_id", "label": "营业执照或身份证", "required": True, "max_files": 2},
-                        {"key": "water_permit_application", "label": "取水许可申请书", "required": True, "max_files": 2},
-                        {"key": "interested_party_statement", "label": "利害关系说明", "required": True, "max_files": 3},
+                    "id": "applicant_contact",
+                    "title": "申请主体与联系人",
+                    "description": "填写申请单位或个人的主体信息，以及负责本次申报的联系人信息。",
+                    "fields": [
+                        {"name": "applicant_name", "label": "申请单位或个人", "type": "text", "required": True, "max_length": 200, "aliases": ["申请人", "单位名称"]},
+                        {"name": "credit_code", "label": "统一社会信用代码或证件号码", "type": "text", "required": True, "max_length": 40, "aliases": ["统一社会信用代码", "证件号码"]},
+                        {"name": "contact_name", "label": "联系人", "type": "text", "required": True, "max_length": 80, "aliases": ["经办人"]},
+                        {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话"]},
+                    ],
+                },
+                {
+                    "id": "water_plan",
+                    "title": "取水方案",
+                    "description": "填写取水水源、预计年取水量和实际用途，数量请按立方米计。",
+                    "fields": [
+                        {"name": "water_source", "label": "取水水源", "type": "text", "required": True, "max_length": 200, "aliases": ["水源"]},
+                        {"name": "annual_water_volume", "label": "年取水量（立方米）", "type": "number", "required": True, "aliases": ["年取水量", "取水量"]},
+                        {"name": "water_use", "label": "取水用途", "type": "multiselect", "required": True, "options": ["制水供水", "原水供水", "生活用水", "工业用水", "农业用水", "其他"], "aliases": ["用途"]},
+                    ],
+                },
+                {
+                    "id": "application_materials",
+                    "title": "申报材料",
+                    "description": "按材料清单上传清晰、完整的电子文件；标为必传的材料缺一不可。",
+                    "fields": [
+                        {
+                            "name": "application_materials",
+                            "label": "申报材料",
+                            "type": "material_group",
+                            "required": True,
+                            "description": "支持 PDF、Word、Excel、JPG、PNG、ZIP；单个文件不超过 20 MB。",
+                            "accept": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".zip"],
+                            "materials": [
+                                {"key": "water_resource_report", "label": "建设项目水资源论证报告书（表）", "required": True, "max_files": 3},
+                                {"key": "water_right_transfer_report", "label": "水权转让可行性研究报告", "required": False, "description": "通过水权转让方式获得取水指标时上传", "max_files": 3},
+                                {"key": "filing_materials", "label": "备案材料", "required": False, "description": "属于备案项目时上传", "max_files": 3},
+                                {"key": "business_license_or_id", "label": "营业执照或身份证", "required": True, "max_files": 2},
+                                {"key": "water_permit_application", "label": "取水许可申请书", "required": True, "max_files": 2},
+                                {"key": "interested_party_statement", "label": "利害关系说明", "required": True, "max_files": 3},
+                            ],
+                        },
                     ],
                 },
             ],

@@ -11,11 +11,45 @@ EMPTY_VALUES = (None, "", [], {})
 
 
 def normalize_form_schema(schema: dict[str, Any] | None) -> dict[str, Any]:
-    """Return a stable public form schema shape."""
+    """Return the multi-step public form schema shape."""
     source = dict(schema or {})
+    steps = []
+    seen_steps: set[str] = set()
+    seen_fields: set[str] = set()
+    for raw_step in source.get("steps") or []:
+        if not isinstance(raw_step, dict):
+            continue
+        step_id = str(raw_step.get("id") or "").strip()
+        title = str(raw_step.get("title") or "").strip()
+        description = str(raw_step.get("description") or "").strip()
+        if not step_id or not title or not description or step_id in seen_steps:
+            continue
+        fields = normalize_step_fields(raw_step.get("fields"), seen_fields)
+        if not fields:
+            continue
+        seen_steps.add(step_id)
+        steps.append(
+            {
+                "id": step_id,
+                "title": title,
+                "description": description,
+                "fields": fields,
+            }
+        )
+    return {
+        "schema_id": str(source.get("schema_id") or ""),
+        "version": str(source.get("version") or "1"),
+        "item_code": str(source.get("item_code") or ""),
+        "item_name": str(source.get("item_name") or ""),
+        "biz_type": str(source.get("biz_type") or ""),
+        "steps": steps,
+    }
+
+
+def normalize_step_fields(value: Any, seen: set[str]) -> list[dict[str, Any]]:
+    """Normalize one step and keep field names unique across the workflow."""
     fields = []
-    seen: set[str] = set()
-    for raw in source.get("fields") or []:
+    for raw in value if isinstance(value, list) else []:
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or "").strip()
@@ -39,14 +73,22 @@ def normalize_form_schema(schema: dict[str, Any] | None) -> dict[str, Any]:
                 "materials": normalize_material_definitions(raw.get("materials")),
             }
         )
-    return {
-        "schema_id": str(source.get("schema_id") or ""),
-        "version": str(source.get("version") or "1"),
-        "item_code": str(source.get("item_code") or ""),
-        "item_name": str(source.get("item_name") or ""),
-        "biz_type": str(source.get("biz_type") or ""),
-        "fields": fields,
-    }
+    return fields
+
+
+def schema_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten step fields for collection, final validation, and confirmation."""
+    return [
+        field
+        for step in normalize_form_schema(schema)["steps"]
+        for field in step["fields"]
+    ]
+
+
+def schema_step(schema: dict[str, Any], index: int) -> dict[str, Any]:
+    """Return the indexed step or an empty mapping for an invalid index."""
+    steps = normalize_form_schema(schema)["steps"]
+    return dict(steps[index]) if 0 <= index < len(steps) else {}
 
 
 def collect_slots(
@@ -57,7 +99,7 @@ def collect_slots(
     """Merge recognized fields and aliases without accepting undeclared data."""
     normalized = normalize_form_schema(schema)
     aliases: dict[str, str] = {}
-    for field in normalized["fields"]:
+    for field in schema_fields(normalized):
         aliases[field["name"]] = field["name"]
         aliases[field["label"]] = field["name"]
         for alias in field["aliases"]:
@@ -82,7 +124,7 @@ def validate_slots(
     normalized_values: dict[str, Any] = {}
     missing: list[dict[str, Any]] = []
     invalid: list[dict[str, Any]] = []
-    for field in normalize_form_schema(schema)["fields"]:
+    for field in schema_fields(schema):
         name = field["name"]
         value = values.get(name)
         if value in EMPTY_VALUES:
@@ -95,6 +137,16 @@ def validate_slots(
             continue
         normalized_values[name] = converted
     return normalized_values, missing, invalid
+
+
+def validate_step_slots(
+    schema: dict[str, Any],
+    step_index: int,
+    values: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Validate only the currently submitted workflow step."""
+    step = schema_step(schema, step_index)
+    return validate_slots({**normalize_form_schema(schema), "steps": [step] if step else []}, values)
 
 
 def normalize_slot_value(field: dict[str, Any], value: Any) -> tuple[Any, str]:
@@ -214,10 +266,15 @@ def build_dialog_task(
     values: dict[str, Any],
     missing_fields: list[dict[str, Any]],
     invalid_fields: list[dict[str, Any]],
+    current_step_index: int = 0,
+    completed_step_ids: list[str] | None = None,
     status: str | None = None,
 ) -> dict[str, Any]:
     normalized = normalize_form_schema(schema)
     requires_input = bool(missing_fields or invalid_fields)
+    steps = normalized["steps"]
+    safe_index = min(max(int(current_step_index or 0), 0), max(len(steps) - 1, 0))
+    current_step = steps[safe_index] if steps else {}
     return {
         "task_type": task_type,
         "status": status or ("collecting" if requires_input else "ready"),
@@ -228,6 +285,10 @@ def build_dialog_task(
         "values": dict(values),
         "missing_fields": list(missing_fields),
         "invalid_fields": list(invalid_fields),
+        "current_step_id": str(current_step.get("id") or ""),
+        "current_step_index": safe_index,
+        "completed_step_ids": list(completed_step_ids or []),
+        "total_steps": len(steps),
         "schema": normalized,
     }
 
@@ -255,7 +316,11 @@ def public_field(field: dict[str, Any]) -> dict[str, Any]:
 
 def masked_confirmation_details(task: dict[str, Any]) -> list[str]:
     """Build confirmation rows while masking common identity and contact fields."""
-    fields = {item["name"]: item for item in (task.get("schema") or {}).get("fields") or [] if isinstance(item, dict)}
+    fields = {
+        item["name"]: item
+        for item in schema_fields(task.get("schema") or {})
+        if isinstance(item, dict)
+    }
     details = []
     for name, value in (task.get("values") or {}).items():
         field = fields.get(name) or {}

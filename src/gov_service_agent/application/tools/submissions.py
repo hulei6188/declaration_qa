@@ -11,7 +11,10 @@ from gov_service_agent.application.slot_filling import (
     build_dialog_task,
     collect_slots,
     normalize_form_schema,
+    schema_fields,
+    schema_step,
     validate_slots,
+    validate_step_slots,
 )
 from gov_service_agent.application.application_materials import ApplicationMaterialStore
 from gov_service_agent.application.tools.registry import ToolExecutionContext, ToolExecutionResult
@@ -25,12 +28,19 @@ COMPLAINT_SCHEMA = {
     "item_code": "COMPLAINT",
     "item_name": "政务服务投诉",
     "biz_type": "complaint",
-    "fields": [
-        {"name": "subject", "label": "投诉主题", "type": "text", "required": True, "max_length": 120, "aliases": ["主题", "标题"]},
-        {"name": "content", "label": "投诉内容", "type": "textarea", "required": True, "min_length": 5, "max_length": 2000, "aliases": ["内容", "问题描述", "投诉描述"]},
-        {"name": "target", "label": "被投诉对象", "type": "text", "required": True, "max_length": 200, "aliases": ["投诉对象", "部门", "窗口"]},
-        {"name": "occurred_at", "label": "问题发生日期", "type": "date", "required": False, "aliases": ["发生日期", "日期"]},
-        {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话", "联系方式"]},
+    "steps": [
+        {
+            "id": "complaint_details",
+            "title": "投诉信息",
+            "description": "请说明投诉对象、问题经过和联系方式，提交后可核对全部内容。",
+            "fields": [
+                {"name": "subject", "label": "投诉主题", "type": "text", "required": True, "max_length": 120, "aliases": ["主题", "标题"]},
+                {"name": "content", "label": "投诉内容", "type": "textarea", "required": True, "min_length": 5, "max_length": 2000, "aliases": ["内容", "问题描述", "投诉描述"]},
+                {"name": "target", "label": "被投诉对象", "type": "text", "required": True, "max_length": 200, "aliases": ["投诉对象", "部门", "窗口"]},
+                {"name": "occurred_at", "label": "问题发生日期", "type": "date", "required": False, "aliases": ["发生日期", "日期"]},
+                {"name": "contact_phone", "label": "联系电话", "type": "phone", "required": True, "aliases": ["手机号", "电话", "联系方式"]},
+            ],
+        },
     ],
 }
 
@@ -43,6 +53,11 @@ class ApplicationSubmitInput(BaseModel):
         max_length=160,
         description="首次填报使用当前轮 knowledge_search 返回的真实事项编码；继续填报时可以省略",
     )
+    step_id: str = Field(
+        default="",
+        max_length=120,
+        description="仅前端受控表单提交当前步骤时传入；自然语言预填不得设置",
+    )
     values: dict[str, Any] = Field(
         default_factory=dict,
         description="本轮用户明确提供的字段值；可使用 Schema 字段名或中文别名，不得猜测未提供的信息",
@@ -52,6 +67,7 @@ class ApplicationSubmitInput(BaseModel):
 class ComplaintCreateInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    step_id: str = Field(default="", max_length=120)
     values: dict[str, Any] = Field(
         default_factory=dict,
         description="本轮用户明确提供的投诉字段值，不得猜测未提供的信息",
@@ -61,9 +77,9 @@ class ComplaintCreateInput(BaseModel):
 class ApplicationSubmitTool:
     name = "application_submit"
     description = (
-        "启动或提交政务服务申报。不同 item_code 由服务端加载不同版本的字段 Schema；"
-        "自然语言只传用户明确给出的 values，缺失时前端展示完整表单并一次提交全部字段。"
-        "全部必填项校验通过后，工具执行前会暂停并请求用户确认。"
+        "启动或分步提交政务服务申报。不同 item_code 由服务端加载不同步骤的版本化 Schema；"
+        "自然语言只预填用户明确给出的 values，前端按步骤提交并携带当前 step_id。"
+        "最后一步通过校验后，工具执行前会暂停并请求用户确认。"
     )
     input_model = ApplicationSubmitInput
 
@@ -84,18 +100,16 @@ class ApplicationSubmitTool:
         if not schema:
             return {"ready": False, "error": "schema_not_found", "item_code": item_code}
         schema = normalize_form_schema(schema)
-        current = task.get("values") if continuing_same_item else {}
-        collected = collect_slots(schema, current, request.values)
-        values, missing, invalid = validate_slots(schema, collected)
-        invalid.extend(validate_uploaded_materials(schema, values, context))
-        dialog_task = build_dialog_task(
+        preview = step_form_preview(
             task_type="application_submission",
             schema=schema,
-            values={**collected, **values},
-            missing_fields=missing,
-            invalid_fields=invalid,
+            task=task if continuing_same_item else {},
+            new_values=request.values,
+            submitted_step_id=request.step_id,
+            context=context,
+            validate_material_uploads=True,
         )
-        return {"ready": not missing and not invalid, "dialog_task": dialog_task}
+        return preview
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
         preview = self.confirmation_preview(arguments.model_dump(), context)
@@ -151,8 +165,8 @@ class ApplicationSubmitTool:
 class ComplaintCreateTool:
     name = "complaint_create"
     description = (
-        "启动或提交政务服务投诉。自然语言只传用户明确提供的 values；"
-        "缺失时前端展示完整表单并一次提交全部字段。全部校验通过后执行前请求人工确认。"
+        "启动或提交政务服务投诉。自然语言只预填用户明确提供的 values；"
+        "前端按步骤提交，最后一步校验通过后请求人工确认。"
     )
     input_model = ComplaintCreateInput
 
@@ -162,16 +176,15 @@ class ComplaintCreateTool:
     def confirmation_preview(self, arguments: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
         request = self.input_model.model_validate(arguments or {})
         task = active_task(context, "complaint_create")
-        collected = collect_slots(COMPLAINT_SCHEMA, task.get("values") or {}, request.values)
-        values, missing, invalid = validate_slots(COMPLAINT_SCHEMA, collected)
-        dialog_task = build_dialog_task(
+        return step_form_preview(
             task_type="complaint_create",
             schema=COMPLAINT_SCHEMA,
-            values={**collected, **values},
-            missing_fields=missing,
-            invalid_fields=invalid,
+            task=task,
+            new_values=request.values,
+            submitted_step_id=request.step_id,
+            context=context,
+            validate_material_uploads=False,
         )
-        return {"ready": not missing and not invalid, "dialog_task": dialog_task}
 
     def execute(self, arguments: BaseModel, context: ToolExecutionContext) -> ToolExecutionResult:
         preview = self.confirmation_preview(arguments.model_dump(), context)
@@ -221,6 +234,90 @@ def active_task(context: ToolExecutionContext, task_type: str) -> dict[str, Any]
     return dict(task)
 
 
+def step_form_preview(
+    *,
+    task_type: str,
+    schema: dict[str, Any],
+    task: dict[str, Any],
+    new_values: dict[str, Any],
+    submitted_step_id: str,
+    context: ToolExecutionContext,
+    validate_material_uploads: bool,
+) -> dict[str, Any]:
+    """Collect one step, reject stale submissions, and advance deterministically."""
+    normalized = normalize_form_schema(schema)
+    steps = normalized["steps"]
+    if not steps:
+        return {"ready": False, "error": "schema_steps_required"}
+    current_index = int(task.get("current_step_index") or 0)
+    current_index = min(max(current_index, 0), len(steps) - 1)
+    current_step = schema_step(normalized, current_index)
+    requested_step_id = str(submitted_step_id or "").strip()
+    implicit_single_step = not requested_step_id and not task and len(steps) == 1 and task_type == "complaint_create"
+    if implicit_single_step:
+        requested_step_id = current_step["id"]
+    if requested_step_id and requested_step_id != current_step["id"]:
+        return {
+            "ready": False,
+            "error": "stale_or_out_of_order_step",
+            "expected_step_id": current_step["id"],
+        }
+
+    collected = collect_slots(normalized, task.get("values") or {}, new_values)
+    normalized_values, missing, invalid = validate_step_slots(normalized, current_index, collected)
+    step_schema = {**normalized, "steps": [current_step]}
+    if validate_material_uploads:
+        invalid.extend(validate_uploaded_materials(step_schema, {**collected, **normalized_values}, context))
+    combined_values = {**collected, **normalized_values}
+    completed_step_ids = list(task.get("completed_step_ids") or [])
+
+    # Natural-language tool calls may prefill values but never count as a step submission.
+    if not requested_step_id or missing or invalid:
+        dialog_task = build_dialog_task(
+            task_type=task_type,
+            schema=normalized,
+            values=combined_values,
+            missing_fields=missing,
+            invalid_fields=invalid,
+            current_step_index=current_index,
+            completed_step_ids=completed_step_ids,
+            status="collecting",
+        )
+        return {"ready": False, "dialog_task": dialog_task}
+
+    if current_step["id"] not in completed_step_ids:
+        completed_step_ids.append(current_step["id"])
+    if current_index < len(steps) - 1:
+        next_index = current_index + 1
+        _, next_missing, next_invalid = validate_step_slots(normalized, next_index, combined_values)
+        dialog_task = build_dialog_task(
+            task_type=task_type,
+            schema=normalized,
+            values=combined_values,
+            missing_fields=next_missing,
+            invalid_fields=next_invalid,
+            current_step_index=next_index,
+            completed_step_ids=completed_step_ids,
+            status="collecting",
+        )
+        return {"ready": False, "dialog_task": dialog_task}
+
+    final_values, final_missing, final_invalid = validate_slots(normalized, combined_values)
+    if validate_material_uploads:
+        final_invalid.extend(validate_uploaded_materials(normalized, final_values, context))
+    dialog_task = build_dialog_task(
+        task_type=task_type,
+        schema=normalized,
+        values={**combined_values, **final_values},
+        missing_fields=final_missing,
+        invalid_fields=final_invalid,
+        current_step_index=current_index,
+        completed_step_ids=completed_step_ids,
+        status="ready" if not final_missing and not final_invalid else "collecting",
+    )
+    return {"ready": not final_missing and not final_invalid, "dialog_task": dialog_task}
+
+
 def validate_uploaded_materials(
     schema: dict[str, Any],
     values: dict[str, Any],
@@ -233,7 +330,7 @@ def validate_uploaded_materials(
         max_bytes=settings.application_material_max_bytes,
     )
     invalid = []
-    for field in schema.get("fields") or []:
+    for field in schema_fields(schema):
         if not isinstance(field, dict) or field.get("type") != "material_group":
             continue
         field_name = str(field.get("name") or "")

@@ -9,6 +9,7 @@ from gov_service_agent.api.schemas import ApplicationMaterialUploadResponse
 from gov_service_agent.api.server.dependencies import auth_context
 from gov_service_agent.api.server.runtime import settings, workflow
 from gov_service_agent.application.application_materials import ApplicationMaterialStore
+from gov_service_agent.application.slot_filling import schema_step
 
 
 material_store = ApplicationMaterialStore(
@@ -38,10 +39,11 @@ def register_application_material_routes(app):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user_id is required")
         task = workflow._checkpoint_state(user_id=effective_user_id, session_id=session_id).get("dialog_task") or {}
         schema = task.get("schema") if isinstance(task.get("schema"), dict) else {}
+        current_step = schema_step(schema, int(task.get("current_step_index") or 0))
         material_field = next(
             (
                 field
-                for field in schema.get("fields") or []
+                for field in current_step.get("fields") or []
                 if isinstance(field, dict)
                 and str(field.get("name") or "") == str(field_name or "")
                 and str(field.get("type") or "") == "material_group"

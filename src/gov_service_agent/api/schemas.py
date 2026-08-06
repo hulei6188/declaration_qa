@@ -19,10 +19,11 @@ class ChatImagePayload(BaseModel):
 
 
 class FormSubmissionPayload(BaseModel):
-    """由前端动态表单一次提交的完整结构化数据。"""
+    """由前端动态表单提交的单个步骤数据。"""
     model_config = ConfigDict(extra="forbid")
 
     task_type: str = Field(pattern="^(application_submission|complaint_create)$")
+    step_id: str = Field(min_length=1, max_length=120)
     values: dict[str, Any] = Field(min_length=1)
 
 

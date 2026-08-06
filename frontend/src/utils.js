@@ -14,7 +14,7 @@ export function latestCollectingDialogTask(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const task = messages[index]?.dialogTask;
     if (!task || typeof task !== 'object' || Object.keys(task).length === 0) continue;
-    if (task.status === 'collecting' && task.schema?.fields?.length) return task;
+    if (task.status === 'collecting' && task.schema?.steps?.length) return task;
     // 最近的非空任务已经进入 ready/completed/cancelled 等后续状态时，
     // 不得继续向前寻找并复活同一会话中的旧 collecting 表单。
     return {};

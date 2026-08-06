@@ -1569,18 +1569,21 @@ def structured_form_result_answer(result: dict[str, Any]) -> str:
 
 
 def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    """把前端完整表单直接转换为受控工具调用，不让模型解析字段或附件引用。"""
+    """把前端当前步骤直接转换为受控工具调用，不让模型解析字段或附件引用。"""
     submission = state.get("form_submission") if isinstance(state.get("form_submission"), dict) else {}
     task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
     task_type = str(task.get("task_type") or "")
     schema = task.get("schema") if isinstance(task.get("schema"), dict) else {}
     values = submission.get("values") if isinstance(submission.get("values"), dict) else {}
-    if task.get("status") != "collecting" or not schema.get("fields"):
+    if task.get("status") != "collecting" or not schema.get("steps"):
         return None, "当前没有待填写的表单，请重新进入申报流程。"
     if str(submission.get("task_type") or "") != task_type:
         return None, "表单类型已发生变化，请刷新后重新填写。"
     if not values:
         return None, "表单内容不能为空，请填写后提交。"
+    step_id = str(submission.get("step_id") or "").strip()
+    if not step_id or step_id != str(task.get("current_step_id") or ""):
+        return None, "当前步骤已发生变化，请刷新后重新填写。"
     tool_name = {
         "application_submission": "application_submit",
         "complaint_create": "complaint_create",
@@ -1591,7 +1594,7 @@ def structured_form_tool_call(state: dict[str, Any]) -> tuple[dict[str, Any] | N
         {
             "id": f"form-{uuid4().hex[:20]}",
             "name": tool_name,
-            "arguments": {"values": values},
+            "arguments": {"step_id": step_id, "values": values},
             "origin": "structured_form",
         },
         "",

@@ -258,16 +258,19 @@ def authoritative_write_answer(state: dict) -> str:
 
 
 def active_slot_filling_answer(state: dict) -> str:
-    """让全部字段由前端完整表单承接，避免在对话框逐项追问。"""
+    """让当前步骤由前端受控表单承接，避免在对话框逐项追问。"""
     task = state.get("dialog_task") if isinstance(state.get("dialog_task"), dict) else {}
-    fields = (task.get("schema") or {}).get("fields") if isinstance(task.get("schema"), dict) else []
-    if task.get("status") != "collecting" or not fields:
+    steps = (task.get("schema") or {}).get("steps") if isinstance(task.get("schema"), dict) else []
+    if task.get("status") != "collecting" or not steps:
         return ""
     item_name = str(task.get("item_name") or (task.get("schema") or {}).get("item_name") or "当前事项")
+    step_index = int(task.get("current_step_index") or 0)
+    step = steps[step_index] if 0 <= step_index < len(steps) else {}
+    step_title = str(step.get("title") or f"第 {step_index + 1} 步")
     invalid_count = len(task.get("invalid_fields") or [])
     if invalid_count:
-        return f"表单中有 {invalid_count} 项需要修改。请在下方“{item_name}”完整表单中修正后重新提交。"
-    return f"请在下方一次填写“{item_name}”完整表单并上传所需申报材料，提交后将进入信息确认。"
+        return f"“{step_title}”有 {invalid_count} 项需要修改。请在下方修正后重新提交当前步骤。"
+    return f"请在下方继续办理“{item_name}”，当前为第 {step_index + 1}/{len(steps)} 步“{step_title}”。"
 
 
 def booking_result_answer(appointment: dict, citation: str) -> str:

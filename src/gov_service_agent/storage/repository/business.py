@@ -758,7 +758,7 @@ class BusinessRepository(EngineBackedRepository):
                 text(
                     """
                     SELECT schema_uid AS schema_id, version_no, item_code, item_name,
-                           biz_type, fields
+                           biz_type, steps
                     FROM declaration_qa.business_item_form_schemas
                     WHERE item_code = :item_code
                       AND status = 'published'
@@ -782,7 +782,7 @@ class BusinessRepository(EngineBackedRepository):
             "item_code": str(row.get("item_code") or ""),
             "item_name": str(row.get("item_name") or ""),
             "biz_type": str(row.get("biz_type") or ""),
-            "fields": list(row.get("fields") or []),
+            "steps": list(row.get("steps") or []),
         }
 
     def submit_application(

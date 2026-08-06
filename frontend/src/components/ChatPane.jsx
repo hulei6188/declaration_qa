@@ -84,7 +84,7 @@ export default function ChatPane({
 
   const lastAssistantIndex = findLastAssistantIndex(messages);
   const activeDialogTask = messages[lastAssistantIndex]?.dialogTask || {};
-  const formFillingPending = activeDialogTask.status === 'collecting' && Boolean(activeDialogTask.schema?.fields?.length);
+  const formFillingPending = activeDialogTask.status === 'collecting' && Boolean(activeDialogTask.schema?.steps?.length);
   const canFeedback = Boolean(audit?.auditId && audit.auditId !== '-');
 
   return (
@@ -160,18 +160,19 @@ export default function ChatPane({
                 )}
               />
             )}
-            {m.role === 'assistant' && i === lastAssistantIndex && m.dialogTask?.status === 'collecting' && m.dialogTask?.schema?.fields?.length > 0 && (
+            {m.role === 'assistant' && i === lastAssistantIndex && m.dialogTask?.status === 'collecting' && m.dialogTask?.schema?.steps?.length > 0 && (
               <SlotFillingCard
                 task={m.dialogTask}
                 disabled={streaming}
                 onUploadMaterial={onUploadMaterial}
                 onCancel={() => onSend?.('取消当前表单填写流程', '取消填写')}
-                onSubmit={(values) => onSend?.(
+                onSubmit={(stepId, values) => onSend?.(
                   buildFormSubmissionQuery(m.dialogTask),
                   formSubmissionDisplay(m.dialogTask, values),
                   {
                     formSubmission: {
                       task_type: m.dialogTask.task_type,
+                      step_id: stepId,
                       values,
                     },
                   },
@@ -313,12 +314,16 @@ function ServiceChannelSelection({ actions, disabled, onSelect }) {
 }
 
 function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial }) {
-  const fields = task.schema?.fields || [];
+  const steps = task.schema?.steps || [];
+  const currentStepIndex = Math.min(Math.max(Number(task.current_step_index || 0), 0), Math.max(steps.length - 1, 0));
+  const currentStep = steps[currentStepIndex] || {};
+  const fields = currentStep.fields || [];
   const [values, setValues] = useState(() => initialFormValues(fields, task.values || {}));
   const [errors, setErrors] = useState(() => serverFormErrors(task));
   const taskKey = [
     task.schema_id,
     task.schema_version,
+    task.current_step_id,
     JSON.stringify(task.invalid_fields || []),
     JSON.stringify(task.missing_fields || []),
   ].join(':');
@@ -332,7 +337,11 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
   const progressFields = requiredFields.length > 0 ? requiredFields : fields;
   const completed = progressFields.filter((item) => hasSlotValue(values[item.name])).length;
   const total = Math.max(progressFields.length, 1);
-  const progress = Math.min(100, Math.round((completed / total) * 100));
+  const stepProgress = completed / total;
+  const progress = steps.length
+    ? Math.min(100, Math.round(((currentStepIndex + stepProgress) / steps.length) * 100))
+    : 0;
+  const finalStep = currentStepIndex === steps.length - 1;
   const formTitle = task.task_type === 'complaint_create'
     ? '投诉信息填写'
     : `${task.item_name || '事项'}在线申报`;
@@ -352,19 +361,31 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
       return;
     }
     setErrors({});
-    onSubmit(normalizedValues);
+    onSubmit(currentStep.id, normalizedValues);
   }
 
   return (
-    <section className="slot-filling-card full-form-card" aria-label="完整事项表单">
+    <section className="slot-filling-card full-form-card" aria-label="分步事项表单">
       <div className="slot-filling-head">
         <ClipboardList size={18} />
         <div>
           <strong>{formTitle}</strong>
-          <span>请一次填写完整信息并上传所需材料，提交后统一校验并进入确认。</span>
+          <span>共 {steps.length} 个步骤，当前为第 {currentStepIndex + 1} 步。</span>
         </div>
-        <b>{completed}/{total}</b>
+        <b>{currentStepIndex + 1}/{steps.length}</b>
       </div>
+      <ol className="slot-step-list" style={{ '--step-count': steps.length }} aria-label="申报步骤">
+        {steps.map((step, index) => {
+          const completedStep = (task.completed_step_ids || []).includes(step.id);
+          const current = index === currentStepIndex;
+          return (
+            <li key={step.id} className={`${completedStep ? 'is-completed' : ''}${current ? ' is-current' : ''}`}>
+              <i>{completedStep ? <Check size={13} /> : index + 1}</i>
+              <span>{step.title}</span>
+            </li>
+          );
+        })}
+      </ol>
       <div
         className="slot-progress"
         role="progressbar"
@@ -374,6 +395,13 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
         aria-valuenow={completed}
       >
         <i style={{ width: `${progress}%` }} />
+      </div>
+      <div className="slot-current-step">
+        <span>步骤 {currentStepIndex + 1}</span>
+        <div>
+          <strong>{currentStep.title}</strong>
+          <p>{currentStep.description}</p>
+        </div>
       </div>
       <form className="slot-field-form" onSubmit={handleSubmit}>
         <div className="slot-form-fields">
@@ -408,13 +436,13 @@ function SlotFillingCard({ task, disabled, onSubmit, onCancel, onUploadMaterial 
           ))}
         </div>
         <div className="slot-field-actions">
-          <span>提交后会先展示完整信息供您确认，不会立即生成办件。</span>
+          <span>{finalStep ? '完成本步后会展示全部申报信息供您确认。' : '本步保存后进入下一步，已填信息会保留。'}</span>
           <div className="slot-field-action-buttons">
             <button type="button" className="ghost" disabled={disabled} onClick={onCancel}>
               <X size={14} />取消填写
             </button>
             <button type="submit" className="primary" disabled={disabled}>
-              {disabled ? '校验中…' : '提交完整表单'}<ArrowRight size={14} />
+              {disabled ? '校验中…' : finalStep ? '完成填写并确认' : '保存并继续'}<ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -663,7 +691,7 @@ function slotFieldPlaceholder(field) {
 
 function buildFormSubmissionQuery(task) {
   const taskLabel = task.task_type === 'complaint_create' ? '投诉' : '申报';
-  return `提交${taskLabel}完整表单`;
+  return `提交${taskLabel}第 ${Number(task.current_step_index || 0) + 1} 步`;
 }
 
 function formSubmissionDisplay(task, values) {
@@ -676,7 +704,8 @@ function formSubmissionDisplay(task, values) {
     );
   }, 0);
   const taskLabel = task.task_type === 'complaint_create' ? '投诉' : '申报';
-  return `已提交${taskLabel}完整表单（${fieldCount} 项${materialCount ? `，材料 ${materialCount} 份` : ''}）`;
+  const step = task.schema?.steps?.[Number(task.current_step_index || 0)] || {};
+  return `已提交${taskLabel}步骤“${step.title || '当前步骤'}”（${fieldCount} 项${materialCount ? `，材料 ${materialCount} 份` : ''}）`;
 }
 
 function HumanConfirmationCard({ confirmation, disabled, onResolve }) {

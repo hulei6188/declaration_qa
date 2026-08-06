@@ -3205,6 +3205,66 @@ ON CONFLICT (item_code, region_code, version_no) DO UPDATE SET
 COMMIT;
 
 -- ============================================================================
+-- 来源：017_multistep_application_workflows.sql
+-- ============================================================================
+
+BEGIN;
+
+ALTER TABLE declaration_qa.business_item_form_schemas
+    ADD COLUMN IF NOT EXISTS steps JSONB NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(steps) = 'array');
+
+UPDATE declaration_qa.business_item_form_schemas
+SET steps = jsonb_build_array(jsonb_build_object(
+    'id', 'application_details',
+    'title', '申报信息',
+    'description', '请填写本事项要求的申报信息，并按页面提示完成当前步骤。',
+    'fields', fields
+))
+WHERE steps = '[]'::jsonb;
+
+WITH plans(schema_uid, plan) AS (
+    VALUES
+    ('residence-permit-v1', '[
+      {"id":"applicant_identity","title":"申请人信息","description":"填写申请人的身份与联系方式，证件号码仅用于本次申报核验。","field_names":["applicant_name","id_number","contact_phone"]},
+      {"id":"residence_details","title":"居住信息","description":"填写当前实际居住地址及对应的居住证明编号。","field_names":["residence_address","residence_proof_no"]}
+    ]'::jsonb),
+    ('health-certificate-v1', '[
+      {"id":"applicant_identity","title":"身份信息","description":"填写办证人员姓名和有效证件号码。","field_names":["applicant_name","id_number"]},
+      {"id":"contact_employer","title":"联系与单位信息","description":"填写可接收办理通知的联系电话及当前从业单位。","field_names":["contact_phone","employer_name"]},
+      {"id":"occupation_details","title":"从业类别","description":"选择实际从业类别，系统将据此匹配对应的健康检查要求。","field_names":["occupation_type"]}
+    ]'::jsonb),
+    ('water-permit-v2', '[
+      {"id":"applicant_contact","title":"申请主体与联系人","description":"填写申请单位或个人的主体信息，以及负责本次申报的联系人信息。","field_names":["applicant_name","credit_code","contact_name","contact_phone"]},
+      {"id":"water_plan","title":"取水方案","description":"填写取水水源、预计年取水量和实际用途，数量请按立方米计。","field_names":["water_source","annual_water_volume","water_use"]},
+      {"id":"application_materials","title":"申报材料","description":"按材料清单上传清晰、完整的电子文件；标为必传的材料缺一不可。","field_names":["application_materials"]}
+    ]'::jsonb)
+), resolved AS (
+    SELECT schemas.id, jsonb_agg(jsonb_build_object(
+        'id', step.value ->> 'id',
+        'title', step.value ->> 'title',
+        'description', step.value ->> 'description',
+        'fields', COALESCE((
+            SELECT jsonb_agg(field.value ORDER BY field.ordinality)
+            FROM jsonb_array_elements(schemas.fields) WITH ORDINALITY AS field(value, ordinality)
+            WHERE field.value ->> 'name' IN (SELECT jsonb_array_elements_text(step.value -> 'field_names'))
+        ), '[]'::jsonb)
+    ) ORDER BY step.ordinality) AS steps
+    FROM declaration_qa.business_item_form_schemas schemas
+    JOIN plans ON plans.schema_uid = schemas.schema_uid
+    CROSS JOIN LATERAL jsonb_array_elements(plans.plan) WITH ORDINALITY AS step(value, ordinality)
+    GROUP BY schemas.id
+)
+UPDATE declaration_qa.business_item_form_schemas schemas
+SET steps = resolved.steps,
+    metadata = schemas.metadata || jsonb_build_object('form_protocol', 'multistep-v1'),
+    updated_at = CURRENT_TIMESTAMP
+FROM resolved
+WHERE schemas.id = resolved.id;
+
+COMMIT;
+
+-- ============================================================================
 -- 来源：016_document_derived_application_form_schemas.sql
 -- ============================================================================
 
@@ -3419,4 +3479,17 @@ ON CONFLICT (item_code, region_code, version_no) DO UPDATE SET
     metadata = EXCLUDED.metadata,
     updated_at = CURRENT_TIMESTAMP;
 
+COMMIT;
+
+-- Finish the protocol migration after all document-derived schemas are seeded.
+BEGIN;
+UPDATE declaration_qa.business_item_form_schemas
+SET steps = jsonb_build_array(jsonb_build_object(
+    'id', 'application_details',
+    'title', '申报信息',
+    'description', '请填写本事项要求的申报信息，并按页面提示完成当前步骤。',
+    'fields', fields
+))
+WHERE steps = '[]'::jsonb;
+ALTER TABLE declaration_qa.business_item_form_schemas DROP COLUMN fields;
 COMMIT;

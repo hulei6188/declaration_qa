@@ -39,7 +39,7 @@ def suggested_actions(state: GovServiceAgentState) -> list[dict[str, Any]]:
                 "payload": {
                     "channel": "online",
                     "query": f"线上申报{item_name}" if item_name else "线上申报",
-                    "description": "在线一次填写完整表单并上传申报材料",
+                    "description": "在线按步骤填写表单并上传申报材料",
                 },
             },
             {
