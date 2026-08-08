@@ -33,6 +33,10 @@ def tool_call(call_id, name, arguments=None):
     return {"id": call_id, "name": name, "arguments": arguments or {}}
 
 
+def schema_fields(schema):
+    return [field for step in schema["steps"] for field in step["fields"]]
+
+
 def test_item_code_selects_a_different_versioned_form_schema():
     adapter = InMemoryBusinessDataAdapter()
 
@@ -43,9 +47,9 @@ def test_item_code_selects_a_different_versioned_form_schema():
     assert residence["schema_id"] == "residence-permit-v1"
     assert health["schema_id"] == "health-certificate-v1"
     assert water["schema_id"] == "water-permit-v2"
-    assert {field["name"] for field in residence["fields"]} != {field["name"] for field in health["fields"]}
-    assert "annual_water_volume" in {field["name"] for field in water["fields"]}
-    material_field = next(field for field in water["fields"] if field["name"] == "application_materials")
+    assert {field["name"] for field in schema_fields(residence)} != {field["name"] for field in schema_fields(health)}
+    assert "annual_water_volume" in {field["name"] for field in schema_fields(water)}
+    material_field = next(field for field in schema_fields(water) if field["name"] == "application_materials")
     assert material_field["type"] == "material_group"
     assert sum(1 for item in material_field["materials"] if item["required"]) == 4
 
@@ -83,7 +87,7 @@ def test_water_application_requires_uploaded_materials_and_validates_session_own
     task = collecting["dialog_task"]
 
     assert collecting["ready"] is False
-    material_field = next(field for field in task["schema"]["fields"] if field["name"] == "application_materials")
+    material_field = next(field for field in schema_fields(task["schema"]) if field["name"] == "application_materials")
 
     store = ApplicationMaterialStore(material_dir, max_bytes=1024 * 1024)
     group = {}
@@ -107,9 +111,29 @@ def test_water_application_requires_uploaded_materials_and_validates_session_own
         session_id=session_id,
         metadata={"state": {"dialog_task": task}, "tool_call_id": "water-materials-ready"},
     )
-    ready = tool.confirmation_preview(
-        {"values": {"application_materials": group}},
+    water_plan = tool.confirmation_preview(
+        {"step_id": "applicant_contact", "values": {}},
         continuing_context,
+    )
+    materials_context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id=session_id,
+        metadata={"state": {"dialog_task": water_plan["dialog_task"]}, "tool_call_id": "water-materials-step"},
+    )
+    materials_step = tool.confirmation_preview(
+        {"step_id": "water_plan", "values": {}},
+        materials_context,
+    )
+    ready_context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id=session_id,
+        metadata={"state": {"dialog_task": materials_step["dialog_task"]}, "tool_call_id": "water-materials-ready"},
+    )
+    ready = tool.confirmation_preview(
+        {"step_id": "application_materials", "values": {"application_materials": group}},
+        ready_context,
     )
     assert ready["ready"] is True
 
@@ -117,10 +141,10 @@ def test_water_application_requires_uploaded_materials_and_validates_session_own
         user_id=1,
         region_code="340000",
         session_id="another-session",
-        metadata={"state": {"dialog_task": task}, "tool_call_id": "water-materials-invalid"},
+        metadata={"state": {"dialog_task": materials_step["dialog_task"]}, "tool_call_id": "water-materials-invalid"},
     )
     invalid = tool.confirmation_preview(
-        {"values": {"application_materials": group}},
+        {"step_id": "application_materials", "values": {"application_materials": group}},
         wrong_session_context,
     )
     assert invalid["ready"] is False
@@ -133,12 +157,23 @@ def test_structured_form_submission_keeps_attachment_references_out_of_model_par
         {
             "form_submission": {
                 "task_type": "application_submission",
+                "step_id": "application_materials",
                 "values": {"application_materials": {"water_resource_report": [attachment]}},
             },
             "dialog_task": {
                 "task_type": "application_submission",
                 "status": "collecting",
-                "schema": {"fields": [{"name": "application_materials", "type": "material_group"}]},
+                "current_step_id": "application_materials",
+                "schema": {
+                    "steps": [
+                        {
+                            "id": "application_materials",
+                            "title": "申报材料",
+                            "description": "上传申报材料。",
+                            "fields": [{"name": "application_materials", "type": "material_group"}],
+                        }
+                    ]
+                },
             },
         }
     )
@@ -264,7 +299,8 @@ def test_application_submit_collects_slots_without_writing_until_confirmed():
     assert collecting.status == "slot_filling_required"
     task = collecting.data["dialog_task"]
     assert task["values"]["applicant_name"] == "张三"
-    assert {field["name"] for field in task["missing_fields"]} == {"id_number", "residence_address", "residence_proof_no"}
+    assert {field["name"] for field in task["missing_fields"]} == {"id_number"}
+    assert task["current_step_id"] == "applicant_identity"
     assert "next_field" not in task
     assert not any(item["application_id"] > 4004 for item in adapter._applications.values())
 
@@ -273,9 +309,14 @@ def test_application_submit_collects_slots_without_writing_until_confirmed():
         **adapter._form_schemas["ITEM-RESIDENCE-PERMIT"],
         "schema_id": "residence-permit-v2",
         "version": "2",
-        "fields": [
-            *adapter._form_schemas["ITEM-RESIDENCE-PERMIT"]["fields"],
-            {"name": "new_required_field", "label": "新版本字段", "type": "text", "required": True},
+        "steps": [
+            *adapter._form_schemas["ITEM-RESIDENCE-PERMIT"]["steps"],
+            {
+                "id": "new_details",
+                "title": "新版本字段",
+                "description": "新版本字段。",
+                "fields": [{"name": "new_required_field", "label": "新版本字段", "type": "text", "required": True}],
+            },
         ],
     }
 
@@ -285,17 +326,32 @@ def test_application_submit_collects_slots_without_writing_until_confirmed():
         session_id="form-tool-test",
         metadata={"state": {"dialog_task": task}, "tool_call_id": "submit-2", "human_approved": True},
     )
+    identity = registry.execute(
+        "application_submit",
+        {
+            "step_id": "applicant_identity",
+            "values": {"身份证号": "340101199001011234"},
+        },
+        ready_context,
+        call_id="submit-2",
+    )
+    assert identity.status == "slot_filling_required"
     submitted = registry.execute(
         "application_submit",
         {
+            "step_id": "residence_details",
             "values": {
-                "身份证号": "340101199001011234",
                 "居住地址": "合肥市包河区示例路1号",
                 "证明编号": "RES-2026-001",
             }
         },
-        ready_context,
-        call_id="submit-2",
+        ToolExecutionContext(
+            user_id=1,
+            region_code="340000",
+            session_id="form-tool-test",
+            metadata={"state": {"dialog_task": identity.data["dialog_task"]}, "tool_call_id": "submit-3", "human_approved": True},
+        ),
+        call_id="submit-3",
     )
 
     assert submitted.status == "success"
@@ -355,24 +411,39 @@ def test_application_submission_persists_slots_across_turns_and_confirms_once():
     assert first.human_confirmation == {}
     assert first.dialog_task["status"] == "collecting"
     assert first.dialog_task["values"] == {"applicant_name": "张三", "contact_phone": "13800138000"}
-    assert "完整表单" in first.answer
+    assert "第 1/2 步" in first.answer
     assert "下方" in first.answer
     assert "回复" not in first.answer
     restored = workflow.get_session(user_id=1, session_id=session_id)
-    assert len(restored["messages"][-1]["dialog_task"]["schema"]["fields"]) == 5
+    assert len(restored["messages"][-1]["dialog_task"]["schema"]["steps"]) == 2
 
-    events = list(
+    identity_events = list(
         workflow.stream(
             ChatRequest(
-                query="提交申报完整表单",
+                query="提交申报第一步",
                 user_id=1,
                 session_id=session_id,
                 form_submission=FormSubmissionPayload(
                     task_type="application_submission",
+                    step_id="applicant_identity",
                     values={
-                        "applicant_name": "张三",
-                        "contact_phone": "13800138000",
                         "id_number": "340101199001011234",
+                    },
+                ),
+            )
+        )
+    )
+    assert not any(item["event"] == "human_confirmation_required" for item in identity_events)
+    events = list(
+        workflow.stream(
+            ChatRequest(
+                query="提交申报第二步",
+                user_id=1,
+                session_id=session_id,
+                form_submission=FormSubmissionPayload(
+                    task_type="application_submission",
+                    step_id="residence_details",
+                    values={
                         "residence_address": "合肥市包河区示例路1号",
                         "residence_proof_no": "RES-2026-001",
                     },

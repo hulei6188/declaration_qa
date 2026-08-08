@@ -66,6 +66,16 @@ class HumanServiceRepository(EngineBackedRepository):
 
     def _with_messages(self, ticket: dict[str, Any], ticket_id: str) -> dict[str, Any]:
         with self.engine.begin() as connection:
-            rows = connection.execute(text("SELECT role, content, author_id, created_at FROM declaration_qa.human_service_messages m JOIN declaration_qa.human_service_tickets t ON t.id = m.ticket_id WHERE t.ticket_uid = :ticket_uid ORDER BY m.created_at ASC, m.id ASC"), {"ticket_uid": ticket_id}).mappings().all()
-        ticket["messages"] = [dict(row) for row in rows]
+            rows = connection.execute(text("SELECT m.role, m.content, m.author_id, m.created_at FROM declaration_qa.human_service_messages m JOIN declaration_qa.human_service_tickets t ON t.id = m.ticket_id WHERE t.ticket_uid = :ticket_uid ORDER BY m.created_at ASC, m.id ASC"), {"ticket_uid": ticket_id}).mappings().all()
+        for key in ("created_at", "updated_at"):
+            ticket[key] = _isoformat(ticket.get(key))
+        ticket["messages"] = [
+            {**dict(row), "created_at": _isoformat(row.get("created_at"))}
+            for row in rows
+        ]
         return ticket
+
+
+def _isoformat(value: Any) -> Any:
+    """Keep API timestamps JSON-friendly across in-memory and PostgreSQL stores."""
+    return value.isoformat() if hasattr(value, "isoformat") else value
