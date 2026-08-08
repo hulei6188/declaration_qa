@@ -423,6 +423,62 @@ export function promoteEvaluationCandidate(candidateId, datasetId, expected) {
   });
 }
 
+export function createHumanServiceTicket(auditId, sessionId, userId, note = '') {
+  return requestJson(humanServiceTicketsPath(), {
+    method: 'POST',
+    body: JSON.stringify({ audit_id: auditId, session_id: sessionId || '', user_id: Number(userId || 1), note }),
+  });
+}
+
+export function fetchHumanServiceTickets(status = '') {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+  return requestJson(`${humanServiceTicketsPath()}${suffix}`);
+}
+
+export function claimHumanServiceTicket(ticketId) {
+  return requestJson(humanServiceTicketActionPath(ticketId, 'claim'), { method: 'POST' });
+}
+
+export function updateHumanServiceTicketStatus(ticketId, status) {
+  return requestJson(humanServiceTicketActionPath(ticketId, 'status'), {
+    method: 'POST', body: JSON.stringify({ status }),
+  });
+}
+
+export function sendHumanServiceMessage(ticketId, content) {
+  return requestJson(humanServiceTicketActionPath(ticketId, 'messages'), {
+    method: 'POST', body: JSON.stringify({ content }),
+  });
+}
+
+function humanServiceTicketsPath() {
+  return ['/api/declaration-qa/human-service', 'tickets'].join('/');
+}
+
+function humanServiceTicketActionPath(ticketId, action) {
+  return [humanServiceTicketsPath(), encodeURIComponent(ticketId), action].join('/');
+}
+
+export function createEvaluationKnowledgeDraft(candidateId, payload) {
+  return requestJson(`/api/declaration-qa/evaluation/candidates/${encodeURIComponent(candidateId)}/knowledge-draft`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function reviewEvaluationKnowledgeDraft(candidateId, payload) {
+  return requestJson(`/api/declaration-qa/evaluation/candidates/${encodeURIComponent(candidateId)}/knowledge-draft/review`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function publishEvaluationKnowledgeDraft(candidateId) {
+  return requestJson(`/api/declaration-qa/evaluation/candidates/${encodeURIComponent(candidateId)}/knowledge-draft/publish`, {
+    method: 'POST',
+  });
+}
+
 export function toolTraceStatus(ok, status) {
   if (ok) return 'completed';
   if (status === 'not_found') return 'empty';

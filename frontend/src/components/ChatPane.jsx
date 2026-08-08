@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Building2, Check, ClipboardList, FileText, FileUp, Globe2, ImagePlus, Landmark, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
+import { ArrowRight, Building2, Check, ClipboardList, FileText, FileUp, Globe2, Headset, ImagePlus, Landmark, Moon, PanelLeftOpen, Send, ShieldCheck, Sun, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SourceEvidenceList from './SourceEvidenceList.jsx';
 import ToolCallTimeline from './ToolCallTimeline.jsx';
 
 export default function ChatPane({
-  messages, streaming, sendState, onSend, ctx, setCtx, audit, feedbackResult, onFeedback,
+  messages, streaming, sendState, onSend, ctx, setCtx, audit, feedbackResult, onFeedback, humanServiceResult, onHumanService,
   onLoadToolTrace,
   onResolveConfirmation,
   onUploadMaterial,
@@ -160,6 +160,14 @@ export default function ChatPane({
                 )}
               />
             )}
+            {m.role === 'assistant' && i === lastAssistantIndex && m.suggestedActions?.some((action) => action.type === 'human_service') && (
+              <HumanServiceAction
+                action={m.suggestedActions.find((item) => item.type === 'human_service')}
+                disabled={streaming || Boolean(m.humanServiceTicket)}
+                result={humanServiceResult}
+                onClick={onHumanService}
+              />
+            )}
             {m.role === 'assistant' && i === lastAssistantIndex && m.dialogTask?.status === 'collecting' && m.dialogTask?.schema?.steps?.length > 0 && (
               <SlotFillingCard
                 task={m.dialogTask}
@@ -309,6 +317,22 @@ function ServiceChannelSelection({ actions, disabled, onSelect }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function HumanServiceAction({ action, disabled, result, onClick }) {
+  return (
+    <section className="human-service-action-card">
+      <div>
+        <strong>{action?.label || '联系人工客服'}</strong>
+        <span>将当前问题、意图和已提取信息一并转交坐席</span>
+      </div>
+      <button type="button" onClick={() => onClick?.(action)} disabled={disabled}>
+        <Headset size={15} />
+        {disabled ? '工单已提交' : '联系人工'}
+      </button>
+      {result && <small>{result}</small>}
     </section>
   );
 }

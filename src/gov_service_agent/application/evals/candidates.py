@@ -11,6 +11,37 @@ from gov_service_agent.application.evals.retrieval_ablation import extract_agent
 from gov_service_agent.application.evals.trajectory import normalize_agent_run
 
 
+ATTRIBUTION_CATEGORIES = (
+    "retrieval_miss",
+    "knowledge_missing",
+    "intent_mismatch",
+    "slot_error",
+    "hallucination",
+    "tool_error",
+    "agent_loop",
+    "stale_policy",
+    "unknown",
+)
+
+
+def infer_attribution_category(sample: dict[str, Any]) -> tuple[str, str]:
+    """根据线上可观测信号给候选样本一个保守的初始归因。"""
+    signals = dict(sample.get("signals") or {})
+    trajectory = dict(sample.get("trajectory") or {})
+    calls = list(trajectory.get("calls") or [])
+    if signals.get("tool_error"):
+        return "tool_error", "检测到工具调用失败或参数错误"
+    if signals.get("max_iterations"):
+        return "agent_loop", "Agent 达到最大迭代次数"
+    if not list(sample.get("sources") or []):
+        return "retrieval_miss", "线上 Trace 未记录到检索来源"
+    if signals.get("downvote"):
+        return "unknown", "用户差评，需人工确认具体原因"
+    if calls and all(not bool(call.get("ok")) for call in calls):
+        return "tool_error", "工具调用轨迹未产生成功结果"
+    return "unknown", "自动检测未能确定根因，需人工归因"
+
+
 def mine_candidates(store, *, salt: str, limit: int = 500) -> list[dict[str, Any]]:
     """兼容原接口：只挖掘明确失败、差评、工具错误或高延迟Trace。"""
     samples = sample_production_traces(
@@ -27,6 +58,9 @@ def mine_candidates(store, *, salt: str, limit: int = 500) -> list[dict[str, Any
         signals = sample.get("signals") or {}
         payload["source"] = "feedback" if signals.get("downvote") else "automatic_detector"
         payload["severity"] = "high" if signals.get("run_failed") or signals.get("tool_error") else "medium"
+        category, reason = infer_attribution_category(sample)
+        payload["attribution_category"] = category
+        payload["attribution_reason"] = reason
         created.append(store.create_eval_candidate(payload))
     return created
 
@@ -155,6 +189,7 @@ def candidate_payload(
         "faithfulness_threshold": faithfulness_threshold,
     }
     failed = bool(sample.get("failed")) or low_faithfulness
+    category, reason = infer_attribution_category(sample)
     salt = str(signals.get("fingerprint") or "online-evaluation")
     return {
         "audit_uid": str(sample.get("audit_id") or ""),
@@ -168,6 +203,9 @@ def candidate_payload(
         "trajectory_snapshot": sanitize_value(dict(sample.get("trajectory") or {}), salt=salt),
         "agent_retrieval_queries": sanitize_value(list(sample.get("agent_retrieval_queries") or []), salt=salt),
         "online_scores": sanitize_value(score_payload, salt=salt),
+        "attribution_category": category,
+        "attribution_reason": reason,
+        "knowledge_draft": {},
     }
 
 

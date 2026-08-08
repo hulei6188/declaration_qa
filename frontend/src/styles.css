@@ -1019,6 +1019,43 @@ select {
 .trajectory-row code { padding: 4px 7px; border-radius: 5px; background: var(--inline-code-bg); }
 
 .candidate-workspace { grid-column: 1 / -1; }
+
+.human-service-pane { min-width: 0; display: flex; flex-direction: column; height: 100%; background: var(--bg); }
+.human-service-workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+.human-service-ticket-list { min-width: 0; overflow: auto; padding: 16px; border-right: 1px solid var(--border); background: var(--surface); }
+.human-service-ticket-list > button { width: 100%; display: grid; gap: 7px; text-align: left; padding: 12px; margin-bottom: 6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); }
+.human-service-ticket-list > button:hover, .human-service-ticket-list > button.active { background: var(--bg-hover); border-color: var(--border); }
+.human-service-ticket-list > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.human-service-ticket-list > button span { display: flex; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 11px; }
+.human-service-ticket-list > button em { color: var(--accent); font-style: normal; }
+.human-service-detail { min-width: 0; overflow: auto; padding: 24px 28px 40px; }
+.human-service-title { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.human-service-title h2 { margin: 5px 0; font-size: 20px; }
+.human-service-title p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.human-service-actions { display: flex; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+.human-service-actions button, .human-service-reply button { display: inline-flex; align-items: center; gap: 6px; }
+.human-service-context-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px 0; }
+.human-service-context-block { min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); padding: 12px; }
+.human-service-context-block > span { color: var(--text-muted); font-size: 11px; }
+.human-service-context-block pre { max-height: 160px; overflow: auto; margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.human-service-conversation { border-top: 1px solid var(--border); padding-top: 18px; }
+.human-service-messages { display: grid; gap: 8px; max-height: 260px; overflow: auto; padding: 4px 0 12px; }
+.human-service-message { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; font-size: 13px; }
+.human-service-message strong { color: var(--text-muted); font-size: 11px; }
+.human-service-message span { white-space: pre-wrap; }
+.human-service-reply { display: flex; gap: 10px; align-items: flex-end; }
+.human-service-reply textarea { flex: 1; resize: vertical; min-height: 68px; }
+.human-service-action-card { display: flex; align-items: center; gap: 12px; margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.human-service-action-card > div { flex: 1; display: grid; gap: 4px; }
+.human-service-action-card span, .human-service-action-card small { color: var(--text-muted); font-size: 12px; }
+.human-service-action-card button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .human-service-workspace { grid-template-columns: 1fr; }
+  .human-service-ticket-list { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .human-service-context-grid { grid-template-columns: 1fr; }
+  .human-service-detail { padding: 18px 14px 28px; }
+}
 .candidate-toolbar { justify-content: flex-end; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .candidate-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
 .candidate-row p { margin-top: 4px; color: var(--text-secondary); }

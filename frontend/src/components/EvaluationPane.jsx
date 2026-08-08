@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, PanelLeftOpen, Play, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react';
 import {
   annotateEvalItem,
+  createEvaluationKnowledgeDraft,
   fetchEvaluationCandidates,
   fetchEvaluationDatasets,
   fetchEvaluationRun,
@@ -9,8 +10,10 @@ import {
   formatMetric,
   mineEvaluationCandidates,
   promoteEvaluationCandidate,
+  publishEvaluationKnowledgeDraft,
   publishEvaluationDataset,
   reviewEvaluationCandidate,
+  reviewEvaluationKnowledgeDraft,
   runEvaluation,
   sleep,
 } from '../utils.js';
@@ -96,7 +99,7 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
 
   async function labelCandidate(candidate) {
     await reviewEvaluationCandidate(candidate.candidate_id, {
-      status: 'labeled', severity: candidate.severity || 'medium', labels: ['production_failure'], comment: '前端人工标注',
+      status: 'labeled', severity: candidate.severity || 'medium', labels: ['production_failure', candidate.attribution_category || 'unknown'], attribution_category: candidate.attribution_category || 'unknown', comment: '前端人工标注',
     });
     await loadCandidates();
   }
@@ -145,7 +148,7 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
             await annotateEvalItem(itemId, label); await openRun(selectedRun.run_id);
           }} />
         ) : (
-          <CandidateWorkspace candidates={candidates} onMine={mineCandidates} onLabel={labelCandidate} onPromote={promoteCandidate} busy={busy} />
+          <CandidateWorkspace candidates={candidates} onMine={mineCandidates} onLabel={labelCandidate} onPromote={promoteCandidate} onCreateKnowledgeDraft={async (candidate, payload) => { await createEvaluationKnowledgeDraft(candidate.candidate_id, payload); setMessage('知识修订草稿已保存'); await loadCandidates(); }} onReviewKnowledgeDraft={async (candidate, status) => { await reviewEvaluationKnowledgeDraft(candidate.candidate_id, { status, comment: '前端审核知识修订' }); setMessage(status === 'approved' ? '知识修订已审核通过' : '知识修订已驳回'); await loadCandidates(); }} onPublishKnowledgeDraft={async (candidate) => { await publishEvaluationKnowledgeDraft(candidate.candidate_id); setMessage('知识修订已发布并进入索引'); await loadCandidates(); }} busy={busy} />
         )}
       </div>
       {message && <div className="evaluation-status">{message}</div>}
@@ -201,15 +204,28 @@ function EvaluationItem({ item, onAnnotate }) {
   );
 }
 
-function CandidateWorkspace({ candidates, onMine, onLabel, onPromote, busy }) {
+function CandidateWorkspace({ candidates, onMine, onLabel, onPromote, onCreateKnowledgeDraft, onReviewKnowledgeDraft, onPublishKnowledgeDraft, busy }) {
+  const [drafts, setDrafts] = useState({});
+  const categories = ['retrieval_miss', 'knowledge_missing', 'hallucination', 'stale_policy'];
+  function draftFor(candidate) {
+    return drafts[candidate.candidate_id] || candidate.knowledge_draft || {};
+  }
   return (
     <main className="candidate-workspace">
       <div className="candidate-toolbar"><button onClick={onMine} disabled={busy}><Search size={14} />扫描线上失败</button></div>
       {candidates.map((candidate) => (
         <article key={candidate.candidate_id} className="candidate-row">
           <div><strong>{candidate.sanitized_query || '无问题文本'}</strong><p>{candidate.sanitized_answer || '无回答文本'}</p></div>
-          <div className="candidate-facts"><span>{candidate.status}</span><span>{candidate.severity}</span><span>{candidate.source}</span></div>
+          <div className="candidate-facts"><span>{candidate.status}</span><span>{candidate.severity}</span><span>{candidate.source}</span><span>{candidate.attribution_category || 'unknown'}</span></div>
           <div className="candidate-actions"><button onClick={() => onLabel(candidate)} disabled={candidate.status === 'promoted'}>审核标注</button><button onClick={() => onPromote(candidate)} disabled={candidate.status !== 'labeled'}>提升用例</button></div>
+          <div className="candidate-knowledge-actions">
+            <select value={draftFor(candidate).category || (categories.includes(candidate.attribution_category) ? candidate.attribution_category : 'knowledge_missing')} onChange={(event) => setDrafts((prev) => ({ ...prev, [candidate.candidate_id]: { ...draftFor(candidate), category: event.target.value } }))} aria-label="知识归因类型">
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+            <textarea rows="3" value={draftFor(candidate).content || ''} onChange={(event) => setDrafts((prev) => ({ ...prev, [candidate.candidate_id]: { ...draftFor(candidate), content: event.target.value } }))} placeholder="填写经核实的 FAQ 或政策内容" />
+            <div><button onClick={() => onCreateKnowledgeDraft(candidate, { category: draftFor(candidate).category || 'knowledge_missing', title: draftFor(candidate).title || `${candidate.sanitized_query || 'Badcase'} 知识修订`, content: draftFor(candidate).content || '', region_code: '340000', policy_version: '2025', change_note: 'Badcase 知识修订' })} disabled={!String(draftFor(candidate).content || '').trim()}>保存知识草稿</button><button onClick={() => onReviewKnowledgeDraft(candidate, 'approved')} disabled={draftFor(candidate).status !== 'draft'}>审核通过</button><button onClick={() => onReviewKnowledgeDraft(candidate, 'rejected')} disabled={draftFor(candidate).status !== 'draft'}>驳回</button><button onClick={() => onPublishKnowledgeDraft(candidate)} disabled={draftFor(candidate).status !== 'approved'}>发布知识</button></div>
+            {draftFor(candidate).status && <small>知识草稿：{draftFor(candidate).status}</small>}
+          </div>
         </article>
       ))}
       {!candidates.length && <p className="hint">暂无待处理失败样本</p>}

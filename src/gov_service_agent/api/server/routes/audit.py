@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException
 
 from gov_service_agent.api.auth import RequestContext, require_service_or_user
-from gov_service_agent.api.schemas import AgentRunDetail, FeedbackRequest
+from gov_service_agent.api.schemas import AgentRunDetail, FeedbackRequest, HumanServiceRequest, HumanServiceTicketResponse
 from gov_service_agent.api.server.dependencies import auth_context
 from gov_service_agent.api.server.runtime import settings, workflow
 from gov_service_agent.observability.langfuse import score_trace
@@ -59,3 +59,22 @@ def register_audit_routes(app):
             settings=settings,
         )
         return result
+
+    @app.post("/api/declaration-qa/human-service/tickets", response_model=HumanServiceTicketResponse)
+    def create_human_service_ticket(request: HumanServiceRequest, context: RequestContext = Depends(auth_context)):
+        require_service_or_user(context, settings)
+        effective_user_id = int(context.user_id or request.user_id)
+        audit = workflow.audit_store.get(request.audit_id)
+        if not audit:
+            raise HTTPException(status_code=404, detail="Audit record not found")
+        if int(audit.get("user_id") or effective_user_id) != effective_user_id:
+            raise HTTPException(status_code=403, detail="Ticket does not belong to current user")
+        try:
+            return workflow.audit_store.create_human_service_ticket(
+                audit_id=request.audit_id,
+                user_id=effective_user_id,
+                session_id=request.session_id or str(audit.get("session_id") or ""),
+                note=request.note,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc

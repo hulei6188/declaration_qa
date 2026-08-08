@@ -27,6 +27,9 @@ def suggested_actions(state: GovServiceAgentState) -> list[dict[str, Any]]:
     item_code = str(state.get("agent_selected_item_code") or "")
     application_id = state.get("agent_selected_application_id")
     route_decision = state.get("route_decision") if isinstance(state.get("route_decision"), dict) else {}
+    query = str(state.get("query") or "")
+    if any(token in query for token in ("转人工", "人工客服", "人工服务", "联系坐席", "找客服", "真人客服")):
+        return [{"type": "human_service", "label": "联系人工客服", "payload": {"appVersion": app_version, "reason": "user_requested"}}]
     if (
         state.get("routing_clarification_required")
         and route_decision.get("clarification_kind") == "service_channel"

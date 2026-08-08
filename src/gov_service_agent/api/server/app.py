@@ -12,6 +12,7 @@ from gov_service_agent.api.server.routes.application_materials import register_a
 from gov_service_agent.api.server.routes.chat import register_chat_routes
 from gov_service_agent.api.server.routes.evaluation import register_evaluation_routes
 from gov_service_agent.api.server.routes.knowledge import register_knowledge_routes
+from gov_service_agent.api.server.routes.human_service import register_human_service_routes
 from gov_service_agent.api.server.routes.sessions import register_session_routes
 from gov_service_agent.api.server.routes.system import register_system_routes
 
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     register_session_routes(app)
     register_audit_routes(app)
     register_evaluation_routes(app)
+    register_human_service_routes(app)
     return app
 
 

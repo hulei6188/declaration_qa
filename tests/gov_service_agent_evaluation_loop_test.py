@@ -3,17 +3,75 @@ from pathlib import Path
 
 from gov_service_agent.api.schemas import EvaluationCaseRequest
 from gov_service_agent.application.evals.comparison import compare_runs
+from gov_service_agent.application.evals.candidates import infer_attribution_category
 from gov_service_agent.application.evals.evaluators import evaluate_answer, evaluate_retrieval
 from gov_service_agent.application.evals.gate import evaluate_gate
 from gov_service_agent.application.evals.fixtures import EvaluationFixtureManager
 from gov_service_agent.application.evals.pii import sanitize_text
 from gov_service_agent.application.evals.runner import EvaluationRunner
 from gov_service_agent.application.evals.trajectory import evaluate_trajectory
+from gov_service_agent.application.helpers.actions import suggested_actions
 from gov_service_agent.core.config import GovServiceAgentSettings
 from gov_service_agent.core.runtime import production_readiness_errors
+from gov_service_agent.storage.audit import InMemoryAuditStore
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_badcase_attribution_and_knowledge_draft_lifecycle():
+    category, _ = infer_attribution_category({"signals": {"tool_error": True}, "sources": []})
+    assert category == "tool_error"
+    category, _ = infer_attribution_category({"signals": {}, "sources": []})
+    assert category == "retrieval_miss"
+
+    store = InMemoryAuditStore()
+    candidate = store.create_eval_candidate({
+        "audit_uid": "audit-1", "source": "feedback", "severity": "medium",
+        "sanitized_query": "如何办理", "sanitized_answer": "未找到",
+        "attribution_category": "knowledge_missing",
+    })
+    candidate_id = candidate["candidate_id"]
+    store.review_eval_candidate(
+        candidate_id=candidate_id, status="labeled", severity="medium",
+        labels=["knowledge_missing"], comment="人工归因", reviewer_id=1,
+        attribution_category="knowledge_missing",
+    )
+    store.create_knowledge_draft(candidate_id=candidate_id, draft={
+        "category": "knowledge_missing", "title": "办理 FAQ", "content": "办理需要身份证。",
+    })
+    approved = store.review_knowledge_draft(candidate_id=candidate_id, status="approved", comment="核实通过", reviewer_id=1)
+    assert approved["knowledge_draft"]["status"] == "approved"
+    published = store.publish_knowledge_draft(candidate_id=candidate_id, document_id="doc-faq-1")
+    assert published["knowledge_draft"]["status"] == "published"
+    assert published["knowledge_draft"]["knowledge_document_id"] == "doc-faq-1"
+
+
+def test_human_service_ticket_carries_agent_context_and_supports_claim_reply():
+    store = InMemoryAuditStore()
+    audit_id = store.append({
+        "user_id": 7, "session_id": "session-1", "query": "进度查不到",
+        "normalized_query": "查询办件进度", "intent": "ticket_status",
+        "route": "business", "business_snapshot": {"application_id": 42},
+        "dialog_task": {"status": "collecting", "values": {"name": "张三"}},
+        "retrieved_sources": [{"doc_id": "doc-1", "snippet": "办理进度说明"}],
+        "tool_results": [{"tool_name": "ticket_detail_query", "status": "not_found", "ok": False}],
+        "refused": True,
+    })
+    ticket = store.create_human_service_ticket(audit_id=audit_id, user_id=7, session_id="session-1", note="请人工核验")
+    assert ticket["status"] == "open"
+    assert ticket["context"]["business_snapshot"]["application_id"] == 42
+    assert ticket["context"]["dialog_task"]["values"]["name"] == "张三"
+    ticket = store.claim_human_service_ticket(ticket_id=ticket["ticket_id"], agent_id=99)
+    assert ticket["status"] == "claimed"
+    ticket = store.add_human_service_message(ticket_id=ticket["ticket_id"], role="agent", content="我来帮您核验", author_id=99)
+    assert ticket["messages"][-1]["content"] == "我来帮您核验"
+
+
+def test_explicit_user_handoff_request_exposes_human_service_action():
+    actions = suggested_actions({"query": "请帮我转人工客服", "app_version": "v1"})
+    assert actions[0]["type"] == "human_service"
+    assert actions[0]["payload"]["reason"] == "user_requested"
 
 
 def tool_call(name, arguments, result, *, sequence, ok=True):

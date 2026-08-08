@@ -13,6 +13,7 @@ from gov_service_agent.storage.repository.business import BusinessRepository
 from gov_service_agent.storage.repository.evaluation import EvaluationRepository
 from gov_service_agent.storage.repository.jobs import IndexJobRepository
 from gov_service_agent.storage.repository.knowledge import KnowledgeRepository
+from gov_service_agent.storage.repository.human_service import HumanServiceRepository
 from gov_service_agent.storage.repository.sessions import SessionRepository
 
 
@@ -29,6 +30,7 @@ class PostgresGovServiceAgentStore(PostgresStoreBase):
         self.knowledge = KnowledgeRepository(self.engine)
         self.index_jobs = IndexJobRepository(self.engine)
         self.sessions = SessionRepository(self.engine)
+        self.human_service = HumanServiceRepository(self.engine)
 
     def append(self, payload: dict[str, Any]) -> str:
         """追加一条审计记录并返回记录 ID。"""
@@ -45,6 +47,27 @@ class PostgresGovServiceAgentStore(PostgresStoreBase):
     def add_feedback(self, *, audit_id: str, rating: str, comment: str) -> dict[str, Any]:
         """保存用户对问答结果的反馈。"""
         return self.audit.add_feedback(audit_id=audit_id, rating=rating, comment=comment)
+
+    def create_human_service_ticket(self, **payload) -> dict[str, Any]:
+        audit = self.get(payload["audit_id"])
+        if not audit:
+            raise ValueError("Audit record not found")
+        return self.human_service.create_ticket(audit={**audit, "id": payload["audit_id"]}, user_id=payload["user_id"], session_id=payload["session_id"], note=payload.get("note", ""))
+
+    def list_human_service_tickets(self, **payload) -> list[dict[str, Any]]:
+        return self.human_service.list_tickets(**payload)
+
+    def get_human_service_ticket(self, ticket_id: str) -> dict[str, Any] | None:
+        return self.human_service.get_ticket(ticket_id)
+
+    def claim_human_service_ticket(self, **payload) -> dict[str, Any]:
+        return self.human_service.claim_ticket(**payload)
+
+    def update_human_service_status(self, **payload) -> dict[str, Any]:
+        return self.human_service.update_status(**payload)
+
+    def add_human_service_message(self, **payload) -> dict[str, Any]:
+        return self.human_service.add_message(**payload)
 
     def list_ticket_items(self, *, user_id: int, region_code: str | None = None) -> list[dict[str, Any]]:
         """按事项汇总当前用户的申请。"""
@@ -291,6 +314,18 @@ class PostgresGovServiceAgentStore(PostgresStoreBase):
 
     def review_eval_candidate(self, **payload) -> dict[str, Any]:
         return self.evaluation.review_eval_candidate(**payload)
+
+    def get_eval_candidate(self, candidate_id: str) -> dict[str, Any] | None:
+        return self.evaluation.get_eval_candidate(candidate_id)
+
+    def create_knowledge_draft(self, **payload) -> dict[str, Any]:
+        return self.evaluation.create_knowledge_draft(**payload)
+
+    def review_knowledge_draft(self, **payload) -> dict[str, Any]:
+        return self.evaluation.review_knowledge_draft(**payload)
+
+    def publish_knowledge_draft(self, **payload) -> dict[str, Any]:
+        return self.evaluation.publish_knowledge_draft(**payload)
 
     def promote_eval_candidate(self, **payload) -> dict[str, Any]:
         return self.evaluation.promote_eval_candidate(**payload)

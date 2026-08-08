@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from gov_service_agent.storage.session_payloads import user_message_payload
+from gov_service_agent.storage.human_service import InMemoryHumanServiceStore
 
 
 class InMemoryAuditStore:
@@ -21,6 +22,7 @@ class InMemoryAuditStore:
         self._eval_run_items: dict[str, dict[str, Any]] = {}
         self._eval_candidates: dict[str, dict[str, Any]] = {}
         self._eval_scores: list[dict[str, Any]] = []
+        self.human_service = InMemoryHumanServiceStore()
 
     def append(self, payload: dict[str, Any]) -> str:
         """追加一条审计记录并返回记录 ID。"""
@@ -138,6 +140,27 @@ class InMemoryAuditStore:
         }
         self._feedback.append(payload)
         return payload
+
+    def create_human_service_ticket(self, *, audit_id: str, user_id: int, session_id: str, note: str) -> dict[str, Any]:
+        audit = self.get(audit_id)
+        if not audit:
+            raise ValueError("Audit record not found")
+        return self.human_service.create_ticket(audit={**audit, "id": audit_id}, user_id=user_id, session_id=session_id, note=note)
+
+    def list_human_service_tickets(self, *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        return self.human_service.list_tickets(status=status, limit=limit)
+
+    def get_human_service_ticket(self, ticket_id: str) -> dict[str, Any] | None:
+        return self.human_service.get_ticket(ticket_id)
+
+    def claim_human_service_ticket(self, *, ticket_id: str, agent_id: int) -> dict[str, Any]:
+        return self.human_service.claim_ticket(ticket_id=ticket_id, agent_id=agent_id)
+
+    def update_human_service_status(self, *, ticket_id: str, status: str) -> dict[str, Any]:
+        return self.human_service.update_status(ticket_id=ticket_id, status=status)
+
+    def add_human_service_message(self, *, ticket_id: str, role: str, content: str, author_id: int | None = None) -> dict[str, Any]:
+        return self.human_service.add_message(ticket_id=ticket_id, role=role, content=content, author_id=author_id)
 
     def feedback_items(self) -> list[dict[str, Any]]:
         """返回已收集的反馈列表。"""
@@ -442,6 +465,9 @@ class InMemoryAuditStore:
             "updated_at": now,
             "agent_retrieval_queries": list(candidate.get("agent_retrieval_queries") or []),
             "online_scores": dict(candidate.get("online_scores") or {}),
+            "attribution_category": str(candidate.get("attribution_category") or "unknown"),
+            "attribution_reason": str(candidate.get("attribution_reason") or ""),
+            "knowledge_draft": dict(candidate.get("knowledge_draft") or {}),
             **candidate,
         }
         self._eval_candidates[candidate_id] = payload
@@ -451,11 +477,43 @@ class InMemoryAuditStore:
         values = [dict(item) for item in self._eval_candidates.values() if not status or item.get("status") == status]
         return values[:limit]
 
-    def review_eval_candidate(self, *, candidate_id: str, status: str, severity: str, labels: list[str], comment: str, reviewer_id: int) -> dict[str, Any]:
+    def review_eval_candidate(self, *, candidate_id: str, status: str, severity: str, labels: list[str], comment: str, reviewer_id: int, attribution_category: str = "unknown") -> dict[str, Any]:
         candidate = self._eval_candidates.get(candidate_id)
         if not candidate or candidate.get("status") == "promoted":
             raise ValueError("Evaluation candidate not found or already promoted")
-        candidate.update({"status": status, "severity": severity, "labels": labels, "reviewer_comment": comment})
+        candidate.update({"status": status, "severity": severity, "labels": labels, "reviewer_comment": comment, "attribution_category": attribution_category})
+        return dict(candidate)
+
+    def create_knowledge_draft(self, *, candidate_id: str, draft: dict[str, Any]) -> dict[str, Any]:
+        candidate = self._eval_candidates.get(candidate_id)
+        if not candidate or candidate.get("status") in {"rejected", "promoted"}:
+            raise ValueError("Evaluation candidate is not eligible for a knowledge draft")
+        payload = {**draft, "status": "draft", "created_at": datetime.now(timezone.utc).isoformat()}
+        candidate["knowledge_draft"] = payload
+        candidate["updated_at"] = datetime.now(timezone.utc).isoformat()
+        return dict(candidate)
+
+    def review_knowledge_draft(self, *, candidate_id: str, status: str, comment: str, reviewer_id: int) -> dict[str, Any]:
+        candidate = self._eval_candidates.get(candidate_id)
+        draft = candidate.get("knowledge_draft") if candidate else None
+        if not candidate or not draft or draft.get("status") != "draft":
+            raise ValueError("Knowledge draft not found or already reviewed")
+        draft = {**draft, "status": status, "reviewer_comment": comment, "reviewed_by": reviewer_id, "reviewed_at": datetime.now(timezone.utc).isoformat()}
+        candidate["knowledge_draft"] = draft
+        candidate["updated_at"] = datetime.now(timezone.utc).isoformat()
+        return dict(candidate)
+
+    def get_eval_candidate(self, candidate_id: str) -> dict[str, Any] | None:
+        candidate = self._eval_candidates.get(candidate_id)
+        return dict(candidate) if candidate else None
+
+    def publish_knowledge_draft(self, *, candidate_id: str, document_id: str) -> dict[str, Any]:
+        candidate = self._eval_candidates.get(candidate_id)
+        draft = candidate.get("knowledge_draft") if candidate else None
+        if not candidate or not draft or draft.get("status") != "approved":
+            raise ValueError("Knowledge draft must be approved before publishing")
+        candidate["knowledge_draft"] = {**draft, "status": "published", "knowledge_document_id": document_id, "published_at": datetime.now(timezone.utc).isoformat()}
+        candidate["updated_at"] = datetime.now(timezone.utc).isoformat()
         return dict(candidate)
 
     def promote_eval_candidate(self, *, candidate_id: str, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:

@@ -329,6 +329,42 @@ class FeedbackRequest(BaseModel):
     comment: str = Field(default="", max_length=1000)
 
 
+class HumanServiceRequest(BaseModel):
+    """用户创建人工服务工单的请求模型。"""
+    audit_id: str = Field(min_length=1, max_length=120)
+    session_id: str = Field(default="", max_length=120)
+    user_id: int = Field(default=1, ge=1)
+    note: str = Field(default="", max_length=2000)
+
+
+class HumanServiceMessageRequest(BaseModel):
+    """坐席追加工单消息的请求模型。"""
+    content: str = Field(min_length=1, max_length=5000)
+
+
+class HumanServiceStatusRequest(BaseModel):
+    """坐席更新工单状态的请求模型。"""
+    status: str = Field(pattern="^(open|claimed|waiting_user|resolved|closed)$")
+
+
+class HumanServiceTicketResponse(BaseModel):
+    """人工服务工单响应模型。"""
+    ticket_id: str
+    audit_id: str = ""
+    session_id: str = ""
+    user_id: int = 1
+    status: str = "open"
+    priority: str = "normal"
+    assigned_to: int | None = None
+    query: str = ""
+    intent: str = ""
+    route: str = ""
+    context: dict[str, Any] = Field(default_factory=dict)
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+
+
 class EvaluationCaseRequest(BaseModel):
     """评测用例创建请求模型。"""
     model_config = ConfigDict(extra="forbid")
@@ -494,6 +530,25 @@ class EvaluationCandidateReviewRequest(BaseModel):
     status: str = Field(pattern="^(triaged|labeled|rejected)$")
     severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
     labels: list[str] = Field(default_factory=list)
+    attribution_category: str = Field(default="unknown", pattern="^(retrieval_miss|knowledge_missing|intent_mismatch|slot_error|hallucination|tool_error|agent_loop|stale_policy|unknown)$")
+    comment: str = Field(default="", max_length=2000)
+
+
+class EvaluationCandidateKnowledgeDraftRequest(BaseModel):
+    """为 Badcase 创建知识修订草稿。"""
+    category: str = Field(pattern="^(retrieval_miss|knowledge_missing|hallucination|stale_policy)$")
+    title: str = Field(default="", max_length=200)
+    content: str = Field(default="", max_length=50_000)
+    source_document_id: str = Field(default="", max_length=120)
+    source_url: str = Field(default="", max_length=500)
+    region_code: str = Field(default="340000", min_length=2, max_length=12)
+    policy_version: str = Field(default="2025", max_length=80)
+    change_note: str = Field(default="Badcase 知识修订", max_length=1000)
+
+
+class EvaluationCandidateKnowledgeDraftReviewRequest(BaseModel):
+    """审核知识修订草稿。"""
+    status: str = Field(pattern="^(approved|rejected)$")
     comment: str = Field(default="", max_length=2000)
 
 
@@ -517,6 +572,9 @@ class EvaluationCandidateResponse(BaseModel):
     trajectory_snapshot: dict[str, Any] = Field(default_factory=dict)
     agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
     online_scores: dict[str, Any] = Field(default_factory=dict)
+    attribution_category: str = "unknown"
+    attribution_reason: str = ""
+    knowledge_draft: dict[str, Any] = Field(default_factory=dict)
     labels: list[str] = Field(default_factory=list)
     reviewer_comment: str = ""
     promoted_case_id: str | None = None

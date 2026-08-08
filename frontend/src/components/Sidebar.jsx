@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   FlaskConical,
+  Headset,
   GitBranch,
   Landmark,
   LibraryBig,
@@ -14,6 +15,7 @@ import {
 import { escapeHtml } from '../utils.js';
 
 const NAV_ITEMS = [
+  { id: 'human-service', label: '人工服务', icon: Headset },
   { id: 'library', label: '文件库', icon: LibraryBig },
   { id: 'versions', label: '版本管理', icon: GitBranch },
   { id: 'evaluation', label: '评测中心', icon: FlaskConical },

@@ -512,11 +512,13 @@ class EvaluationRepository(EngineBackedRepository):
             INSERT INTO declaration_qa.eval_candidates (
                 candidate_uid, audit_uid, agent_run_uid, trace_id, source, severity,
                 sanitized_query, sanitized_answer, detection_signals, trajectory_snapshot,
-                agent_retrieval_queries, online_scores
+                agent_retrieval_queries, online_scores, attribution_category,
+                attribution_reason, knowledge_draft
             ) VALUES (
                 :candidate_uid, :audit_uid, :agent_run_uid, :trace_id, :source, :severity,
                 :sanitized_query, :sanitized_answer, :detection_signals, :trajectory_snapshot,
-                :agent_retrieval_queries, :online_scores
+                :agent_retrieval_queries, :online_scores, :attribution_category,
+                :attribution_reason, :knowledge_draft
             )
             RETURNING candidate_uid AS candidate_id, *
             """
@@ -525,9 +527,10 @@ class EvaluationRepository(EngineBackedRepository):
             bindparam("trajectory_snapshot", type_=JSON),
             bindparam("agent_retrieval_queries", type_=JSON),
             bindparam("online_scores", type_=JSON),
+            bindparam("knowledge_draft", type_=JSON),
         )
         with self.engine.begin() as connection:
-            row = connection.execute(stmt, {"candidate_uid": candidate_uid, **payload}).mappings().first()
+            row = connection.execute(stmt, {"candidate_uid": candidate_uid, "attribution_category": payload.get("attribution_category") or "unknown", "attribution_reason": payload.get("attribution_reason") or "", "knowledge_draft": payload.get("knowledge_draft") or {}, **payload}).mappings().first()
         return normalize_eval_candidate(row)
 
     def list_eval_candidates(self, *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
@@ -554,11 +557,12 @@ class EvaluationRepository(EngineBackedRepository):
         labels: list[str],
         comment: str,
         reviewer_id: int,
+        attribution_category: str = "unknown",
     ) -> dict[str, Any]:
         stmt = text(
             """
             UPDATE declaration_qa.eval_candidates SET status = :status, severity = :severity,
-                labels = :labels, reviewer_comment = :comment, reviewed_by = :reviewer_id,
+                labels = :labels, attribution_category = :attribution_category, reviewer_comment = :comment, reviewed_by = :reviewer_id,
                 reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
             WHERE candidate_uid = :candidate_uid AND status <> 'promoted'
             RETURNING candidate_uid AS candidate_id, *
@@ -572,12 +576,70 @@ class EvaluationRepository(EngineBackedRepository):
                     "status": status,
                     "severity": severity,
                     "labels": labels,
+                    "attribution_category": attribution_category,
                     "comment": comment,
                     "reviewer_id": reviewer_id,
                 },
             ).mappings().first()
         if not row:
             raise ValueError("Evaluation candidate not found or already promoted")
+        return normalize_eval_candidate(row)
+
+    def get_eval_candidate(self, candidate_id: str) -> dict[str, Any] | None:
+        with self.engine.begin() as connection:
+            row = connection.execute(text("SELECT candidate_uid AS candidate_id, * FROM declaration_qa.eval_candidates WHERE candidate_uid = :uid"), {"uid": candidate_id}).mappings().first()
+        return normalize_eval_candidate(row) if row else None
+
+    def create_knowledge_draft(self, *, candidate_id: str, draft: dict[str, Any]) -> dict[str, Any]:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text("""
+                    UPDATE declaration_qa.eval_candidates
+                    SET knowledge_draft = :draft, updated_at = CURRENT_TIMESTAMP
+                    WHERE candidate_uid = :uid AND status NOT IN ('rejected', 'promoted')
+                    RETURNING candidate_uid AS candidate_id, *
+                """).bindparams(bindparam("draft", type_=JSON)),
+                {"uid": candidate_id, "draft": {**draft, "status": "draft"}},
+            ).mappings().first()
+        if not row:
+            raise ValueError("Evaluation candidate is not eligible for a knowledge draft")
+        return normalize_eval_candidate(row)
+
+    def review_knowledge_draft(self, *, candidate_id: str, status: str, comment: str, reviewer_id: int) -> dict[str, Any]:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text("""
+                    UPDATE declaration_qa.eval_candidates
+                    SET knowledge_draft = jsonb_set(
+                        jsonb_set(knowledge_draft, '{status}', to_jsonb(CAST(:status AS TEXT))),
+                        '{reviewer_comment}', to_jsonb(CAST(:comment AS TEXT))
+                    ) || jsonb_build_object('reviewed_by', :reviewer_id, 'reviewed_at', CURRENT_TIMESTAMP),
+                    updated_at = CURRENT_TIMESTAMP
+                    WHERE candidate_uid = :uid AND knowledge_draft->>'status' = 'draft'
+                    RETURNING candidate_uid AS candidate_id, *
+                """),
+                {"uid": candidate_id, "status": status, "comment": comment, "reviewer_id": reviewer_id},
+            ).mappings().first()
+        if not row:
+            raise ValueError("Knowledge draft not found or already reviewed")
+        return normalize_eval_candidate(row)
+
+    def publish_knowledge_draft(self, *, candidate_id: str, document_id: str) -> dict[str, Any]:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text("""
+                    UPDATE declaration_qa.eval_candidates
+                    SET knowledge_draft = knowledge_draft || jsonb_build_object(
+                        'status', 'published', 'knowledge_document_id', :document_id,
+                        'published_at', CURRENT_TIMESTAMP
+                    ), updated_at = CURRENT_TIMESTAMP
+                    WHERE candidate_uid = :uid AND knowledge_draft->>'status' = 'approved'
+                    RETURNING candidate_uid AS candidate_id, *
+                """),
+                {"uid": candidate_id, "document_id": document_id},
+            ).mappings().first()
+        if not row:
+            raise ValueError("Knowledge draft must be approved before publishing")
         return normalize_eval_candidate(row)
 
     def promote_eval_candidate(self, *, candidate_id: str, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:

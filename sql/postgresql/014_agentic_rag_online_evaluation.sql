@@ -11,7 +11,10 @@ ALTER TABLE declaration_qa.eval_run_items
 
 ALTER TABLE declaration_qa.eval_candidates
     ADD COLUMN IF NOT EXISTS agent_retrieval_queries JSONB NOT NULL DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS online_scores JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ADD COLUMN IF NOT EXISTS online_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS attribution_category VARCHAR(40) NOT NULL DEFAULT 'unknown',
+    ADD COLUMN IF NOT EXISTS attribution_reason TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS knowledge_draft JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_cases_source_trace
     ON declaration_qa.eval_cases (source_trace_id)

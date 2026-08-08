@@ -222,6 +222,25 @@ python -m gov_service_agent.application.evals.scheduler
 独立Judge的忠实性等分数写回对应Langfuse Trace，抽样结果自动进入脱敏候选池。
 候选仍需人工补充 `doc_id/chunk_id` 金标后才能提升为黄金用例。
 
+### Badcase 知识治理
+
+失败样本池现在支持按 `retrieval_miss`、`knowledge_missing`、`intent_mismatch`、
+`slot_error`、`hallucination`、`tool_error`、`agent_loop` 和 `stale_policy` 归因。
+知识类问题可以在评测中心创建知识修订草稿，经过人工审核后发布为新的知识文档并进入
+索引队列；发布动作不会绕过审核。意图、槽位和 Prompt 类问题继续沉淀为回归用例和
+人工修订任务，需通过评测门禁后再上线。
+
+新增接口：
+
+```text
+POST /evaluation/candidates/{candidate_id}/knowledge-draft
+POST /evaluation/candidates/{candidate_id}/knowledge-draft/review
+POST /evaluation/candidates/{candidate_id}/knowledge-draft/publish
+```
+
+已执行过 `014_agentic_rag_online_evaluation.sql` 的数据库，需要重新执行该迁移，为候选
+表增加 `attribution_category`、`attribution_reason` 和 `knowledge_draft` 字段。
+
 GitHub Actions 中配置 `EVAL_BASE_URL`、数据集 ID、基线 Run ID 和 `EVAL_INTERNAL_API_KEY` 后，即可启用 PR 与夜间发布门禁。
 
 ## 常用 API
@@ -240,6 +259,16 @@ GitHub Actions 中配置 `EVAL_BASE_URL`、数据集 ID、基线 Run ID 和 `EVA
 | 启动评测 | `POST /evaluation/datasets/{id}/runs` |
 | 失败样本池 | `GET /evaluation/candidates` |
 | 用户反馈 | `POST /feedback` |
+| 用户转人工 | `POST /human-service/tickets` |
+| 坐席工单 | `GET/POST /human-service/tickets` |
+
+### 智能转人工与坐席辅助
+
+拒答或无法完成业务查询时，聊天界面会提供“联系人工”动作。用户确认后，系统创建人工服务
+工单，并从审计记录提取脱敏上下文：用户问题、识别意图、路由、事项/业务快照、已填表单字段、
+检索证据和最近工具结果。坐席工作台可查看待处理工单、接入工单、追加人工回复、切换等待用户/已解决
+状态。生产环境需执行 `sql/postgresql/017_human_service.sql`，实时消息推送和外部客服系统分配可在此工单
+边界上继续对接。
 
 ## 项目结构
 

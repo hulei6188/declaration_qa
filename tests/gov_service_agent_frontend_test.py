@@ -142,7 +142,7 @@ def test_failed_full_form_request_retains_current_dialog_task_and_values():
 def test_completed_dialog_task_blocks_stale_collecting_form_resurrection():
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
 
-    assert "if (task.status === 'collecting' && task.schema?.fields?.length) return task;" in utils
+    assert "if (task.status === 'collecting' && task.schema?.steps?.length) return task;" in utils
     assert "return {};" in utils
     assert "Object.keys(task).length === 0" in utils
 
@@ -155,15 +155,18 @@ def test_confirmation_ready_event_hides_completed_form():
     assert "['application_submit', 'complaint_create'].includes" in utils
 
 
-def test_frontend_renders_and_submits_one_complete_schema_form():
+def test_frontend_renders_and_submits_the_current_schema_step():
     chat = (FRONTEND_ROOT / "src" / "components" / "ChatPane.jsx").read_text(encoding="utf-8")
     utils = (FRONTEND_ROOT / "src" / "utils.js").read_text(encoding="utf-8")
     styles = (FRONTEND_ROOT / "src" / "styles.css").read_text(encoding="utf-8")
 
-    assert "const fields = task.schema?.fields || []" in chat
+    assert "const steps = task.schema?.steps || []" in chat
+    assert "const currentStep = steps[currentStepIndex] || {}" in chat
+    assert "const fields = currentStep.fields || []" in chat
     assert "fields.map((field) =>" in chat
     assert "values," in chat
-    assert "提交完整表单" in chat
+    assert "保存并继续" in chat
+    assert "step_id: stepId" in chat
     assert "field_name" not in chat
     assert "formSubmission?.values" in utils
     assert ".slot-form-fields" in styles

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar.jsx';
 import ChatPane from './components/ChatPane.jsx';
 import EvaluationPane from './components/EvaluationPane.jsx';
+import HumanServicePane from './components/HumanServicePane.jsx';
 import KnowledgeLibraryPane from './components/KnowledgeLibraryPane.jsx';
 import VersionManagementPane from './components/VersionManagementPane.jsx';
 import {
@@ -28,6 +29,7 @@ import {
   rollbackDocument,
   fetchIndexJob,
   sendFeedback,
+  createHumanServiceTicket,
   etlStageLabel,
   compactJson,
   formatJobProgress,
@@ -59,6 +61,7 @@ export default function App() {
   const [timeline, setTimeline] = useState([]);
   const [audit, setAudit] = useState({ intent: '-', auditId: '-', refused: '-' });
   const [feedbackResult, setFeedbackResult] = useState('');
+  const [humanServiceResult, setHumanServiceResult] = useState('');
 
   // ---- 会话 ----
   const [sessions, setSessions] = useState([]);
@@ -627,6 +630,15 @@ export default function App() {
     }
   }
 
+  async function requestHumanService(action) {
+    if (!audit.auditId || audit.auditId === '-') return;
+    try {
+      const ticket = await createHumanServiceTicket(audit.auditId, sessionId, ctx.userId, '用户请求人工客服');
+      setHumanServiceResult(`已提交人工服务工单 ${ticket.ticket_id}`);
+      setMessages((prev) => prev.map((message, index) => index === prev.length - 1 ? { ...message, humanServiceTicket: ticket.ticket_id, suggestedActions: (message.suggestedActions || []).map((item) => item.type === 'human_service' ? { ...item, label: '人工工单已提交' } : item) } : message));
+    } catch (error) { setHumanServiceResult(`转人工失败：${error.message}`); }
+  }
+
   // ---- 渲染 ----
   return (
     <div className="app-shell" data-theme={theme}>
@@ -655,11 +667,17 @@ export default function App() {
           audit={audit}
           feedbackResult={feedbackResult}
           onFeedback={doFeedback}
+          humanServiceResult={humanServiceResult}
+          onHumanService={requestHumanService}
           onLoadToolTrace={loadToolTrace}
           onResolveConfirmation={resolveHumanConfirmation}
           onUploadMaterial={uploadFormMaterial}
           theme={theme}
           onToggleTheme={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        />}
+        {activeView === 'human-service' && <HumanServicePane
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         />}
