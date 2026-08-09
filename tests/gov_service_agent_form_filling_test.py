@@ -54,6 +54,93 @@ def test_item_code_selects_a_different_versioned_form_schema():
     assert sum(1 for item in material_field["materials"] if item["required"]) == 4
 
 
+def test_application_start_checks_existing_user_application_before_collecting():
+    adapter = InMemoryBusinessDataAdapter()
+    tool = ApplicationSubmitTool(adapter)
+    context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id="application-guard-test",
+        metadata={"state": {}, "tool_call_id": "guard-start"},
+    )
+
+    blocked = tool.confirmation_preview(
+        {"item_code": "ITEM-HEALTH-CERTIFICATE", "values": {"姓名": "张三"}},
+        context,
+    )
+
+    assert blocked["ready"] is False
+    assert blocked["error"] == "application_in_progress"
+    assert blocked["existing_applications"][0]["application_id"] == 1001
+    assert blocked["existing_applications"][0]["current_status"] == "in_review"
+    assert "健康证办理" in blocked["message"]
+    assert "1001" in blocked["message"]
+
+
+def test_application_write_rechecks_existing_application_before_persisting():
+    adapter = InMemoryBusinessDataAdapter()
+    tool = ApplicationSubmitTool(adapter)
+    context = ToolExecutionContext(
+        user_id=1,
+        region_code="340000",
+        session_id="application-write-guard-test",
+        metadata={"state": {}, "tool_call_id": "write-guard-start"},
+    )
+    first = tool.confirmation_preview(
+        {
+            "item_code": "ITEM-RESIDENCE-PERMIT",
+            "values": {
+                "姓名": "张三",
+                "手机号": "13800138000",
+                "身份证号": "340101199001011234",
+            },
+        },
+        context,
+    )
+    second = tool.confirmation_preview(
+        {"step_id": "applicant_identity", "values": {}},
+        ToolExecutionContext(
+            user_id=1,
+            region_code="340000",
+            session_id=context.session_id,
+            metadata={"state": {"dialog_task": first["dialog_task"]}, "tool_call_id": "write-guard-identity"},
+        ),
+    )
+    ready = tool.confirmation_preview(
+        {
+            "step_id": "residence_details",
+            "values": {"居住地址": "合肥市包河区示例路1号", "证明编号": "RES-2026-001"},
+        },
+        ToolExecutionContext(
+            user_id=1,
+            region_code="340000",
+            session_id=context.session_id,
+            metadata={"state": {"dialog_task": second["dialog_task"]}, "tool_call_id": "write-guard-ready"},
+        ),
+    )
+    active = dict(adapter._applications["A1001"])
+    active.update({"item_code": "ITEM-RESIDENCE-PERMIT", "item_name": "居住证办理"})
+    adapter._applications["ACTIVE-RESIDENCE"] = active
+
+    result = tool.execute(
+        tool.input_model.model_validate({"step_id": "residence_details", "values": {}}),
+        ToolExecutionContext(
+            user_id=1,
+            region_code="340000",
+            session_id=context.session_id,
+            metadata={
+                "state": {"dialog_task": ready["dialog_task"]},
+                "tool_call_id": "write-guard-final",
+                "human_approved": True,
+            },
+        ),
+    )
+
+    assert result.ok is False
+    assert result.status == "application_in_progress"
+    assert result.data["existing_applications"][0]["application_id"] == 1001
+
+
 def test_water_application_requires_uploaded_materials_and_validates_session_ownership(monkeypatch):
     from gov_service_agent.core.config import get_settings
 

@@ -49,10 +49,13 @@ class ResponseNodes:
             next_state.get("retrieved_sources") or [],
             next_state.get("tool_results") or [],
         )
+        application_guard_answer = application_in_progress_answer(next_state)
         transaction_answer = authoritative_write_answer(next_state)
-        if transaction_answer:
+        if application_guard_answer:
+            answer = application_guard_answer
+        elif transaction_answer:
             answer = transaction_answer
-        form_answer = active_slot_filling_answer(next_state)
+        form_answer = active_slot_filling_answer(next_state) if not application_guard_answer else ""
         if form_answer:
             answer = form_answer
         if not answer:
@@ -61,6 +64,9 @@ class ResponseNodes:
             answer = "当前无法生成可靠回答，请稍后重试。"
         answer, history_fallback = ensure_complete_application_history(answer, next_state)
         effective_provider = (
+            "deterministic_application_guard"
+            if application_guard_answer
+            else
             "deterministic_transaction_result"
             if transaction_answer
             else "deterministic_slot_filling"
@@ -71,6 +77,7 @@ class ResponseNodes:
             "mode": next_state.get("answer_mode") or "direct",
             "provider": effective_provider,
             "history_integrity_fallback": history_fallback,
+            "application_guard_override": bool(application_guard_answer),
             "transaction_result_override": bool(transaction_answer),
             "slot_filling_override": bool(form_answer),
         }
@@ -203,6 +210,29 @@ def authoritative_appointment_write_answer(state: dict) -> str:
         if tool_name == "appointment_book":
             return booking_result_answer(appointment, citation)
         return cancellation_result_answer(appointment, citation)
+    return ""
+
+
+def application_in_progress_answer(state: dict) -> str:
+    """Explain a duplicate application guard without relying on model wording."""
+    for result in reversed(state.get("tool_results") or []):
+        if not isinstance(result, dict):
+            continue
+        if str(result.get("tool_name") or "") != "application_submit":
+            continue
+        if str(result.get("status") or "") != "application_in_progress":
+            continue
+        error = str(result.get("error") or "").strip()
+        if error:
+            return error
+        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        applications = data.get("existing_applications") if isinstance(data.get("existing_applications"), list) else []
+        application = applications[0] if applications and isinstance(applications[0], dict) else {}
+        item_name = str(application.get("item_name") or data.get("item_code") or "当前事项")
+        application_id = str(application.get("application_id") or "")
+        status = str(application.get("current_status") or "办理中")
+        identifier = f"（申请编号：{application_id}）" if application_id else ""
+        return f"您已有正在办理的“{item_name}”申报{identifier}，当前状态为“{status}”。请先完成或处理现有申报后再发起新的申报。"
     return ""
 
 

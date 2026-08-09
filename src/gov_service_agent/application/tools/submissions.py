@@ -45,6 +45,19 @@ COMPLAINT_SCHEMA = {
 }
 
 
+IN_PROGRESS_APPLICATION_STATUSES = frozenset(
+    {
+        "submitted",
+        "pre_accept",
+        "accepted",
+        "in_review",
+        "in_decision",
+        "returned_for_correction",
+        "processing",
+    }
+)
+
+
 class ApplicationSubmitInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -99,6 +112,14 @@ class ApplicationSubmitTool:
         )
         if not schema:
             return {"ready": False, "error": "schema_not_found", "item_code": item_code}
+        if not continuing_same_item:
+            active = find_in_progress_applications(
+                self.adapter,
+                user_id=context.user_id,
+                item_code=item_code,
+            )
+            if active:
+                return application_in_progress_preview(item_code, active)
         schema = normalize_form_schema(schema)
         preview = step_form_preview(
             task_type="application_submission",
@@ -119,7 +140,12 @@ class ApplicationSubmitTool:
                 self.name,
                 False,
                 str(preview["error"]),
-                data={"item_code": preview.get("item_code", ""), "source_type": "business_tool"},
+                data={
+                    "item_code": preview.get("item_code", ""),
+                    "existing_applications": preview.get("existing_applications") or [],
+                    "source_type": "business_query" if preview["error"] == "application_in_progress" else "business_tool",
+                },
+                error=str(preview.get("message") or preview["error"]),
             )
         task = dict(preview["dialog_task"])
         if not preview["ready"]:
@@ -137,6 +163,25 @@ class ApplicationSubmitTool:
                 False,
                 "confirmation_required",
                 data={"dialog_task": task, "source_type": "dialog_task"},
+            )
+        active = find_in_progress_applications(
+            self.adapter,
+            user_id=context.user_id,
+            item_code=str(task["item_code"]),
+        )
+        if active:
+            return ToolExecutionResult(
+                self.name,
+                self.name,
+                False,
+                "application_in_progress",
+                data={
+                    "item_code": str(task["item_code"]),
+                    "dialog_task": task,
+                    "existing_applications": active,
+                    "source_type": "business_query",
+                },
+                error=application_in_progress_message(str(task["item_code"]), active),
             )
         operation_id = str(context.metadata.get("tool_call_id") or context.session_id or "application-submit")
         idempotency_key = sha256(
@@ -232,6 +277,49 @@ def active_task(context: ToolExecutionContext, task_type: str) -> dict[str, Any]
     if not isinstance(task, dict) or task.get("task_type") != task_type or task.get("status") == "completed":
         return {}
     return dict(task)
+
+
+def find_in_progress_applications(
+    adapter: BusinessDataAdapter,
+    *,
+    user_id: int,
+    item_code: str,
+) -> list[dict[str, Any]]:
+    """Read trusted user applications and keep only non-terminal records."""
+    applications = adapter.get_applications_by_items(
+        user_id=int(user_id),
+        item_codes=[str(item_code or "").strip()],
+    )
+    return [
+        dict(application)
+        for application in applications
+        if str(application.get("current_status") or application.get("status") or "").strip().lower()
+        in IN_PROGRESS_APPLICATION_STATUSES
+    ]
+
+
+def application_in_progress_preview(
+    item_code: str,
+    applications: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return a structured, user-readable duplicate-submission guard result."""
+    return {
+        "ready": False,
+        "error": "application_in_progress",
+        "message": application_in_progress_message(item_code, applications),
+        "item_code": item_code,
+        "existing_applications": applications,
+    }
+
+
+def application_in_progress_message(item_code: str, applications: list[dict[str, Any]]) -> str:
+    """Explain which existing application blocks a new submission."""
+    application = applications[0] if applications else {}
+    item_name = str(application.get("item_name") or item_code or "当前事项")
+    application_id = str(application.get("application_id") or "")
+    status = str(application.get("current_status") or application.get("status") or "办理中")
+    identifier = f"（申请编号：{application_id}）" if application_id else ""
+    return f"您已有正在办理的“{item_name}”申报{identifier}，当前状态为“{status}”。请先完成或处理现有申报后再发起新的申报。"
 
 
 def step_form_preview(

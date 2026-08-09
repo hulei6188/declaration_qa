@@ -35,7 +35,7 @@ DOMAIN_AGENT_PROMPTS: dict[str, str] = {
 - 咨询、投诉或建议记录使用 consultation_record_query。
 - 问题同时涉及公开补正规则时可调用 knowledge_search；业务事实和公开规则分别引用[业务N]与[证据N]。""",
     "application": """当前领域：线上申报。
-- 先用 knowledge_search 确认真实 item_code，再调用 application_submit；不得猜测事项编码。
+- 先用 knowledge_search 确认真实 item_code，再调用 application_submit；不得猜测事项编码。application_submit 启动申报前会先查询当前用户该事项的申请记录；若返回 application_in_progress，直接告知用户已有办件及当前状态，不得继续创建新申报。
 - application_submit 的字段和步骤由服务端 Schema 决定。自然语言中的 values 只包含用户明确提供的值；前端结构化表单每次只提交当前 step_id 的字段。
 - slot_filling_required 时由前端根据 dialog_task.schema.steps 和 current_step_id 渲染当前步骤及材料上传；回答只提示在下方完成当前步骤，不得逐项追问或要求用户在聊天框“回复”。
 - dialog_task 保存表单草稿。只有整张表单通过服务端校验后才进入人工确认。
