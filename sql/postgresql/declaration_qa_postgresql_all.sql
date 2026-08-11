@@ -951,12 +951,41 @@ ALTER TABLE declaration_qa.eval_candidates
     ADD COLUMN IF NOT EXISTS online_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS attribution_category VARCHAR(40) NOT NULL DEFAULT 'unknown',
     ADD COLUMN IF NOT EXISTS attribution_reason TEXT NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS knowledge_draft JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ADD COLUMN IF NOT EXISTS knowledge_draft JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64) NOT NULL DEFAULT '';
+
+WITH ranked AS (
+    SELECT
+        id,
+        COALESCE(NULLIF(detection_signals ->> 'fingerprint', ''), '') AS detected_fingerprint,
+        row_number() OVER (
+            PARTITION BY detection_signals ->> 'fingerprint'
+            ORDER BY created_at DESC, id DESC
+        ) AS fingerprint_rank
+    FROM declaration_qa.eval_candidates
+    WHERE fingerprint = ''
+      AND COALESCE(NULLIF(detection_signals ->> 'fingerprint', ''), '') <> ''
+      AND status IN ('new', 'triaged', 'labeled')
+      AND NOT EXISTS (
+          SELECT 1
+          FROM declaration_qa.eval_candidates AS keyed
+          WHERE keyed.fingerprint = eval_candidates.detection_signals ->> 'fingerprint'
+            AND keyed.status IN ('new', 'triaged', 'labeled')
+      )
+)
+UPDATE declaration_qa.eval_candidates AS candidates
+SET fingerprint = ranked.detected_fingerprint
+FROM ranked
+WHERE candidates.id = ranked.id
+  AND ranked.fingerprint_rank = 1;
 
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_cases_source_trace
     ON declaration_qa.eval_cases (source_trace_id) WHERE source_trace_id <> '';
 CREATE INDEX IF NOT EXISTS ix_declaration_qa_eval_candidates_trace
     ON declaration_qa.eval_candidates (trace_id) WHERE trace_id <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_declaration_qa_eval_candidates_active_fingerprint
+    ON declaration_qa.eval_candidates (fingerprint)
+    WHERE fingerprint <> '' AND status IN ('new', 'triaged', 'labeled');
 
 COMMENT ON SCHEMA declaration_qa IS '政务申报智能问答独立业务 schema';
 
@@ -3310,7 +3339,7 @@ INSERT INTO declaration_qa.business_item_form_schemas (
     'disabled-veterans-centralized-support-v1',
     '11340000MB1527779M200072400100001',
     '对退出现役残疾军人集中供养的确定',
-    'disabled_veterans_centralized_support',
+    'disabled_veterans_centralized_support_determination',
     '340000000000',
     1,
     'published',
@@ -3378,7 +3407,7 @@ INSERT INTO declaration_qa.business_item_form_schemas (
     'foreign-marriage-registration-v1',
     '11340000002986424J200071100100002',
     '涉外、涉港澳台、涉华侨结婚登记',
-    'foreign_marriage_registration',
+    'foreign_hmt_overseas_chinese_marriage_registration',
     '340000000000',
     1,
     'published',
@@ -3419,7 +3448,7 @@ INSERT INTO declaration_qa.business_item_form_schemas (
     'foreign-adoption-registration-v1',
     '11340000002986424J200071100200001',
     '涉外收养登记',
-    'foreign_adoption_registration',
+    'foreign_related_adoption_registration',
     '340000000000',
     1,
     'published',
@@ -3522,5 +3551,94 @@ SET steps = jsonb_build_array(jsonb_build_object(
     'fields', fields
 ))
 WHERE steps = '[]'::jsonb;
+
+WITH plans(schema_uid, plan) AS (
+    VALUES
+    (
+        'disabled-veterans-centralized-support-v1',
+        '[
+          {"id":"applicant_identity","title":"申请人信息","description":"填写申请人的身份、联系电话和户籍地址。","field_names":["applicant_name","id_number","contact_phone","household_address"]},
+          {"id":"support_conditions","title":"供养条件","description":"选择残疾等级和申请集中供养的实际原因。","field_names":["disability_level","support_reason"]},
+          {"id":"application_materials","title":"证明材料","description":"上传身份证、残疾军人证、户口簿和个人书面申请的清晰扫描件。","field_names":["application_materials"]}
+        ]'::jsonb
+    ),
+    (
+        'fire-accident-review-v1',
+        '[
+          {"id":"applicant_identity","title":"申请主体","description":"填写申请人类型、名称、证件号码及联系人信息。","field_names":["applicant_type","applicant_name","id_number_or_credit_code","contact_name","contact_phone"]},
+          {"id":"determination_details","title":"原认定信息","description":"填写被申请人、原火灾事故认定书编号及送达日期。","field_names":["respondent_name","determination_number","determination_served_date"]},
+          {"id":"review_statement","title":"复核请求","description":"完整说明复核请求、主要事实、理由和证据，并确认申请日期。","field_names":["review_request","review_facts_reasons_evidence","application_date"]}
+        ]'::jsonb
+    ),
+    (
+        'foreign-marriage-registration-v1',
+        '[
+          {"id":"mainland_party","title":"内地居民信息","description":"填写内地居民一方的姓名和身份证号码。","field_names":["mainland_party_name","mainland_party_id_number"]},
+          {"id":"other_party","title":"另一方信息","description":"填写另一方姓名、身份类型、有效证件号码和联系电话。","field_names":["other_party_name","other_party_identity_type","other_party_document_number","contact_phone"]},
+          {"id":"application_materials","title":"登记材料","description":"根据另一方身份类型上传对应证件、婚姻状况证明和双方合照。","field_names":["application_materials"]}
+        ]'::jsonb
+    ),
+    (
+        'foreign-adoption-registration-v1',
+        '[
+          {"id":"adopter_identity","title":"收养人信息","description":"填写收养人的姓名、护照号码、国籍和联系电话。","field_names":["adopter_name","adopter_passport_number","adopter_nationality","contact_phone"]},
+          {"id":"adoption_details","title":"收养登记信息","description":"填写被收养人姓名和来华收养子女通知书编号。","field_names":["adoptee_name","china_adoption_notice_number"]},
+          {"id":"application_materials","title":"登记材料","description":"上传护照、通知书、双方照片及送养人证件等登记材料。","field_names":["application_materials"]}
+        ]'::jsonb
+    ),
+    (
+        'high-risk-sports-event-permit-v1',
+        '[
+          {"id":"organizer_contact","title":"组织者信息","description":"填写赛事组织者主体、证件或信用代码以及联系人信息。","field_names":["organizer_name","credit_code_or_id_number","contact_name","contact_phone"]},
+          {"id":"event_details","title":"赛事基本信息","description":"填写赛事名称、类别、举办时间地点和参赛规模。","field_names":["event_name","event_type","event_start_date","event_end_date","event_location","participant_scale"]},
+          {"id":"organization_plan","title":"组织与参赛方案","description":"说明承办协办单位和参赛条件，确保与申报方案保持一致。","field_names":["co_organizers","participation_conditions"]},
+          {"id":"application_materials","title":"许可材料","description":"上传申请书、人员资质、场地设施、安全方案及按情形要求的空域材料。","field_names":["application_materials"]}
+        ]'::jsonb
+    )
+), resolved AS (
+    SELECT
+        schemas.id,
+        jsonb_agg(
+            jsonb_build_object(
+                'id', step.value ->> 'id',
+                'title', step.value ->> 'title',
+                'description', step.value ->> 'description',
+                'fields', COALESCE(
+                    (
+                        SELECT jsonb_agg(field.value ORDER BY field.ordinality)
+                        FROM jsonb_array_elements(schemas.fields) WITH ORDINALITY AS field(value, ordinality)
+                        WHERE field.value ->> 'name' IN (
+                            SELECT jsonb_array_elements_text(step.value -> 'field_names')
+                        )
+                    ),
+                    '[]'::jsonb
+                )
+            )
+            ORDER BY step.ordinality
+        ) AS steps
+    FROM declaration_qa.business_item_form_schemas AS schemas
+    JOIN plans ON plans.schema_uid = schemas.schema_uid
+    CROSS JOIN LATERAL jsonb_array_elements(plans.plan) WITH ORDINALITY AS step(value, ordinality)
+    GROUP BY schemas.id
+)
+UPDATE declaration_qa.business_item_form_schemas AS schemas
+SET steps = resolved.steps,
+    metadata = schemas.metadata || jsonb_build_object('form_protocol', 'multistep-v1'),
+    updated_at = CURRENT_TIMESTAMP
+FROM resolved
+WHERE schemas.id = resolved.id;
+
+UPDATE declaration_qa.business_item_form_schemas AS schemas
+SET biz_type = canonical.biz_type,
+    updated_at = CURRENT_TIMESTAMP
+FROM (
+    VALUES
+        ('disabled-veterans-centralized-support-v1', 'disabled_veterans_centralized_support_determination'),
+        ('foreign-marriage-registration-v1', 'foreign_hmt_overseas_chinese_marriage_registration'),
+        ('foreign-adoption-registration-v1', 'foreign_related_adoption_registration')
+) AS canonical(schema_uid, biz_type)
+WHERE schemas.schema_uid = canonical.schema_uid
+  AND schemas.biz_type IS DISTINCT FROM canonical.biz_type;
+
 ALTER TABLE declaration_qa.business_item_form_schemas DROP COLUMN fields;
 COMMIT;

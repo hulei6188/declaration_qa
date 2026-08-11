@@ -507,19 +507,52 @@ class EvaluationRepository(EngineBackedRepository):
             "agent_retrieval_queries": list(candidate.get("agent_retrieval_queries") or []),
             "online_scores": dict(candidate.get("online_scores") or {}),
         }
+        fingerprint = str(
+            payload.get("fingerprint")
+            or (payload.get("detection_signals") or {}).get("fingerprint")
+            or ""
+        ).strip()
         stmt = text(
             """
             INSERT INTO declaration_qa.eval_candidates (
                 candidate_uid, audit_uid, agent_run_uid, trace_id, source, severity,
                 sanitized_query, sanitized_answer, detection_signals, trajectory_snapshot,
                 agent_retrieval_queries, online_scores, attribution_category,
-                attribution_reason, knowledge_draft
+                attribution_reason, knowledge_draft, fingerprint
             ) VALUES (
                 :candidate_uid, :audit_uid, :agent_run_uid, :trace_id, :source, :severity,
                 :sanitized_query, :sanitized_answer, :detection_signals, :trajectory_snapshot,
                 :agent_retrieval_queries, :online_scores, :attribution_category,
-                :attribution_reason, :knowledge_draft
+                :attribution_reason, :knowledge_draft, :fingerprint
             )
+            ON CONFLICT (fingerprint)
+                WHERE fingerprint <> '' AND status IN ('new', 'triaged', 'labeled')
+            DO UPDATE SET
+                source = CASE
+                    WHEN EXCLUDED.source = 'online_failure' THEN EXCLUDED.source
+                    ELSE eval_candidates.source
+                END,
+                severity = CASE
+                    WHEN 'critical' IN (eval_candidates.severity, EXCLUDED.severity) THEN 'critical'
+                    WHEN 'high' IN (eval_candidates.severity, EXCLUDED.severity) THEN 'high'
+                    WHEN 'medium' IN (eval_candidates.severity, EXCLUDED.severity) THEN 'medium'
+                    ELSE EXCLUDED.severity
+                END,
+                detection_signals = eval_candidates.detection_signals || EXCLUDED.detection_signals,
+                trajectory_snapshot = EXCLUDED.trajectory_snapshot,
+                agent_retrieval_queries = EXCLUDED.agent_retrieval_queries,
+                online_scores = EXCLUDED.online_scores,
+                attribution_category = CASE
+                    WHEN eval_candidates.attribution_category = 'unknown'
+                        THEN EXCLUDED.attribution_category
+                    ELSE eval_candidates.attribution_category
+                END,
+                attribution_reason = CASE
+                    WHEN eval_candidates.attribution_reason = ''
+                        THEN EXCLUDED.attribution_reason
+                    ELSE eval_candidates.attribution_reason
+                END,
+                updated_at = CURRENT_TIMESTAMP
             RETURNING candidate_uid AS candidate_id, *
             """
         ).bindparams(
@@ -530,7 +563,17 @@ class EvaluationRepository(EngineBackedRepository):
             bindparam("knowledge_draft", type_=JSON),
         )
         with self.engine.begin() as connection:
-            row = connection.execute(stmt, {"candidate_uid": candidate_uid, "attribution_category": payload.get("attribution_category") or "unknown", "attribution_reason": payload.get("attribution_reason") or "", "knowledge_draft": payload.get("knowledge_draft") or {}, **payload}).mappings().first()
+            row = connection.execute(
+                stmt,
+                {
+                    **payload,
+                    "candidate_uid": candidate_uid,
+                    "fingerprint": fingerprint,
+                    "attribution_category": payload.get("attribution_category") or "unknown",
+                    "attribution_reason": payload.get("attribution_reason") or "",
+                    "knowledge_draft": payload.get("knowledge_draft") or {},
+                },
+            ).mappings().first()
         return normalize_eval_candidate(row)
 
     def list_eval_candidates(self, *, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
@@ -590,6 +633,70 @@ class EvaluationRepository(EngineBackedRepository):
             row = connection.execute(text("SELECT candidate_uid AS candidate_id, * FROM declaration_qa.eval_candidates WHERE candidate_uid = :uid"), {"uid": candidate_id}).mappings().first()
         return normalize_eval_candidate(row) if row else None
 
+    def get_candidate_release_gate(self, candidate_id: str) -> dict[str, Any]:
+        """Return the latest regression result that is allowed to publish a knowledge draft."""
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT candidate.candidate_uid AS candidate_id,
+                           candidate.status AS candidate_status,
+                           candidate.knowledge_draft->>'status' AS draft_status,
+                           COALESCE(eval_case.case_uid, '') AS case_id,
+                           COALESCE(dataset.dataset_uid, '') AS dataset_id,
+                           COALESCE(latest.run_uid, '') AS run_id,
+                           latest.item_passed,
+                           latest.gate_passed
+                    FROM declaration_qa.eval_candidates candidate
+                    LEFT JOIN declaration_qa.eval_cases eval_case
+                      ON eval_case.id = candidate.promoted_case_id
+                    LEFT JOIN declaration_qa.eval_datasets dataset
+                      ON dataset.id = eval_case.dataset_id
+                    LEFT JOIN LATERAL (
+                        SELECT eval_run.run_uid,
+                               run_item.passed AS item_passed,
+                               COALESCE((eval_run.gate_result->>'passed')::boolean, FALSE) AS gate_passed
+                        FROM declaration_qa.eval_runs eval_run
+                        JOIN declaration_qa.eval_run_items run_item
+                          ON run_item.run_id = eval_run.id
+                         AND run_item.case_id = eval_case.id
+                        WHERE eval_run.dataset_id = eval_case.dataset_id
+                          AND eval_run.status = 'succeeded'
+                          AND eval_run.created_at >= COALESCE(
+                              NULLIF(candidate.knowledge_draft->>'reviewed_at', '')::timestamptz,
+                              candidate.updated_at
+                          )
+                        ORDER BY eval_run.completed_at DESC NULLS LAST, eval_run.created_at DESC
+                        LIMIT 1
+                    ) latest ON TRUE
+                    WHERE candidate.candidate_uid = :candidate_uid
+                    """
+                ),
+                {"candidate_uid": candidate_id},
+            ).mappings().first()
+        if not row:
+            return {"passed": False, "reason": "candidate_not_found", "candidate_id": candidate_id}
+
+        result = {
+            "candidate_id": str(row.get("candidate_id") or candidate_id),
+            "case_id": str(row.get("case_id") or ""),
+            "dataset_id": str(row.get("dataset_id") or ""),
+            "run_id": str(row.get("run_id") or ""),
+            "item_passed": row.get("item_passed"),
+            "gate_passed": row.get("gate_passed"),
+        }
+        if str(row.get("draft_status") or "") != "approved":
+            return {**result, "passed": False, "reason": "knowledge_draft_not_approved"}
+        if str(row.get("candidate_status") or "") != "promoted" or not result["case_id"]:
+            return {**result, "passed": False, "reason": "candidate_not_promoted"}
+        if not result["run_id"]:
+            return {**result, "passed": False, "reason": "no_eval_run_after_draft_review"}
+        if result["item_passed"] is not True:
+            return {**result, "passed": False, "reason": "regression_case_failed"}
+        if result["gate_passed"] is not True:
+            return {**result, "passed": False, "reason": "dataset_gate_failed"}
+        return {**result, "passed": True, "reason": "passed"}
+
     def create_knowledge_draft(self, *, candidate_id: str, draft: dict[str, Any]) -> dict[str, Any]:
         with self.engine.begin() as connection:
             row = connection.execute(
@@ -625,12 +732,15 @@ class EvaluationRepository(EngineBackedRepository):
         return normalize_eval_candidate(row)
 
     def publish_knowledge_draft(self, *, candidate_id: str, document_id: str) -> dict[str, Any]:
+        release_gate = self.get_candidate_release_gate(candidate_id)
+        if not release_gate["passed"]:
+            raise ValueError(f"Knowledge draft release gate failed: {release_gate['reason']}")
         with self.engine.begin() as connection:
             row = connection.execute(
                 text("""
                     UPDATE declaration_qa.eval_candidates
                     SET knowledge_draft = knowledge_draft || jsonb_build_object(
-                        'status', 'published', 'knowledge_document_id', :document_id,
+                        'status', 'published', 'knowledge_document_id', CAST(:document_id AS TEXT),
                         'published_at', CURRENT_TIMESTAMP
                     ), updated_at = CURRENT_TIMESTAMP
                     WHERE candidate_uid = :uid AND knowledge_draft->>'status' = 'approved'

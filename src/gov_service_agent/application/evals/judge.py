@@ -11,9 +11,10 @@ from gov_service_agent.rag.router import parse_json_object
 class IndependentJudge:
     """对答案忠实度、相关性、完整性和引用质量进行结构化评分。"""
 
-    def __init__(self, model: Any | None, *, model_name: str = "") -> None:
+    def __init__(self, model: Any | None, *, model_name: str = "", self_evaluation: bool = False) -> None:
         self.model = model
         self.model_name = model_name
+        self.self_evaluation = bool(self_evaluation)
 
     def evaluate(
         self,
@@ -57,7 +58,15 @@ class IndependentJudge:
                         "raw_result": parsed,
                     }
                 )
-            return {"scores": scores, "status": {"status": "success", "model": self.model_name}, "records": records}
+            return {
+                "scores": scores,
+                "status": {
+                    "status": "success",
+                    "model": self.model_name,
+                    "self_evaluation": self.self_evaluation,
+                },
+                "records": records,
+            }
         except Exception as exc:
             return {
                 "scores": {},

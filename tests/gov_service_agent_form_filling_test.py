@@ -714,6 +714,9 @@ def test_migration_defines_schema_versions_and_idempotent_writes():
     document_schema_migration = Path(
         "sql/postgresql/016_document_derived_application_form_schemas.sql"
     ).read_text(encoding="utf-8")
+    multistep_migration = Path(
+        "sql/postgresql/017_multistep_application_workflows.sql"
+    ).read_text(encoding="utf-8")
     combined = Path("sql/postgresql/declaration_qa_postgresql_all.sql").read_text(encoding="utf-8")
 
     for token in ["business_item_form_schemas", "version_no", "fields JSONB", "idempotency_key"]:
@@ -731,4 +734,13 @@ def test_migration_defines_schema_versions_and_idempotent_writes():
         "source_document_uid",
     ]:
         assert token in document_schema_migration
+        assert token in combined
+    for token in [
+        "ADD COLUMN IF NOT EXISTS steps",
+        "DROP COLUMN fields",
+        "disabled_veterans_centralized_support_determination",
+        "foreign_hmt_overseas_chinese_marriage_registration",
+        "foreign_related_adoption_registration",
+    ]:
+        assert token in multistep_migration
         assert token in combined

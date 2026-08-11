@@ -572,6 +572,7 @@ class EvaluationCandidateResponse(BaseModel):
     trajectory_snapshot: dict[str, Any] = Field(default_factory=dict)
     agent_retrieval_queries: list[dict[str, Any]] = Field(default_factory=list)
     online_scores: dict[str, Any] = Field(default_factory=dict)
+    fingerprint: str = ""
     attribution_category: str = "unknown"
     attribution_reason: str = ""
     knowledge_draft: dict[str, Any] = Field(default_factory=dict)

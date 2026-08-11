@@ -46,11 +46,9 @@ def production_readiness_errors(settings: GovServiceAgentSettings) -> list[str]:
         if not settings.evaluation_pii_salt:
             errors.append("GOV_SERVICE_AGENT_EVAL_PII_SALT is required when evaluation is enabled in production")
         if settings.evaluation_judge_enabled:
-            if not settings.evaluation_judge_model:
+            if not settings.effective_evaluation_judge_model:
                 errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL is required when evaluation judge is enabled")
-            elif settings.evaluation_judge_model in {settings.llm_model, settings.agent_model}:
-                errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL must differ from generation models")
-            if not settings.evaluation_judge_api_key:
+            if not settings.effective_evaluation_judge_api_key:
                 errors.append("GOV_SERVICE_AGENT_EVAL_JUDGE_API_KEY is required when evaluation judge is enabled")
         if settings.online_evaluation_enabled:
             if not settings.langfuse_enabled or not settings.langfuse_public_key or not settings.langfuse_secret_key:

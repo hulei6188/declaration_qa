@@ -318,6 +318,9 @@ class PostgresGovServiceAgentStore(PostgresStoreBase):
     def get_eval_candidate(self, candidate_id: str) -> dict[str, Any] | None:
         return self.evaluation.get_eval_candidate(candidate_id)
 
+    def get_candidate_release_gate(self, candidate_id: str) -> dict[str, Any]:
+        return self.evaluation.get_candidate_release_gate(candidate_id)
+
     def create_knowledge_draft(self, **payload) -> dict[str, Any]:
         return self.evaluation.create_knowledge_draft(**payload)
 

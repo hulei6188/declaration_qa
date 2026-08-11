@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from gov_service_agent.api.schemas import EvaluationCaseRequest
 from gov_service_agent.application.evals.comparison import compare_runs
 from gov_service_agent.application.evals.candidates import infer_attribution_category
@@ -42,9 +44,64 @@ def test_badcase_attribution_and_knowledge_draft_lifecycle():
     })
     approved = store.review_knowledge_draft(candidate_id=candidate_id, status="approved", comment="核实通过", reviewer_id=1)
     assert approved["knowledge_draft"]["status"] == "approved"
+
+    dataset = store.create_eval_dataset(name="Badcase 回归集", description="发布门禁", cases=[])
+    promoted = store.promote_eval_candidate(
+        candidate_id=candidate_id,
+        dataset_id=dataset["dataset_id"],
+        case={"query": "如何办理", "expected_answer_keywords": ["身份证"]},
+    )
+    blocked = store.get_candidate_release_gate(candidate_id)
+    assert blocked["passed"] is False
+    assert blocked["reason"] == "no_eval_run_after_draft_review"
+    with pytest.raises(ValueError, match="no_eval_run_after_draft_review"):
+        store.publish_knowledge_draft(candidate_id=candidate_id, document_id="doc-too-early")
+
+    run = store.create_eval_run(dataset_id=dataset["dataset_id"], note="发布前回归", top_k=4)
+    store.append_eval_run_item(
+        run_id=run["run_id"],
+        item={"case_id": promoted["case_id"], "query": "如何办理", "passed": True},
+    )
+    store.finish_eval_run(
+        run_id=run["run_id"],
+        status="succeeded",
+        metrics={"task_success_rate": 1.0},
+        gate_result={"passed": True},
+    )
+    release_gate = store.get_candidate_release_gate(candidate_id)
+    assert release_gate["passed"] is True
+    assert release_gate["run_id"] == run["run_id"]
     published = store.publish_knowledge_draft(candidate_id=candidate_id, document_id="doc-faq-1")
     assert published["knowledge_draft"]["status"] == "published"
     assert published["knowledge_draft"]["knowledge_document_id"] == "doc-faq-1"
+
+
+def test_active_eval_candidates_are_deduplicated_by_fingerprint():
+    store = InMemoryAuditStore()
+    payload = {
+        "source": "online_failure",
+        "severity": "medium",
+        "sanitized_query": "如何办理",
+        "detection_signals": {"fingerprint": "f" * 64, "refused": True},
+    }
+
+    first = store.create_eval_candidate(payload)
+    repeated = store.create_eval_candidate({**payload, "severity": "high"})
+
+    assert repeated["candidate_id"] == first["candidate_id"]
+    assert repeated["severity"] == "high"
+    assert len(store.list_eval_candidates()) == 1
+
+    not_downgraded = store.create_eval_candidate({**payload, "severity": "medium"})
+    assert not_downgraded["severity"] == "high"
+
+    store.review_eval_candidate(
+        candidate_id=first["candidate_id"], status="rejected", severity="high",
+        labels=["invalid"], comment="非问题", reviewer_id=1,
+    )
+    after_rejection = store.create_eval_candidate(payload)
+    assert after_rejection["candidate_id"] != first["candidate_id"]
+    assert len(store.list_eval_candidates()) == 2
 
 
 def test_human_service_ticket_carries_agent_context_and_supports_claim_reply():
@@ -235,6 +292,7 @@ def test_agent_golden_v1_contains_valid_20_15_15_10_case_split():
 
 def test_production_requires_isolated_eval_database_queue_and_pii_salt():
     settings = GovServiceAgentSettings(
+        _env_file=None,
         GOV_SERVICE_AGENT_ENV="production",
         GOV_SERVICE_AGENT_DATABASE_URL="postgresql+psycopg://prod",
         GOV_SERVICE_AGENT_EVAL_DATABASE_URL="postgresql+psycopg://prod",
@@ -244,3 +302,20 @@ def test_production_requires_isolated_eval_database_queue_and_pii_salt():
     assert "GOV_SERVICE_AGENT_EVAL_DATABASE_URL must differ from GOV_SERVICE_AGENT_DATABASE_URL in production" in errors
     assert "GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq is required when evaluation is enabled in production" in errors
     assert "GOV_SERVICE_AGENT_EVAL_PII_SALT is required when evaluation is enabled in production" in errors
+
+
+def test_evaluation_judge_can_reuse_the_generation_model_and_credentials():
+    settings = GovServiceAgentSettings(
+        _env_file=None,
+        GOV_SERVICE_AGENT_LLM_MODEL="gpt-5.6-sol",
+        GOV_SERVICE_AGENT_AGENT_MODEL="gpt-5.6-sol",
+        GOV_SERVICE_AGENT_LLM_API_BASE="https://example.test/v1",
+        GOV_SERVICE_AGENT_LLM_API_KEY="shared-secret",
+        GOV_SERVICE_AGENT_EVAL_JUDGE_ENABLED=True,
+        GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL="gpt-5.6-sol",
+    )
+
+    assert settings.effective_evaluation_judge_model == "gpt-5.6-sol"
+    assert settings.effective_evaluation_judge_api_base == "https://example.test/v1"
+    assert settings.effective_evaluation_judge_api_key == "shared-secret"
+    assert settings.evaluation_judge_is_self_evaluation is True

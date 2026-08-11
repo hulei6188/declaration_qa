@@ -235,6 +235,12 @@ def register_evaluation_routes(app):
             raise HTTPException(status_code=404, detail="Evaluation candidate not found")
         if draft.get("status") != "approved":
             raise HTTPException(status_code=409, detail="Knowledge draft must be approved before publishing")
+        release_gate = workflow.audit_store.get_candidate_release_gate(candidate_id)
+        if not release_gate["passed"]:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "Knowledge draft release gate failed", "release_gate": release_gate},
+            )
         content = str(draft.get("content") or "").strip()
         title = str(draft.get("title") or "Badcase 知识修订").strip()
         if not content:

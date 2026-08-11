@@ -119,11 +119,15 @@ def build_online_judge(settings: GovServiceAgentSettings) -> IndependentJudge:
     model = build_agent_model(
         settings,
         timeout_seconds=settings.agent_timeout_seconds,
-        model_name=settings.evaluation_judge_model,
-        api_key=settings.evaluation_judge_api_key,
-        base_url=settings.evaluation_judge_api_base,
+        model_name=settings.effective_evaluation_judge_model,
+        api_key=settings.effective_evaluation_judge_api_key,
+        base_url=settings.effective_evaluation_judge_api_base,
     )
-    return IndependentJudge(model, model_name=settings.evaluation_judge_model)
+    return IndependentJudge(
+        model,
+        model_name=settings.effective_evaluation_judge_model,
+        self_evaluation=settings.evaluation_judge_is_self_evaluation,
+    )
 
 
 def source_contexts(sources: list[dict[str, Any]], *, limit: int = 12) -> list[str]:

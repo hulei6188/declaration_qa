@@ -453,6 +453,31 @@ class InMemoryAuditStore:
         return dict(item)
 
     def create_eval_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+        fingerprint = str(
+            candidate.get("fingerprint")
+            or (candidate.get("detection_signals") or {}).get("fingerprint")
+            or ""
+        ).strip()
+        if fingerprint:
+            for existing in self._eval_candidates.values():
+                if (
+                    str(existing.get("fingerprint") or "") == fingerprint
+                    and str(existing.get("status") or "new") in {"new", "triaged", "labeled"}
+                ):
+                    existing["online_scores"] = dict(candidate.get("online_scores") or {})
+                    existing["detection_signals"] = {
+                        **dict(existing.get("detection_signals") or {}),
+                        **dict(candidate.get("detection_signals") or {}),
+                    }
+                    if candidate.get("source") == "online_failure":
+                        existing["source"] = "online_failure"
+                    severity_rank = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+                    incoming_severity = str(candidate.get("severity") or "medium")
+                    existing_severity = str(existing.get("severity") or "medium")
+                    if severity_rank.get(incoming_severity, 1) > severity_rank.get(existing_severity, 1):
+                        existing["severity"] = incoming_severity
+                    existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    return dict(existing)
         candidate_id = f"eval-candidate-{uuid4().hex}"
         now = datetime.now(timezone.utc).isoformat()
         payload = {
@@ -465,6 +490,7 @@ class InMemoryAuditStore:
             "updated_at": now,
             "agent_retrieval_queries": list(candidate.get("agent_retrieval_queries") or []),
             "online_scores": dict(candidate.get("online_scores") or {}),
+            "fingerprint": fingerprint,
             "attribution_category": str(candidate.get("attribution_category") or "unknown"),
             "attribution_reason": str(candidate.get("attribution_reason") or ""),
             "knowledge_draft": dict(candidate.get("knowledge_draft") or {}),
@@ -507,7 +533,65 @@ class InMemoryAuditStore:
         candidate = self._eval_candidates.get(candidate_id)
         return dict(candidate) if candidate else None
 
+    def get_candidate_release_gate(self, candidate_id: str) -> dict[str, Any]:
+        candidate = self._eval_candidates.get(candidate_id)
+        if not candidate:
+            return {"passed": False, "reason": "candidate_not_found", "candidate_id": candidate_id}
+        draft = dict(candidate.get("knowledge_draft") or {})
+        case_id = str(candidate.get("promoted_case_id") or "")
+        eval_case = self._eval_cases.get(case_id) if case_id else None
+        dataset_id = str((eval_case or {}).get("dataset_id") or "")
+        base = {
+            "candidate_id": candidate_id,
+            "case_id": case_id,
+            "dataset_id": dataset_id,
+            "run_id": "",
+            "item_passed": None,
+            "gate_passed": None,
+        }
+        if draft.get("status") != "approved":
+            return {**base, "passed": False, "reason": "knowledge_draft_not_approved"}
+        if candidate.get("status") != "promoted" or not eval_case:
+            return {**base, "passed": False, "reason": "candidate_not_promoted"}
+
+        reviewed_at = str(draft.get("reviewed_at") or candidate.get("updated_at") or "")
+        eligible_runs = sorted(
+            (
+                run for run in self._eval_runs.values()
+                if run.get("dataset_id") == dataset_id
+                and run.get("status") == "succeeded"
+                and str(run.get("created_at") or "") >= reviewed_at
+                and any(
+                    item.get("run_id") == run.get("run_id") and item.get("case_id") == case_id
+                    for item in self._eval_run_items.values()
+                )
+            ),
+            key=lambda run: (str(run.get("completed_at") or ""), str(run.get("created_at") or "")),
+            reverse=True,
+        )
+        if not eligible_runs:
+            return {**base, "passed": False, "reason": "no_eval_run_after_draft_review"}
+        latest = eligible_runs[0]
+        item = next(
+            item for item in self._eval_run_items.values()
+            if item.get("run_id") == latest.get("run_id") and item.get("case_id") == case_id
+        )
+        result = {
+            **base,
+            "run_id": str(latest.get("run_id") or ""),
+            "item_passed": item.get("passed"),
+            "gate_passed": (latest.get("gate_result") or {}).get("passed"),
+        }
+        if result["item_passed"] is not True:
+            return {**result, "passed": False, "reason": "regression_case_failed"}
+        if result["gate_passed"] is not True:
+            return {**result, "passed": False, "reason": "dataset_gate_failed"}
+        return {**result, "passed": True, "reason": "passed"}
+
     def publish_knowledge_draft(self, *, candidate_id: str, document_id: str) -> dict[str, Any]:
+        release_gate = self.get_candidate_release_gate(candidate_id)
+        if not release_gate["passed"]:
+            raise ValueError(f"Knowledge draft release gate failed: {release_gate['reason']}")
         candidate = self._eval_candidates.get(candidate_id)
         draft = candidate.get("knowledge_draft") if candidate else None
         if not candidate or not draft or draft.get("status") != "approved":

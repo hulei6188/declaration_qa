@@ -129,7 +129,8 @@ GOV_SERVICE_AGENT_EVAL_DATABASE_URL=postgresql+psycopg://eval_user:password@eval
 GOV_SERVICE_AGENT_EVAL_QUEUE_BACKEND=rq
 GOV_SERVICE_AGENT_EVAL_PII_SALT=replace-with-a-long-random-secret
 GOV_SERVICE_AGENT_EVAL_JUDGE_ENABLED=true
-GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL=independent-judge-model
+# 留空时复用 Agent 模型；本地当前可显式配置为 gpt-5.6-sol
+GOV_SERVICE_AGENT_EVAL_JUDGE_MODEL=gpt-5.6-sol
 GOV_SERVICE_AGENT_EVAL_JUDGE_API_KEY=
 
 GOV_SERVICE_AGENT_ONLINE_EVAL_ENABLED=true
@@ -219,16 +220,19 @@ python -m gov_service_agent.application.evals.scheduler
 ```
 
 调度器按稳定哈希抽样生产审计Trace，并无条件保留差评、工具错误、失败和高延迟样本；
-独立Judge的忠实性等分数写回对应Langfuse Trace，抽样结果自动进入脱敏候选池。
+Judge的忠实性等分数写回对应Langfuse Trace，抽样结果自动进入脱敏候选池。
+裁判未单独配置 API 地址和凭据时会复用现有 LLM 配置；裁判模型与 Agent 模型相同时，
+评测结果会记录 `self_evaluation=true`，便于区分同模型自评和独立模型评测。
 候选仍需人工补充 `doc_id/chunk_id` 金标后才能提升为黄金用例。
 
 ### Badcase 知识治理
 
 失败样本池现在支持按 `retrieval_miss`、`knowledge_missing`、`intent_mismatch`、
 `slot_error`、`hallucination`、`tool_error`、`agent_loop` 和 `stale_policy` 归因。
-知识类问题可以在评测中心创建知识修订草稿，经过人工审核后发布为新的知识文档并进入
-索引队列；发布动作不会绕过审核。意图、槽位和 Prompt 类问题继续沉淀为回归用例和
-人工修订任务，需通过评测门禁后再上线。
+知识类问题可以在评测中心创建知识修订草稿。草稿通过人工审核后，还必须把对应 Badcase
+提升到草稿回归集，并在审核时间之后完成一次用例通过、数据集门禁也通过的评测运行，
+才能发布为新的知识文档并进入索引队列。意图、槽位和 Prompt 类问题同样沉淀为回归用例
+和人工修订任务，需通过评测门禁后再上线。
 
 新增接口：
 
@@ -238,8 +242,9 @@ POST /evaluation/candidates/{candidate_id}/knowledge-draft/review
 POST /evaluation/candidates/{candidate_id}/knowledge-draft/publish
 ```
 
-已执行过 `014_agentic_rag_online_evaluation.sql` 的数据库，需要重新执行该迁移，为候选
-表增加 `attribution_category`、`attribution_reason` 和 `knowledge_draft` 字段。
+已执行过 `014_agentic_rag_online_evaluation.sql` 的数据库，需要重新执行该幂等迁移，为候选
+表增加归因、知识草稿、线上评分和 `fingerprint` 字段。非空指纹会对仍处于
+`new/triaged/labeled` 状态的重复候选执行更新合并，避免调度器反复生成同一条 Badcase。
 
 GitHub Actions 中配置 `EVAL_BASE_URL`、数据集 ID、基线 Run ID 和 `EVAL_INTERNAL_API_KEY` 后，即可启用 PR 与夜间发布门禁。
 

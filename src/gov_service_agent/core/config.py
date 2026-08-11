@@ -184,6 +184,27 @@ class GovServiceAgentSettings(BaseSettings):
         return self.evaluation_database_url
 
     @property
+    def effective_evaluation_judge_model(self) -> str:
+        """返回裁判模型；未单独配置时复用当前生成模型。"""
+        return self.evaluation_judge_model or self.agent_model or self.llm_model
+
+    @property
+    def effective_evaluation_judge_api_base(self) -> str:
+        """返回裁判模型地址；未单独配置时复用当前 LLM 地址。"""
+        return self.evaluation_judge_api_base or self.llm_api_base
+
+    @property
+    def effective_evaluation_judge_api_key(self) -> str:
+        """返回裁判模型凭据；未单独配置时复用当前 LLM 凭据。"""
+        return self.evaluation_judge_api_key or self.llm_api_key
+
+    @property
+    def evaluation_judge_is_self_evaluation(self) -> bool:
+        """返回裁判模型是否与生成模型相同。"""
+        judge_model = self.effective_evaluation_judge_model
+        return bool(judge_model and judge_model in {self.llm_model, self.agent_model})
+
+    @property
     def effective_redis_url(self) -> str | None:
         """返回当前生效的 Redis 连接地址。"""
         return self.redis_url

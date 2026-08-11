@@ -188,6 +188,7 @@ def normalize_eval_candidate(row) -> dict[str, Any]:
         "trajectory_snapshot": dict(row.get("trajectory_snapshot") or {}),
         "agent_retrieval_queries": list(row.get("agent_retrieval_queries") or []),
         "online_scores": dict(row.get("online_scores") or {}),
+        "fingerprint": str(row.get("fingerprint") or (row.get("detection_signals") or {}).get("fingerprint") or ""),
         "attribution_category": str(row.get("attribution_category") or "unknown"),
         "attribution_reason": str(row.get("attribution_reason") or ""),
         "knowledge_draft": dict(row.get("knowledge_draft") or {}),

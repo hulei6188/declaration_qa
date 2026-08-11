@@ -46,9 +46,9 @@ def process_evaluation_inline(run_id: str, payload: dict) -> dict:
             judge_model = build_agent_model(
                 settings,
                 timeout_seconds=settings.agent_timeout_seconds,
-                model_name=settings.evaluation_judge_model,
-                api_key=settings.evaluation_judge_api_key,
-                base_url=settings.evaluation_judge_api_base,
+                model_name=settings.effective_evaluation_judge_model,
+                api_key=settings.effective_evaluation_judge_api_key,
+                base_url=settings.effective_evaluation_judge_api_base,
             )
         runner = EvaluationRunner(
             workflow=evaluation_workflow,
@@ -56,7 +56,11 @@ def process_evaluation_inline(run_id: str, payload: dict) -> dict:
             ragas_evaluator=ragas_evaluator,
             ragas_requested=use_ragas,
             ragas_unavailable_reason=unavailable_reason,
-            judge=IndependentJudge(judge_model, model_name=settings.evaluation_judge_model)
+            judge=IndependentJudge(
+                judge_model,
+                model_name=settings.effective_evaluation_judge_model,
+                self_evaluation=settings.evaluation_judge_is_self_evaluation,
+            )
             if settings.evaluation_judge_enabled
             else None,
             langfuse_settings=settings,
