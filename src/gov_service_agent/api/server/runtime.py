@@ -70,6 +70,7 @@ def process_evaluation_inline(run_id: str, payload: dict) -> dict:
             dataset_id=str(payload["dataset_id"]),
             run_id=run_id,
             top_k=int(payload.get("top_k") or 4),
+            case_id=str(payload.get("case_id") or ""),
         )
     finally:
         if owns_workflow:

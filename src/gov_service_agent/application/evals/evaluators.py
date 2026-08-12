@@ -131,12 +131,11 @@ def performance_scores(trajectory: dict[str, Any]) -> dict[str, Any]:
 def records_for_scores(scores: dict[str, Any], version: str, failures: list[str]) -> list[dict[str, Any]]:
     records = []
     for name, value in scores.items():
+        record = score_record(name, None if value is None else float(value), failures)
         records.append(
             {
-                **score_record(name, None if value is None else float(value), failures),
+                **record,
                 "evaluator_version": version,
-                "score": None if value is None else float(value),
-                "label": "not_applicable" if value is None else ("pass" if float(value) >= 1.0 else "fail"),
             }
         )
     return records

@@ -560,6 +560,8 @@ class InMemoryAuditStore:
                 run for run in self._eval_runs.values()
                 if run.get("dataset_id") == dataset_id
                 and run.get("status") == "succeeded"
+                and (run.get("runtime_snapshot") or {}).get("evaluation", {}).get("scope", "full_dataset") == "full_dataset"
+                and (run.get("gate_result") or {}).get("release_gate_eligible", True) is not False
                 and str(run.get("created_at") or "") >= reviewed_at
                 and any(
                     item.get("run_id") == run.get("run_id") and item.get("case_id") == case_id

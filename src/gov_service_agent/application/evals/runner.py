@@ -85,6 +85,7 @@ class EvaluationRunner:
         baseline_run_id: str | None = None,
         trigger_source: str = "manual",
         git_commit: str = "",
+        case_id: str = "",
     ) -> dict[str, Any]:
         if run_id is None:
             run = self.store.create_eval_run(
@@ -105,7 +106,12 @@ class EvaluationRunner:
             baseline_run_id = baseline_run_id or existing_run.get("baseline_run_id")
         items = []
         try:
-            for case in self.store.list_eval_cases(dataset_id):
+            cases = self.store.list_eval_cases(dataset_id)
+            if case_id:
+                cases = [case for case in cases if str(case.get("case_id") or "") == case_id]
+                if not cases:
+                    raise ValueError("Evaluation case not found in dataset")
+            for case in cases:
                 if not case.get("enabled", True):
                     continue
                 self.fixtures.prepare(case)
@@ -126,11 +132,25 @@ class EvaluationRunner:
                 retrieval_ablation_requested=self.run_retrieval_ablation_enabled,
             )
             reasons = [reason for item in items for reason in item.get("failure_reasons") or []]
-            baseline = self.store.get_eval_run(baseline_run_id) if baseline_run_id else None
-            comparison = compare_runs(baseline, {"run_id": run_id, "metrics": metrics}) if baseline else None
-            gate = evaluate_gate(metrics, failure_reasons=reasons, comparison=comparison)
-            if comparison:
-                gate["comparison"] = comparison
+            if case_id:
+                case_passed = len(items) == 1 and items[0].get("passed") is True
+                gate = {
+                    "passed": False,
+                    "scope": "single_case",
+                    "case_id": case_id,
+                    "case_passed": case_passed,
+                    "release_gate_eligible": False,
+                    "hard_failures": [],
+                    "soft_failures": [] if case_passed else list(dict.fromkeys(reasons)),
+                    "thresholds": {},
+                }
+            else:
+                baseline = self.store.get_eval_run(baseline_run_id) if baseline_run_id else None
+                comparison = compare_runs(baseline, {"run_id": run_id, "metrics": metrics}) if baseline else None
+                gate = evaluate_gate(metrics, failure_reasons=reasons, comparison=comparison)
+                gate.update({"scope": "full_dataset", "release_gate_eligible": True})
+                if comparison:
+                    gate["comparison"] = comparison
             return self.store.finish_eval_run(
                 run_id=run_id,
                 status="succeeded",
@@ -143,7 +163,13 @@ class EvaluationRunner:
                 status="failed",
                 metrics={},
                 error_message=f"{type(exc).__name__}: {str(exc)[:1000]}",
-                gate_result={"passed": False, "hard_failures": ["evaluation_runtime_failure"]},
+                gate_result={
+                    "passed": False,
+                    "scope": "single_case" if case_id else "full_dataset",
+                    "case_id": case_id,
+                    "release_gate_eligible": False,
+                    "hard_failures": ["evaluation_runtime_failure"],
+                },
             )
 
     def execute_case(self, case: dict[str, Any]) -> CaseExecution:
@@ -349,8 +375,10 @@ class EvaluationRunner:
         failures = list(dict.fromkeys(retrieval_failures + answer_failures + trajectory_failures + outcome_failures))
         if case.get("expected_intent") and str(case.get("expected_intent")) != execution.intent:
             failures.append("intent_mismatch")
-        applicable = [value for value in {**retrieval, **answer, **trajectory_scores, **outcome}.values() if isinstance(value, (int, float))]
-        passed = not failures and all(value >= 1.0 for value in applicable if value in {0.0, 1.0})
+        # 用例是否通过由评估器产生的明确失败原因决定。规则分数中既有
+        # recall 等“越高越好”的指标，也有 error/duplicate rate 等
+        # “越低越好”的指标，不能把所有 0.0 都统一解释为失败。
+        passed = not failures
         performance = performance_scores(execution.trajectory)
         performance["latency_ms"] = max(performance["latency_ms"], execution.elapsed_ms)
         item = {

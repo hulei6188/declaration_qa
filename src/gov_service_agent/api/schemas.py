@@ -594,6 +594,10 @@ class EvaluationComparisonResponse(BaseModel):
 class EvaluationGateResponse(BaseModel):
     run_id: str
     passed: bool
+    scope: str = "full_dataset"
+    case_id: str = ""
+    case_passed: bool | None = None
+    release_gate_eligible: bool = True
     hard_failures: list[str] = Field(default_factory=list)
     soft_failures: list[str] = Field(default_factory=list)
     thresholds: dict[str, Any] = Field(default_factory=dict)

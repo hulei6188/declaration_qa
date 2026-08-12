@@ -32,6 +32,63 @@ from gov_service_agent.application.evals.comparison import compare_runs
 
 
 def register_evaluation_routes(app):
+    def enqueue_evaluation_run(
+        dataset_id: str,
+        request: EvaluationRunRequest,
+        response: Response,
+        *,
+        case_id: str = "",
+    ):
+        ensure_knowledge_base_fresh()
+        if case_id:
+            selected = next(
+                (
+                    case
+                    for case in workflow.audit_store.list_eval_cases(dataset_id)
+                    if str(case.get("case_id") or "") == case_id
+                ),
+                None,
+            )
+            if not selected:
+                raise ValueError("Evaluation case not found in dataset")
+            if not selected.get("enabled", True):
+                raise ValueError("Evaluation case is disabled")
+        use_ragas = settings.ragas_enabled if request.use_ragas is None else request.use_ragas
+        scope = "single_case" if case_id else "full_dataset"
+        snapshot = runtime_snapshot()
+        snapshot["evaluation"] = {
+            "fixed_retrieval_metrics": ["Recall@5", "Recall@10", "MRR@10"],
+            "run_retrieval_ablation": request.run_retrieval_ablation,
+            "use_ragas": use_ragas,
+            "scope": scope,
+            "case_id": case_id,
+        }
+        trigger_source = "single_case" if case_id and request.trigger_source == "manual" else request.trigger_source
+        run = workflow.audit_store.create_eval_run(
+            dataset_id=dataset_id,
+            note=request.note,
+            top_k=request.top_k,
+            baseline_run_id=request.baseline_run_id,
+            trigger_source=trigger_source,
+            runtime_snapshot=snapshot,
+            git_commit=request.git_commit,
+            status="queued",
+        )
+        queued = evaluation_queue.enqueue(
+            run["run_id"],
+            {
+                "dataset_id": dataset_id,
+                "case_id": case_id,
+                "top_k": request.top_k,
+                "use_ragas": use_ragas,
+                "run_retrieval_ablation": request.run_retrieval_ablation,
+            },
+        )
+        if queued.get("backend") == "inline":
+            return queued["result"]
+        response.status_code = status.HTTP_202_ACCEPTED
+        return workflow.audit_store.get_eval_run(run["run_id"])
+
     @app.post("/api/declaration-qa/evaluation/datasets", response_model=EvaluationDatasetResponse)
     def create_evaluation_dataset(request: EvaluationDatasetRequest, context: RequestContext = Depends(auth_context)):
         require_evaluation_admin(context, settings)
@@ -83,38 +140,25 @@ def register_evaluation_routes(app):
         context: RequestContext = Depends(auth_context),
     ):
         require_evaluation_admin(context, settings)
-        ensure_knowledge_base_fresh()
-        use_ragas = settings.ragas_enabled if request.use_ragas is None else request.use_ragas
-        snapshot = runtime_snapshot()
-        snapshot["evaluation"] = {
-            "fixed_retrieval_metrics": ["Recall@5", "Recall@10", "MRR@10"],
-            "run_retrieval_ablation": request.run_retrieval_ablation,
-            "use_ragas": use_ragas,
-        }
         try:
-            run = workflow.audit_store.create_eval_run(
-                dataset_id=dataset_id,
-                note=request.note,
-                top_k=request.top_k,
-                baseline_run_id=request.baseline_run_id,
-                trigger_source=request.trigger_source,
-                runtime_snapshot=snapshot,
-                git_commit=request.git_commit,
-                status="queued",
-            )
-            queued = evaluation_queue.enqueue(
-                run["run_id"],
-                {
-                    "dataset_id": dataset_id,
-                    "top_k": request.top_k,
-                    "use_ragas": use_ragas,
-                    "run_retrieval_ablation": request.run_retrieval_ablation,
-                },
-            )
-            if queued.get("backend") == "inline":
-                return queued["result"]
-            response.status_code = status.HTTP_202_ACCEPTED
-            return workflow.audit_store.get_eval_run(run["run_id"])
+            return enqueue_evaluation_run(dataset_id, request, response)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/declaration-qa/evaluation/datasets/{dataset_id}/cases/{case_id}/runs",
+        response_model=EvaluationRunResponse,
+    )
+    def run_single_evaluation_case(
+        dataset_id: str,
+        case_id: str,
+        request: EvaluationRunRequest,
+        response: Response,
+        context: RequestContext = Depends(auth_context),
+    ):
+        require_evaluation_admin(context, settings)
+        try:
+            return enqueue_evaluation_run(dataset_id, request, response, case_id=case_id)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

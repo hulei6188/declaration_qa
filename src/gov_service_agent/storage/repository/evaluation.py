@@ -662,6 +662,14 @@ class EvaluationRepository(EngineBackedRepository):
                          AND run_item.case_id = eval_case.id
                         WHERE eval_run.dataset_id = eval_case.dataset_id
                           AND eval_run.status = 'succeeded'
+                          AND COALESCE(
+                              eval_run.runtime_snapshot->'evaluation'->>'scope',
+                              'full_dataset'
+                          ) = 'full_dataset'
+                          AND COALESCE(
+                              (eval_run.gate_result->>'release_gate_eligible')::boolean,
+                              TRUE
+                          )
                           AND eval_run.created_at >= COALESCE(
                               NULLIF(candidate.knowledge_draft->>'reviewed_at', '')::timestamptz,
                               candidate.updated_at

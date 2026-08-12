@@ -10,7 +10,7 @@ from gov_service_agent.application.evals.evaluators import evaluate_answer, eval
 from gov_service_agent.application.evals.gate import evaluate_gate
 from gov_service_agent.application.evals.fixtures import EvaluationFixtureManager
 from gov_service_agent.application.evals.pii import sanitize_text
-from gov_service_agent.application.evals.runner import EvaluationRunner
+from gov_service_agent.application.evals.runner import CaseExecution, EvaluationRunner
 from gov_service_agent.application.evals.trajectory import evaluate_trajectory
 from gov_service_agent.application.helpers.actions import suggested_actions
 from gov_service_agent.core.config import GovServiceAgentSettings
@@ -57,6 +57,22 @@ def test_badcase_attribution_and_knowledge_draft_lifecycle():
     with pytest.raises(ValueError, match="no_eval_run_after_draft_review"):
         store.publish_knowledge_draft(candidate_id=candidate_id, document_id="doc-too-early")
 
+    single_run = store.create_eval_run(
+        dataset_id=dataset["dataset_id"], note="单条调试", top_k=4,
+        runtime_snapshot={"evaluation": {"scope": "single_case", "case_id": promoted["case_id"]}},
+    )
+    store.append_eval_run_item(
+        run_id=single_run["run_id"],
+        item={"case_id": promoted["case_id"], "query": "如何办理", "passed": True},
+    )
+    store.finish_eval_run(
+        run_id=single_run["run_id"], status="succeeded", metrics={"task_success_rate": 1.0},
+        gate_result={"passed": False, "case_passed": True, "release_gate_eligible": False},
+    )
+    still_blocked = store.get_candidate_release_gate(candidate_id)
+    assert still_blocked["passed"] is False
+    assert still_blocked["reason"] == "no_eval_run_after_draft_review"
+
     run = store.create_eval_run(dataset_id=dataset["dataset_id"], note="发布前回归", top_k=4)
     store.append_eval_run_item(
         run_id=run["run_id"],
@@ -102,6 +118,58 @@ def test_active_eval_candidates_are_deduplicated_by_fingerprint():
     after_rejection = store.create_eval_candidate(payload)
     assert after_rejection["candidate_id"] != first["candidate_id"]
     assert len(store.list_eval_candidates()) == 2
+
+
+def test_single_case_run_executes_only_selected_case_and_never_passes_release_gate(monkeypatch):
+    store = InMemoryAuditStore()
+    dataset = store.create_eval_dataset(
+        name="单条运行测试",
+        description="",
+        cases=[{"query": "问题一"}, {"query": "问题二"}],
+    )
+    cases = store.list_eval_cases(dataset["dataset_id"])
+    selected_case_id = cases[1]["case_id"]
+    executed = []
+    runner = EvaluationRunner(
+        workflow=type("Workflow", (), {"audit_store": store})(),
+        store=store,
+    )
+
+    def execute_case(case):
+        executed.append(case["case_id"])
+        return object()
+
+    def score_case(case, execution, *, top_k):
+        return ({
+            "case_id": case["case_id"],
+            "query": case["query"],
+            "passed": True,
+            "failure_reasons": [],
+            "rule_scores": {},
+            "ragas_scores": {},
+            "judge_scores": {},
+            "actual_trajectory": {"calls": [], "trace_ids": []},
+            "latency_ms": 1,
+        }, [])
+
+    monkeypatch.setattr(runner, "execute_case", execute_case)
+    monkeypatch.setattr(runner, "score_case", score_case)
+
+    result = runner.run(dataset_id=dataset["dataset_id"], case_id=selected_case_id)
+
+    assert executed == [selected_case_id]
+    assert result["status"] == "succeeded"
+    assert result["metrics"]["case_count"] == 1
+    assert result["gate_result"] == {
+        "passed": False,
+        "scope": "single_case",
+        "case_id": selected_case_id,
+        "case_passed": True,
+        "release_gate_eligible": False,
+        "hard_failures": [],
+        "soft_failures": [],
+        "thresholds": {},
+    }
 
 
 def test_human_service_ticket_carries_agent_context_and_supports_claim_reply():
@@ -207,6 +275,49 @@ def test_retrieval_metrics_distinguish_hit_recall_mrr_and_duplicates():
     assert scores["retrieval_recall_at_k"] == 0.5
     assert scores["retrieval_mrr"] == 0.5
     assert scores["retrieval_duplicate_rate"] > 0
+
+
+def test_case_passes_when_lower_is_better_rule_metrics_are_zero():
+    runner = EvaluationRunner(
+        workflow=type("Workflow", (), {"audit_store": object()})(),
+        store=object(),
+    )
+    case = {
+        "case_id": "case-zero-rates",
+        "query": "不同身份的伤残人员分别发什么证？",
+        "user_id": 1,
+        "expected_intent": "knowledge",
+        "expected_refused": False,
+        "expected_doc_ids": ["doc-1"],
+        "expected_answer_keywords": [],
+    }
+    execution = CaseExecution(
+        query=case["query"],
+        answer="对应人员发放相应伤残证件。[证据1]",
+        refused=False,
+        intent="knowledge",
+        audit_id="audit-zero-rates",
+        sources=[{"doc_id": "doc-1", "chunk_id": "chunk-1", "evidence_text": "伤残证件发放规定"}],
+        trajectory={
+            "calls": [{"tool_name": "knowledge_search", "status": "success", "arguments": {}, "result": {}}],
+            "latency_ms": 10,
+        },
+        human_confirmation={},
+        status="completed",
+        elapsed_ms=10,
+        agent_retrieval_queries=[],
+        retrieval_filter={},
+    )
+
+    item, records = runner.score_case(case, execution, top_k=4)
+    labels = {record["metric_name"]: record["label"] for record in records}
+
+    assert item["failure_reasons"] == []
+    assert item["rule_scores"]["retrieval_duplicate_rate"] == 0.0
+    assert item["rule_scores"]["tool_error_rate"] == 0.0
+    assert labels["retrieval_duplicate_rate"] == "pass"
+    assert labels["tool_error_rate"] == "pass"
+    assert item["passed"] is True
 
 
 def test_not_applicable_answer_scores_do_not_raise_or_count_as_failures():

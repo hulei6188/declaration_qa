@@ -300,6 +300,13 @@ export function runEvaluation(datasetId) {
   });
 }
 
+export function runEvaluationCase(datasetId, caseId) {
+  return request(`/api/declaration-qa/evaluation/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}/runs`, {
+    method: 'POST',
+    body: JSON.stringify({ note: 'frontend single case run', top_k: 4, trigger_source: 'single_case' }),
+  });
+}
+
 export function annotateEvalItem(itemId, label) {
   return request(`/api/declaration-qa/evaluation/run-items/${itemId}/annotation`, {
     method: 'POST',
@@ -380,6 +387,10 @@ export function createToolTrace(status = 'running') {
 
 export function fetchEvaluationDatasets() {
   return requestJson('/api/declaration-qa/evaluation/datasets');
+}
+
+export function fetchEvaluationCases(datasetId) {
+  return requestJson(`/api/declaration-qa/evaluation/datasets/${encodeURIComponent(datasetId)}/cases`);
 }
 
 export function fetchEvaluationRuns(datasetId) {

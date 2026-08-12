@@ -21,6 +21,11 @@ ARGUMENT_PROVENANCE = {
     "delivery_status_query": {"application_ids": [("ticket_detail_query", "application_id")]},
 }
 
+LOWER_IS_BETTER_RULE_METRICS = frozenset({
+    "retrieval_duplicate_rate",
+    "tool_error_rate",
+})
+
 
 def normalize_agent_run(run: dict[str, Any] | None, *, turn_index: int = 0) -> dict[str, Any]:
     """提取稳定、可比较的工具轨迹和运行资源统计。"""
@@ -225,7 +230,14 @@ def score_record(name: str, value: float | None, failures: list[str]) -> dict[st
         "evaluator_type": "rule",
         "evaluator_version": "trajectory-v1",
         "score": float(value),
-        "label": "pass" if value >= 1.0 else "fail",
+        "label": rule_score_label(name, value),
         "reason": ";".join(failures),
         "raw_result": {},
     }
+
+
+def rule_score_label(name: str, value: float) -> str:
+    """按指标方向生成规则分数标签。"""
+    if name in LOWER_IS_BETTER_RULE_METRICS:
+        return "pass" if value <= 0.0 else "fail"
+    return "pass" if value >= 1.0 else "fail"
