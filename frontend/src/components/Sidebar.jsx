@@ -38,7 +38,7 @@ export default function Sidebar({
     <aside className="context-pane app-sidebar">
       <div className="sidebar-brand">
         <span className="sidebar-brand-mark"><Landmark size={18} /></span>
-        <strong>Gov Service Agent</strong>
+        <strong>我的agent</strong>
         <button className="icon-button" onClick={onCollapse} title="折叠侧栏" aria-label="折叠侧栏">
           <PanelLeftClose size={16} />
         </button>

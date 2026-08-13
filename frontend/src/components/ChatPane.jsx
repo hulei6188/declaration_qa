@@ -117,7 +117,7 @@ export default function ChatPane({
         {messages.length === 0 && (
           <div className="chat-empty-state">
             <span><Landmark size={24} /></span>
-            <h1>Gov Service Agent</h1>
+            <h1>我的agent</h1>
             <p>今天想办理什么政务事项？</p>
           </div>
         )}
