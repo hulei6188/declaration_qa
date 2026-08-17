@@ -24,6 +24,38 @@ ATTRIBUTION_CATEGORIES = (
 )
 
 
+def validate_promoted_case(case: dict[str, Any]) -> None:
+    """校验由 Badcase 归因页面提升的黄金用例是否具备最小基准。"""
+    metadata = dict(case.get("source_metadata") or {})
+    category = str(metadata.get("attribution_category") or "").strip()
+    if not category or category == "unknown":
+        # 兼容历史手工用例：没有归因元数据时沿用原有宽松契约。
+        return
+
+    doc_ids = list(case.get("expected_doc_ids") or [])
+    chunk_ids = list(case.get("expected_chunk_ids") or [])
+    keywords = list(case.get("expected_answer_keywords") or [])
+    reference_answer = str(case.get("reference_answer") or "").strip()
+    trajectory = dict(case.get("expected_trajectory") or {})
+    outcome = dict(case.get("expected_outcome") or {})
+
+    if category in {"retrieval_miss", "knowledge_missing", "stale_policy"}:
+        if not doc_ids and not chunk_ids:
+            raise ValueError("检索、知识或政策版本类用例必须填写期望文档 ID 或期望片段 ID")
+        if not reference_answer and not keywords:
+            raise ValueError("检索、知识或政策版本类用例必须填写参考答案或答案关键词")
+    elif category == "intent_mismatch" and not str(case.get("expected_intent") or "").strip():
+        raise ValueError("意图识别错误用例必须填写期望意图")
+    elif category == "hallucination" and not reference_answer:
+        raise ValueError("事实幻觉用例必须填写经核实的参考答案")
+    elif category in {"tool_error", "slot_error"}:
+        required_tools = trajectory.get("required_tools") or []
+        if not outcome and not required_tools:
+            raise ValueError("工具或槽位类用例必须填写期望业务结果或必需工具")
+    elif category == "agent_loop" and not trajectory.get("max_tool_calls"):
+        raise ValueError("Agent 循环类用例必须填写最大工具调用次数")
+
+
 def infer_attribution_category(sample: dict[str, Any]) -> tuple[str, str]:
     """根据线上可观测信号给候选样本一个保守的初始归因。"""
     signals = dict(sample.get("signals") or {})

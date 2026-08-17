@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, PanelLeftOpen, Play, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, PanelLeftOpen, Play, RefreshCw, Search, ShieldAlert, X, XCircle } from 'lucide-react';
 import {
   annotateEvalItem,
-  createEvaluationKnowledgeDraft,
   fetchEvaluationCandidates,
   fetchEvaluationCases,
   fetchEvaluationDatasets,
@@ -11,14 +10,57 @@ import {
   formatMetric,
   mineEvaluationCandidates,
   promoteEvaluationCandidate,
-  publishEvaluationKnowledgeDraft,
   publishEvaluationDataset,
   reviewEvaluationCandidate,
-  reviewEvaluationKnowledgeDraft,
   runEvaluation,
   runEvaluationCase,
   sleep,
 } from '../utils.js';
+
+// Keep the API values stable while exposing reviewer-friendly labels in the UI.
+const ATTRIBUTION_OPTIONS = [
+  { value: 'retrieval_miss', label: '检索未命中', description: '知识库中有内容，但召回失败或排序靠后' },
+  { value: 'knowledge_missing', label: '知识缺失', description: '核实后确认知识库没有覆盖该问题' },
+  { value: 'intent_mismatch', label: '意图识别错误', description: '路由到错误意图或业务流程' },
+  { value: 'slot_error', label: '槽位填充错误', description: '字段提取、校验或多轮状态衔接错误' },
+  { value: 'hallucination', label: '事实幻觉', description: '回答编造了政策或业务动态事实' },
+  { value: 'tool_error', label: '工具调用异常', description: '工具报错、参数错误或返回异常' },
+  { value: 'agent_loop', label: 'Agent 循环失控', description: '重复调用、超迭代或未能收敛' },
+  { value: 'stale_policy', label: '政策版本过期', description: '引用了失效或非当前版本的政策' },
+  { value: 'unknown', label: '待人工确认', description: '已有失败信号，但暂时无法确定根因' },
+];
+
+const ATTRIBUTION_LABELS = Object.fromEntries(ATTRIBUTION_OPTIONS.map((item) => [item.value, item.label]));
+
+function attributionLabel(value) {
+  return ATTRIBUTION_LABELS[value] || ATTRIBUTION_LABELS.unknown;
+}
+
+function splitFormList(value) {
+  return String(value || '').split(/[\n,，、]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function jsonFormValue(value, fallback = {}) {
+  return JSON.stringify(value || fallback, null, 2);
+}
+
+function promotionFormFromCandidate(candidate) {
+  return {
+    query: candidate.sanitized_query || '',
+    expected_intent: '',
+    expected_refused: '',
+    expected_doc_ids: '',
+    expected_chunk_ids: '',
+    expected_answer_keywords: '',
+    reference_answer: '',
+    reference_contexts: '',
+    case_type: 'agent',
+    expected_trajectory: jsonFormValue({ required_tools: [], forbidden_tools: [], max_tool_calls: 2 }),
+    expected_outcome: '{}',
+    tags: (candidate.labels || []).filter((tag) => tag !== 'production_failure').join(', '),
+    severity: candidate.severity || 'medium',
+  };
+}
 
 export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
   const [tab, setTab] = useState('runs');
@@ -32,6 +74,8 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
   const [busy, setBusy] = useState(false);
   const [runningCaseId, setRunningCaseId] = useState('');
   const [annotatingItemId, setAnnotatingItemId] = useState('');
+  const [promotionCandidate, setPromotionCandidate] = useState(null);
+  const [highlightedCaseId, setHighlightedCaseId] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => { loadDatasets(); }, []);
@@ -40,6 +84,7 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
     setCases([]);
     setRuns([]);
     setSelectedRun(null);
+    setHighlightedCaseId('');
     loadCases(datasetId);
     loadRuns(datasetId);
   }, [datasetId]);
@@ -163,23 +208,55 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
     finally { setBusy(false); }
   }
 
-  async function labelCandidate(candidate) {
-    await reviewEvaluationCandidate(candidate.candidate_id, {
-      status: 'labeled', severity: candidate.severity || 'medium', labels: ['production_failure', candidate.attribution_category || 'unknown'], attribution_category: candidate.attribution_category || 'unknown', comment: '前端人工标注',
-    });
-    await loadCandidates();
+  async function labelCandidate(candidate, attributionCategory) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await reviewEvaluationCandidate(candidate.candidate_id, {
+        status: 'labeled',
+        severity: candidate.severity || 'medium',
+        labels: ['production_failure', attributionCategory],
+        attribution_category: attributionCategory,
+        comment: `人工归因：${attributionLabel(attributionCategory)}`,
+      });
+      setMessage(`归因已保存：${attributionLabel(attributionCategory)}`);
+      await loadCandidates();
+    } catch (error) {
+      setMessage(`审核标注失败：${error.message}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function promoteCandidate(candidate) {
-    if (!datasetId) return;
+  async function promoteCandidate(candidate, expected) {
+    if (!datasetId || busy) return;
+    setBusy(true);
     try {
-      await promoteEvaluationCandidate(candidate.candidate_id, datasetId, {
-        query: candidate.sanitized_query,
-        case_type: 'agent', severity: candidate.severity || 'medium', tags: candidate.labels || [],
-      });
-      setMessage('候选样本已提升为回归用例');
-      await loadCandidates();
-    } catch (error) { setMessage(`提升失败：${error.message}`); }
+      const created = await promoteEvaluationCandidate(candidate.candidate_id, datasetId, expected);
+      setPromotionCandidate(null);
+      await Promise.all([loadCandidates(), loadCases(datasetId)]);
+      setHighlightedCaseId(created.case_id);
+      setTab('runs');
+      setWorkspaceView('cases');
+      setMessage(`回归用例已加入当前数据集：${created.case_id}`);
+    } catch (error) {
+      setMessage(`提升失败：${error.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openPromotionDialog(candidate) {
+    const selectedDataset = datasets.find((dataset) => dataset.dataset_id === datasetId);
+    if (!selectedDataset) {
+      setMessage('请先选择一个评测数据集');
+      return;
+    }
+    if (selectedDataset.status !== 'draft') {
+      setMessage('当前数据集已发布并锁定，请选择 draft 状态的数据集后再提升用例');
+      return;
+    }
+    setPromotionCandidate(candidate);
   }
 
   return (
@@ -218,21 +295,37 @@ export default function EvaluationPane({ sidebarCollapsed, onToggleSidebar }) {
       <div className={`evaluation-content ${tab === 'runs' && workspaceView === 'cases' ? 'cases-mode' : ''}`}>
         {tab === 'runs' ? (
           workspaceView === 'cases' ? (
-            <DatasetCasesWorkspace cases={cases} runs={runs} onRunCase={startCaseRun} onOpenRun={openRunResult} busy={busy} runningCaseId={runningCaseId} />
+            <DatasetCasesWorkspace cases={cases} runs={runs} onRunCase={startCaseRun} onOpenRun={openRunResult} busy={busy} runningCaseId={runningCaseId} highlightedCaseId={highlightedCaseId} />
           ) : (
             <RunWorkspace runs={runs} run={selectedRun} onOpenRun={openRun} onRunCase={startCaseRun} busy={busy} runningCaseId={runningCaseId} annotatingItemId={annotatingItemId} onAnnotate={annotateItem} />
           )
         ) : (
-          <CandidateWorkspace candidates={candidates} onMine={mineCandidates} onLabel={labelCandidate} onPromote={promoteCandidate} onCreateKnowledgeDraft={async (candidate, payload) => { await createEvaluationKnowledgeDraft(candidate.candidate_id, payload); setMessage('知识修订草稿已保存'); await loadCandidates(); }} onReviewKnowledgeDraft={async (candidate, status) => { await reviewEvaluationKnowledgeDraft(candidate.candidate_id, { status, comment: '前端审核知识修订' }); setMessage(status === 'approved' ? '知识修订已审核通过' : '知识修订已驳回'); await loadCandidates(); }} onPublishKnowledgeDraft={async (candidate) => { await publishEvaluationKnowledgeDraft(candidate.candidate_id); setMessage('知识修订已发布并进入索引'); await loadCandidates(); }} busy={busy} />
+          <CandidateWorkspace candidates={candidates} onMine={mineCandidates} onLabel={labelCandidate} onPromote={openPromotionDialog} busy={busy} />
         )}
       </div>
       {message && <div className="evaluation-status">{message}</div>}
+      {promotionCandidate && (
+        <PromotionCaseDialog
+          candidate={promotionCandidate}
+          datasetId={datasetId}
+          busy={busy}
+          onClose={() => setPromotionCandidate(null)}
+          onSubmit={(expected) => promoteCandidate(promotionCandidate, expected)}
+        />
+      )}
     </section>
   );
 }
 
-function DatasetCasesWorkspace({ cases, runs, onRunCase, onOpenRun, busy, runningCaseId }) {
+function DatasetCasesWorkspace({ cases, runs, onRunCase, onOpenRun, busy, runningCaseId, highlightedCaseId }) {
   const latestRuns = latestSingleRunsByCase(runs);
+  const [expandedCaseId, setExpandedCaseId] = useState(highlightedCaseId || '');
+  useEffect(() => {
+    if (!highlightedCaseId) return;
+    setExpandedCaseId(highlightedCaseId);
+    const row = document.getElementById(`dataset-case-${highlightedCaseId}`);
+    row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightedCaseId, cases]);
   return (
     <main className="dataset-case-workspace">
       <header className="dataset-case-heading">
@@ -249,7 +342,7 @@ function DatasetCasesWorkspace({ cases, runs, onRunCase, onOpenRun, busy, runnin
           const runState = singleRunState(latestRun);
           const running = runningCaseId === item.case_id;
           return (
-            <article key={item.case_id} className="dataset-case-row">
+            <article id={`dataset-case-${item.case_id}`} key={item.case_id} className={`dataset-case-row${item.case_id === highlightedCaseId ? ' is-newly-promoted' : ''}`}>
               <span className="dataset-case-index">{String(index + 1).padStart(3, '0')}</span>
               <div className="dataset-case-copy">
                 <strong>{item.query}</strong>
@@ -267,13 +360,34 @@ function DatasetCasesWorkspace({ cases, runs, onRunCase, onOpenRun, busy, runnin
                   <Play size={13} />{running ? '运行中…' : '单条运行'}
                 </button>
               </div>
-              <details className="dataset-case-reference">
-                <summary>查看样本基准</summary>
+              <details className="dataset-case-reference" open={expandedCaseId === item.case_id} onToggle={(event) => { if (event.currentTarget.open) setExpandedCaseId(item.case_id); else if (expandedCaseId === item.case_id) setExpandedCaseId(''); }}>
+                <summary>查看完整 Base Case</summary>
                 <div className="dataset-case-reference-grid">
-                  <div><span>Reference Answer</span><p>{item.reference_answer || '未配置'}</p></div>
-                  <div><span>期望关键词</span><p>{item.expected_answer_keywords?.length ? item.expected_answer_keywords.join(' · ') : '未配置'}</p></div>
-                  <div><span>期望文档</span><p>{item.expected_doc_ids?.length ? item.expected_doc_ids.join(' · ') : '未配置'}</p></div>
-                  <div><span>Case ID</span><p><code>{item.case_id}</code></p></div>
+                  <BaseCaseField label="Case ID" value={item.case_id} code />
+                  <BaseCaseField label="用例类型" value={item.case_type} />
+                  <BaseCaseField label="严重级别" value={item.severity} />
+                  <BaseCaseField label="启用状态" value={item.enabled ? '已启用' : '已停用'} />
+                  <BaseCaseField label="期望意图" value={item.expected_intent} />
+                  <BaseCaseField label="期望拒答" value={item.expected_refused == null ? '' : item.expected_refused ? '是' : '否'} />
+                  <BaseCaseField label="地区编码" value={item.region_code} code />
+                  <BaseCaseField label="政策版本" value={item.policy_version} />
+                  <BaseCaseField label="业务类型" value={item.biz_type} />
+                  <BaseCaseField label="申请编号" value={item.apply_id} code />
+                  <BaseCaseField label="期望文档 ID" value={item.expected_doc_ids} code />
+                  <BaseCaseField label="期望片段 ID" value={item.expected_chunk_ids} code />
+                  <BaseCaseField label="期望答案关键词" value={item.expected_answer_keywords} />
+                  <BaseCaseField label="标签" value={item.tags} />
+                  <BaseCaseField label="Reference Answer" value={item.reference_answer} wide />
+                  <BaseCaseField label="参考上下文" value={item.reference_contexts} wide />
+                  <BaseCaseField label="期望工具轨迹" value={item.expected_trajectory} json wide />
+                  <BaseCaseField label="期望业务结果" value={item.expected_outcome} json wide />
+                  <BaseCaseField label="多轮对话" value={item.turns} json wide />
+                  <BaseCaseField label="申请上下文" value={item.apply_context} json wide />
+                  <BaseCaseField label="Agent 检索 Query" value={item.agent_retrieval_queries} json wide />
+                  <BaseCaseField label="来源 Trace ID" value={item.source_trace_id} code />
+                  <BaseCaseField label="来源元数据" value={item.source_metadata} json wide />
+                  <BaseCaseField label="Fixture Key" value={item.fixture_key} code />
+                  <BaseCaseField label="创建时间" value={item.created_at} />
                 </div>
               </details>
             </article>
@@ -282,6 +396,26 @@ function DatasetCasesWorkspace({ cases, runs, onRunCase, onOpenRun, busy, runnin
         {!cases.length && <p className="hint">当前数据集没有可展示的样本。</p>}
       </section>
     </main>
+  );
+}
+
+function BaseCaseField({ label, value, code = false, json = false, wide = false }) {
+  const hasValue = Array.isArray(value)
+    ? value.length > 0
+    : value && typeof value === 'object'
+      ? Object.keys(value).length > 0
+      : value !== undefined && value !== null && String(value).trim() !== '';
+  let content = '未配置';
+  if (hasValue) {
+    if (json) content = JSON.stringify(value, null, 2);
+    else if (Array.isArray(value)) content = value.join(' · ');
+    else content = String(value);
+  }
+  return (
+    <div className={`base-case-field${wide ? ' is-wide' : ''}${!hasValue ? ' is-empty' : ''}`}>
+      <span>{label}</span>
+      {json ? <pre>{content}</pre> : <p>{code && hasValue ? <code>{content}</code> : content}</p>}
+    </div>
   );
 }
 
@@ -404,31 +538,162 @@ function EvaluationItem({ item, onRunCase, onAnnotate, busy, running, annotating
   );
 }
 
-function CandidateWorkspace({ candidates, onMine, onLabel, onPromote, onCreateKnowledgeDraft, onReviewKnowledgeDraft, onPublishKnowledgeDraft, busy }) {
-  const [drafts, setDrafts] = useState({});
-  const categories = ['retrieval_miss', 'knowledge_missing', 'hallucination', 'stale_policy'];
-  function draftFor(candidate) {
-    return drafts[candidate.candidate_id] || candidate.knowledge_draft || {};
+function CandidateWorkspace({ candidates, onMine, onLabel, onPromote, busy }) {
+  const [reviewCategories, setReviewCategories] = useState({});
+  function reviewCategoryFor(candidate) {
+    return reviewCategories[candidate.candidate_id] || candidate.attribution_category || 'unknown';
   }
   return (
     <main className="candidate-workspace">
       <div className="candidate-toolbar"><button onClick={onMine} disabled={busy}><Search size={14} />扫描线上失败</button></div>
-      {candidates.map((candidate) => (
-        <article key={candidate.candidate_id} className="candidate-row">
-          <div><strong>{candidate.sanitized_query || '无问题文本'}</strong><p>{candidate.sanitized_answer || '无回答文本'}</p></div>
-          <div className="candidate-facts"><span>{candidate.status}</span><span>{candidate.severity}</span><span>{candidate.source}</span><span>{candidate.attribution_category || 'unknown'}</span></div>
-          <div className="candidate-actions"><button onClick={() => onLabel(candidate)} disabled={candidate.status === 'promoted'}>审核标注</button><button onClick={() => onPromote(candidate)} disabled={candidate.status !== 'labeled'}>提升用例</button></div>
-          <div className="candidate-knowledge-actions">
-            <select value={draftFor(candidate).category || (categories.includes(candidate.attribution_category) ? candidate.attribution_category : 'knowledge_missing')} onChange={(event) => setDrafts((prev) => ({ ...prev, [candidate.candidate_id]: { ...draftFor(candidate), category: event.target.value } }))} aria-label="知识归因类型">
-              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-            <textarea rows="3" value={draftFor(candidate).content || ''} onChange={(event) => setDrafts((prev) => ({ ...prev, [candidate.candidate_id]: { ...draftFor(candidate), content: event.target.value } }))} placeholder="填写经核实的 FAQ 或政策内容" />
-            <div><button onClick={() => onCreateKnowledgeDraft(candidate, { category: draftFor(candidate).category || 'knowledge_missing', title: draftFor(candidate).title || `${candidate.sanitized_query || 'Badcase'} 知识修订`, content: draftFor(candidate).content || '', region_code: '340000', policy_version: '2025', change_note: 'Badcase 知识修订' })} disabled={!String(draftFor(candidate).content || '').trim()}>保存知识草稿</button><button onClick={() => onReviewKnowledgeDraft(candidate, 'approved')} disabled={draftFor(candidate).status !== 'draft'}>审核通过</button><button onClick={() => onReviewKnowledgeDraft(candidate, 'rejected')} disabled={draftFor(candidate).status !== 'draft'}>驳回</button><button onClick={() => onPublishKnowledgeDraft(candidate)} disabled={draftFor(candidate).status !== 'approved'}>发布知识</button></div>
-            {draftFor(candidate).status && <small>知识草稿：{draftFor(candidate).status}</small>}
-          </div>
-        </article>
-      ))}
+      {candidates.map((candidate) => {
+        const reviewCategory = reviewCategoryFor(candidate);
+        return (
+          <article key={candidate.candidate_id} className="candidate-row">
+            <div className="candidate-copy">
+              <strong>{candidate.sanitized_query || '无问题文本'}</strong>
+              <p>{candidate.sanitized_answer || '无回答文本'}</p>
+              {candidate.attribution_reason && <small>{candidate.attribution_reason}</small>}
+            </div>
+            <div className="candidate-facts">
+              <span>{candidate.status}</span><span>{candidate.severity}</span><span>{candidate.source}</span>
+              <span className="is-attribution">{attributionLabel(candidate.attribution_category)}</span>
+            </div>
+            <div className="candidate-actions">
+              <label className="candidate-attribution-select">
+                <span>根因归因</span>
+                <select
+                  value={reviewCategory}
+                  onChange={(event) => setReviewCategories((prev) => ({ ...prev, [candidate.candidate_id]: event.target.value }))}
+                  disabled={candidate.status === 'promoted' || busy}
+                  aria-label="根因归因"
+                >
+                  {ATTRIBUTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <button onClick={() => onLabel(candidate, reviewCategory)} disabled={candidate.status === 'promoted' || busy}>保存归因</button>
+              <button className="evaluation-run-case" onClick={() => onPromote(candidate)} disabled={candidate.status !== 'labeled' || busy}><ClipboardCheck size={14} />提升用例</button>
+            </div>
+          </article>
+        );
+      })}
       {!candidates.length && <p className="hint">暂无待处理失败样本</p>}
     </main>
+  );
+}
+
+function PromotionCaseDialog({ candidate, datasetId, busy, onClose, onSubmit }) {
+  const [form, setForm] = useState(() => promotionFormFromCandidate(candidate));
+  const [error, setError] = useState('');
+  const attributionCategory = candidate.attribution_category || 'unknown';
+
+  useEffect(() => {
+    setForm(promotionFormFromCandidate(candidate));
+    setError('');
+  }, [candidate.candidate_id]);
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape' && !busy) onClose();
+    }
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [busy, onClose]);
+
+  function update(name, value) {
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function parseObject(name, label) {
+    const raw = String(form[name] || '').trim();
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error(`${label}必须是 JSON 对象`);
+    return parsed;
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    try {
+      const expectedTrajectory = parseObject('expected_trajectory', '期望工具轨迹');
+      const expectedOutcome = parseObject('expected_outcome', '期望业务结果');
+      const expected = {
+        query: form.query.trim(),
+        expected_intent: form.expected_intent.trim(),
+        expected_refused: form.expected_refused === '' ? null : form.expected_refused === 'true',
+        expected_doc_ids: splitFormList(form.expected_doc_ids),
+        expected_chunk_ids: splitFormList(form.expected_chunk_ids),
+        expected_answer_keywords: splitFormList(form.expected_answer_keywords),
+        reference_answer: form.reference_answer.trim(),
+        reference_contexts: splitFormList(form.reference_contexts),
+        case_type: form.case_type,
+        expected_trajectory: expectedTrajectory,
+        expected_outcome: expectedOutcome,
+        tags: Array.from(new Set([...splitFormList(form.tags), attributionCategory])),
+        severity: form.severity,
+        source_metadata: {
+          candidate_id: candidate.candidate_id,
+          attribution_category: attributionCategory,
+        },
+      };
+      if (!expected.query) throw new Error('问题不能为空');
+      if (attributionCategory === 'intent_mismatch' && !expected.expected_intent) throw new Error('意图识别错误必须填写期望意图');
+      if (['retrieval_miss', 'knowledge_missing', 'stale_policy'].includes(attributionCategory)) {
+        if (!expected.expected_doc_ids.length && !expected.expected_chunk_ids.length) throw new Error('该归因至少需要一个期望文档 ID 或片段 ID');
+        if (!expected.reference_answer && !expected.expected_answer_keywords.length) throw new Error('该归因需要参考答案或期望答案关键词');
+      }
+      if (attributionCategory === 'hallucination' && !expected.reference_answer) throw new Error('事实幻觉用例必须填写经核实的参考答案');
+      if (['tool_error', 'slot_error'].includes(attributionCategory) && !Object.keys(expectedOutcome).length && !(expectedTrajectory.required_tools || []).length) {
+        throw new Error('该归因需要配置期望业务结果或必需工具');
+      }
+      setError('');
+      onSubmit(expected);
+    } catch (submitError) {
+      setError(submitError.message || '请检查表单内容');
+    }
+  }
+
+  return (
+    <div className="promotion-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section className="promotion-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-dialog-title">
+        <header>
+          <div><span>回归基准</span><h3 id="promotion-dialog-title">提升为 Base Case</h3></div>
+          <button className="icon-button" type="button" onClick={onClose} disabled={busy} title="关闭" aria-label="关闭"><X size={17} /></button>
+        </header>
+        <div className="promotion-dialog-context"><span>{attributionLabel(attributionCategory)}</span><code>{datasetId}</code></div>
+        <form onSubmit={submit}>
+          <fieldset>
+            <legend>基础预期</legend>
+            <div className="promotion-form-grid">
+              <label className="is-wide">问题<input value={form.query} onChange={(event) => update('query', event.target.value)} maxLength="1000" /></label>
+              <label>期望意图<input value={form.expected_intent} onChange={(event) => update('expected_intent', event.target.value)} placeholder="knowledge" maxLength="40" /></label>
+              <label>期望拒答<select value={form.expected_refused} onChange={(event) => update('expected_refused', event.target.value)}><option value="">不校验</option><option value="false">正常回答</option><option value="true">应当拒答</option></select></label>
+              <label>用例类型<select value={form.case_type} onChange={(event) => update('case_type', event.target.value)}><option value="agent">Agent</option><option value="rag">RAG</option><option value="multi_turn">多轮对话</option><option value="safety">安全拒答</option></select></label>
+              <label>严重级别<select value={form.severity} onChange={(event) => update('severity', event.target.value)}><option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="critical">严重</option></select></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>检索与答案基准</legend>
+            <div className="promotion-form-grid">
+              <label>期望文档 ID<textarea rows="3" value={form.expected_doc_ids} onChange={(event) => update('expected_doc_ids', event.target.value)} placeholder="doc-water-permit-guide" /></label>
+              <label>期望片段 ID<textarea rows="3" value={form.expected_chunk_ids} onChange={(event) => update('expected_chunk_ids', event.target.value)} placeholder="chunk-water-permit-materials" /></label>
+              <label>答案关键词<textarea rows="3" value={form.expected_answer_keywords} onChange={(event) => update('expected_answer_keywords', event.target.value)} placeholder="水资源论证报告&#10;取水许可申请书" /></label>
+              <label>参考上下文<textarea rows="3" value={form.reference_contexts} onChange={(event) => update('reference_contexts', event.target.value)} placeholder="每行一段已核实上下文" /></label>
+              <label className="is-wide">Reference Answer<textarea rows="4" value={form.reference_answer} onChange={(event) => update('reference_answer', event.target.value)} placeholder="填写经核实的标准答案" maxLength="20000" /></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Agent 行为基准</legend>
+            <div className="promotion-form-grid">
+              <label>期望工具轨迹<textarea className="is-code" rows="8" value={form.expected_trajectory} onChange={(event) => update('expected_trajectory', event.target.value)} spellCheck="false" /></label>
+              <label>期望业务结果<textarea className="is-code" rows="8" value={form.expected_outcome} onChange={(event) => update('expected_outcome', event.target.value)} spellCheck="false" /></label>
+              <label className="is-wide">标签<input value={form.tags} onChange={(event) => update('tags', event.target.value)} placeholder="water_permit, retrieval_miss" /></label>
+            </div>
+          </fieldset>
+          {error && <div className="promotion-form-error">{error}</div>}
+          <footer><button type="button" onClick={onClose} disabled={busy}>取消</button><button className="primary" type="submit" disabled={busy}><ClipboardCheck size={15} />{busy ? '正在提升…' : '创建回归用例'}</button></footer>
+        </form>
+      </section>
+    </div>
   );
 }

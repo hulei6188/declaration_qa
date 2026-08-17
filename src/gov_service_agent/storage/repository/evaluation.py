@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy import JSON, bindparam, text
 
+from gov_service_agent.application.evals.candidates import validate_promoted_case
 from gov_service_agent.storage.repository.base import EngineBackedRepository
 from gov_service_agent.storage.repository.normalizers import (
     normalize_eval_candidate,
@@ -761,6 +762,7 @@ class EvaluationRepository(EngineBackedRepository):
         return normalize_eval_candidate(row)
 
     def promote_eval_candidate(self, *, candidate_id: str, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:
+        validate_promoted_case(case)
         with self.engine.begin() as connection:
             promotable = connection.execute(
                 text(

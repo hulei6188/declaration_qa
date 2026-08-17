@@ -1020,6 +1020,10 @@ select {
   padding: 12px 4px;
   border-bottom: 1px solid var(--border-light);
 }
+.dataset-case-row.is-newly-promoted {
+  background: var(--accent-light);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 
 .dataset-case-index { color: var(--text-muted); font: 600 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .dataset-case-copy { min-width: 0; display: grid; gap: 6px; }
@@ -1044,6 +1048,22 @@ select {
 .dataset-case-reference-grid span { color: var(--text-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .dataset-case-reference-grid p { margin-top: 4px; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
 .dataset-case-reference-grid code { font-size: 11px; }
+.base-case-field.is-wide { grid-column: 1 / -1; }
+.base-case-field.is-empty p,
+.base-case-field.is-empty pre { color: var(--text-muted); }
+.base-case-field pre {
+  max-height: 220px;
+  margin-top: 5px;
+  padding: 9px 10px;
+  overflow: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
 
 .evaluation-run-list {
   min-width: 0;
@@ -1205,11 +1225,63 @@ select {
   .human-service-detail { padding: 18px 14px 28px; }
 }
 .candidate-toolbar { justify-content: flex-end; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.candidate-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
-.candidate-row p { margin-top: 4px; color: var(--text-secondary); }
-.candidate-facts { display: flex; gap: 5px; }
+.candidate-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 18px; padding: 16px 0; border-bottom: 1px solid var(--border-light); }
+.candidate-copy { min-width: 0; }
+.candidate-copy > strong { display: block; overflow-wrap: anywhere; }
+.candidate-copy p { margin-top: 4px; color: var(--text-secondary); }
+.candidate-copy small { display: block; margin-top: 5px; color: var(--text-muted); }
+.candidate-facts { display: flex; flex-wrap: wrap; gap: 5px; }
 .candidate-facts span { padding: 3px 6px; border-radius: 5px; background: var(--chip-bg); color: var(--text-tertiary); font-size: 11px; }
+.candidate-facts span.is-attribution { background: var(--accent-light); color: var(--accent); }
+.candidate-actions { grid-column: 2; grid-row: 1 / span 2; align-items: end; justify-content: flex-end; }
+.candidate-attribution-select { width: 174px; gap: 3px; }
+.candidate-attribution-select > span { font-size: 10px; }
+.candidate-attribution-select select { min-height: 34px; padding-block: 6px; }
 .evaluation-status { min-height: 34px; padding: 6px 20px; border-top: 1px solid var(--border-light); color: var(--text-secondary); }
+
+.promotion-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 12, 18, .58);
+}
+.promotion-dialog {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+.promotion-dialog > header {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-light);
+}
+.promotion-dialog > header span { color: var(--accent); font-size: 10px; font-weight: 800; }
+.promotion-dialog > header h3 { margin-top: 2px; font-size: 17px; }
+.promotion-dialog-context { display: flex; align-items: center; gap: 8px; padding: 9px 18px; background: var(--bg-alt); border-bottom: 1px solid var(--border-light); }
+.promotion-dialog-context span { padding: 2px 7px; border-radius: 5px; background: var(--accent-light); color: var(--accent); font-size: 11px; font-weight: 700; }
+.promotion-dialog-context code { color: var(--text-tertiary); font-size: 11px; }
+.promotion-dialog form { min-height: 0; overflow: auto; }
+.promotion-dialog fieldset { min-width: 0; display: grid; gap: 10px; margin: 0; padding: 14px 18px 16px; border: 0; border-bottom: 1px solid var(--border-light); }
+.promotion-dialog legend { padding-top: 12px; color: var(--text-secondary); font-size: 12px; font-weight: 800; }
+.promotion-form-grid { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 14px; }
+.promotion-form-grid .is-wide { grid-column: 1 / -1; }
+.promotion-form-grid textarea.is-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.promotion-form-error { margin: 12px 18px 0; padding: 8px 10px; border-radius: 5px; background: var(--danger-bg); color: var(--danger-text); font-size: 12px; }
+.promotion-dialog footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border-light); background: var(--bg); }
 
 @media (max-width: 900px) {
   .evaluation-content { grid-template-columns: 1fr; }
@@ -1220,6 +1292,7 @@ select {
   .dataset-case-actions { grid-column: 3; grid-row: 1 / span 2; }
   .dataset-case-reference { grid-column: 2 / -1; }
   .candidate-row { grid-template-columns: 1fr; }
+  .candidate-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; flex-wrap: wrap; }
 }
 
 @media (max-width: 600px) {
@@ -1265,6 +1338,11 @@ select {
   .evaluation-item-body { padding: 0 0 14px 28px; }
   .candidate-facts,
   .candidate-actions { flex-wrap: wrap; }
+  .candidate-attribution-select { width: min(100%, 220px); }
+  .promotion-dialog-backdrop { padding: 0; place-items: stretch; }
+  .promotion-dialog { width: 100%; max-height: 100vh; border-radius: 0; }
+  .promotion-form-grid { grid-template-columns: 1fr; }
+  .promotion-form-grid .is-wide { grid-column: 1; }
   .evaluation-status { padding-inline: 12px; }
 }
 

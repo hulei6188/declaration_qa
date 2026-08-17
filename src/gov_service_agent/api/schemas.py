@@ -413,6 +413,10 @@ class EvaluationCaseResponse(BaseModel):
     case_id: str
     dataset_id: str
     query: str
+    user_id: int = 1
+    region_code: str = "340000"
+    policy_version: str = "2025"
+    biz_type: str | None = None
     apply_id: str | None = None
     apply_context: dict[str, Any] | None = None
     expected_intent: str = ""

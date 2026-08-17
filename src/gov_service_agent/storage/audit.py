@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from gov_service_agent.application.evals.candidates import validate_promoted_case
 from gov_service_agent.storage.session_payloads import user_message_payload
 from gov_service_agent.storage.human_service import InMemoryHumanServiceStore
 
@@ -603,6 +604,7 @@ class InMemoryAuditStore:
         return dict(candidate)
 
     def promote_eval_candidate(self, *, candidate_id: str, dataset_id: str, case: dict[str, Any]) -> dict[str, Any]:
+        validate_promoted_case(case)
         candidate = self._eval_candidates.get(candidate_id)
         if not candidate or candidate.get("status") not in {"triaged", "labeled"}:
             raise ValueError("Evaluation candidate must be reviewed before promotion")
